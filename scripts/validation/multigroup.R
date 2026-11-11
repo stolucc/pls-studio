@@ -32,7 +32,11 @@ write(toJSON(
   list(
     lavaan = as.character(packageVersion("lavaan")), model = model,
     levels = lapply(fits, fm), partial = fm(partial),
-    lrt = list(chisqDiff = unname(lrt[["Chisq diff"]][-1]), dfDiff = unname(lrt[["Df diff"]][-1]), p = unname(lrt[["Pr(>Chisq)"]][-1])),
+    lrt = list(
+      chisqDiff = unname(lrt[["Chisq diff"]][-1]),
+      dfDiff = unname(lrt[["Df diff"]][-1]),
+      p = unname(lrt[["Pr(>Chisq)"]][-1])
+    ),
     latentMeansGroup2 = lapply(seq_len(nrow(means)), function(i) as.list(means[i, ])),
     loadingGroup2Configural = parameterEstimates(fits$configural)[with(parameterEstimates(fits$configural), lhs == "visual" & op == "=~" & rhs == "x2" & group == 2), "est"],
     topModindex = list(lhs = mi$lhs[1], op = mi$op[1], rhs = mi$rhs[1], mi = mi$mi[1]),

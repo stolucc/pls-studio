@@ -25,7 +25,12 @@ dg <- HolzingerSwineford1939[, c(paste0("x", 1:9), "school")]
 dg$x1[is.na(d$x1)] <- NA
 dg$x5[is.na(d$x5)] <- NA
 gimp <- mice(dg, m = 5, seed = 1, printFlag = FALSE)
-fg <- sem.mi("visual =~ x1 + x2 + x3\ntextual =~ x4 + x5 + x6\nspeed =~ x7 + x8 + x9", data = gimp, group = "school", group.equal = "loadings")
+fg <- sem.mi(
+  "visual =~ x1 + x2 + x3\ntextual =~ x4 + x5 + x6\nspeed =~ x7 + x8 + x9",
+  data = gimp,
+  group = "school",
+  group.equal = "loadings"
+)
 pg <- parameterEstimates.mi(fg)
 lg <- pg[pg$op == "=~" & pg$se > 0, ]
 s <- satisfaction[, c(paste0("expe", 1:3), paste0("qual", 1:3), paste0("sat", 1:3))]
@@ -38,16 +43,27 @@ P <- Reduce(`+`, lapply(1:5, function(k) csem(complete(simp, k), m, .PLS_modes =
 out <- list(
   mice = as.character(packageVersion("mice")), lavaan.mi = as.character(packageVersion("lavaan.mi")),
   cb = list(
-    loadings = setNames(as.list(ld$est), paste(ld$lhs, ld$rhs)), se = setNames(as.list(ld$se), paste(ld$lhs, ld$rhs)),
-    chisq = unname(fitMeasures(f)["chisq"]), cfi = unname(fitMeasures(f)["cfi"]), vcovDiag = as.list(diag(unclass(vcov(f)))),
-    hsMissing = list(x1 = which(is.na(d$x1)), x5 = which(is.na(d$x5))), firstImputedX1 = complete(imp, 1)$x1[which(is.na(d$x1))[1:5]]
+    loadings = setNames(as.list(ld$est), paste(ld$lhs, ld$rhs)),
+    se = setNames(as.list(ld$se), paste(ld$lhs, ld$rhs)),
+    chisq = unname(fitMeasures(f)["chisq"]),
+    cfi = unname(fitMeasures(f)["cfi"]),
+    vcovDiag = as.list(diag(unclass(vcov(f)))),
+    hsMissing = list(x1 = which(is.na(d$x1)), x5 = which(is.na(d$x5))),
+    firstImputedX1 = complete(imp, 1)$x1[which(is.na(d$x1))[1:5]]
   ),
   groups = list(
-    labels = lavInspect(fg, "group.label"), loadings = lapply(split(lg, lg$group), function(x) setNames(as.list(x$est), paste(x$lhs, x$rhs))),
-    se = lapply(split(lg, lg$group), function(x) setNames(as.list(x$se), paste(x$lhs, x$rhs))), chisq = unname(fitMeasures(fg)["chisq"]), df = unname(fitMeasures(fg)["df"])
+    labels = lavInspect(fg, "group.label"),
+    loadings = lapply(split(lg, lg$group), function(x) setNames(as.list(x$est), paste(x$lhs, x$rhs))),
+    se = lapply(split(lg, lg$group), function(x) setNames(as.list(x$se), paste(x$lhs, x$rhs))),
+    chisq = unname(fitMeasures(fg)["chisq"]),
+    df = unname(fitMeasures(fg)["df"])
   ),
   pls = list(
-    paths = list(`EXPE -> QUAL` = P["QUAL", "EXPE"], `EXPE -> SAT` = P["SAT", "EXPE"], `QUAL -> SAT` = P["SAT", "QUAL"]),
+    paths = list(
+      `EXPE -> QUAL` = P["QUAL", "EXPE"],
+      `EXPE -> SAT` = P["SAT", "EXPE"],
+      `QUAL -> SAT` = P["SAT", "QUAL"]
+    ),
     satMissing = list(expe1 = which(is.na(s$expe1)), qual2 = which(is.na(s$qual2)))
   )
 )

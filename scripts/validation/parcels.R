@@ -29,7 +29,10 @@ cc <- d[complete.cases(d[unlist(items)]), ]
 pd <- cc
 for (f in F) for (p in seq_len(k)) pd[[sprintf("%s_P%d", f, p)]] <- rowMeans(cc[, as.character(bal[[f]]$parcels[[p]]), drop = FALSE])
 mi <- paste(sapply(F, function(f) paste(f, "=~", paste(items[[f]], collapse = " + "))), collapse = "\n")
-mp <- paste(sapply(F, function(f) paste(f, "=~", paste(sprintf("%s_P%d", f, seq_len(k)), collapse = " + "))), collapse = "\n")
+mp <- paste(
+  sapply(F, function(f) paste(f, "=~", paste(sprintf("%s_P%d", f, seq_len(k)), collapse = " + "))),
+  collapse = "\n"
+)
 fi <- cfa(mi, cc)
 fp <- cfa(mp, pd)
 fm <- function(fit) c(as.list(fitMeasures(fit, c("chisq", "df", "cfi", "tli", "rmsea", "srmr"))), proper = lavInspect(fit, "post.check"))
@@ -50,7 +53,10 @@ pa <- suppressWarnings(suppressMessages(parcelAllocation(
 fs <- as.data.frame(pa$Fit)
 out <- list(
   n = nrow(cc), reversed = reversed, items = items, balance = bal, itemFit = fm(fi), fit = fm(fp),
-  covariances = lapply(seq_len(nrow(covs)), function(i) list(lhs = covs$lhs[i], rhs = covs$rhs[i], std = covs$est.std[i])),
+  covariances = lapply(
+    seq_len(nrow(covs)),
+    function(i) list(lhs = covs$lhs[i], rhs = covs$rhs[i], std = covs$est.std[i])
+  ),
   balance2 = bal2, allocation2 = lapply(split(fs, rownames(fs)), function(r) as.list(r[c("Avg", "SD", "Min", "Max")]))
 )
 write_json(out, "src/engine/__fixtures__/parcels/reference.json", auto_unbox = TRUE, digits = 10, pretty = TRUE)

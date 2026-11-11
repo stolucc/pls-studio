@@ -33,13 +33,24 @@ pe_lavaan <- parameterEstimates(f_lavaan)
 pick <- function(op) {
   r <- pe[pe$op == op, ]
   l <- pe_lavaan[pe_lavaan$op == op, ]
-  lapply(seq_len(nrow(r)), function(i) list(lhs = r$lhs[i], op = op, rhs = r$rhs[i], est = r$est[i], se = r$se[i], std = r$std.all[i], stdSe = standardizedSolution(f)$se[standardizedSolution(f)$op == op][i], lavaanSe = l$se[i]))
+  lapply(
+    seq_len(nrow(r)),
+    function(i) list(lhs = r$lhs[i], op = op, rhs = r$rhs[i], est = r$est[i], se = r$se[i], std = r$std.all[i], stdSe = standardizedSolution(f)$se[standardizedSolution(f)$op == op][i], lavaanSe = l$se[i])
+  )
 }
-fm <- fitMeasures(f, c("chisq", "df", "chisq.scaled", "df.scaled", "pvalue.scaled", "cfi.scaled", "tli.scaled", "rmsea.scaled", "srmr"))
+fm <- fitMeasures(
+  f,
+  c("chisq", "df", "chisq.scaled", "df.scaled", "pvalue.scaled", "cfi.scaled", "tli.scaled", "rmsea.scaled", "srmr")
+)
 write(
   toJSON(list(
-    lavaan = as.character(packageVersion("lavaan")), model = model, se = "Mplus (information.bread = \"expected\", vcov x (N - 1) / N)", fit = as.list(fm),
-    loadings = pick("=~"), regressions = pick("~"), thresholds = pick("|")
+    lavaan = as.character(packageVersion("lavaan")),
+    model = model,
+    se = "Mplus (information.bread = \"expected\", vcov x (N - 1) / N)",
+    fit = as.list(fm),
+    loadings = pick("=~"),
+    regressions = pick("~"),
+    thresholds = pick("|")
   ), auto_unbox = TRUE, digits = NA, pretty = TRUE),
   file.path(root, "hs_wlsmv.json")
 )
@@ -70,8 +81,16 @@ write(
   toJSON(list(
     lavaan = as.character(packageVersion("lavaan")), model = lab,
     fit = as.list(fitMeasures(h, c("chisq", "df"))),
-    labelled = lapply(which(nzchar(pe$label) & pe$op != ":="), function(i) list(lhs = pe$lhs[i], op = pe$op[i], rhs = pe$rhs[i], label = pe$label[i], est = pe$est[i], se = pe$se[i])),
-    defined = list(name = "ab", est = pe$est[pe$op == ":="], se = pe$se[pe$op == ":="], std = pe$std.all[pe$op == ":="]),
+    labelled = lapply(
+      which(nzchar(pe$label) & pe$op != ":="),
+      function(i) list(lhs = pe$lhs[i], op = pe$op[i], rhs = pe$rhs[i], label = pe$label[i], est = pe$est[i], se = pe$se[i])
+    ),
+    defined = list(
+      name = "ab",
+      est = pe$est[pe$op == ":="],
+      se = pe$se[pe$op == ":="],
+      std = pe$std.all[pe$op == ":="]
+    ),
     wald = list(stat = unname(w$stat), df = unname(w$df), p = unname(w$p.value))
   ), auto_unbox = TRUE, digits = NA, pretty = TRUE),
   file.path(root, "hs_constraints.json")

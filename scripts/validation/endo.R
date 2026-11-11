@@ -27,7 +27,12 @@ for (n in c("dataCopCont2", "dataHetIV", "dataHigherMoments", "dataLatentIV")) {
 
 data(dataCopCont2, package = "REndo")
 set.seed(1)
-cc <- copulaCorrection(y ~ X1 + X2 + P1 + P2 | continuous(P1, P2), data = dataCopCont2, num.boots = 200, verbose = FALSE)
+cc <- copulaCorrection(
+  y ~ X1 + X2 + P1 + P2 | continuous(P1, P2),
+  data = dataCopCont2,
+  num.boots = 200,
+  verbose = FALSE
+)
 out$copula <- list(
   coef = as.list(coef(cc)), bootSd = as.list(apply(cc$boots.params, 1, sd)),
   summary = lapply(seq_len(nrow(coef(summary(cc)))), function(i) {
@@ -39,7 +44,11 @@ data(dataHetIV, package = "REndo")
 het <- hetErrorsIV(y ~ X1 + X2 + P | P | IIV(X1, X2), data = dataHetIV, verbose = FALSE)
 out$het <- list(coef = tab(coef(summary(het))), diagnostics = unclass(summary(het)$diagnostics))
 data(dataHigherMoments, package = "REndo")
-hm <- higherMomentsIV(y ~ X1 + X2 + P | P | IIV(iiv = gp, g = x2, X1, X2) + IIV(iiv = yp), data = dataHigherMoments, verbose = FALSE)
+hm <- higherMomentsIV(
+  y ~ X1 + X2 + P | P | IIV(iiv = gp, g = x2, X1, X2) + IIV(iiv = yp),
+  data = dataHigherMoments,
+  verbose = FALSE
+)
 out$hm <- list(coef = tab(coef(summary(hm))))
 data(dataLatentIV, package = "REndo")
 liv <- latentIV(y ~ P, data = dataLatentIV, verbose = FALSE)
@@ -53,7 +62,13 @@ out$liv <- list(
 data(Kmenta, package = "ivreg")
 iv <- ivreg(Q ~ P + D | D + F + A, data = Kmenta)
 s <- summary(iv, diagnostics = TRUE)
-out$iv <- list(coef = tab(coef(s)), diagnostics = lapply(seq_len(nrow(s$diagnostics)), function(i) list(test = rownames(s$diagnostics)[i], stat = s$diagnostics[i, 3], p = s$diagnostics[i, 4])))
+out$iv <- list(
+  coef = tab(coef(s)),
+  diagnostics = lapply(
+    seq_len(nrow(s$diagnostics)),
+    function(i) list(test = rownames(s$diagnostics)[i], stat = s$diagnostics[i, 3], p = s$diagnostics[i, 4])
+  )
+)
 data(Mroz87, package = "sampleSelection")
 for (m in "2step") { # (ML without the squared terms runs into the boundary: rho near 1)
   h <- selection(lfp ~ age + faminc + kids5 + educ, wage ~ exper + educ + city, data = Mroz87, method = m)

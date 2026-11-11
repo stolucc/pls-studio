@@ -50,7 +50,13 @@ mediators <- function(model) {
   if (model %in% moderation) {
     return(character())
   }
-  k <- if (model %in% serial || model %in% 80:81) 3 else if (model == 82) 4 else 2
+  k <- if (model %in% serial || model %in% 80:81) {
+    3
+  } else if (model == 82) {
+    4
+  } else {
+    2
+  }
   paste0("m", seq_len(k))
 }
 
@@ -69,7 +75,9 @@ table_after <- function(lines, start) {
   while (i <= length(lines) && nzchar(trimws(lines[i]))) {
     w <- words(lines[i])
     # A wrapped table continues with its remaining columns: rows of another width.
-    if (length(w) < 2 || identical(w, header) || (length(rows) && length(w) != length(rows[[1]]))) break
+    if (length(w) < 2 || identical(w, header) || (length(rows) && length(w) != length(rows[[1]]))) {
+      break
+    }
     rows[[length(rows) + 1]] <- w
     i <- i + 1
   }
@@ -77,7 +85,15 @@ table_after <- function(lines, start) {
 }
 
 parse_output <- function(out) {
-  res <- list(equations = list(), se = list(), summary = list(), interactions = list(), direct = NULL, indirect = list(), indices = list())
+  res <- list(
+    equations = list(),
+    se = list(),
+    summary = list(),
+    interactions = list(),
+    direct = NULL,
+    indirect = list(),
+    indices = list()
+  )
   starts <- grep("^Outcome Variable:", out)
   for (s in starts) {
     outcome <- trimws(sub("^Outcome Variable:", "", out[s]))
@@ -127,10 +143,15 @@ parse_output <- function(out) {
   if (length(cd)) {
     tab <- table_after(out, cd[1])
     nm <- which(tab$header == "effect") - 1
-    res$direct <- lapply(tab$rows, function(r) list(at = as.list(setNames(as.numeric(r[seq_len(nm)]), tab$header[seq_len(nm)])), effect = as.numeric(r[nm + 1]), se = as.numeric(r[nm + 2])))
+    res$direct <- lapply(
+      tab$rows,
+      function(r) list(at = as.list(setNames(as.numeric(r[seq_len(nm)]), tab$header[seq_len(nm)])), effect = as.numeric(r[nm + 1]), se = as.numeric(r[nm + 2]))
+    )
   }
   dd <- grep("^Direct effect of X on Y:", out)
-  if (length(dd)) res$direct <- list(list(at = setNames(list(), character()), effect = num(out[dd[1] + 2])[1]))
+  if (length(dd)) {
+    res$direct <- list(list(at = setNames(list(), character()), effect = num(out[dd[1] + 2])[1]))
+  }
   # Unmoderated indirect effects: a table of Ind1, Ind2, ... and a key of their paths.
   ui <- grep("^Indirect effect\\(s\\) of X on Y:", out)
   if (length(ui)) {
@@ -138,7 +159,10 @@ parse_output <- function(out) {
     eff <- setNames(vapply(tab$rows, function(r) as.numeric(r[2]), 0), vapply(tab$rows, `[`, "", 1))
     if (length(eff) == 1) {
       # One mediator: PROCESS prints the single indirect effect under the mediator's name.
-      res$indirect[[1]] <- list(path = c("x", names(eff), "y"), effects = list(list(at = setNames(list(), character()), effect = unname(eff))))
+      res$indirect[[1]] <- list(
+        path = c("x", names(eff), "y"),
+        effects = list(list(at = setNames(list(), character()), effect = unname(eff)))
+      )
     }
     named <- setdiff(names(eff), c("TOTAL", grep("^Ind[0-9]+$", names(eff), value = TRUE)))
     if (length(eff) > 1) {
@@ -158,7 +182,10 @@ parse_output <- function(out) {
     nm <- which(tab$header == "Effect") - 1
     res$indirect[[length(res$indirect) + 1]] <- list(
       path = path,
-      effects = lapply(tab$rows, function(r) list(at = as.list(setNames(as.numeric(r[seq_len(nm)]), tab$header[seq_len(nm)])), effect = as.numeric(r[nm + 1])))
+      effects = lapply(
+        tab$rows,
+        function(r) list(at = as.list(setNames(as.numeric(r[seq_len(nm)]), tab$header[seq_len(nm)])), effect = as.numeric(r[nm + 1]))
+      )
     )
     # Index rows directly below the table belong to this indirect effect.
     j <- s + 4 + length(tab$rows)
@@ -197,7 +224,9 @@ run_model <- function(model, hc = 5) {
     cov = "c1", model = number, xmint = as.numeric(model == 74), xrefval = if (model == 74) c(0, 1) else 999,
     hc = hc, boot = 1000, seed = 1, decimals = 12.8, progress = 0
   ))
-  if (any(grepl("^ERROR", out))) stop(sprintf("model %d: %s", model, paste(grep("^ERROR", out, value = TRUE), collapse = "; ")))
+  if (any(grepl("^ERROR", out))) {
+    stop(sprintf("model %d: %s", model, paste(grep("^ERROR", out, value = TRUE), collapse = "; ")))
+  }
   c(list(
     model = model, mediators = ms, w = uses_w, z = uses_z, hc = if (hc == 5) "none" else paste0("HC", hc),
     conditioning = "percentiles 16/50/84"

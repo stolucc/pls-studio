@@ -47,7 +47,10 @@ run <- function(model, seed, ..., data = d) {
   lv <- summary(fit, fit = FALSE)$levels
   list(
     seed = seed,
-    est = lapply(seq_len(nrow(pe)), function(i) list(lhs = pe$lhs[i], op = pe$op[i], rhs = pe$rhs[i], level = pe$level[i], est = num(pe$est[i]), se = num(pe$se[i]))),
+    est = lapply(
+      seq_len(nrow(pe)),
+      function(i) list(lhs = pe$lhs[i], op = pe$op[i], rhs = pe$rhs[i], level = pe$level[i], est = num(pe$est[i]), se = num(pe$se[i]))
+    ),
     r2 = lapply(lv, function(l) as.list(l$r2.etas)), r2Indicators = lapply(lv, function(l) as.list(l$r2.inds)),
     icc = as.list(fit@params$icc), rsd = as.list(fit@params$rsd),
     fit = lapply(fm, function(f) lapply(f, num)), iterations = fit@status$iterations
@@ -68,10 +71,17 @@ out <- list(
 # (listing the cluster column as well, as the vignette does, changes nothing)
 set.seed(1)
 asVignette <- parameter_estimates(pls(two_level_model, data = randomSlopesOrdered, cluster = "cluster", ordered = colnames(randomSlopesOrdered), verbose = FALSE))
-cat("ordinal model, as the vignette calls it vs the reference:", max(abs(asVignette$est - vapply(out$twoLevelOrdered$est, `[[`, 0, "est"))), "\n")
+cat(
+  "ordinal model, as the vignette calls it vs the reference:",
+  max(abs(asVignette$est - vapply(out$twoLevelOrdered$est, `[[`, 0, "est"))),
+  "\n"
+)
 # (the seed matters: another seed moves the estimates by about 0.005)
 set.seed(2)
 other <- parameter_estimates(pls(two_level_model, data = d, cluster = "cluster", verbose = FALSE))
 cat("largest change with seed 2 instead of 1:", max(abs(other$est - vapply(out$twoLevel$est, `[[`, 0, "est"))), "\n")
-write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, na = "null"), "src/engine/__fixtures__/plssem/multilevel.json")
+write(
+  toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, na = "null"),
+  "src/engine/__fixtures__/plssem/multilevel.json"
+)
 cat("written\n")

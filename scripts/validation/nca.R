@@ -14,9 +14,16 @@ m <- nca_analysis(nca.example, c(1, 2), 3, ceilings = c("ce_fdh", "cr_fdh"), tes
 out <- list(version = as.character(packageVersion("NCA")), conditions = lapply(1:2, function(j) {
   p <- m$summaries[[j]]$params
   list(
-    x = names(nca.example)[j], ce = p["Effect size", "ce_fdh"], cr = p["Effect size", "cr_fdh"], pce = p["p-value", "ce_fdh"], pcr = p["p-value", "cr_fdh"],
-    accuracy = p["c-accuracy", "cr_fdh"], slope = p["Slope", "cr_fdh"], intercept = p["Intercept", "cr_fdh"],
-    bottleneckCr = as.character(m$bottlenecks$cr_fdh[[j + 1]]), bottleneckCe = as.character(m$bottlenecks$ce_fdh[[j + 1]])
+    x = names(nca.example)[j],
+    ce = p["Effect size", "ce_fdh"],
+    cr = p["Effect size", "cr_fdh"],
+    pce = p["p-value", "ce_fdh"],
+    pcr = p["p-value", "cr_fdh"],
+    accuracy = p["c-accuracy", "cr_fdh"],
+    slope = p["Slope", "cr_fdh"],
+    intercept = p["Intercept", "cr_fdh"],
+    bottleneckCr = as.character(m$bottlenecks$cr_fdh[[j + 1]]),
+    bottleneckCe = as.character(m$bottlenecks$ce_fdh[[j + 1]])
   )
 }))
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/nca/reference.json")

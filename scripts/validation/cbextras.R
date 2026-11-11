@@ -13,5 +13,8 @@ out <- list(
   versions = list(lavaan = as.character(packageVersion("lavaan")), R = R.version.string),
   bollenStine = list(chisq = t$stat, df = t$df, p = t$pvalue)
 )
-writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/cbextras/reference.json")
+writeLines(
+  toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE),
+  "src/engine/__fixtures__/cbextras/reference.json"
+)
 print(out$bollenStine)

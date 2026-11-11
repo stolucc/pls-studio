@@ -32,12 +32,24 @@ record <- function(eqs, extras = list(), data, std = "latent.linear") {
   rounded <- coefs(model, standardize.type = std)
   r2 <- rsquared(model)
   list(
-    claims = lapply(seq_len(nrow(d)), function(i) list(claim = as.character(d$Independ.Claim[i]), df = d$DF[i], stat = d$Crit.Value[i], p = d$P.Value[i])),
-    fisherC = -2 * sum(log(d$P.Value)), fisherRounded = as.list(fisherC(model)), aic = sum(sapply(eqs, AIC)), aicc = sum(sapply(eqs, MuMIn::AICc)),
+    claims = lapply(
+      seq_len(nrow(d)),
+      function(i) list(claim = as.character(d$Independ.Claim[i]), df = d$DF[i], stat = d$Crit.Value[i], p = d$P.Value[i])
+    ),
+    fisherC = -2 * sum(log(d$P.Value)),
+    fisherRounded = as.list(fisherC(model)),
+    aic = sum(sapply(eqs, AIC)),
+    aicc = sum(sapply(eqs, MuMIn::AICc)),
     aicRounded = as.list(s$AIC), coefs = lapply(seq_len(nrow(cf)), function(i) {
       list(
-        response = as.character(cf$Response[i]), predictor = as.character(cf$Predictor[i]),
-        est = cf$Estimate[i], se = cf$Std.Error[i], df = cf$DF[i], stat = cf$Crit.Value[i], p = cf$P.Value[i], std = suppressWarnings(as.numeric(cf$Std.Estimate[i])),
+        response = as.character(cf$Response[i]),
+        predictor = as.character(cf$Predictor[i]),
+        est = cf$Estimate[i],
+        se = cf$Std.Error[i],
+        df = cf$DF[i],
+        stat = cf$Crit.Value[i],
+        p = cf$P.Value[i],
+        std = suppressWarnings(as.numeric(cf$Std.Estimate[i])),
         stdRounded = suppressWarnings(as.numeric(rounded$Std.Estimate[i]))
       )
     }),
@@ -48,7 +60,10 @@ record <- function(eqs, extras = list(), data, std = "latent.linear") {
 ref <- list(
   piecewiseSEM = as.character(packageVersion("piecewiseSEM")), lme4 = as.character(packageVersion("lme4")),
   # ?psem: the help page's model
-  keeley = record(list(lm(rich ~ cover, data = keeley), lm(cover ~ firesev, data = keeley), lm(firesev ~ age, data = keeley)), data = keeley),
+  keeley = record(
+    list(lm(rich ~ cover, data = keeley), lm(cover ~ firesev, data = keeley), lm(firesev ~ age, data = keeley)),
+    data = keeley
+  ),
   # A Poisson count (species richness; standardised by the observation-empirical approach), a variable in no path and a correlated error
   poisson = record(list(lm(firesev ~ age, data = keeley), lm(cover ~ firesev, data = keeley), glm(rich ~ cover + distance, family = poisson(link = "log"), data = keeley)),
     list(hetero ~ 1, cover %~~% hetero),
@@ -56,13 +71,35 @@ ref <- list(
   ),
   # ?shipley's path model with a random intercept per site (lmer, and glmer for survival)
   shipley = record(list(
-    lmer(DD ~ lat + (1 | site), data = sh), lmer(Date ~ DD + (1 | site), data = sh), lmer(Growth ~ Date + (1 | site), data = sh),
+    lmer(DD ~ lat + (1 | site), data = sh),
+    lmer(Date ~ DD + (1 | site), data = sh),
+    lmer(Growth ~ Date + (1 | site), data = sh),
     glmer(Live ~ Growth + (1 | site), family = binomial(link = "logit"), data = sh)
   ), data = sh),
   # The same without random effects (glm for survival): the latent-theoretic and observation-empirical standardisations
-  binomialLT = record(list(lm(DD ~ lat, data = sh0), lm(Date ~ DD, data = sh0), lm(Growth ~ Date, data = sh0), glm(Live ~ Growth, family = binomial(link = "logit"), data = sh0)), data = sh0),
-  binomialOE = record(list(lm(DD ~ lat, data = sh0), lm(Date ~ DD, data = sh0), lm(Growth ~ Date, data = sh0), glm(Live ~ Growth, family = binomial(link = "logit"), data = sh0)), data = sh0, std = "Menard.OE")
+  binomialLT = record(
+    list(
+      lm(DD ~ lat, data = sh0),
+      lm(Date ~ DD, data = sh0),
+      lm(Growth ~ Date, data = sh0),
+      glm(Live ~ Growth, family = binomial(link = "logit"), data = sh0)
+    ),
+    data = sh0
+  ),
+  binomialOE = record(
+    list(
+      lm(DD ~ lat, data = sh0),
+      lm(Date ~ DD, data = sh0),
+      lm(Growth ~ Date, data = sh0),
+      glm(Live ~ Growth, family = binomial(link = "logit"), data = sh0)
+    ),
+    data = sh0,
+    std = "Menard.OE"
+  )
 )
 dir.create("src/engine/__fixtures__/psem", showWarnings = FALSE)
-write(toJSON(ref, auto_unbox = TRUE, digits = NA, pretty = TRUE, na = "null"), "src/engine/__fixtures__/psem/reference.json")
+write(
+  toJSON(ref, auto_unbox = TRUE, digits = NA, pretty = TRUE, na = "null"),
+  "src/engine/__fixtures__/psem/reference.json"
+)
 cat("written\n")

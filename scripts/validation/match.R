@@ -17,9 +17,19 @@ f <- treat ~ age + educ + race + married + nodegree + re74 + re75
 one <- function(m, vc, att = TRUE) {
   md <- match.data(m)
   fit <- lm(re78 ~ treat, data = md, weights = weights)
-  ac <- avg_comparisons(fit, variables = "treat", vcov = vc, newdata = if (att) subset(md, treat == 1) else md, wts = "weights")
+  ac <- avg_comparisons(
+    fit,
+    variables = "treat",
+    vcov = vc,
+    newdata = if (att) subset(md, treat == 1) else md,
+    wts = "weights"
+  )
   b <- bal.tab(m, un = TRUE, stats = c("mean.diffs", "variance.ratios"), binary = "std", continuous = "std")$Balance
-  list(nn = unname(summary(m)$nn[, 2]), diffAfter = setNames(as.list(b$Diff.Adj), rownames(b)), effect = list(est = ac$estimate, se = ac$std.error))
+  list(
+    nn = unname(summary(m)$nn[, 2]),
+    diffAfter = setNames(as.list(b$Diff.Adj), rownames(b)),
+    effect = list(est = ac$estimate, se = ac$std.error)
+  )
 }
 set.seed(1)
 out <- list(

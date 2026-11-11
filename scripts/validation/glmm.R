@@ -34,17 +34,41 @@ d <- DF[, c("id", "time", "female", "nb", "y")]
 write.csv(d, "src/engine/__fixtures__/glmm/zinb.csv", row.names = FALSE)
 ctl <- list(tol1 = 1e-8, tol2 = 1e-8, tol3 = 1e-12)
 fits <- list(
-  negbin = mixed_model(fixed = nb ~ female + time, random = ~ 1 | id, data = d, family = negative.binomial(), nAGQ = 11, control = ctl),
-  zinb = mixed_model(fixed = y ~ female + time, random = ~ 1 | id, data = d, family = zi.negative.binomial(), zi_fixed = ~female, nAGQ = 11, control = ctl)
+  negbin = mixed_model(
+    fixed = nb ~ female + time,
+    random = ~ 1 | id,
+    data = d,
+    family = negative.binomial(),
+    nAGQ = 11,
+    control = ctl
+  ),
+  zinb = mixed_model(
+    fixed = y ~ female + time,
+    random = ~ 1 | id,
+    data = d,
+    family = zi.negative.binomial(),
+    zi_fixed = ~female,
+    nAGQ = 11,
+    control = ctl
+  )
 )
 tab <- function(s) lapply(seq_len(nrow(s)), function(i) list(term = rownames(s)[i], est = s[i, 1], se = s[i, 2]))
 out <- lapply(fits, function(f) {
   s <- summary(f)
   list(
-    fixed = tab(s$coef_table), zero = if (!is.null(s$coef_table_zi)) tab(s$coef_table_zi) else NULL,
-    D = f$D[1, 1], logPhi = unname(f$phis), logLik = as.numeric(logLik(f)), aic = AIC(f), bic = BIC(f), converged = f$converged
+    fixed = tab(s$coef_table),
+    zero = if (!is.null(s$coef_table_zi)) tab(s$coef_table_zi) else NULL,
+    D = f$D[1, 1],
+    logPhi = unname(f$phis),
+    logLik = as.numeric(logLik(f)),
+    aic = AIC(f),
+    bic = BIC(f),
+    converged = f$converged
   )
 })
 out$versions <- list(R = R.version.string, GLMMadaptive = as.character(packageVersion("GLMMadaptive")))
-writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null"), "src/engine/__fixtures__/glmm/reference.json")
+writeLines(
+  toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null"),
+  "src/engine/__fixtures__/glmm/reference.json"
+)
 cat("written\n")

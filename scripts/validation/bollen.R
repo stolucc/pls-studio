@@ -14,14 +14,29 @@ fit_ml <- function(model, data) {
   pe <- parameterEstimates(f, standardized = TRUE)
   keep <- pe$op %in% c("=~", "~", "~~")
   list(
-    n = lavInspect(f, "nobs"), chisq = unname(fitMeasures(f, "chisq")), df = unname(fitMeasures(f, "df")), pvalue = unname(fitMeasures(f, "pvalue")), cfi = unname(fitMeasures(f, "cfi")), tli = unname(fitMeasures(f, "tli")), rmsea = unname(fitMeasures(f, "rmsea")),
-    estimates = lapply(which(keep), function(i) list(lhs = pe$lhs[i], op = pe$op[i], rhs = pe$rhs[i], est = pe$est[i], se = pe$se[i], std = pe$std.all[i]))
+    n = lavInspect(f, "nobs"),
+    chisq = unname(fitMeasures(f, "chisq")),
+    df = unname(fitMeasures(f, "df")),
+    pvalue = unname(fitMeasures(f, "pvalue")),
+    cfi = unname(fitMeasures(f, "cfi")),
+    tli = unname(fitMeasures(f, "tli")),
+    rmsea = unname(fitMeasures(f, "rmsea")),
+    estimates = lapply(
+      which(keep),
+      function(i) list(lhs = pe$lhs[i], op = pe$op[i], rhs = pe$rhs[i], est = pe$est[i], se = pe$se[i], std = pe$std.all[i])
+    )
   )
 }
 fit_miiv <- function(model, data) {
   m <- MIIVsem::miive(model, data = data, var.cov = TRUE)
   co <- m$coefficients
-  list(coefficients = lapply(names(co), function(k) list(name = k, est = unname(co[k]))), eqn = lapply(m$eqn, function(e) list(DVobs = e$DVobs, sargan = e$sargan, sargan.df = e$sargan.df, sargan.p = e$sargan.p)))
+  list(
+    coefficients = lapply(names(co), function(k) list(name = k, est = unname(co[k]))),
+    eqn = lapply(
+      m$eqn,
+      function(e) list(DVobs = e$DVobs, sargan = e$sargan, sargan.df = e$sargan.df, sargan.p = e$sargan.p)
+    )
+  )
 }
 out <- list()
 m <- "unionsen ~ deferenc + laboract + yrsmill\ndeferenc ~ age\nlaboract ~ age + deferenc\nyrsmill ~~ age"
@@ -33,7 +48,11 @@ m <- "acad ~ gpa + attract\nattract ~ height + weight + rating + acad"
 out$felson <- list(ml = fit_ml(m, felson1979), miiv = fit_miiv(m, felson1979))
 m <- "controllability =~ Z2 + Z3 + Z4\nsympathy =~ Z5 + Z6 + Z7\nanger =~ Z8 + Z9 + Z10\nhelping =~ Z11 + Z12 + Z13\ncontrollability ~ Z1\nsympathy ~ controllability\nanger ~ controllability\nhelping ~ sympathy + anger"
 out$reisenzein <- list(ml = fit_ml(m, reisenzein1986), miiv = fit_miiv(m, reisenzein1986))
-out$versions <- list(R = R.version.string, lavaan = as.character(packageVersion("lavaan")), MIIVsem = as.character(packageVersion("MIIVsem")))
+out$versions <- list(
+  R = R.version.string,
+  lavaan = as.character(packageVersion("lavaan")),
+  MIIVsem = as.character(packageVersion("MIIVsem"))
+)
 dir.create("src/engine/__fixtures__/textbook", showWarnings = FALSE)
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/textbook/bollen.json")
 for (k in setdiff(names(out), c("versions", "accessibility"))) {

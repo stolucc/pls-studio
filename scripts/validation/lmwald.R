@@ -54,8 +54,12 @@ repeat {
   last <- min(w)
 }
 out <- list(
-  versions = list(lavaan = as.character(packageVersion("lavaan")), R = R.version.string), lm = lm, lmCandidates = length(pool),
-  lavaanCumulative = list(parameters = paste(cumul$lhs, cumul$rhs), chisq = cumul$X2, df = cumul$df), wald = wd, waldCandidates = nrow(cand)
+  versions = list(lavaan = as.character(packageVersion("lavaan")), R = R.version.string),
+  lm = lm,
+  lmCandidates = length(pool),
+  lavaanCumulative = list(parameters = paste(cumul$lhs, cumul$rhs), chisq = cumul$X2, df = cumul$df),
+  wald = wd,
+  waldCandidates = nrow(cand)
 )
 dir.create("src/engine/__fixtures__/search", showWarnings = FALSE, recursive = TRUE)
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/search/lmwald.json")

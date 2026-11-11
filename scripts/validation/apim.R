@@ -21,8 +21,15 @@ dvn <- scrapeVarCross(
 )
 s_ind <- scriptAPIM(dvn, lvxname = "Sat", lvyname = "Com", est_k = TRUE, includeMeanStruct = TRUE)
 s_dis <- scriptAPIM(dvn,
-  lvxname = "Sat", lvyname = "Com", est_k = TRUE, includeMeanStruct = TRUE,
-  constr_dy_x_meas = c("loadings", "intercepts"), constr_dy_x_struct = "none", constr_dy_y_meas = c("loadings", "intercepts"), constr_dy_y_struct = "none", constr_dy_xy_struct = "none"
+  lvxname = "Sat",
+  lvyname = "Com",
+  est_k = TRUE,
+  includeMeanStruct = TRUE,
+  constr_dy_x_meas = c("loadings", "intercepts"),
+  constr_dy_x_struct = "none",
+  constr_dy_y_meas = c("loadings", "intercepts"),
+  constr_dy_y_struct = "none",
+  constr_dy_xy_struct = "none"
 )
 f_ind <- cfa(s_ind, data = commitmentM)
 f_dis <- cfa(s_dis, data = commitmentM)
@@ -32,8 +39,11 @@ out <- function(f) {
   fm <- fitMeasures(f, c("chisq", "df", "cfi", "rmsea", "srmr"))
   keep <- pe$op %in% c("~", ":=") & !duplicated(pe$label)
   list(
-    fit = as.list(fm), n = lavInspect(f, "nobs"), params = setNames(lapply(which(keep), function(i) list(est = pe$est[i], se = pe$se[i], std = pe$std.all[i], low = pe$ci.lower[i], high = pe$ci.upper[i])), pe$label[keep]),
-    xCor = subset(pe, op == "~~" & lhs %in% c("Satf", "sat_f") & rhs %in% c("Satm", "sat_m"))$std.all, yCor = subset(pe, op == "~~" & lhs %in% c("Comf", "com_f") & rhs %in% c("Comm", "com_m"))$std.all
+    fit = as.list(fm),
+    n = lavInspect(f, "nobs"),
+    params = setNames(lapply(which(keep), function(i) list(est = pe$est[i], se = pe$se[i], std = pe$std.all[i], low = pe$ci.lower[i], high = pe$ci.upper[i])), pe$label[keep]),
+    xCor = subset(pe, op == "~~" & lhs %in% c("Satf", "sat_f") & rhs %in% c("Satm", "sat_m"))$std.all,
+    yCor = subset(pe, op == "~~" & lhs %in% c("Comf", "com_f") & rhs %in% c("Comm", "com_m"))$std.all
   )
 }
 # ---- observed: the partners' mean scores (Kenny, Kashy & Cook 2006, ch. 7) ----
@@ -75,9 +85,16 @@ f_dis_fiml <- cfa(s_dis, data = commitmentM, missing = "ml")
 write(toJSON(
   list(
     versions = list(lavaan = as.character(packageVersion("lavaan")), dySEM = as.character(packageVersion("dySEM"))),
-    latent = list(dist = out(f_dis), indist = out(f_ind), fimlDist = out(f_dis_fiml), test = list(chisqDiff = lrt[["Chisq diff"]][2], dfDiff = lrt[["Df diff"]][2], p = lrt[["Pr(>Chisq)"]][2])),
+    latent = list(
+      dist = out(f_dis),
+      indist = out(f_ind),
+      fimlDist = out(f_dis_fiml),
+      test = list(chisqDiff = lrt[["Chisq diff"]][2], dfDiff = lrt[["Df diff"]][2], p = lrt[["Pr(>Chisq)"]][2])
+    ),
     observed = list(
-      dist = out(g_dis), indist = out(g_ind), test = list(chisqDiff = glrt[["Chisq diff"]][2], dfDiff = glrt[["Df diff"]][2], p = glrt[["Pr(>Chisq)"]][2]),
+      dist = out(g_dis),
+      indist = out(g_ind),
+      test = list(chisqDiff = glrt[["Chisq diff"]][2], dfDiff = glrt[["Df diff"]][2], p = glrt[["Pr(>Chisq)"]][2]),
       boot = setNames(lapply(c("a", "p", "k"), function(l) {
         i <- which(bci$label == l)[1]
         list(low = bci$ci.lower[i], high = bci$ci.upper[i])

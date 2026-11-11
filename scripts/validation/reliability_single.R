@@ -17,9 +17,12 @@ pick <- function(f) {
   s <- standardizedSolution(f)
   r <- pe[pe$op == "~", ]
   list(
-    paths = setNames(as.list(r$est), r$rhs), se = setNames(as.list(r$se), r$rhs),
+    paths = setNames(as.list(r$est), r$rhs),
+    se = setNames(as.list(r$se), r$rhs),
     std = setNames(as.list(s$est.std[s$op == "~"]), s$rhs[s$op == "~"]),
-    speedVar = pe$est[pe$op == "~~" & pe$lhs == "speed" & pe$rhs == "speed"], chisq = unname(fitMeasures(f, "chisq")), df = unname(fitMeasures(f, "df"))
+    speedVar = pe$est[pe$op == "~~" & pe$lhs == "speed" & pe$rhs == "speed"],
+    chisq = unname(fitMeasures(f, "chisq")),
+    df = unname(fitMeasures(f, "df"))
   )
 }
 raw <- pick(sem(m(format(ev, digits = 15)), d))

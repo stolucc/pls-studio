@@ -31,15 +31,26 @@ fm <- fitMeasures(fit, c("chisq", "df", "rmsea", "rmsea.ci.upper"))
 cuts <- as.numeric(unlist(regmatches(c(eq$ct_r, eq$ft_r, eq$mf_r, eq$pf_r), regexpr("[.0-9]+", c(eq$ct_r, eq$ft_r, eq$mf_r, eq$pf_r)))))
 
 out <- list(
-  semPower = as.character(packageVersion("semPower")), lavaan = as.character(packageVersion("lavaan")), dynamic = as.character(packageVersion("dynamic")),
+  semPower = as.character(packageVersion("semPower")),
+  lavaan = as.character(packageVersion("lavaan")),
+  dynamic = as.character(packageVersion("dynamic")),
   apriori = pick(ap, "requiredN", "impliedPower", "impliedNCP", "chiCrit", "fmin", "mc"),
   posthoc = pick(ph, "power", "ncp", "chiCrit", "fmin"),
   compromise = pick(cp, "chiCrit", "impliedAlpha", "impliedBeta", "impliedAbratio"),
   agfi = pick(ag, "requiredN", "impliedPower", "fmin", "rmsea"),
-  parameter = list(estimate = unname(coef(fit)["visual~~textual"]), apriori = pick(plA, "requiredN", "impliedPower", "fmin"), posthoc = pick(plP, "power", "fmin", "ncp")),
+  parameter = list(
+    estimate = unname(coef(fit)["visual~~textual"]),
+    apriori = pick(plA, "requiredN", "impliedPower", "fmin"),
+    posthoc = pick(plP, "power", "fmin", "ncp")
+  ),
   equivalence = list(
-    chisq = unname(fm["chisq"]), df = unname(fm["df"]), n = nobs(fit), rmsea = unname(fm["rmsea"]), rmseaUpper90 = unname(fm["rmsea.ci.upper"]),
-    dynamicRmseaT = as.numeric(sub("^\\.", "0.", eq$rmsea)), dynamicCutoffs = cuts
+    chisq = unname(fm["chisq"]),
+    df = unname(fm["df"]),
+    n = nobs(fit),
+    rmsea = unname(fm["rmsea"]),
+    rmseaUpper90 = unname(fm["rmsea.ci.upper"]),
+    dynamicRmseaT = as.numeric(sub("^\\.", "0.", eq$rmsea)),
+    dynamicCutoffs = cuts
   )
 )
 dir.create("src/engine/__fixtures__/power", showWarnings = FALSE, recursive = TRUE)

@@ -38,11 +38,29 @@ write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__
 cat("written\n")
 
 # ---- GSCA, nonlinear PLSc and redundancy analysis ----
-gsca <- csem(satisfaction, m, .approach_weights = "GSCA", .PLS_weight_scheme_inner = "path", .disattenuate = FALSE, .tolerance = 1e-7, .iter_max = 300)
+gsca <- csem(
+  satisfaction,
+  m,
+  .approach_weights = "GSCA",
+  .PLS_weight_scheme_inner = "path",
+  .disattenuate = FALSE,
+  .tolerance = 1e-7,
+  .iter_max = 300
+)
 sw <- "INT ~ INV + SAT + INV.SAT\nINV =~ INV1 + INV2 + INV3 + INV4\nSAT =~ SAT1 + SAT2 + SAT3\nINT =~ INT1 + INT2"
-plsc <- csem(Switching, sw, .PLS_weight_scheme_inner = "factorial", .disattenuate = TRUE, .tolerance = 1e-7, .iter_max = 300)
+plsc <- csem(
+  Switching,
+  sw,
+  .PLS_weight_scheme_inner = "factorial",
+  .disattenuate = TRUE,
+  .tolerance = 1e-7,
+  .iter_max = 300
+)
 out2 <- list(
-  gsca = list(SAT_VAL = gsca$Estimates$Path_estimates["SAT", "VAL"], LOY_SAT = gsca$Estimates$Path_estimates["LOY", "SAT"]),
+  gsca = list(
+    SAT_VAL = gsca$Estimates$Path_estimates["SAT", "VAL"],
+    LOY_SAT = gsca$Estimates$Path_estimates["LOY", "SAT"]
+  ),
   plsc = as.list(plsc$Estimates$Path_estimates["INT", c("INV", "SAT", "INV.SAT")]),
   redundancy = as.list(doRedundancyAnalysis(fit))
 )
@@ -51,7 +69,15 @@ cat("written 2\n")
 
 # ---- PCA and unit (sum score) weights ----
 out3 <- lapply(c("PCA", "unit"), function(a) {
-  f <- csem(satisfaction, m, .approach_weights = a, .PLS_weight_scheme_inner = "path", .disattenuate = FALSE, .tolerance = 1e-7, .iter_max = 300)
+  f <- csem(
+    satisfaction,
+    m,
+    .approach_weights = a,
+    .PLS_weight_scheme_inner = "path",
+    .disattenuate = FALSE,
+    .tolerance = 1e-7,
+    .iter_max = 300
+  )
   list(SAT_VAL = f$Estimates$Path_estimates["SAT", "VAL"], LOY_SAT = f$Estimates$Path_estimates["LOY", "SAT"])
 })
 names(out3) <- c("PCA", "unit")
@@ -65,7 +91,14 @@ sm <- rbind(
   c("IMAG", "EXPE"), c("EXPE", "QUAL"), c("EXPE", "VAL"), c("QUAL", "VAL"), c("IMAG", "SAT"), c("EXPE", "SAT"),
   c("QUAL", "SAT"), c("VAL", "SAT"), c("IMAG", "LOY"), c("SAT", "LOY")
 )
-blocks <- list(IMAG = paste0("imag", 1:3), EXPE = paste0("expe", 1:3), QUAL = paste0("qual", 1:5), VAL = paste0("val", 1:3), SAT = paste0("sat", 1:4), LOY = paste0("loy", 1:4))
+blocks <- list(
+  IMAG = paste0("imag", 1:3),
+  EXPE = paste0("expe", 1:3),
+  QUAL = paste0("qual", 1:5),
+  VAL = paste0("val", 1:3),
+  SAT = paste0("sat", 1:4),
+  LOY = paste0("loy", 1:4)
+)
 mm <- do.call(rbind, lapply(names(blocks), function(k) cbind(k, blocks[[k]])))
 sd_ <- as.data.frame(satisfaction)[, unlist(blocks)]
 colnames(sm) <- colnames(mm) <- c("source", "target")
@@ -103,7 +136,13 @@ ITPers ~ ITComp + Modul + ITConn
 Modul  ~ ITComp + ITConn
 ITConn ~ ITComp
 "
-it_out <- csem(.data = ITFlex, .model = model_IT_Fex, .PLS_weight_scheme_inner = "factorial", .tolerance = 1e-06, .PLS_ignore_structural_model = TRUE)
+it_out <- csem(
+  .data = ITFlex,
+  .model = model_IT_Fex,
+  .PLS_weight_scheme_inner = "factorial",
+  .tolerance = 1e-06,
+  .PLS_ignore_structural_model = TRUE
+)
 set.seed(1)
 it_omf <- testOMF(it_out, .R = 20, .seed = 1) # the test statistics do not depend on the draws
 W <- it_out$Estimates$Weight_estimates
@@ -127,7 +166,9 @@ set.seed(1)
 mi2 <- testMICOM(gg, .R = 30, .seed = 1, .verbose = FALSE)
 md2 <- testMGD(gg, .approach_mgd = c("Klesel", "Chin"), .R_permutation = 30, .seed = 1, .verbose = FALSE)
 gender <- list(
-  version = as.character(packageVersion("cSEM")), micomC = as.list(mi2$Step2$Test_statistic[[1]]), klesel = as.list(md2$Klesel$Test_statistic),
+  version = as.character(packageVersion("cSEM")),
+  micomC = as.list(mi2$Step2$Test_statistic[[1]]),
+  klesel = as.list(md2$Klesel$Test_statistic),
   chin = as.list(md2$Chin$Test_statistic[[1]][grepl(" ~ ", names(md2$Chin$Test_statistic[[1]]))]),
   groups = lapply(gg, function(x) {
     P <- x$Estimates$Path_estimates

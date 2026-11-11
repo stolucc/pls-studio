@@ -26,8 +26,14 @@ pp <- function(a, b) {
 }
 out <- list(
   lavaan = as.character(packageVersion("lavaan")), vars = vars, ordinal = ordinal,
-  pairs = lapply(seq_len(nrow(est)), function(i) list(a = est$lhs[i], b = est$rhs[i], r = est$est.std[i], se = est$se[i], z = est$z[i], p = est$pvalue[i], ciLow = est$ci.lower[i], ciHigh = est$ci.upper[i])),
-  normality = lapply(seq_len(nrow(nt)), function(i) list(a = as.character(nt$lhs[i]), b = as.character(nt$rhs[i]), df = nt$df[i], x2 = nt$X2[i], g2 = nt$G2[i], g2p = nt$G2.pval[i])),
+  pairs = lapply(
+    seq_len(nrow(est)),
+    function(i) list(a = est$lhs[i], b = est$rhs[i], r = est$est.std[i], se = est$se[i], z = est$z[i], p = est$pvalue[i], ciLow = est$ci.lower[i], ciHigh = est$ci.upper[i])
+  ),
+  normality = lapply(
+    seq_len(nrow(nt)),
+    function(i) list(a = as.character(nt$lhs[i]), b = as.character(nt$rhs[i]), df = nt$df[i], x2 = nt$X2[i], g2 = nt$G2[i], g2p = nt$G2.pval[i])
+  ),
   psych = list(A1_A2 = pp("A1", "A2"), A1_gender = pp("A1", "gender"), A2_gender = pp("A2", "gender"))
 )
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), file.path(root, "correlation_polychoric.json"))

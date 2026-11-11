@@ -31,17 +31,37 @@ req <- function(x, model, ...) {
 }
 hs <- HolzingerSwineford1939[, paste0("x", 1:9)]
 hs_model <- list(
-  constructs = list(fac("visual", paste0("x", 1:3)), fac("textual", paste0("x", 4:6)), fac("speed", paste0("x", 7:9))), paths = list(),
-  covariances = list(cov("visual", "textual", "construct"), cov("visual", "speed", "construct"), cov("textual", "speed", "construct"))
+  constructs = list(fac("visual", paste0("x", 1:3)), fac("textual", paste0("x", 4:6)), fac("speed", paste0("x", 7:9))),
+  paths = list(),
+  covariances = list(
+    cov("visual", "textual", "construct"),
+    cov("visual", "speed", "construct"),
+    cov("textual", "speed", "construct")
+  )
 )
 hs_syntax <- "visual =~ x1 + x2 + x3\ntextual =~ x4 + x5 + x6\nspeed =~ x7 + x8 + x9"
 # (the app writes the factor covariances of the diagram explicitly, after the loadings)
 hs_app <- paste(hs_syntax, "visual ~~ textual\nvisual ~~ speed\ntextual ~~ speed", sep = "\n")
 pd <- PoliticalDemocracy
 pd_model <- list(
-  constructs = list(fac("ind60", paste0("x", 1:3)), fac("dem60", paste0("y", 1:4), list(y2 = "a", y3 = "b", y4 = "c")), fac("dem65", paste0("y", 5:8), list(y6 = "a", y7 = "b", y8 = "c"))),
-  paths = list(list(from = "ind60", to = "dem60"), list(from = "ind60", to = "dem65"), list(from = "dem60", to = "dem65")),
-  covariances = list(cov("y1", "y5", "indicator"), cov("y2", "y4", "indicator"), cov("y2", "y6", "indicator"), cov("y3", "y7", "indicator"), cov("y4", "y8", "indicator"), cov("y6", "y8", "indicator"))
+  constructs = list(
+    fac("ind60", paste0("x", 1:3)),
+    fac("dem60", paste0("y", 1:4), list(y2 = "a", y3 = "b", y4 = "c")),
+    fac("dem65", paste0("y", 5:8), list(y6 = "a", y7 = "b", y8 = "c"))
+  ),
+  paths = list(
+    list(from = "ind60", to = "dem60"),
+    list(from = "ind60", to = "dem65"),
+    list(from = "dem60", to = "dem65")
+  ),
+  covariances = list(
+    cov("y1", "y5", "indicator"),
+    cov("y2", "y4", "indicator"),
+    cov("y2", "y6", "indicator"),
+    cov("y3", "y7", "indicator"),
+    cov("y4", "y8", "indicator"),
+    cov("y6", "y8", "indicator")
+  )
 )
 # ?asem's model, as on the help page
 pd_syntax <- "ind60 =~ x1 + x2 + x3\ndem60 =~ y1 + a*y2 + b*y3 + c*y4\ndem65 =~ y5 + a*y6 + b*y7 + c*y8\ndem60 ~ ind60\ndem65 ~ ind60 + dem60\ny1 ~~ y5\ny2 ~~ y4 + y6\ny3 ~~ y7\ny4 ~~ y8\ny6 ~~ y8"
@@ -63,7 +83,9 @@ compare <- function(app, d, tol = 1e-6, mc = FALSE) {
   pt <- d$pt[d$pt$free > 0, ]
   dk <- mapply(key, pt$lhs, pt$op, pt$rhs)
   akeys <- vapply(app$parameters, function(p) key(p$lhs, p$op, p$rhs), "")
-  if (length(akeys) != length(dk)) stop(sprintf("app %d parameters, INLAvaan %d", length(akeys), length(dk)))
+  if (length(akeys) != length(dk)) {
+    stop(sprintf("app %d parameters, INLAvaan %d", length(akeys), length(dk)))
+  }
   worst <- 0
   for (i in seq_along(dk)) {
     a <- app$parameters[[match(dk[i], akeys)]]
@@ -74,20 +96,33 @@ compare <- function(app, d, tol = 1e-6, mc = FALSE) {
       diff <- abs(a[[m[1]]] - dv) / max(1, abs(dv))
       # (INLAvaan summarises a covariance from draws of its correlation and the two variances)
       if (mc && pt$op[i] == "~~" && pt$lhs[i] != pt$rhs[i]) {
-        if (abs(a[[m[1]]] - dv) > 0.2 * d$s[k, "SD"]) stop(sprintf("%s %s: app %s, INLAvaan %s (beyond Monte Carlo error)", dk[i], m[1], a[[m[1]]], dv))
+        if (abs(a[[m[1]]] - dv) > 0.2 * d$s[k, "SD"]) {
+          stop(sprintf("%s %s: app %s, INLAvaan %s (beyond Monte Carlo error)", dk[i], m[1], a[[m[1]]], dv))
+        }
         next
       }
       worst <- max(worst, diff)
       if (diff > tol) stop(sprintf("%s %s: app %s, INLAvaan %s", dk[i], m[1], a[[m[1]]], dv))
     }
   }
-  fmk <- c(ppp = "ppp", dic = "dic", pDic = "p_dic", margLogLik = "margloglik", brmsea = "BRMSEA", bgammahat = "BGammaHat", bcfi = "BCFI", btli = "BTLI")
+  fmk <- c(
+    ppp = "ppp",
+    dic = "dic",
+    pDic = "p_dic",
+    margLogLik = "margloglik",
+    brmsea = "BRMSEA",
+    bgammahat = "BGammaHat",
+    bcfi = "BCFI",
+    btli = "BTLI"
+  )
   for (k in names(fmk)) {
     a <- app$fit[[k]]
     dv <- unname(d$fm[[fmk[[k]]]])
     diff <- abs(a - dv) / max(1, abs(dv))
     if (mc && k != "margLogLik") {
-      if (!isTRUE(abs(a - dv) <= if (k %in% c("dic", "pDic")) 0.5 else 0.05)) stop(sprintf("fit %s: app %s, INLAvaan %s (beyond Monte Carlo error)", k, a, dv))
+      if (!isTRUE(abs(a - dv) <= if (k %in% c("dic", "pDic")) 0.5 else 0.05)) {
+        stop(sprintf("fit %s: app %s, INLAvaan %s (beyond Monte Carlo error)", k, a, dv))
+      }
       next
     }
     worst <- max(worst, diff)
@@ -113,11 +148,25 @@ out <- list()
 app <- run(req(hs, hs_model, identification = "unit"))
 compare(app, direct(hs_syntax, hs, TRUE), mc = TRUE)
 w <- compare(app, direct(hs_app, hs, TRUE))
-out$acfa <- list(parameters = app$parameters, fit = app$fit, diagnostics = app$diagnostics, converged = app$converged, maxRelDiff = w, elapsed = app$elapsed)
+out$acfa <- list(
+  parameters = app$parameters,
+  fit = app$fit,
+  diagnostics = app$diagnostics,
+  converged = app$converged,
+  maxRelDiff = w,
+  elapsed = app$elapsed
+)
 cat(sprintf("?acfa (HS, std.lv): app = INLAvaan, %d parameters, largest relative difference %.2g; %.1f s\n", length(app$parameters), w, app$elapsed))
 app <- run(req(pd, pd_model, identification = "marker"))
 w <- compare(app, direct(pd_syntax, pd, FALSE))
-out$asem <- list(parameters = app$parameters, fit = app$fit, diagnostics = app$diagnostics, converged = app$converged, maxRelDiff = w, elapsed = app$elapsed)
+out$asem <- list(
+  parameters = app$parameters,
+  fit = app$fit,
+  diagnostics = app$diagnostics,
+  converged = app$converged,
+  maxRelDiff = w,
+  elapsed = app$elapsed
+)
 cat(sprintf("?asem (Political Democracy, labels a b c): app = INLAvaan, %d parameters, largest relative difference %.2g; %.1f s\n", length(app$parameters), w, app$elapsed))
 
 # 3. The app's blavaan example (?bcfa, marker identification): the app equals INLAvaan; and INLAvaan's posterior
@@ -126,7 +175,13 @@ cat(sprintf("?asem (Political Democracy, labels a b c): app = INLAvaan, %d param
 app <- run(req(hs, hs_model, identification = "marker"))
 compare(app, direct(hs_syntax, hs, FALSE), mc = TRUE)
 w <- compare(app, direct(hs_app, hs, FALSE))
-out$bcfa <- list(parameters = app$parameters, fit = app$fit, converged = app$converged, maxRelDiff = w, elapsed = app$elapsed)
+out$bcfa <- list(
+  parameters = app$parameters,
+  fit = app$fit,
+  converged = app$converged,
+  maxRelDiff = w,
+  elapsed = app$elapsed
+)
 cat(sprintf("blavaan's example (HS, markers): app = INLAvaan (%.2g)\n", w))
 blav <- fromJSON("src/engine/__fixtures__/blavaan/reference.json", simplifyVector = FALSE)
 for (ident in c("marker", "unit")) {
@@ -135,11 +190,21 @@ for (ident in c("marker", "unit")) {
   mk <- vapply(mc, function(p) key(p$lhs, p$op, p$rhs), "")
   vs <- lapply(inla$parameters, function(p) {
     m <- mc[[match(key(p$lhs, p$op, p$rhs), mk)]]
-    list(par = key(p$lhs, p$op, p$rhs), inla = p$mean, mcmc = m$mean, inlaSd = p$sd, mcmcSd = m$sd, z = (p$mean - m$mean) / m$sd, sdRatio = p$sd / m$sd)
+    list(
+      par = key(p$lhs, p$op, p$rhs),
+      inla = p$mean,
+      mcmc = m$mean,
+      inlaSd = p$sd,
+      mcmcSd = m$sd,
+      z = (p$mean - m$mean) / m$sd,
+      sdRatio = p$sd / m$sd
+    )
   })
   z <- max(abs(vapply(vs, `[[`, 0, "z")))
   ratio <- range(vapply(vs, `[[`, 0, "sdRatio"))
-  if (z > 0.2 || ratio[1] < 0.8 || ratio[2] > 1.2) stop(sprintf("INLAvaan vs blavaan (%s): largest |mean difference| %.3f SD, SD ratios %.3f to %.3f", ident, z, ratio[1], ratio[2]))
+  if (z > 0.2 || ratio[1] < 0.8 || ratio[2] > 1.2) {
+    stop(sprintf("INLAvaan vs blavaan (%s): largest |mean difference| %.3f SD, SD ratios %.3f to %.3f", ident, z, ratio[1], ratio[2]))
+  }
   out$vsMcmc[[ident]] <- list(parameters = vs, maxZ = z, sdRatio = ratio)
   cat(sprintf("  vs blavaan MCMC (%s): means within %.3f posterior SD, SD ratios %.3f to %.3f\n", ident, z, ratio[1], ratio[2]))
 }
@@ -148,7 +213,11 @@ for (ident in c("marker", "unit")) {
 hsl <- hs_model
 hsl$constructs[[1]]$loadingLabels <- list(x2 = "l2", x3 = "l3")
 app <- run(req(hs, hsl, identification = "marker", labelPriors = list(list(labels = c("l2", "l3"), mean = 0.5, variance = 0.01))))
-pt <- lavaanify("visual =~ x1 + l2*x2 + l3*x3\ntextual =~ x4 + x5 + x6\nspeed =~ x7 + x8 + x9\nvisual ~~ textual\nvisual ~~ speed\ntextual ~~ speed", auto.var = TRUE, auto.fix.first = TRUE)
+pt <- lavaanify(
+  "visual =~ x1 + l2*x2 + l3*x3\ntextual =~ x4 + x5 + x6\nspeed =~ x7 + x8 + x9\nvisual ~~ textual\nvisual ~~ speed\ntextual ~~ speed",
+  auto.var = TRUE,
+  auto.fix.first = TRUE
+)
 pt$prior <- ""
 pt$prior[pt$label %in% c("l2", "l3")] <- "normal(0.5,0.1)"
 d <- direct(NULL, hs, FALSE, model = pt)
@@ -165,8 +234,12 @@ cat("(a loop on a model without the label is refused: ", tryCatch(
 mp <- run(req(hs, hsl, identification = "marker", priors = "mplus", confidence = 0.9, loop = list(name = "q", expr = "l2 * m", variable = "m", from = 0, to = 1, by = 0.5), plausible = 10))
 # (the direct call for Mplus's priors: the same parameter table)
 pt0 <- parTable(asem("visual =~ x1 + l2*x2 + l3*x3\ntextual =~ x4 + x5 + x6\nspeed =~ x7 + x8 + x9\nvisual ~~ textual\nvisual ~~ speed\ntextual ~~ speed",
-  data = hs, auto.cov.y = FALSE, std.lv = FALSE,
-  dp = priors_for(nu = "normal(0,1000)", alpha = "normal(0,1000)", lambda = "normal(0,1000)", beta = "normal(0,1000)"), do.fit = FALSE, verbose = FALSE
+  data = hs,
+  auto.cov.y = FALSE,
+  std.lv = FALSE,
+  dp = priors_for(nu = "normal(0,1000)", alpha = "normal(0,1000)", lambda = "normal(0,1000)", beta = "normal(0,1000)"),
+  do.fit = FALSE,
+  verbose = FALSE
 ))
 dpm <- priors_for(nu = "normal(0,1000)", alpha = "normal(0,1000)", lambda = "normal(0,1000)", beta = "normal(0,1000)")
 pt0 <- pt0[, c("id", "lhs", "op", "rhs", "user", "block", "group", "free", "ustart", "exo", "label", "plabel", "prior")]
@@ -178,13 +251,27 @@ set.seed(1234)
 dr <- as.data.frame(sampling(dm$fit, nsamp = 1000))
 k2 <- dm$pt$free[dm$pt$label == "l2"][1]
 lo <- mp$parameters[[which(vapply(mp$parameters, function(p) identical(p$label, "l2"), TRUE))]]
-if (abs(lo$mean - dm$s[k2, "Mean"]) > 1e-6 || abs(lo$low - quantile(dr$l2, 0.05)) > 1e-6 || abs(lo$high - quantile(dr$l2, 0.95)) > 1e-6) stop("Mplus's priors / 90% interval differ from the direct call")
-if (abs(mp$loop$median[[3]] - median(dr$l2)) > 1e-6 || mp$plausible$draws != 10 || length(mp$plausible$factors) != 3) stop("loop or plausible values differ")
+if (abs(lo$mean - dm$s[k2, "Mean"]) > 1e-6 || abs(lo$low - quantile(dr$l2, 0.05)) > 1e-6 || abs(lo$high - quantile(dr$l2, 0.95)) > 1e-6) {
+  stop("Mplus's priors / 90% interval differ from the direct call")
+}
+if (abs(mp$loop$median[[3]] - median(dr$l2)) > 1e-6 || mp$plausible$draws != 10 || length(mp$plausible$factors) != 3) {
+  stop("loop or plausible values differ")
+}
 out$options <- list(labelPriors = list(maxRelDiff = w1, l2 = l2), mplus = list(
-  l2 = lo, direct = list(mean = dm$s[k2, "Mean"], low = unname(quantile(dr$l2, 0.05)), high = unname(quantile(dr$l2, 0.95))),
-  loop = mp$loop, plausible = mp$plausible, priors = vapply(mp$parameters, function(p) p$prior %||% "", "")
+  l2 = lo,
+  direct = list(mean = dm$s[k2, "Mean"], low = unname(quantile(dr$l2, 0.05)), high = unname(quantile(dr$l2, 0.95))),
+  loop = mp$loop,
+  plausible = mp$plausible,
+  priors = vapply(mp$parameters, function(p) p$prior %||% "", "")
 ))
 cat(sprintf("priors on labels: app = INLAvaan (%.2g); Mplus's priors, 90%% interval from draws, loop, plausible values: as the direct call\n", w1))
-out$versions <- list(R = R.version.string, lavaan = as.character(packageVersion("lavaan")), INLAvaan = as.character(packageVersion("INLAvaan")))
+out$versions <- list(
+  R = R.version.string,
+  lavaan = as.character(packageVersion("lavaan")),
+  INLAvaan = as.character(packageVersion("INLAvaan"))
+)
 dir.create("src/engine/__fixtures__/inlavaan", showWarnings = FALSE)
-writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null"), "src/engine/__fixtures__/inlavaan/reference.json")
+writeLines(
+  toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null"),
+  "src/engine/__fixtures__/inlavaan/reference.json"
+)

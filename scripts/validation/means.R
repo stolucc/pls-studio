@@ -13,7 +13,10 @@ rows <- pe[pe$op == "~1", ]
 out <- list(
   versions = list(lavaan = as.character(packageVersion("lavaan")), R = R.version.string),
   chisq = unname(fitMeasures(fit, "chisq")), df = unname(fitMeasures(fit, "df")),
-  intercepts = lapply(seq_len(nrow(rows)), function(i) list(lhs = rows$lhs[i], est = rows$est[i], se = rows$se[i], std = rows$std.all[i]))
+  intercepts = lapply(
+    seq_len(nrow(rows)),
+    function(i) list(lhs = rows$lhs[i], est = rows$est[i], se = rows$se[i], std = rows$std.all[i])
+  )
 )
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/means/reference.json")
 print(rows[, c("lhs", "est", "se")])

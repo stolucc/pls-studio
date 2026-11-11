@@ -31,7 +31,12 @@ out <- list(
   describe = list(skew = d$skew, kurtosis = d$kurtosis, sd = d$sd, n = d$n),
   mardia = list(b1p = m$b1p, b2p = m$b2p, skew = m$skew, pSkew = m$p.skew, kurtosis = m$kurtosis, pKurt = m$p.kurt),
   mahalanobis = list(rows = as.integer(rownames(Xc))[order(-d2)[1:5]], d2 = unname(sort(d2, decreasing = TRUE)[1:5])),
-  influence = list(rows = as.integer(rownames(infl))[o], gcd = unname(infl[o, "gcd"]), chisq = unname(infl[o, "chisq"]), cfi = unname(infl[o, "cfi"])),
+  influence = list(
+    rows = as.integer(rownames(infl))[o],
+    gcd = unname(infl[o, "gcd"]),
+    chisq = unname(infl[o, "chisq"]),
+    cfi = unname(infl[o, "cfi"])
+  ),
   kurtosis = list(b2p = mk$b2p, rows = ok, contribution = unname(contrib[ok]), sum = sum(contrib))
 )
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/screen/reference.json")

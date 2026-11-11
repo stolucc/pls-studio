@@ -23,7 +23,9 @@ tg$dose <- factor(tg$dose)
 out$toothgrowth <- frame(tg)
 a <- split(tg$len, tg$supp)
 out$ttestIndependent <- list(
-  student = ht(t.test(a$OJ, a$VC, var.equal = TRUE)), welch = ht(t.test(a$OJ, a$VC)), rank = ht(wilcox.test(a$OJ, a$VC, exact = FALSE)),
+  student = ht(t.test(a$OJ, a$VC, var.equal = TRUE)),
+  welch = ht(t.test(a$OJ, a$VC)),
+  rank = ht(wilcox.test(a$OJ, a$VC, exact = FALSE)),
   d = (mean(a$OJ) - mean(a$VC)) / sqrt((29 * var(a$OJ) + 29 * var(a$VC)) / 58),
   levene = {
     m <- anova(lm(abs(tg$len - ave(tg$len, tg$supp, FUN = median)) ~ tg$supp))
@@ -31,7 +33,9 @@ out$ttestIndependent <- list(
   }
 )
 out$ttestOne <- list(
-  student = ht(t.test(tg$len, mu = 18, alternative = "greater")), rank = ht(wilcox.test(tg$len, mu = 18, alternative = "greater", exact = FALSE)), d = (mean(tg$len) - 18) / sd(tg$len),
+  student = ht(t.test(tg$len, mu = 18, alternative = "greater")),
+  rank = ht(wilcox.test(tg$len, mu = 18, alternative = "greater", exact = FALSE)),
+  d = (mean(tg$len) - 18) / sd(tg$len),
   shapiro = ht(shapiro.test(tg$len))
 )
 # Two-way ANOVA, type III (sum-to-zero contrasts) and type I
@@ -40,34 +44,76 @@ f3 <- drop1(lm(len ~ supp * dose, data = tg), ~., test = "F")
 options(op)
 f1 <- anova(lm(len ~ supp * dose, data = tg))
 out$anova2 <- list(
-  typeIII = lapply(c("supp", "dose", "supp:dose"), function(t) list(term = t, ss = f3[t, "Sum of Sq"], df = f3[t, "Df"], f = f3[t, "F value"], p = f3[t, "Pr(>F)"])),
-  typeI = lapply(c("supp", "dose", "supp:dose"), function(t) list(term = t, ss = f1[t, "Sum Sq"], df = f1[t, "Df"], f = f1[t, "F value"], p = f1[t, "Pr(>F)"])),
+  typeIII = lapply(
+    c("supp", "dose", "supp:dose"),
+    function(t) list(term = t, ss = f3[t, "Sum of Sq"], df = f3[t, "Df"], f = f3[t, "F value"], p = f3[t, "Pr(>F)"])
+  ),
+  typeI = lapply(
+    c("supp", "dose", "supp:dose"),
+    function(t) list(term = t, ss = f1[t, "Sum Sq"], df = f1[t, "Df"], f = f1[t, "F value"], p = f1[t, "Pr(>F)"])
+  ),
   residualSS = f1["Residuals", "Sum Sq"]
 )
 # One-way ANOVA with Welch, Kruskal-Wallis and Tukey
 tk <- TukeyHSD(aov(len ~ dose, data = tg))$dose
 out$anova1 <- list(
-  f = anova(lm(len ~ dose, data = tg))["dose", "F value"], welch = ht(oneway.test(len ~ dose, data = tg)), kruskal = ht(kruskal.test(len ~ dose, data = tg)),
-  tukey = lapply(seq_len(nrow(tk)), function(i) list(diff = tk[i, "diff"], ciLow = tk[i, "lwr"], ciHigh = tk[i, "upr"], p = tk[i, "p adj"]))
+  f = anova(lm(len ~ dose, data = tg))["dose", "F value"],
+  welch = ht(oneway.test(len ~ dose, data = tg)),
+  kruskal = ht(kruskal.test(len ~ dose, data = tg)),
+  tukey = lapply(
+    seq_len(nrow(tk)),
+    function(i) list(diff = tk[i, "diff"], ciLow = tk[i, "lwr"], ciHigh = tk[i, "upr"], p = tk[i, "p adj"])
+  )
 )
 # ANCOVA: mtcars mpg by transmission, weight as covariate (type III)
-mt <- data.frame(mpg = mtcars$mpg, wt = mtcars$wt, am = factor(mtcars$am, labels = c("automatic", "manual")), vs = factor(mtcars$vs, labels = c("V", "straight")), cyl = factor(mtcars$cyl), hp = mtcars$hp, disp = mtcars$disp)
+mt <- data.frame(
+  mpg = mtcars$mpg,
+  wt = mtcars$wt,
+  am = factor(mtcars$am, labels = c("automatic", "manual")),
+  vs = factor(mtcars$vs, labels = c("V", "straight")),
+  cyl = factor(mtcars$cyl),
+  hp = mtcars$hp,
+  disp = mtcars$disp
+)
 out$mtcars <- frame(mt)
 op <- options(contrasts = c("contr.sum", "contr.poly"))
 fa <- drop1(lm(mpg ~ am + wt, data = mt), ~., test = "F")
 options(op)
-out$ancova <- lapply(c("am", "wt"), function(t) list(term = t, ss = fa[t, "Sum of Sq"], f = fa[t, "F value"], p = fa[t, "Pr(>F)"]))
+out$ancova <- lapply(
+  c("am", "wt"),
+  function(t) list(term = t, ss = fa[t, "Sum of Sq"], f = fa[t, "F value"], p = fa[t, "Pr(>F)"])
+)
 # Sleep: paired samples (the two drugs on the same ten patients)
 sl <- data.frame(drug1 = sleep$extra[1:10], drug2 = sleep$extra[11:20])
 out$sleep <- frame(sl)
 dif <- sl$drug1 - sl$drug2
-out$ttestPaired <- list(student = ht(t.test(sl$drug1, sl$drug2, paired = TRUE)), rank = ht(wilcox.test(sl$drug1, sl$drug2, paired = TRUE, exact = FALSE)), d = mean(dif) / sd(dif))
+out$ttestPaired <- list(
+  student = ht(t.test(sl$drug1, sl$drug2, paired = TRUE)),
+  rank = ht(wilcox.test(sl$drug1, sl$drug2, paired = TRUE, exact = FALSE)),
+  d = mean(dif) / sd(dif)
+)
 # Repeated measures: CO2 uptake of 12 plants at four concentrations, plant type between
-w <- reshape(as.data.frame(CO2)[CO2$conc %in% c(95, 175, 250, 350), c("Plant", "Type", "conc", "uptake")], idvar = c("Plant", "Type"), timevar = "conc", direction = "wide")
-co2 <- data.frame(c95 = w$uptake.95, c175 = w$uptake.175, c250 = w$uptake.250, c350 = w$uptake.350, type = factor(as.character(w$Type)))
+w <- reshape(
+  as.data.frame(CO2)[CO2$conc %in% c(95, 175, 250, 350), c("Plant", "Type", "conc", "uptake")],
+  idvar = c("Plant", "Type"),
+  timevar = "conc",
+  direction = "wide"
+)
+co2 <- data.frame(
+  c95 = w$uptake.95,
+  c175 = w$uptake.175,
+  c250 = w$uptake.250,
+  c350 = w$uptake.350,
+  type = factor(as.character(w$Type))
+)
 out$co2 <- frame(co2)
 Y <- as.matrix(co2[, 1:4])
-long <- data.frame(subject = factor(rep(1:12, 4)), conc = factor(rep(names(co2)[1:4], each = 12), levels = names(co2)[1:4]), y = c(Y), type = rep(co2$type, 4))
+long <- data.frame(
+  subject = factor(rep(1:12, 4)),
+  conc = factor(rep(names(co2)[1:4], each = 12), levels = names(co2)[1:4]),
+  y = c(Y),
+  type = rep(co2$type, 4)
+)
 s <- summary(aov(y ~ conc * type + Error(subject / conc), data = long))
 wt <- s[["Error: subject:conc"]][[1]]
 bt <- s[["Error: subject"]][[1]]
@@ -92,7 +138,14 @@ out$manova <- lapply(c("Pillai", "Wilks", "Hotelling-Lawley", "Roy"), function(t
 cr <- function(m) {
   lapply(combn(c("mpg", "wt", "hp", "disp"), 2, simplify = FALSE), function(p) {
     h <- cor.test(mt[[p[1]]], mt[[p[2]]], method = m, exact = if (m == "pearson") NULL else FALSE)
-    list(a = p[1], b = p[2], r = unname(h$estimate), p = h$p.value, ciLow = if (is.null(h$conf.int)) NULL else h$conf.int[1], ciHigh = if (is.null(h$conf.int)) NULL else h$conf.int[2])
+    list(
+      a = p[1],
+      b = p[2],
+      r = unname(h$estimate),
+      p = h$p.value,
+      ciLow = if (is.null(h$conf.int)) NULL else h$conf.int[1],
+      ciHigh = if (is.null(h$conf.int)) NULL else h$conf.int[2]
+    )
   })
 }
 out$correlation <- list(pearson = cr("pearson"), spearman = cr("spearman"), kendall = cr("kendall"))
@@ -102,14 +155,21 @@ t23 <- table(mt$am, mt$cyl)
 ch <- chisq.test(t22, correct = FALSE)
 E <- ch$expected
 out$contingency22 <- list(
-  chisq = ht(ch), yates = ht(chisq.test(t22)), fisher = ht(fisher.test(t22)), g2 = 2 * sum(t22 * log(t22 / E)), cramerV = sqrt(unname(ch$statistic) / 32),
+  chisq = ht(ch),
+  yates = ht(chisq.test(t22)),
+  fisher = ht(fisher.test(t22)),
+  g2 = 2 * sum(t22 * log(t22 / E)),
+  cramerV = sqrt(unname(ch$statistic) / 32),
   oddsRatio = (t22[1, 1] * t22[2, 2]) / (t22[1, 2] * t22[2, 1])
 )
 c23 <- suppressWarnings(chisq.test(t23, correct = FALSE))
 out$contingency23 <- list(chisq = ht(c23), fisher = ht(fisher.test(t23)), cramerV = sqrt(unname(c23$statistic) / 32))
 # Binomial and multinomial: transmission against 0.5; cylinders against equal and given proportions
 out$binomial <- lapply(as.numeric(table(mt$am)), function(k) ht(binom.test(k, 32, p = 0.5)))
-out$multinomial <- list(equal = ht(chisq.test(table(mt$cyl))), given = ht(chisq.test(table(mt$cyl), p = c(1, 1, 2), rescale.p = TRUE)))
+out$multinomial <- list(
+  equal = ht(chisq.test(table(mt$cyl))),
+  given = ht(chisq.test(table(mt$cyl), p = c(1, 1, 2), rescale.p = TRUE))
+)
 # Post hoc: pairwise Wilcoxon after Kruskal-Wallis (Holm), pairwise paired t-tests after repeated measures (Holm)
 pw <- pairwise.wilcox.test(tg$len, tg$dose, p.adjust.method = "holm", exact = FALSE)$p.value
 out$pairwiseRank <- c(pw["1", "0.5"], pw["2", "0.5"], pw["2", "1"])
@@ -124,8 +184,19 @@ if (requireNamespace("psych", quietly = TRUE)) {
   out$bfi <- frame(it)
   itc <- it[complete.cases(it), ]
   al <- alpha(itc, check.keys = FALSE)
-  out$scale <- list(alpha = al$total$raw_alpha, omega = suppressMessages(omega(itc, nfactors = 1, plot = FALSE))$omega.tot, glb = glb.fa(cor(itc))$glb, alphaDrop = al$alpha.drop$raw_alpha, itemRest = al$item.stats$r.drop)
-  sf <- data.frame(j1 = c(9, 6, 8, 7, 10, 6), j2 = c(2, 1, 4, 1, 5, 2), j3 = c(5, 3, 6, 2, 6, 4), j4 = c(8, 2, 8, 6, 9, 7))
+  out$scale <- list(
+    alpha = al$total$raw_alpha,
+    omega = suppressMessages(omega(itc, nfactors = 1, plot = FALSE))$omega.tot,
+    glb = glb.fa(cor(itc))$glb,
+    alphaDrop = al$alpha.drop$raw_alpha,
+    itemRest = al$item.stats$r.drop
+  )
+  sf <- data.frame(
+    j1 = c(9, 6, 8, 7, 10, 6),
+    j2 = c(2, 1, 4, 1, 5, 2),
+    j3 = c(5, 3, 6, 2, 6, 4),
+    j4 = c(8, 2, 8, 6, 9, 7)
+  )
   out$shroutFleiss <- frame(sf)
   ic <- ICC(sf, lmer = FALSE)$results
   out$icc <- list(icc = ic$ICC, lower = ic[["lower bound"]])
@@ -135,6 +206,14 @@ if (requireNamespace("psych", quietly = TRUE)) {
   out$kappa <- list(kappa = ck[1, 2], weighted = ck[2, 2], lower = ck[1, 1])
 }
 d <- co2$c250 - co2$c350
-out$blandAltman <- list(bias = mean(d), lower = mean(d) - 1.96 * sd(d), upper = mean(d) + 1.96 * sd(d), ciLow = t.test(d)$conf.int[1])
+out$blandAltman <- list(
+  bias = mean(d),
+  lower = mean(d) - 1.96 * sd(d),
+  upper = mean(d) + 1.96 * sd(d),
+  ciLow = t.test(d)$conf.int[1]
+)
 out$versions <- list(R = R.version.string)
-writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null"), "src/engine/__fixtures__/tests/reference.json")
+writeLines(
+  toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null"),
+  "src/engine/__fixtures__/tests/reference.json"
+)

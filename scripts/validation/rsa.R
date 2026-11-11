@@ -29,8 +29,13 @@ h <- function(s) {
   list(F = lh$F[2], p = lh$`Pr(>F)`[2])
 }
 out$OLS <- list(
-  b = as.list(coef(m)), r2 = summary(m)$r.squared,
-  a1 = h("ePow + iPow = 0"), a2 = h("X2 + XY + Y2 = 0"), a3 = h("ePow - iPow = 0"), a4 = h("X2 - XY + Y2 = 0"), a5 = h("X2 - Y2 = 0")
+  b = as.list(coef(m)),
+  r2 = summary(m)$r.squared,
+  a1 = h("ePow + iPow = 0"),
+  a2 = h("X2 + XY + Y2 = 0"),
+  a3 = h("ePow - iPow = 0"),
+  a4 = h("X2 - XY + Y2 = 0"),
+  a5 = h("X2 - Y2 = 0")
 )
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/rsa/reference.json")
 cat("written; licence", packageDescription("RSA")$License, "\n")

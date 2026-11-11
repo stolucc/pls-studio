@@ -16,7 +16,19 @@ pick <- function(f) {
   pe <- parameterEstimates(f)
   v <- pe[pe$op == "~~" & pe$lhs == pe$rhs & pe$lhs %in% paste0("x", 1:6), ]
   l <- pe[pe$op == "=~", ]
-  list(variances = setNames(as.list(v$est), v$lhs), loadings = setNames(as.list(l$est), paste(l$lhs, l$rhs)), chisq = unname(fitMeasures(f, "chisq")))
+  list(
+    variances = setNames(as.list(v$est), v$lhs),
+    loadings = setNames(as.list(l$est), paste(l$lhs, l$rhs)),
+    chisq = unname(fitMeasures(f, "chisq"))
+  )
 }
-write(toJSON(list(lavaan = as.character(packageVersion("lavaan")), bounds = pick(fb), loading = pick(fa)), auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/inequality.json")
+write(
+  toJSON(
+    list(lavaan = as.character(packageVersion("lavaan")), bounds = pick(fb), loading = pick(fa)),
+    auto_unbox = TRUE,
+    digits = NA,
+    pretty = TRUE
+  ),
+  "src/engine/__fixtures__/inequality.json"
+)
 cat("written\n")

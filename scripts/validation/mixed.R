@@ -29,10 +29,19 @@ lrt <- anova(fit_ri, fit, refit = FALSE)
 r2 <- r2_nakagawa(fit)
 lmm <- list(
   versions = c(lme4 = as.character(packageVersion("lme4")), lmerTest = as.character(packageVersion("lmerTest"))),
-  fixed = lapply(seq_len(nrow(co)), function(i) list(term = rownames(co)[i], est = co[i, 1], se = co[i, 2], df = co[i, 3], t = co[i, 4], p = co[i, 5])),
-  random = lapply(seq_len(nrow(vc)), function(i) list(grp = vc$grp[i], var1 = vc$var1[i], var2 = vc$var2[i], vcov = vc$vcov[i], sdcor = vc$sdcor[i])),
-  icc = v0$vcov[1] / sum(v0$vcov), r2 = list(marginal = unname(r2$R2_marginal), conditional = unname(r2$R2_conditional)),
-  logLik = as.numeric(logLik(fit)), aic = AIC(fit), bic = BIC(fit),
+  fixed = lapply(
+    seq_len(nrow(co)),
+    function(i) list(term = rownames(co)[i], est = co[i, 1], se = co[i, 2], df = co[i, 3], t = co[i, 4], p = co[i, 5])
+  ),
+  random = lapply(
+    seq_len(nrow(vc)),
+    function(i) list(grp = vc$grp[i], var1 = vc$var1[i], var2 = vc$var2[i], vcov = vc$vcov[i], sdcor = vc$sdcor[i])
+  ),
+  icc = v0$vcov[1] / sum(v0$vcov),
+  r2 = list(marginal = unname(r2$R2_marginal), conditional = unname(r2$R2_conditional)),
+  logLik = as.numeric(logLik(fit)),
+  aic = AIC(fit),
+  bic = BIC(fit),
   slopeTest = list(chisq = lrt$Chisq[2], df = lrt$Df[2], p = lrt$`Pr(>Chisq)`[2])
 )
 
@@ -58,5 +67,8 @@ gmm <- list(
     )
   })
 )
-write(toJSON(list(lmm = lmm, gmm = gmm), auto_unbox = TRUE, digits = NA, pretty = TRUE), file.path(root, "reference.json"))
+write(
+  toJSON(list(lmm = lmm, gmm = gmm), auto_unbox = TRUE, digits = NA, pretty = TRUE),
+  file.path(root, "reference.json")
+)
 cat("written", file.path(root, "reference.json"), "\n")

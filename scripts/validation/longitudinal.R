@@ -16,7 +16,10 @@ pick <- function(f) {
   pe <- pe[pe$op %in% c("~1", "~~", "~", "=~") & (pe$lhs %in% c("i", "s", "q", "RIx", "RIy", paste0("wx", 1:4), paste0("wy", 1:4)) | (pe$op == "~" & pe$lhs %in% paste0("t", 1:4))), ]
   list(
     fit = as.list(fitMeasures(f, c("chisq", "df", "cfi", "rmsea", "srmr"))),
-    estimates = lapply(seq_len(nrow(pe)), function(i) list(lhs = pe$lhs[i], op = pe$op[i], rhs = pe$rhs[i], est = pe$est[i], se = pe$se[i], std = pe$std.all[i]))
+    estimates = lapply(
+      seq_len(nrow(pe)),
+      function(i) list(lhs = pe$lhs[i], op = pe$op[i], rhs = pe$rhs[i], est = pe$est[i], se = pe$se[i], std = pe$std.all[i])
+    )
   )
 }
 linear <- growth("i =~ 1*t1 + 1*t2 + 1*t3 + 1*t4\ns =~ 0*t1 + 1*t2 + 2*t3 + 3*t4", g)
@@ -24,7 +27,10 @@ quadratic <- growth("i =~ 1*t1 + 1*t2 + 1*t3 + 1*t4\ns =~ 0*t1 + 1*t2 + 2*t3 + 3
 basis <- growth("i =~ 1*t1 + 1*t2 + 1*t3 + 1*t4\ns =~ 0*t1 + 1*t2 + t3 + t4", g)
 conditional <- growth("i =~ 1*t1 + 1*t2 + 1*t3 + 1*t4\ns =~ 0*t1 + 1*t2 + 2*t3 + 3*t4\ni + s ~ x1 + x2", g)
 # The tutorial's model with time-varying covariates (each occasion on its own).
-timevarying <- growth("i =~ 1*t1 + 1*t2 + 1*t3 + 1*t4\ns =~ 0*t1 + 1*t2 + 2*t3 + 3*t4\ni ~ x1 + x2\ns ~ x1 + x2\nt1 ~ c1\nt2 ~ c2\nt3 ~ c3\nt4 ~ c4", g)
+timevarying <- growth(
+  "i =~ 1*t1 + 1*t2 + 1*t3 + 1*t4\ns =~ 0*t1 + 1*t2 + 2*t3 + 3*t4\ni ~ x1 + x2\ns ~ x1 + x2\nt1 ~ c1\nt2 ~ c2\nt3 ~ c3\nt4 ~ c4",
+  g
+)
 
 # RI-CLPM data: x and y over 4 waves.
 set.seed(20261029)
@@ -46,12 +52,17 @@ write.csv(p, file.path(root, "panel.csv"), row.names = FALSE)
 ri <- function(equal, random = TRUE) {
   L <- c(
     if (random) c("RIx =~ 1*x1 + 1*x2 + 1*x3 + 1*x4", "RIy =~ 1*y1 + 1*y2 + 1*y3 + 1*y4"),
-    sprintf("wx%d =~ 1*x%d", 1:T, 1:T), sprintf("wy%d =~ 1*y%d", 1:T, 1:T),
+    sprintf("wx%d =~ 1*x%d", 1:T, 1:T),
+    sprintf("wy%d =~ 1*y%d", 1:T, 1:T),
     sprintf("wx%d ~ %swx%d + %swy%d", 2:T, if (equal) "a*" else "", 1:(T - 1), if (equal) "b*" else "", 1:(T - 1)),
     sprintf("wy%d ~ %swx%d + %swy%d", 2:T, if (equal) "c*" else "", 1:(T - 1), if (equal) "d*" else "", 1:(T - 1)),
-    "wx1 ~~ wy1", sprintf("wx%d ~~ wy%d", 2:T, 2:T), sprintf("wx%d ~~ wx%d", 1:T, 1:T), sprintf("wy%d ~~ wy%d", 1:T, 1:T),
+    "wx1 ~~ wy1",
+    sprintf("wx%d ~~ wy%d", 2:T, 2:T),
+    sprintf("wx%d ~~ wx%d", 1:T, 1:T),
+    sprintf("wy%d ~~ wy%d", 1:T, 1:T),
     if (random) c("RIx ~~ RIx", "RIy ~~ RIy", "RIx ~~ RIy", "RIx ~~ 0*wx1", "RIx ~~ 0*wy1", "RIy ~~ 0*wx1", "RIy ~~ 0*wy1"),
-    sprintf("x%d ~~ 0*x%d", 1:T, 1:T), sprintf("y%d ~~ 0*y%d", 1:T, 1:T)
+    sprintf("x%d ~~ 0*x%d", 1:T, 1:T),
+    sprintf("y%d ~~ 0*y%d", 1:T, 1:T)
   )
   lavaan(paste(L, collapse = "\n"), p, meanstructure = TRUE, int.ov.free = TRUE)
 }
@@ -62,9 +73,15 @@ cmp <- lavTestLRT(clpm, riclpm)
 write(toJSON(
   list(
     lavaan = as.character(packageVersion("lavaan")),
-    linear = pick(linear), quadratic = pick(quadratic), basis = pick(basis), conditional = pick(conditional), timeVarying = pick(timevarying),
+    linear = pick(linear),
+    quadratic = pick(quadratic),
+    basis = pick(basis),
+    conditional = pick(conditional),
+    timeVarying = pick(timevarying),
     impliedMeansLinear = unname(fitted(linear)$mean[c("t1", "t2", "t3", "t4")]),
-    riclpm = pick(riclpm), riclpmEqual = pick(riclpm_equal), clpm = pick(clpm),
+    riclpm = pick(riclpm),
+    riclpmEqual = pick(riclpm_equal),
+    clpm = pick(clpm),
     clpmVsRiclpm = list(chisqDiff = cmp[["Chisq diff"]][2], dfDiff = cmp[["Df diff"]][2], p = cmp[["Pr(>Chisq)"]][2])
   ),
   auto_unbox = TRUE, digits = NA, pretty = TRUE

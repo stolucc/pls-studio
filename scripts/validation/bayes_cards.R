@@ -48,17 +48,31 @@ cat(sprintf("%-45s %s\n", "binom.test p", format(binom.test(c(k, n - k), p = p0)
 # ?anovaBF / manual, mixed models: puzzles, shape x color within subjects (shipped wide, one column per cell, as the card takes it)
 data(puzzles)
 cell <- function(s, k) with(puzzles[puzzles$shape == s & puzzles$color == k, ], RT[order(ID)])
-wide <- data.frame(ID = 1:12, round.color = cell("round", "color"), round.mono = cell("round", "monochromatic"), square.color = cell("square", "color"), square.mono = cell("square", "monochromatic"))
+wide <- data.frame(
+  ID = 1:12,
+  round.color = cell("round", "color"),
+  round.mono = cell("round", "monochromatic"),
+  square.color = cell("square", "color"),
+  square.mono = cell("square", "monochromatic")
+)
 write.csv(wide, "public/examples/bayes/puzzles.csv", row.names = FALSE, quote = FALSE)
 set.seed(1234)
 bf("puzzles (anovaBF)", anovaBF(RT ~ shape * color + ID, data = puzzles, whichRandom = "ID", progress = FALSE))
 
 # Manual, regression and ANOVA: log2(dose) with the supp x dose interaction; the card's call (generalTestBF, seed 1234)
 set.seed(1234)
-bf("ancova with interaction (generalTestBF)", generalTestBF(len ~ supp * dose, data = tg2, whichModels = "withmain", progress = FALSE))
+bf(
+  "ancova with interaction (generalTestBF)",
+  generalTestBF(len ~ supp * dose, data = tg2, whichModels = "withmain", progress = FALSE)
+)
 
 # proportionBF (logistic prior on the log odds, r = 0.5): the manual's peas and ?proportionBF's 15 of 25
 bf("proportionBF peas", proportionBF(682, 682 + 243, p = 3 / 4))
 bf("proportionBF peas, null", 1 / proportionBF(682, 682 + 243, p = 3 / 4))
 bf("proportionBF 15 of 25", proportionBF(y = 15, N = 25, p = .5))
-write.csv(data.frame(outcome = rep(1:2, c(15, 10))), "public/examples/bayes/proportion-15-of-25.csv", row.names = FALSE, quote = FALSE)
+write.csv(
+  data.frame(outcome = rep(1:2, c(15, 10))),
+  "public/examples/bayes/proportion-15-of-25.csv",
+  row.names = FALSE,
+  quote = FALSE
+)

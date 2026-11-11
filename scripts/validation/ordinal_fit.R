@@ -37,7 +37,11 @@ cuts <- function(v) c(-Inf, th[grep(paste0("^", v, "\\|"), names(th))], Inf)
 a <- cuts(pair[1])
 b <- cuts(pair[2])
 F2 <- function(x, y) if (x == -Inf || y == -Inf) 0 else if (x == Inf && y == Inf) 1 else if (x == Inf) pnorm(y) else if (y == Inf) pnorm(x) else pbivnorm(x, y, rho)
-P <- outer(seq_len(length(a) - 1), seq_len(length(b) - 1), Vectorize(function(i, j) F2(a[i + 1], b[j + 1]) - F2(a[i], b[j + 1]) - F2(a[i + 1], b[j]) + F2(a[i], b[j])))
+P <- outer(
+  seq_len(length(a) - 1),
+  seq_len(length(b) - 1),
+  Vectorize(function(i, j) F2(a[i + 1], b[j + 1]) - F2(a[i], b[j + 1]) - F2(a[i + 1], b[j]) + F2(a[i], b[j]))
+)
 O <- table(factor(d[[pair[1]]], levels = 1:6), factor(d[[pair[2]]], levels = 1:6))
 N <- sum(O)
 E <- N * P
@@ -48,7 +52,15 @@ out <- list(
   lavaan = as.character(packageVersion("lavaan")), items = items,
   polychoric = unname(R), psychPolychoric = unname(polychoric(d)$rho[items, items]),
   thresholds = list(names = names(unclass(ss$th)), values = unname(as.numeric(ss$th))),
-  tech10 = list(lhs = as.character(tb$lhs), rhs = as.character(tb$rhs), df = as.numeric(tb$df), x2 = as.numeric(tb$X2), x2p = as.numeric(tb$X2.pval), g2 = as.numeric(tb$G2), g2p = as.numeric(tb$G2.pval)),
+  tech10 = list(
+    lhs = as.character(tb$lhs),
+    rhs = as.character(tb$rhs),
+    df = as.numeric(tb$df),
+    x2 = as.numeric(tb$X2),
+    x2p = as.numeric(tb$X2.pval),
+    g2 = as.numeric(tb$G2),
+    g2p = as.numeric(tb$G2.pval)
+  ),
   byHand = list(lhs = pair[1], rhs = pair[2], x2 = x2, g2 = g2)
 )
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), file.path(root, "ordinal_fit.json"))

@@ -30,11 +30,18 @@ Rlav <- lavCor(cc, ordered = colnames(bfi)[1:25])
 set.seed(1)
 par <- fa.parallel(X, fm = "minres", fa = "fa", n.iter = 5, cor = "mixed", plot = FALSE)
 out <- list(
-  psych = as.character(packageVersion("psych")), vars = vars,
-  cor = unname(R), kmo = unname(KMO(R)$MSA), eigenvalues = unname(eigen(R, symmetric = TRUE, only.values = TRUE)$values),
-  loadings = unname(unclass(f$loadings)), communality = unname(f$communality[vars]),
+  psych = as.character(packageVersion("psych")),
+  vars = vars,
+  cor = unname(R),
+  kmo = unname(KMO(R)$MSA),
+  eigenvalues = unname(eigen(R, symmetric = TRUE, only.values = TRUE)$values),
+  loadings = unname(unclass(f$loadings)),
+  communality = unname(f$communality[vars]),
   # the polychoric solution's loadings are larger than Pearson's: the mean of each item's largest |loading|
-  meanTopLoading = c(polychoric = mean(apply(abs(unclass(f$loadings)), 1, max)), pearson = mean(apply(abs(unclass(pearson$loadings)), 1, max))),
+  meanTopLoading = c(
+    polychoric = mean(apply(abs(unclass(f$loadings)), 1, max)),
+    pearson = mean(apply(abs(unclass(pearson$loadings)), 1, max))
+  ),
   completeCases = list(n = nrow(cc), psych = unname(Rcc), lavaan = unname(unclass(Rlav)[vars, vars])),
   parallelObserved = unname(par$fa.values)
 )

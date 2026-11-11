@@ -9,12 +9,27 @@ suppressPackageStartupMessages({
 
 # Hair et al. (2021): the extended corporate reputation model (as seminr-corprep in packages.ts).
 mm <- constructs(
-  composite("QUAL", multi_items("qual_", 1:8), weights = mode_B), composite("PERF", multi_items("perf_", 1:5), weights = mode_B),
-  composite("CSOR", multi_items("csor_", 1:5), weights = mode_B), composite("ATTR", multi_items("attr_", 1:3), weights = mode_B),
-  composite("COMP", multi_items("comp_", 1:3)), composite("LIKE", multi_items("like_", 1:3)), composite("CUSA", single_item("cusa")), composite("CUSL", multi_items("cusl_", 1:3))
+  composite("QUAL", multi_items("qual_", 1:8), weights = mode_B),
+  composite("PERF", multi_items("perf_", 1:5), weights = mode_B),
+  composite("CSOR", multi_items("csor_", 1:5), weights = mode_B),
+  composite("ATTR", multi_items("attr_", 1:3), weights = mode_B),
+  composite("COMP", multi_items("comp_", 1:3)),
+  composite("LIKE", multi_items("like_", 1:3)),
+  composite("CUSA", single_item("cusa")),
+  composite("CUSL", multi_items("cusl_", 1:3))
 )
-sm <- relationships(paths(from = c("QUAL", "PERF", "CSOR", "ATTR"), to = c("COMP", "LIKE")), paths(from = c("COMP", "LIKE"), to = c("CUSA", "CUSL")), paths(from = "CUSA", to = "CUSL"))
-m <- estimate_pls(data = corp_rep_data, measurement_model = mm, structural_model = sm, missing = mean_replacement, missing_value = "-99")
+sm <- relationships(
+  paths(from = c("QUAL", "PERF", "CSOR", "ATTR"), to = c("COMP", "LIKE")),
+  paths(from = c("COMP", "LIKE"), to = c("CUSA", "CUSL")),
+  paths(from = "CUSA", to = "CUSL")
+)
+m <- estimate_pls(
+  data = corp_rep_data,
+  measurement_model = mm,
+  structural_model = sm,
+  missing = mean_replacement,
+  missing_value = "-99"
+)
 S <- m$construct_scores
 cat("n", nrow(S), "\n")
 # Full-collinearity VIFs (Kock 2015): each construct on all the others, from seminr's construct scores.
@@ -26,7 +41,16 @@ for (k in colnames(S)) {
 } # the same by regression
 
 # Harman's single-factor test on the 31 indicators, complete cases (-99 is missing).
-items <- c(paste0("qual_", 1:8), paste0("perf_", 1:5), paste0("csor_", 1:5), paste0("attr_", 1:3), paste0("comp_", 1:3), paste0("like_", 1:3), "cusa", paste0("cusl_", 1:3))
+items <- c(
+  paste0("qual_", 1:8),
+  paste0("perf_", 1:5),
+  paste0("csor_", 1:5),
+  paste0("attr_", 1:3),
+  paste0("comp_", 1:3),
+  paste0("like_", 1:3),
+  "cusa",
+  paste0("cusl_", 1:3)
+)
 X <- corp_rep_data[, items]
 X[X == -99] <- NA
 cat("missing cells", sum(is.na(X)), "complete rows", sum(complete.cases(X)), "\n")

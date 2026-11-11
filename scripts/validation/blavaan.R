@@ -16,10 +16,18 @@ x <- HolzingerSwineford1939[, paste0("x", 1:9)]
 fac <- function(nm, ind) list(name = nm, type = "factor", mode = "A", indicators = ind)
 req <- function(ident) {
   toJSON(list(
-    kind = "cb", estimator = "ML", missing = "casewise", data = list(names = names(x), cols = unname(lapply(x, as.numeric))),
+    kind = "cb",
+    estimator = "ML",
+    missing = "casewise",
+    data = list(names = names(x), cols = unname(lapply(x, as.numeric))),
     model = list(
-      constructs = list(fac("visual", paste0("x", 1:3)), fac("textual", paste0("x", 4:6)), fac("speed", paste0("x", 7:9))), paths = list(),
-      covariances = list(list(a = "visual", b = "textual", kind = "construct"), list(a = "visual", b = "speed", kind = "construct"), list(a = "textual", b = "speed", kind = "construct"))
+      constructs = list(fac("visual", paste0("x", 1:3)), fac("textual", paste0("x", 4:6)), fac("speed", paste0("x", 7:9))),
+      paths = list(),
+      covariances = list(
+        list(a = "visual", b = "textual", kind = "construct"),
+        list(a = "visual", b = "speed", kind = "construct"),
+        list(a = "textual", b = "speed", kind = "construct")
+      )
     ),
     chains = 3, burnin = 500, sample = 1000, seed = 1234, confidence = 0.95, identification = ident
   ), auto_unbox = TRUE, digits = NA)
@@ -32,8 +40,13 @@ for (ident in c("marker", "unit")) {
   d <- do.call(rbind, lapply(blavInspect(f, "mcmc"), as.matrix))
   direct <- lapply(colnames(d), function(p) {
     list(
-      par = p, mean = mean(d[, p]), sd = sd(d[, p]), low = unname(quantile(d[, p], 0.025)), high = unname(quantile(d[, p], 0.975)),
-      rhat = unname(blavInspect(f, "rhat")[p]), neff = unname(blavInspect(f, "neff")[p])
+      par = p,
+      mean = mean(d[, p]),
+      sd = sd(d[, p]),
+      low = unname(quantile(d[, p], 0.025)),
+      high = unname(quantile(d[, p], 0.975)),
+      rhat = unname(blavInspect(f, "rhat")[p]),
+      neff = unname(blavInspect(f, "neff")[p])
     )
   })
   fm <- blavaan:::blav_fit_measures(f)
@@ -47,15 +60,39 @@ for (ident in c("marker", "unit")) {
     if (is.na(i)) i <- match(rev, akeys)
     if (is.na(i)) stop(sprintf("%s: not among the app's parameters", dp$par))
     for (k in c("mean", "sd", "low", "high", "rhat", "neff")) {
-      if (!isTRUE(all.equal(app$parameters[[i]][[k]], dp[[k]], tolerance = 1e-10))) stop(sprintf("%s %s: app %s, blavaan %s", dp$par, k, app$parameters[[i]][[k]], dp[[k]]))
+      if (!isTRUE(all.equal(app$parameters[[i]][[k]], dp[[k]], tolerance = 1e-10))) {
+        stop(sprintf("%s %s: app %s, blavaan %s", dp$par, k, app$parameters[[i]][[k]], dp[[k]]))
+      }
     }
   }
   for (k in c("ppp", "dic", "waic", "looic", "margloglik")) {
     a <- app$fit[[c(ppp = "ppp", dic = "dic", waic = "waic", looic = "looic", margloglik = "margLogLik")[[k]]]]
-    if (!isTRUE(all.equal(a, unname(fm[[k]]), tolerance = 1e-10))) stop(sprintf("fit %s: app %s, blavaan %s", k, a, fm[[k]]))
+    if (!isTRUE(all.equal(a, unname(fm[[k]]), tolerance = 1e-10))) {
+      stop(sprintf("fit %s: app %s, blavaan %s", k, a, fm[[k]]))
+    }
   }
-  out[[ident]] <- list(converged = app$converged, maxRhat = app$maxRhat, parameters = app$parameters, direct = direct, fit = app$fit, identical = TRUE)
-  cat(ident, ": app = direct blavaan (", length(direct), " parameters, fit measures); max R-hat ", format(app$maxRhat, digits = 4), "\n", sep = "")
+  out[[ident]] <- list(
+    converged = app$converged,
+    maxRhat = app$maxRhat,
+    parameters = app$parameters,
+    direct = direct,
+    fit = app$fit,
+    identical = TRUE
+  )
+  cat(
+    ident,
+    ": app = direct blavaan (",
+    length(direct),
+    " parameters, fit measures); max R-hat ",
+    format(app$maxRhat, digits = 4),
+    "\n",
+    sep = ""
+  )
 }
-out$versions <- list(R = R.version.string, lavaan = as.character(packageVersion("lavaan")), blavaan = as.character(packageVersion("blavaan")), rstan = as.character(packageVersion("rstan")))
+out$versions <- list(
+  R = R.version.string,
+  lavaan = as.character(packageVersion("lavaan")),
+  blavaan = as.character(packageVersion("blavaan")),
+  rstan = as.character(packageVersion("rstan"))
+)
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/blavaan/reference.json")

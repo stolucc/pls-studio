@@ -14,8 +14,16 @@ options(contrasts = c("contr.treatment", "contr.poly"))
 counts <- c(18, 17, 15, 20, 10, 20, 25, 13, 12)
 outcome <- gl(3, 1, 9)
 treatment <- gl(3, 3)
-write.csv(data.frame(counts, outcome = as.integer(outcome), treatment = as.integer(treatment)), "public/examples/regression/dobson.csv", row.names = FALSE)
-clotting <- data.frame(u = c(5, 10, 15, 20, 30, 40, 60, 80, 100), lot1 = c(118, 58, 42, 35, 27, 25, 21, 19, 18), lot2 = c(69, 35, 26, 21, 18, 16, 13, 12, 12))
+write.csv(
+  data.frame(counts, outcome = as.integer(outcome), treatment = as.integer(treatment)),
+  "public/examples/regression/dobson.csv",
+  row.names = FALSE
+)
+clotting <- data.frame(
+  u = c(5, 10, 15, 20, 30, 40, 60, 80, 100),
+  lot1 = c(118, 58, 42, 35, 27, 25, 21, 19, 18),
+  lot2 = c(69, 35, 26, 21, 18, 16, 13, 12, 12)
+)
 write.csv(clotting, "public/examples/regression/clotting.csv", row.names = FALSE)
 tab <- function(fit) {
   s <- summary(fit)$coefficients
@@ -49,7 +57,10 @@ out <- lapply(names(m), function(k) {
   r <- list(
     coefficients = if (k == "multinom") {
       s <- summary(f)
-      lapply(seq_along(coef(f)), function(i) list(term = names(coef(f))[i], est = unname(coef(f)[i]), se = unname(s$standard.errors[i])))
+      lapply(
+        seq_along(coef(f)),
+        function(i) list(term = names(coef(f))[i], est = unname(coef(f)[i]), se = unname(s$standard.errors[i]))
+      )
     } else {
       tab(f)
     },
@@ -61,8 +72,17 @@ out <- lapply(names(m), function(k) {
   r
 })
 names(out) <- names(m)
-out$versions <- list(R = R.version.string, MASS = as.character(packageVersion("MASS")), nnet = as.character(packageVersion("nnet")), carData = as.character(packageVersion("carData")), faraway = as.character(packageVersion("faraway")))
+out$versions <- list(
+  R = R.version.string,
+  MASS = as.character(packageVersion("MASS")),
+  nnet = as.character(packageVersion("nnet")),
+  carData = as.character(packageVersion("carData")),
+  faraway = as.character(packageVersion("faraway"))
+)
 dir.create("src/engine/__fixtures__/regression", showWarnings = FALSE)
-writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/regression/reference.json")
+writeLines(
+  toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE),
+  "src/engine/__fixtures__/regression/reference.json"
+)
 cat("written\n")
 for (k in names(m)) cat(k, ":", paste(sprintf("%s=%.4f", names(coef(m[[k]]))[1:min(3, length(coef(m[[k]])))], coef(m[[k]])[1:min(3, length(coef(m[[k]])))]), collapse = " "), "\n")

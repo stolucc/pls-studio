@@ -14,8 +14,12 @@ pick <- function(fit) {
   pe <- parameterEstimates(fit)
   ld <- pe[pe$op == "=~", ]
   list(
-    chisq = unname(fitMeasures(fit, "chisq")), chisqScaled = unname(fitMeasures(fit, "chisq.scaled")), df = unname(fitMeasures(fit, "df")),
-    loadings = setNames(as.list(ld$est), paste(ld$lhs, ld$rhs)), se = setNames(as.list(ld$se), paste(ld$lhs, ld$rhs)), n = lavInspect(fit, "nobs")
+    chisq = unname(fitMeasures(fit, "chisq")),
+    chisqScaled = unname(fitMeasures(fit, "chisq.scaled")),
+    df = unname(fitMeasures(fit, "df")),
+    loadings = setNames(as.list(ld$est), paste(ld$lhs, ld$rhs)),
+    se = setNames(as.list(ld$se), paste(ld$lhs, ld$rhs)),
+    n = lavInspect(fit, "nobs")
   )
 }
 ml <- cfa(m, d, sampling.weights = "w", estimator = "ML")
@@ -23,7 +27,12 @@ d2 <- d
 d2$x1[c(3, 10)] <- NA
 fiml <- cfa(m, d2, sampling.weights = "w", estimator = "MLR", missing = "ml")
 write(
-  toJSON(list(lavaan = as.character(packageVersion("lavaan")), ml = pick(ml), mlrFiml = pick(fiml)), auto_unbox = TRUE, digits = NA, pretty = TRUE),
+  toJSON(
+    list(lavaan = as.character(packageVersion("lavaan")), ml = pick(ml), mlrFiml = pick(fiml)),
+    auto_unbox = TRUE,
+    digits = NA,
+    pretty = TRUE
+  ),
   "src/engine/__fixtures__/weights/reference.json"
 )
 cat("written\n")

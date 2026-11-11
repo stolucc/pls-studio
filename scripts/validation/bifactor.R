@@ -25,7 +25,13 @@ m <- sprintf('efa("b1")*c1 + efa("b1")*c2 + efa("b1")*c3 + efa("b1")*c4 =~ %s', 
 
 one <- function(rot, orth) {
   # (gpa.tol as the app: at lavaan's default the bifactor loadings vary in the third decimal with the random starts)
-  f <- sem(m, sample.cov = S, sample.nobs = 213, rotation = rot, rotation.args = list(orthogonal = orth, gpa.tol = 1e-8))
+  f <- sem(
+    m,
+    sample.cov = S,
+    sample.nobs = 213,
+    rotation = rot,
+    rotation.args = list(orthogonal = orth, gpa.tol = 1e-8)
+  )
   std <- lavInspect(f, "std")
   L <- std$lambda
   ss <- colSums(L^2)
@@ -54,7 +60,11 @@ one <- function(rot, orth) {
     loadings = lapply(colnames(L), function(k) list(factor = k, std = unname(L[, k]))),
     factorCor = unname(P),
     bifactor = list(
-      general = "g", items = length(v), ecv = sum(L[, "g"]^2) / sum(L^2), omega = unname(all["omega"]), omegaH = unname(all["omegaH"]),
+      general = "g",
+      items = length(v),
+      ecv = sum(L[, "g"]^2) / sum(L^2),
+      omega = unname(all["omega"]),
+      omegaH = unname(all["omegaH"]),
       specific = lapply(names(groups), function(s) {
         x <- part(groups[[s]], s)
         list(factor = s, omega = unname(x["omega"]), omegaHS = unname(x["omegaH"]), items = 3L)
@@ -70,7 +80,13 @@ out <- list(
 )
 
 # psych's own computation for the orthogonal bi-geomin solution
-f <- sem(m, sample.cov = S, sample.nobs = 213, rotation = "bigeomin", rotation.args = list(orthogonal = TRUE, gpa.tol = 1e-8))
+f <- sem(
+  m,
+  sample.cov = S,
+  sample.nobs = 213,
+  rotation = "bigeomin",
+  rotation.args = list(orthogonal = TRUE, gpa.tol = 1e-8)
+)
 o <- suppressWarnings(psych::omegaFromSem(f, m, plot = FALSE))
 out$psych <- list(omegaH = o$omega, omega = o$omega.tot)
 

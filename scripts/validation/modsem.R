@@ -22,7 +22,13 @@ res <- lapply(c(lms = "lms", qml = "qml"), function(method) {
   list(estimates = lapply(seq_len(nrow(s)), function(i) list(lhs = s$lhs[i], op = s$op[i], rhs = s$rhs[i], est = s$est[i], se = s$std.error[i], std = std[i])))
 })
 write(
-  toJSON(c(list(modsem = as.character(packageVersion("modsem")), model = m), res), auto_unbox = TRUE, digits = NA, pretty = TRUE, na = "null"),
+  toJSON(
+    c(list(modsem = as.character(packageVersion("modsem")), model = m), res),
+    auto_unbox = TRUE,
+    digits = NA,
+    pretty = TRUE,
+    na = "null"
+  ),
   file.path(root, "oneInt.json")
 )
 cat("written\n")

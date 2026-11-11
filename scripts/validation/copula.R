@@ -37,10 +37,22 @@ stage2 <- suppressMessages(estimate_pls(d2, measurement(list(composite("GCCUEX",
   paths(from = c("CUEX", "PERQ", "GCCUEX", "GCPERQ"), to = "CUSA"), paths(from = "CUSA", to = "CUSL")
 )))
 B <- stage2$path_coef
-vectors <- list(a = c(1:10, 20, 40, 80), b = (1:20)^2, c = sin(1:40), d = cos((1:60)^2) + (1:60) / 60, e = stats::qnorm(stats::ppoints(40)))
+vectors <- list(
+  a = c(1:10, 20, 40, 80),
+  b = (1:20)^2,
+  c = sin(1:40),
+  d = cos((1:60)^2) + (1:60) / 60,
+  e = stats::qnorm(stats::ppoints(40))
+)
 out <- list(
   n = nrow(d),
-  paths = list(CUEX_CUSA = B["CUEX", "CUSA"], PERQ_CUSA = B["PERQ", "CUSA"], GC_CUEX_CUSA = B["GCCUEX", "CUSA"], GC_PERQ_CUSA = B["GCPERQ", "CUSA"], CUSA_CUSL = B["CUSA", "CUSL"]),
+  paths = list(
+    CUEX_CUSA = B["CUEX", "CUSA"],
+    PERQ_CUSA = B["PERQ", "CUSA"],
+    GC_CUEX_CUSA = B["GCCUEX", "CUSA"],
+    GC_PERQ_CUSA = B["GCPERQ", "CUSA"],
+    CUSA_CUSL = B["CUSA", "CUSL"]
+  ),
   r2 = stage2$rSquared["Rsq", "CUSA"],
   pstarHead = pstar(stage1$construct_scores[, "CUEX"])[1:10],
   cvm = lapply(vectors, function(x) {

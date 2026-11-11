@@ -31,8 +31,14 @@ mod1w <- invariance.alignment(lambda = lambda, nu = nu, wgt = matrix(sqrt(1000),
 mod2 <- invariance.alignment(lambda = lambda, nu = nu, align.pow = c(2, 2))
 al <- function(m) {
   list(
-    mean = m$pars$alpha0, sd = m$pars$psi0, r2 = unname(m$es.invariance["R2", ]), rbar = unname(m$es.invariance["rbar", ]),
-    sqrtU2 = unname(m$es.invariance["sqrtU2", ]), lambdaAligned = rows(m$lambda.aligned), nuAligned = rows(m$nu.aligned), fopt = m$fopt
+    mean = m$pars$alpha0,
+    sd = m$pars$psi0,
+    r2 = unname(m$es.invariance["R2", ]),
+    rbar = unname(m$es.invariance["rbar", ]),
+    sqrtU2 = unname(m$es.invariance["sqrtU2", ]),
+    lambdaAligned = rows(m$lambda.aligned),
+    nuAligned = rows(m$nu.aligned),
+    fopt = m$fopt
   )
 }
 out$alignment <- list(
@@ -57,7 +63,16 @@ formula_int <- mnlfa::mnlfa_expand_to_list(x = formula_int, names_list = items)
 mod_items <- c(4, 5, 6, 7)
 for (ii in mod_items) formula_int[[ii]] <- ~ 1 + female + age
 formula_slo <- ~1
-mod4 <- mnlfa::mnlfa(dat = dat, items, item_type = "1PL", formula_int = formula_int, formula_slo = formula_slo, formula_mean = formula_mean, formula_sd = formula_sd, verbose = FALSE)
+mod4 <- mnlfa::mnlfa(
+  dat = dat,
+  items,
+  item_type = "1PL",
+  formula_int = formula_int,
+  formula_slo = formula_slo,
+  formula_mean = formula_mean,
+  formula_sd = formula_sd,
+  verbose = FALSE
+)
 mn <- function(m) {
   list(
     parm = as.character(m$item$parm), est = m$item$est, trait = as.character(m$trait$par), traitEst = m$trait$est,
@@ -86,28 +101,53 @@ out$mnlfa <- list(model4 = mn(mod4), twoPL = mn(mod2pl))
 pd <- PoliticalDemocracy
 lv <- function(eqL, eqI, eqR) {
   paste(c(
-    sprintf("d60 =~ NA*y1 + %sy1 + %sy2 + %sy3 + %sy4", if (eqL) "l1*" else "", if (eqL) "l2*" else "", if (eqL) "l3*" else "", if (eqL) "l4*" else ""),
-    sprintf("d65 =~ NA*y5 + %sy5 + %sy6 + %sy7 + %sy8", if (eqL) "l1*" else "", if (eqL) "l2*" else "", if (eqL) "l3*" else "", if (eqL) "l4*" else ""),
-    "d60 ~~ 1*d60", if (eqL) "d65 ~~ d65" else "d65 ~~ 1*d65", "d60 ~~ d65",
-    "d60 ~ 0*1", if (eqI) "d65 ~ 1" else "d65 ~ 0*1",
-    sprintf("y%d ~ %s1", 1:4, if (eqI) paste0("i", 1:4, "*") else ""), sprintf("y%d ~ %s1", 5:8, if (eqI) paste0("i", 1:4, "*") else ""),
-    sprintf("y%d ~~ %sy%d", 1:4, if (eqR) paste0("r", 1:4, "*") else "", 1:4), sprintf("y%d ~~ %sy%d", 5:8, if (eqR) paste0("r", 1:4, "*") else "", 5:8),
+    sprintf(
+      "d60 =~ NA*y1 + %sy1 + %sy2 + %sy3 + %sy4",
+      if (eqL) "l1*" else "",
+      if (eqL) "l2*" else "",
+      if (eqL) "l3*" else "",
+      if (eqL) "l4*" else ""
+    ),
+    sprintf(
+      "d65 =~ NA*y5 + %sy5 + %sy6 + %sy7 + %sy8",
+      if (eqL) "l1*" else "",
+      if (eqL) "l2*" else "",
+      if (eqL) "l3*" else "",
+      if (eqL) "l4*" else ""
+    ),
+    "d60 ~~ 1*d60",
+    if (eqL) "d65 ~~ d65" else "d65 ~~ 1*d65",
+    "d60 ~~ d65",
+    "d60 ~ 0*1",
+    if (eqI) "d65 ~ 1" else "d65 ~ 0*1",
+    sprintf("y%d ~ %s1", 1:4, if (eqI) paste0("i", 1:4, "*") else ""),
+    sprintf("y%d ~ %s1", 5:8, if (eqI) paste0("i", 1:4, "*") else ""),
+    sprintf("y%d ~~ %sy%d", 1:4, if (eqR) paste0("r", 1:4, "*") else "", 1:4),
+    sprintf("y%d ~~ %sy%d", 5:8, if (eqR) paste0("r", 1:4, "*") else "", 5:8),
     sprintf("y%d ~~ y%d", 1:4, 5:8)
   ), collapse = "\n")
 }
 for (est in c("ML", "MLR")) {
   fits <- list(
-    configural = lavaan(lv(FALSE, FALSE, FALSE), pd, estimator = est), metric = lavaan(lv(TRUE, FALSE, FALSE), pd, estimator = est),
-    scalar = lavaan(lv(TRUE, TRUE, FALSE), pd, estimator = est), strict = lavaan(lv(TRUE, TRUE, TRUE), pd, estimator = est)
+    configural = lavaan(lv(FALSE, FALSE, FALSE), pd, estimator = est),
+    metric = lavaan(lv(TRUE, FALSE, FALSE), pd, estimator = est),
+    scalar = lavaan(lv(TRUE, TRUE, FALSE), pd, estimator = est),
+    strict = lavaan(lv(TRUE, TRUE, TRUE), pd, estimator = est)
   )
   lrt <- lavTestLRT(fits$configural, fits$metric, fits$scalar, fits$strict)
   pick <- function(f, a, b) unname(if (est == "MLR") fitMeasures(f, b) else fitMeasures(f, a))
   pe <- parameterEstimates(fits$scalar)
   out[[paste0("longInvariance", est)]] <- list(
-    chisq = sapply(fits, pick, "chisq", "chisq.scaled"), df = sapply(fits, function(f) unname(fitMeasures(f, "df"))),
-    cfi = sapply(fits, pick, "cfi", "cfi.robust"), rmsea = sapply(fits, pick, "rmsea", "rmsea.robust"), srmr = sapply(fits, function(f) unname(fitMeasures(f, "srmr"))),
-    chisqDiff = unname(lrt[["Chisq diff"]][2:4]), p = unname(lrt[["Pr(>Chisq)"]][2:4]),
-    scalarMean = pe$est[pe$lhs == "d65" & pe$op == "~1"], scalarMeanSe = pe$se[pe$lhs == "d65" & pe$op == "~1"], scalarVar = pe$est[pe$lhs == "d65" & pe$op == "~~" & pe$rhs == "d65"]
+    chisq = sapply(fits, pick, "chisq", "chisq.scaled"),
+    df = sapply(fits, function(f) unname(fitMeasures(f, "df"))),
+    cfi = sapply(fits, pick, "cfi", "cfi.robust"),
+    rmsea = sapply(fits, pick, "rmsea", "rmsea.robust"),
+    srmr = sapply(fits, function(f) unname(fitMeasures(f, "srmr"))),
+    chisqDiff = unname(lrt[["Chisq diff"]][2:4]),
+    p = unname(lrt[["Pr(>Chisq)"]][2:4]),
+    scalarMean = pe$est[pe$lhs == "d65" & pe$op == "~1"],
+    scalarMeanSe = pe$se[pe$lhs == "d65" & pe$op == "~1"],
+    scalarVar = pe$est[pe$lhs == "d65" & pe$op == "~~" & pe$rhs == "d65"]
   )
 }
 
@@ -122,7 +162,14 @@ mimic <- function(fac, items, x, est, adjust) {
     pe <- parameterEstimates(f1, standardized = TRUE)
     r <- pe[pe$lhs == i & pe$op == "~", ]
     a <- anova(f1, f0)
-    list(est = r$est, se = r$se, p = r$pvalue, std = r$std.all, chisq = a[["Chisq diff"]][2], pLrt = a[["Pr(>Chisq)"]][2])
+    list(
+      est = r$est,
+      se = r$se,
+      p = r$pvalue,
+      std = r$std.all,
+      chisq = a[["Chisq diff"]][2],
+      pLrt = a[["Pr(>Chisq)"]][2]
+    )
   })
   p <- sapply(rows, `[[`, "pLrt")
   padj <- p.adjust(p, adjust)
@@ -133,8 +180,20 @@ mimic <- function(fac, items, x, est, adjust) {
   pef <- parameterEstimates(ff)
   ef <- pef[pef$lhs == fac & pef$op == "~", ]
   list(
-    effect = e0$est, effectSe = e0$se, est = sapply(rows, `[[`, "est"), se = sapply(rows, `[[`, "se"), p = sapply(rows, `[[`, "p"), std = sapply(rows, `[[`, "std"),
-    chisq = sapply(rows, `[[`, "chisq"), pLrt = p, pAdj = padj, score = sc$X2, scoreP = sc$p.value, flagged = I(flagged), finalEffect = ef$est, finalEffectSe = ef$se,
+    effect = e0$est,
+    effectSe = e0$se,
+    est = sapply(rows, `[[`, "est"),
+    se = sapply(rows, `[[`, "se"),
+    p = sapply(rows, `[[`, "p"),
+    std = sapply(rows, `[[`, "std"),
+    chisq = sapply(rows, `[[`, "chisq"),
+    pLrt = p,
+    pAdj = padj,
+    score = sc$X2,
+    scoreP = sc$p.value,
+    flagged = I(flagged),
+    finalEffect = ef$est,
+    finalEffectSe = ef$se,
     finalChisq = unname(fitMeasures(ff, if (est == "MLR") "chisq.scaled" else "chisq"))
   ) # (scaled for MLR, as the card reports)
 }

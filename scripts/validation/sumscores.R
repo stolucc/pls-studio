@@ -24,7 +24,15 @@ Satisfaction ~ Image + Expectation + Quality + Value
 Complaints ~ Satisfaction
 Loyalty ~ Image + Satisfaction + Complaints
 "
-modes <- list(Image = "modeA", Expectation = "modeA", Quality = "unit", Value = "modeA", Satisfaction = "modeA", Complaints = "modeA", Loyalty = "unit")
+modes <- list(
+  Image = "modeA",
+  Expectation = "modeA",
+  Quality = "unit",
+  Value = "modeA",
+  Satisfaction = "modeA",
+  Complaints = "modeA",
+  Loyalty = "unit"
+)
 fit <- csem(d, model, .PLS_modes = modes, .PLS_weight_scheme_inner = "path", .tolerance = 1e-7, .disattenuate = FALSE)
 plsc <- csem(d, model, .PLS_modes = modes, .PLS_weight_scheme_inner = "path", .tolerance = 1e-7, .disattenuate = TRUE)
 paths <- function(B) {

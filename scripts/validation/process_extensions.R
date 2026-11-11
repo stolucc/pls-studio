@@ -50,7 +50,11 @@ equations <- function(out) {
     }
     summ <- grep("^Model Summary:", out)
     summ <- summ[summ > s][1]
-    res[[outcome]] <- list(coef = coef, summaryHeader = words(out[summ + 1]), summary = as.numeric(words(out[summ + 2])))
+    res[[outcome]] <- list(
+      coef = coef,
+      summaryHeader = words(out[summ + 1]),
+      summary = as.numeric(words(out[summ + 2]))
+    )
   }
   res
 }

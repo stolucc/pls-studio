@@ -33,7 +33,12 @@ imp <- mice(nhanes, print = FALSE, seed = 16117)
 pooled <- summary(pool(with(imp, lm(chl ~ age + hyp + bmi))))
 out <- list(
   hs = as.list(hs), nhanes = as.list(setNames(pooled$estimate, as.character(pooled$term))),
-  versions = list(R = R.version.string, lavaan = as.character(packageVersion("lavaan")), Amelia = as.character(packageVersion("Amelia")), mice = as.character(packageVersion("mice")))
+  versions = list(
+    R = R.version.string,
+    lavaan = as.character(packageVersion("lavaan")),
+    Amelia = as.character(packageVersion("Amelia")),
+    mice = as.character(packageVersion("mice"))
+  )
 )
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/mi/examples.json")
 print(round(unlist(out$nhanes), 4))

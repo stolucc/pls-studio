@@ -28,7 +28,11 @@ infoK <- function(fit) {
 tests <- function(fit, z, parm, vcov, fns, seed = 1090) {
   setNames(lapply(fns, function(f) {
     set.seed(seed)
-    r <- if (identical(vcov, "info")) sctest(fit, order.by = z, parm = parm, vcov = "info", functional = f) else sctest(fit, order.by = z, parm = parm, vcov = vcov, sandwich = FALSE, functional = f)
+    r <- if (identical(vcov, "info")) {
+      sctest(fit, order.by = z, parm = parm, vcov = "info", functional = f)
+    } else {
+      sctest(fit, order.by = z, parm = parm, vcov = vcov, sandwich = FALSE, functional = f)
+    }
     list(statistic = unname(r$statistic), p = unname(r$p.value))
   }), fns)
 }
@@ -41,7 +45,9 @@ restr <- cfa(gq6, data = yg, group = "agegroup", meanstructure = TRUE, group.equ
 full <- cfa(gq6, data = yg, group = "agegroup", meanstructure = TRUE)
 lrt <- anova(full, restr)
 published <- list(
-  n = nrow(yg), rows = I(which(compcases)), lrt = list(chisq = lrt[["Chisq diff"]][2], df = lrt[["Df diff"]][2], p = lrt[["Pr(>Chisq)"]][2]),
+  n = nrow(yg),
+  rows = I(which(compcases)),
+  lrt = list(chisq = lrt[["Chisq diff"]][2], df = lrt[["Df diff"]][2], p = lrt[["Pr(>Chisq)"]][2]),
   tests = tests(restr, yg$agegroup, 1:4, infoK(restr), ALL)
 )
 str(published$tests)
@@ -64,11 +70,24 @@ load <- which(pt$op[pt$free > 0] == "=~")
 hsref <- list(
   n = nobs(hsfit), loadings = tests(hsfit, hs$ageyr, load, "info", c("DM", "CvM", "maxLM")),
   all = tests(hsfit, hs$ageyr, NULL, "info", c("DM", "CvM", "maxLM")),
-  variances = tests(hsfit, hs$ageyr, which(pt$op[pt$free > 0] == "~~" & pt$lhs[pt$free > 0] == pt$rhs[pt$free > 0] & pt$lhs[pt$free > 0] %in% lavNames(hsfit, "ov")), "info", c("DM", "CvM", "maxLM")),
+  variances = tests(
+    hsfit,
+    hs$ageyr,
+    which(pt$op[pt$free > 0] == "~~" & pt$lhs[pt$free > 0] == pt$rhs[pt$free > 0] & pt$lhs[pt$free > 0] %in% lavNames(hsfit, "ov")),
+    "info",
+    c("DM", "CvM", "maxLM")
+  ),
   # ordinal: grade (7, 8) as a two-category covariate is too coarse; ageyr's six values as ordinal categories
   ordinal = tests(hsfit, factor(hs$ageyr), load, "info", c("WDMo", "maxLMo", "LMuo"), seed = 1234),
   dmComponents = {
-    g <- gefp(hsfit, fit = NULL, order.by = hs$ageyr, parm = load, vcov = function(x, ...) solve(vcov(x) * nobs(x)), sandwich = FALSE)
+    g <- gefp(
+      hsfit,
+      fit = NULL,
+      order.by = hs$ageyr,
+      parm = load,
+      vcov = function(x, ...) solve(vcov(x) * nobs(x)),
+      sandwich = FALSE
+    )
     I(unname(apply(abs(as.matrix(g$process)), 2, max)))
   }
 )
@@ -77,8 +96,14 @@ str(hsref$loadings)
 dir.create("src/engine/__fixtures__/scoretest", showWarnings = FALSE, recursive = TRUE)
 writeLines(
   toJSON(list(
-    generated = format(Sys.time()), R = R.version.string, strucchange = as.character(packageVersion("strucchange")), lavaan = as.character(packageVersion("lavaan")),
-    psychotools = as.character(packageVersion("psychotools")), published = published, example = example, hs = hsref
+    generated = format(Sys.time()),
+    R = R.version.string,
+    strucchange = as.character(packageVersion("strucchange")),
+    lavaan = as.character(packageVersion("lavaan")),
+    psychotools = as.character(packageVersion("psychotools")),
+    published = published,
+    example = example,
+    hs = hsref
   ), auto_unbox = TRUE, pretty = TRUE, digits = NA, null = "null", na = "null"),
   "src/engine/__fixtures__/scoretest/reference.json"
 )

@@ -8,8 +8,12 @@ suppressPackageStartupMessages({
 })
 pa <- fa(bfi[, 1:25], 5, fm = "pa", rotate = "promax")
 out <- list(
-  psych = as.character(packageVersion("psych")), loadings = unname(unclass(pa$loadings)), communality = unname(pa$communality),
-  phi = unname(pa$Phi), rmsea = unname(pa$RMSEA[1]), tli = pa$TLI
+  psych = as.character(packageVersion("psych")),
+  loadings = unname(unclass(pa$loadings)),
+  communality = unname(pa$communality),
+  phi = unname(pa$Phi),
+  rmsea = unname(pa$RMSEA[1]),
+  tli = pa$TLI
 )
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/efa/pa.json")
 cat("written\n")

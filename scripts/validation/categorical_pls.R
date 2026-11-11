@@ -23,7 +23,11 @@ e <- f$Estimates
 out <- list(
   cSEM = as.character(packageVersion("cSEM")),
   weights = as.list(e$Weight_estimates["Provider", c("P2", "P3", "P4")]),
-  paths = list(`Provider -> SAT` = e$Path_estimates["SAT", "Provider"], `Provider -> LOY` = e$Path_estimates["LOY", "Provider"], `SAT -> LOY` = e$Path_estimates["LOY", "SAT"]),
+  paths = list(
+    `Provider -> SAT` = e$Path_estimates["SAT", "Provider"],
+    `Provider -> LOY` = e$Path_estimates["LOY", "Provider"],
+    `SAT -> LOY` = e$Path_estimates["LOY", "SAT"]
+  ),
   r2 = as.list(e$R2)
 )
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/categorical_pls.json")

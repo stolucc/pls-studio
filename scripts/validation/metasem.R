@@ -13,13 +13,22 @@ v <- c("A", "C", "ES", "E", "I")
 model <- "Alpha =~ A + C + ES\nBeta =~ E + I\nAlpha ~~ Beta"
 RAM <- lavaan2RAM(model, obs.variables = v)
 run <- function(data, method, re = "Diag") {
-  s1 <- if (method == "FEM") tssem1(data, Digman97$n, method = "FEM") else tssem1(data, Digman97$n, method = "REM", RE.type = re)
+  s1 <- if (method == "FEM") {
+    tssem1(data, Digman97$n, method = "FEM")
+  } else {
+    tssem1(data, Digman97$n, method = "REM", RE.type = re)
+  }
   s2 <- summary(tssem2(s1, RAM = RAM))
   pooled <- if (method == "FEM") coef(s1) else vec2symMat(coef(s1, select = "fixed"), diag = FALSE)
   list(
-    pooled = unname(pooled[lower.tri(pooled)]), est = as.list(setNames(s2$coefficients$Estimate, rownames(s2$coefficients))),
-    se = as.list(setNames(s2$coefficients$Std.Error, rownames(s2$coefficients))), chisq = unname(s2$stat["Chi-square of target model", 1]),
-    df = unname(s2$stat["DF of target model", 1]), rmsea = unname(s2$stat["RMSEA", 1]), srmr = unname(s2$stat["SRMR", 1]), cfi = unname(s2$stat["CFI", 1]),
+    pooled = unname(pooled[lower.tri(pooled)]),
+    est = as.list(setNames(s2$coefficients$Estimate, rownames(s2$coefficients))),
+    se = as.list(setNames(s2$coefficients$Std.Error, rownames(s2$coefficients))),
+    chisq = unname(s2$stat["Chi-square of target model", 1]),
+    df = unname(s2$stat["DF of target model", 1]),
+    rmsea = unname(s2$stat["RMSEA", 1]),
+    srmr = unname(s2$stat["SRMR", 1]),
+    cfi = unname(s2$stat["CFI", 1]),
     q = if (method == "REM") unname(as.numeric(summary(s1)$Q.stat$Q)) else NULL
   )
 }

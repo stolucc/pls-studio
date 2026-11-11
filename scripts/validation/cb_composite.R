@@ -19,10 +19,14 @@ pick <- function(f, dat) {
   sc <- lavPredict(f)[, "visual"]
   ok <- complete.cases(dat[, c("x1", "x2", "x3")])
   list(
-    weights = setNames(as.list(w$est), w$rhs), weightSe = setNames(as.list(w$se), w$rhs), weightStd = setNames(as.list(w$std.all), w$rhs),
+    weights = setNames(as.list(w$est), w$rhs),
+    weightSe = setNames(as.list(w$se), w$rhs),
+    weightStd = setNames(as.list(w$std.all), w$rhs),
     loadings = as.list(sapply(c("x1", "x2", "x3"), function(x) cor(dat[ok, x], sc[ok]))),
-    paths = setNames(as.list(r$est), r$rhs), pathSe = setNames(as.list(r$se), r$rhs),
-    chisq = unname(fitMeasures(f, "chisq")), df = unname(fitMeasures(f, "df"))
+    paths = setNames(as.list(r$est), r$rhs),
+    pathSe = setNames(as.list(r$se), r$rhs),
+    chisq = unname(fitMeasures(f, "chisq")),
+    df = unname(fitMeasures(f, "df"))
   )
 }
 ml <- pick(sem(m, d), d)

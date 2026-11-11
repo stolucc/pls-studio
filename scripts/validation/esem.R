@@ -26,9 +26,15 @@ out <- lapply(fits, function(f) {
   l <- pe[pe$op %in% c("=~", "~"), ]
   list(
     fit = as.list(fitMeasures(f, c("chisq", "df", "cfi", "rmsea"))),
-    estimates = lapply(seq_len(nrow(l)), function(i) list(lhs = l$lhs[i], op = l$op[i], rhs = l$rhs[i], est = l$est[i], se = l$se[i], std = l$std.all[i])),
+    estimates = lapply(
+      seq_len(nrow(l)),
+      function(i) list(lhs = l$lhs[i], op = l$op[i], rhs = l$rhs[i], est = l$est[i], se = l$se[i], std = l$std.all[i])
+    ),
     factorCor = unname(lavInspect(f, "cor.lv"))
   )
 })
-write(toJSON(c(list(lavaan = as.character(packageVersion("lavaan"))), out), auto_unbox = TRUE, digits = NA, pretty = TRUE), file.path(root, "hs_esem.json"))
+write(
+  toJSON(c(list(lavaan = as.character(packageVersion("lavaan"))), out), auto_unbox = TRUE, digits = NA, pretty = TRUE),
+  file.path(root, "hs_esem.json")
+)
 cat("written\n")

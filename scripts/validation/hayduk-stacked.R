@@ -48,7 +48,15 @@ old <- lower(c(
 ))
 v <- c("Sex", "Age", "Education", "R-attend", "S-current", "AS-views", "AS-acts")
 prop <- c(.01, .05, .10, .10, .10, .05, .05)
-safe <- c(Sex = "Sex", Age = "Age", Education = "Education", `R-attend` = "R_attend", `S-current` = "S_current", `AS-views` = "AS_views", `AS-acts` = "AS_acts")
+safe <- c(
+  Sex = "Sex",
+  Age = "Age",
+  Education = "Education",
+  `R-attend` = "R_attend",
+  `S-current` = "S_current",
+  `AS-views` = "AS_views",
+  `AS-acts` = "AS_acts"
+)
 S <- lapply(list(younger = young, older = old), function(M) {
   M <- M[v, v]
   dimnames(M) <- list(safe[v], safe[v])
@@ -62,27 +70,45 @@ m <- paste(c(
   "AS_views_f ~ S_current_f + Sex_f + Age_f + Education_f + R_attend_f",
   "AS_acts_f ~ S_current_f + AS_views_f + Sex_f + Age_f + Education_f + R_attend_f"
 ), collapse = "\n")
-heavy <- c("AS_acts_f~Sex_f", "S_current_f~Age_f", "AS_views_f~Age_f", "AS_acts_f~Age_f", "S_current_f~Education_f", "AS_views_f~Education_f", "AS_acts_f~Education_f", "AS_views_f~S_current_f", "AS_acts_f~S_current_f")
+heavy <- c(
+  "AS_acts_f~Sex_f",
+  "S_current_f~Age_f",
+  "AS_views_f~Age_f",
+  "AS_acts_f~Age_f",
+  "S_current_f~Education_f",
+  "AS_views_f~Education_f",
+  "AS_acts_f~Education_f",
+  "AS_views_f~S_current_f",
+  "AS_acts_f~S_current_f"
+)
 fit <- sem(m, sample.cov = S, sample.nobs = c(213, 219), group.equal = "regressions", group.partial = heavy)
 free <- sem(m, sample.cov = S, sample.nobs = c(213, 219))
 pe <- parameterEstimates(fit)
 reg <- pe[pe$op == "~", ]
 name <- function(x) names(safe)[match(sub("_f$", "", x), safe)]
 out <- list(
-  chisq = unname(fitMeasures(fit, "chisq")), df = unname(fitMeasures(fit, "df")), pvalue = unname(fitMeasures(fit, "pvalue")),
+  chisq = unname(fitMeasures(fit, "chisq")),
+  df = unname(fitMeasures(fit, "df")),
+  pvalue = unname(fitMeasures(fit, "pvalue")),
   configural = list(chisq = unname(fitMeasures(free, "chisq")), df = unname(fitMeasures(free, "df"))),
   lrt = {
     a <- lavTestLRT(free, fit)
     list(chisq = a[["Chisq diff"]][2], df = a[["Df diff"]][2], p = a[["Pr(>Chisq)"]][2])
   },
   groups = c("younger", "older"),
-  regressions = lapply(seq_len(nrow(reg)), function(i) list(to = name(reg$lhs[i]), from = name(reg$rhs[i]), group = reg$group[i], est = reg$est[i], se = reg$se[i])),
+  regressions = lapply(
+    seq_len(nrow(reg)),
+    function(i) list(to = name(reg$lhs[i]), from = name(reg$rhs[i]), group = reg$group[i], est = reg$est[i], se = reg$se[i])
+  ),
   psi = lapply(c("S_current_f", "AS_views_f", "AS_acts_f"), function(x) {
     r <- pe[pe$op == "~~" & pe$lhs == x & pe$rhs == x, ]
     list(construct = name(x), est = r$est)
   }),
   versions = list(R = R.version.string, lavaan = as.character(packageVersion("lavaan")))
 )
-writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/textbook/hayduk_stacked.json")
+writeLines(
+  toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE),
+  "src/engine/__fixtures__/textbook/hayduk_stacked.json"
+)
 cat(sprintf("stacked: chisq %.3f df %d p %.3f; configural chisq %.3f df %d; LRT of the equalities chisq %.3f df %d p %.3f\n", out$chisq, out$df, out$pvalue, out$configural$chisq, out$configural$df, out$lrt$chisq, out$lrt$df, out$lrt$p))
 print(reg[, c("lhs", "rhs", "group", "est", "se")], digits = 3, row.names = FALSE)

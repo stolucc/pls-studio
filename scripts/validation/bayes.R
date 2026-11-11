@@ -48,8 +48,10 @@ n1 <- length(a$OJ)
 n2 <- length(a$VC)
 t2 <- t.test(a$OJ, a$VC, var.equal = TRUE)$statistic
 out$independent <- list(
-  bf10 = jzs(t2, n1 * n2 / (n1 + n2), n1 + n2 - 2, r0), greater = jzs(t2, n1 * n2 / (n1 + n2), n1 + n2 - 2, r0, "greater"),
-  less = jzs(t2, n1 * n2 / (n1 + n2), n1 + n2 - 2, r0, "less"), delta = post_delta(t2, n1 * n2 / (n1 + n2), n1 + n2 - 2, r0)
+  bf10 = jzs(t2, n1 * n2 / (n1 + n2), n1 + n2 - 2, r0),
+  greater = jzs(t2, n1 * n2 / (n1 + n2), n1 + n2 - 2, r0, "greater"),
+  less = jzs(t2, n1 * n2 / (n1 + n2), n1 + n2 - 2, r0, "less"),
+  delta = post_delta(t2, n1 * n2 / (n1 + n2), n1 + n2 - 2, r0)
 )
 # one sample (len against 18), prior width 1
 t3 <- t.test(tg$len, mu = 18)$statistic
@@ -65,12 +67,24 @@ bfcor <- function(r, n, k, alt = "two.sided") {
   num <- integrate(Vectorize(function(rho) lik(rho, r, n) * prior(rho, k) / mass), lo, hi, rel.tol = 1e-10)$value
   num / lik(0, r, n)
 }
-mt <- data.frame(mpg = mtcars$mpg, wt = mtcars$wt, qsec = mtcars$qsec, am = factor(mtcars$am, labels = c("automatic", "manual")))
+mt <- data.frame(
+  mpg = mtcars$mpg,
+  wt = mtcars$wt,
+  qsec = mtcars$qsec,
+  am = factor(mtcars$am, labels = c("automatic", "manual"))
+)
 out$mtcars <- frame(mt)
 pr <- combn(c("mpg", "wt", "qsec"), 2, simplify = FALSE)
 out$correlation <- lapply(pr, function(p) {
   r <- cor(mt[[p[1]]], mt[[p[2]]])
-  list(a = p[1], b = p[2], r = r, bf10 = bfcor(r, 32, 1), greater = bfcor(r, 32, 1, "greater"), width3 = bfcor(r, 32, 1 / 3))
+  list(
+    a = p[1],
+    b = p[2],
+    r = r,
+    bf10 = bfcor(r, 32, 1),
+    greater = bfcor(r, 32, 1, "greater"),
+    width3 = bfcor(r, 32, 1 / 3)
+  )
 })
 # binomial: beta(1, 1) and beta(2, 3) priors, p0 = 0.5 and 0.3
 bfbin <- function(k, n, p0, a, b, alt = "two.sided") {
@@ -81,7 +95,9 @@ bfbin <- function(k, n, p0, a, b, alt = "two.sided") {
 }
 k <- as.numeric(table(mt$am))
 out$binomial <- list(
-  counts = k, bf = vapply(k, function(x) bfbin(x, 32, 0.5, 1, 1), 0), bfLess = vapply(k, function(x) bfbin(x, 32, 0.3, 2, 3, "less"), 0),
+  counts = k,
+  bf = vapply(k, function(x) bfbin(x, 32, 0.5, 1, 1), 0),
+  bfLess = vapply(k, function(x) bfbin(x, 32, 0.3, 2, 3, "less"), 0),
   median = vapply(k, function(x) qbeta(0.5, x + 1, 32 - x + 1), 0)
 )
 # BayesFactor's ?correlationBF example (iris, sepal length and width; the package's default rscale "medium" = 1/3)
@@ -92,7 +108,10 @@ out$irisCorrelation <- list(r = ri, bf10 = bfcor(ri, 150, 1 / 3))
 # model = integral over g of (1 + g)^((N - p - 1)/2) (1 + g (1 - R2))^(-(N - 1)/2) times an inverse-gamma(1/2, r^2 N / 2) prior on g.
 zs <- function(N, p, R2, r) integrate(function(g) exp(((N - p - 1) / 2) * log1p(g) - ((N - 1) / 2) * log1p(g * (1 - R2)) + log(r^2 * N / 2) / 2 - lgamma(1 / 2) - 1.5 * log(g) - r^2 * N / (2 * g)), 0, Inf, rel.tol = 1e-12)$value
 sets <- list("wt", "hp", "qsec", c("wt", "hp"), c("wt", "qsec"), c("hp", "qsec"), c("wt", "hp", "qsec"))
-out$regression <- lapply(sets, function(x) list(model = paste(x, collapse = " + "), bf10 = zs(32, length(x), summary(lm(reformulate(x, "mpg"), mtcars))$r.squared, sqrt(2) / 4)))
+out$regression <- lapply(
+  sets,
+  function(x) list(model = paste(x, collapse = " + "), bf10 = zs(32, length(x), summary(lm(reformulate(x, "mpg"), mtcars))$r.squared, sqrt(2) / 4))
+)
 out$versions <- list(R = R.version.string)
 dir.create("src/engine/__fixtures__/bayes", showWarnings = FALSE)
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/bayes/reference.json")

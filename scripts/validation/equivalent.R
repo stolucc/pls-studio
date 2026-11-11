@@ -24,8 +24,14 @@ models <- list(
 #  uncorrelated unless drawn)
 fits <- lapply(models, function(m) sem(m, sample.cov = S, sample.nobs = 373, fixed.x = FALSE, auto.cov.y = FALSE))
 out <- list(
-  versions = list(lavaan = as.character(packageVersion("lavaan")), R = R.version.string), S = unname(S), names = vars, n = 373,
-  fits = lapply(names(fits), function(k) list(name = k, syntax = models[[k]], chisq = unname(fitMeasures(fits[[k]], "chisq")), df = unname(fitMeasures(fits[[k]], "df"))))
+  versions = list(lavaan = as.character(packageVersion("lavaan")), R = R.version.string),
+  S = unname(S),
+  names = vars,
+  n = 373,
+  fits = lapply(
+    names(fits),
+    function(k) list(name = k, syntax = models[[k]], chisq = unname(fitMeasures(fits[[k]], "chisq")), df = unname(fitMeasures(fits[[k]], "df")))
+  )
 )
 dir.create("src/engine/__fixtures__/search", showWarnings = FALSE, recursive = TRUE)
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/search/equivalent.json")

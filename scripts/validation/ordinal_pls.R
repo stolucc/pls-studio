@@ -36,7 +36,10 @@ pick <- function(f) {
   a <- assess(f, .quality_criterion = c("reliability", "ave"))
   list(
     correlation = f$Information$Type_of_indicator_correlation,
-    paths = setNames(lapply(paths, function(p) e$Path_estimates[p[2], p[1]]), vapply(paths, paste, "", collapse = " -> ")),
+    paths = setNames(
+      lapply(paths, function(p) e$Path_estimates[p[2], p[1]]),
+      vapply(paths, paste, "", collapse = " -> ")
+    ),
     loadings = as.list(own(e$Loading_estimates)), weights = as.list(own(e$Weight_estimates)),
     r2 = as.list(e$R2), rhoA = as.list(a$Reliability$`Dijkstra-Henselers_rho_A`), ave = as.list(a$AVE),
     srmr = as.numeric(calculateSRMR(f))
@@ -50,5 +53,8 @@ out <- list(
   cSEM = as.character(packageVersion("cSEM")), n = nrow(d), ordPLSc = pick(plsc), ordPLS = pick(pls),
   bootSd = as.list(setNames(apply(r$Resampled, 2, sd), names(r$Original)))
 )
-write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/rengine/__fixtures__/ordinal_pls_csem_bergami.r.json")
+write(
+  toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE),
+  "src/rengine/__fixtures__/ordinal_pls_csem_bergami.r.json"
+)
 cat("written\n")

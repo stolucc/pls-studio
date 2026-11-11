@@ -9,7 +9,11 @@ suppressPackageStartupMessages({
 })
 data(mobi, package = "seminr")
 # (composite, mode A: the PLS-PM estimates the card shows; seminr's reflective() would apply PLSc)
-mm <- constructs(composite("Expectation", multi_items("CUEX", 1:3)), composite("Quality", multi_items("PERQ", 1:7)), composite("Satisfaction", multi_items("CUSA", 1:3)))
+mm <- constructs(
+  composite("Expectation", multi_items("CUEX", 1:3)),
+  composite("Quality", multi_items("PERQ", 1:7)),
+  composite("Satisfaction", multi_items("CUSA", 1:3))
+)
 sm <- relationships(paths(from = c("Expectation", "Quality"), to = "Satisfaction"))
 pls <- estimate_pls(mobi, mm, sm)
 cb <- sem("Expectation =~ CUEX1 + CUEX2 + CUEX3
@@ -24,11 +28,27 @@ pick <- function(op) {
 L <- pls$outer_loadings
 out <- list(
   pls = list(
-    paths = list(Expectation = pls$path_coef["Expectation", "Satisfaction"], Quality = pls$path_coef["Quality", "Satisfaction"]),
-    loadings = as.list(setNames(sapply(rownames(L), function(i) sum(L[i, ])), rownames(L))), r2 = pls$rSquared["Rsq", "Satisfaction"]
+    paths = list(
+      Expectation = pls$path_coef["Expectation", "Satisfaction"],
+      Quality = pls$path_coef["Quality", "Satisfaction"]
+    ),
+    loadings = as.list(setNames(sapply(rownames(L), function(i) sum(L[i, ])), rownames(L))),
+    r2 = pls$rSquared["Rsq", "Satisfaction"]
   ),
-  cb = list(paths = pick("~"), loadings = pick("=~"), r2 = unname(inspect(cb, "r2")["Satisfaction"]), n = lavInspect(cb, "nobs")),
-  versions = list(R = R.version.string, seminr = as.character(packageVersion("seminr")), lavaan = as.character(packageVersion("lavaan")))
+  cb = list(
+    paths = pick("~"),
+    loadings = pick("=~"),
+    r2 = unname(inspect(cb, "r2")["Satisfaction"]),
+    n = lavInspect(cb, "nobs")
+  ),
+  versions = list(
+    R = R.version.string,
+    seminr = as.character(packageVersion("seminr")),
+    lavaan = as.character(packageVersion("lavaan"))
+  )
 )
-writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/methodcompare/mobi.json")
+writeLines(
+  toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE),
+  "src/engine/__fixtures__/methodcompare/mobi.json"
+)
 cat("written\n")

@@ -19,7 +19,13 @@ sm <- relationships(
   paths(from = c("COMP", "LIKE"), to = c("CUSA", "CUSL")),
   paths(from = c("CUSA"), to = c("CUSL"))
 )
-m <- estimate_pls(data = corp_rep_data, measurement_model = mm, structural_model = sm, missing = mean_replacement, missing_value = "-99")
+m <- estimate_pls(
+  data = corp_rep_data,
+  measurement_model = mm,
+  structural_model = sm,
+  missing = mean_replacement,
+  missing_value = "-99"
+)
 print(round(m$path_coef, 4))
 cat("n", nrow(m$data), "\n")
 for (tech in c("DA", "EA")) {
@@ -40,8 +46,16 @@ mobi_mm <- constructs(
 antecedents <- c("Image", "Expectation", "Quality")
 mediators <- c("Satisfaction", "Value")
 outcomes <- c("Loyalty", "Complaints")
-med <- estimate_pls(mobi, mobi_mm, relationships(paths(from = antecedents, to = mediators), paths(from = mediators, to = outcomes)))
-ovr <- estimate_pls(mobi, mobi_mm, relationships(paths(from = antecedents, to = mediators), paths(from = c(antecedents, mediators), to = outcomes)))
+med <- estimate_pls(
+  mobi,
+  mobi_mm,
+  relationships(paths(from = antecedents, to = mediators), paths(from = mediators, to = outcomes))
+)
+ovr <- estimate_pls(
+  mobi,
+  mobi_mm,
+  relationships(paths(from = antecedents, to = mediators), paths(from = c(antecedents, mediators), to = outcomes))
+)
 cat("mediated\n")
 print(summary(med)$it_criteria)
 cat("overriding\n")
@@ -100,7 +114,10 @@ idata <- data.frame(phase, hour)
 ok <- OBrienKaiser
 contrasts(ok$treatment) <- matrix(c(-2, 1, 1, 0, -1, 1), ncol = 2)
 contrasts(ok$gender) <- c(-1, 1)
-mod.ok <- lm(cbind(pre.1, pre.2, pre.3, pre.4, pre.5, post.1, post.2, post.3, post.4, post.5, fup.1, fup.2, fup.3, fup.4, fup.5) ~ treatment * gender, data = ok)
+mod.ok <- lm(
+  cbind(pre.1, pre.2, pre.3, pre.4, pre.5, post.1, post.2, post.3, post.4, post.5, fup.1, fup.2, fup.3, fup.4, fup.5) ~ treatment * gender,
+  data = ok
+)
 s <- summary(Anova(mod.ok, idata = idata, idesign = ~ phase * hour, type = 2), multivariate = FALSE)
 print(unclass(s$univariate.tests))
 print(unclass(s$sphericity.tests))

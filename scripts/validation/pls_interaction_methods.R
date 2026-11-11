@@ -23,7 +23,10 @@ measurement <- function(method, two = FALSE) {
 }
 structure <- function(two = FALSE) {
   relationships(
-    paths(from = c("Image", "Expectation", "Value", "Image*Expectation", if (two) "Value*Expectation"), to = "Satisfaction"),
+    paths(
+      from = c("Image", "Expectation", "Value", "Image*Expectation", if (two) "Value*Expectation"),
+      to = "Satisfaction"
+    ),
     paths(from = "Satisfaction", to = "Loyalty")
   )
 }
@@ -45,7 +48,17 @@ fit_of <- function(method, two = FALSE) {
 }
 out <- list(
   seminr = as.character(packageVersion("seminr")), n = nrow(d),
-  one = list(two_stage = fit_of(two_stage), product_indicator = fit_of(product_indicator), orthogonal = fit_of(orthogonal)),
+  one = list(
+    two_stage = fit_of(two_stage),
+    product_indicator = fit_of(product_indicator),
+    orthogonal = fit_of(orthogonal)
+  ),
   two = list(product_indicator = fit_of(product_indicator, TRUE), orthogonal = fit_of(orthogonal, TRUE))
 )
-write_json(out, "src/engine/__fixtures__/interaction_methods/reference.json", auto_unbox = TRUE, digits = 12, pretty = TRUE)
+write_json(
+  out,
+  "src/engine/__fixtures__/interaction_methods/reference.json",
+  auto_unbox = TRUE,
+  digits = 12,
+  pretty = TRUE
+)

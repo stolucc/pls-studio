@@ -36,7 +36,10 @@ write_data <- function(df, name) {
 data(satisfaction, package = "plspm")
 DATA <- list(
   mobi = write_data(seminr::mobi, "mobi"),
-  corp_rep = write_data(seminr::corp_rep_data[, setdiff(names(seminr::corp_rep_data), c("serviceprovider", "servicetype"))], "corp_rep"),
+  corp_rep = write_data(
+    seminr::corp_rep_data[, setdiff(names(seminr::corp_rep_data), c("serviceprovider", "servicetype"))],
+    "corp_rep"
+  ),
   satisfaction = write_data(satisfaction[, 1:27], "satisfaction"),
   threecf = write_data(as.data.frame(cSEM::threecommonfactors), "threecommonfactors"),
   hs = write_data(lavaan::HolzingerSwineford1939[, paste0("x", 1:9)], "holzinger_swineford"),
@@ -64,15 +67,27 @@ lavaan_syntax <- function(s) {
     line
   }, "")
   to <- unique(vapply(s$paths, `[[`, "", "to"))
-  sm <- vapply(to, function(t) paste(t, "~", paste(vapply(Filter(function(p) p$to == t, s$paths), `[[`, "", "from"), collapse = " + ")), "")
+  sm <- vapply(
+    to,
+    function(t) paste(t, "~", paste(vapply(Filter(function(p) p$to == t, s$paths), `[[`, "", "from"), collapse = " + ")),
+    ""
+  )
   cv <- vapply(s$covariances, function(k) paste(k$a, "~~", k$b), "")
   paste(c(mm, sm, cv), collapse = "\n")
 }
 
 csem_syntax <- function(s) {
-  mm <- vapply(s$constructs, function(c) paste(c$name, if (c$type == "composite") "<~" else "=~", paste(c$indicators, collapse = " + ")), "")
+  mm <- vapply(
+    s$constructs,
+    function(c) paste(c$name, if (c$type == "composite") "<~" else "=~", paste(c$indicators, collapse = " + ")),
+    ""
+  )
   to <- unique(vapply(s$paths, `[[`, "", "to"))
-  sm <- vapply(to, function(t) paste(t, "~", paste(vapply(Filter(function(p) p$to == t, s$paths), `[[`, "", "from"), collapse = " + ")), "")
+  sm <- vapply(
+    to,
+    function(t) paste(t, "~", paste(vapply(Filter(function(p) p$to == t, s$paths), `[[`, "", "from"), collapse = " + ")),
+    ""
+  )
   paste(c(mm, sm), collapse = "\n")
 }
 
@@ -135,7 +150,15 @@ write_case <- function(case) {
     return(invisible())
   }
   case$versions <- versions
-  write_json(case, file.path(root, paste0(case$name, ".json")), digits = NA, auto_unbox = TRUE, pretty = TRUE, null = "null", na = "null")
+  write_json(
+    case,
+    file.path(root, paste0(case$name, ".json")),
+    digits = NA,
+    auto_unbox = TRUE,
+    pretty = TRUE,
+    null = "null",
+    na = "null"
+  )
   cat(sprintf("%-34s ok\n", case$name))
 }
 
@@ -154,7 +177,11 @@ seminr_case <- function(name, dataset, s, missing_token = NULL) {
     for (c in s$constructs) for (i in c$indicators) out[[length(out) + 1]] <- list(construct = c$name, indicator = i, est = M[i, c$name])
     out
   }
-  rel <- if (is.null(sm)) NULL else sm$reliability[vapply(s$constructs, `[[`, "", "name"), , drop = FALSE]
+  rel <- if (is.null(sm)) {
+    NULL
+  } else {
+    sm$reliability[vapply(s$constructs, `[[`, "", "name"), , drop = FALSE]
+  }
   relc <- function(k) if (is.null(rel)) NULL else as.list(rel[, k])
   pc <- est$path_coef
   rownames(pc) <- intxn_name(rownames(pc))
@@ -233,7 +260,11 @@ csem_case <- function(name, dataset, s, consistent) {
       htmt2 = if (is.null(htmt2)) NULL else lower_long(htmt2[factors, factors]),
       fit = list(
         estimated = list(srmr = calculateSRMR(r), dULS = calculateDL(r), dG = calculateDG(r) * log(10)^2),
-        saturated = list(srmr = calculateSRMR(r, .saturated = TRUE), dULS = calculateDL(r, .saturated = TRUE), dG = calculateDG(r, .saturated = TRUE) * log(10)^2)
+        saturated = list(
+          srmr = calculateSRMR(r, .saturated = TRUE),
+          dULS = calculateDL(r, .saturated = TRUE),
+          dG = calculateDG(r, .saturated = TRUE) * log(10)^2
+        )
       )
     ),
     tolerance = 1e-5
@@ -266,9 +297,15 @@ ipma_case <- function(name, dataset, s, target, rescale = NULL) {
     ),
     model = s,
     expected = list(
-      constructs = lapply(setdiff(colnames(ci$Importance), target), function(k) list(name = k, importance = ci$Importance[target, k], performance = ci$Performance[[k]])),
+      constructs = lapply(
+        setdiff(colnames(ci$Importance), target),
+        function(k) list(name = k, importance = ci$Importance[target, k], performance = ci$Performance[[k]])
+      ),
       targetPerformance = ci$Performance[[target]],
-      indicators = lapply(colnames(ii$Importance), function(k) list(name = k, importance = ii$Importance[target, k], performance = ii$Performance[[k]]))
+      indicators = lapply(
+        colnames(ii$Importance),
+        function(k) list(name = k, importance = ii$Importance[target, k], performance = ii$Performance[[k]])
+      )
     ),
     tolerance = 1e-5
   ))
@@ -277,10 +314,34 @@ ipma_case <- function(name, dataset, s, target, rescale = NULL) {
 # ---------- CB-SEM via lavaan ----------
 
 FIT_NAMES <- c(
-  "npar", "chisq", "df", "pvalue", "chisq.scaled", "df.scaled", "pvalue.scaled", "chisq.scaling.factor",
-  "chisq.shift.parameter", "baseline.chisq", "baseline.df", "baseline.chisq.scaled", "cfi", "tli", "cfi.scaled", "tli.scaled",
-  "cfi.robust", "tli.robust", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper", "rmsea.pvalue", "rmsea.scaled", "rmsea.robust",
-  "srmr", "logl", "aic", "bic"
+  "npar",
+  "chisq",
+  "df",
+  "pvalue",
+  "chisq.scaled",
+  "df.scaled",
+  "pvalue.scaled",
+  "chisq.scaling.factor",
+  "chisq.shift.parameter",
+  "baseline.chisq",
+  "baseline.df",
+  "baseline.chisq.scaled",
+  "cfi",
+  "tli",
+  "cfi.scaled",
+  "tli.scaled",
+  "cfi.robust",
+  "tli.robust",
+  "rmsea",
+  "rmsea.ci.lower",
+  "rmsea.ci.upper",
+  "rmsea.pvalue",
+  "rmsea.scaled",
+  "rmsea.robust",
+  "srmr",
+  "logl",
+  "aic",
+  "bic"
 )
 
 lavaan_case <- function(name, dataset, s, estimator = "ML", tol = 1e-5) {
@@ -302,7 +363,12 @@ lavaan_case <- function(name, dataset, s, estimator = "ML", tol = 1e-5) {
     name = name, source = "lavaan", kind = "cb", dataset = dataset,
     options = list(estimator = estimator, missing = "casewise"),
     model = s,
-    expected = list(params = params, fit = lapply(fm, as.numeric), r2 = as.list(inspect(fit, "r2")), n = lavInspect(fit, "nobs")),
+    expected = list(
+      params = params,
+      fit = lapply(fm, as.numeric),
+      r2 = as.list(inspect(fit, "r2")),
+      n = lavInspect(fit, "nobs")
+    ),
     tolerance = tol
   ))
 }
@@ -312,23 +378,41 @@ lavaan_case <- function(name, dataset, s, estimator = "ML", tol = 1e-5) {
 mobi_spec <- function(qualityType = "factor") {
   spec(
     list(
-      cons("Image", items("IMAG", 5)), cons("Expectation", items("CUEX", 3)), cons("Quality", items("PERQ", 7), qualityType),
-      cons("Value", items("PERV", 2)), cons("Satisfaction", items("CUSA", 3)), cons("Complaints", "CUSCO"),
+      cons("Image", items("IMAG", 5)),
+      cons("Expectation", items("CUEX", 3)),
+      cons("Quality", items("PERQ", 7), qualityType),
+      cons("Value", items("PERV", 2)),
+      cons("Satisfaction", items("CUSA", 3)),
+      cons("Complaints", "CUSCO"),
       cons("Loyalty", items("CUSL", 3))
     ),
     list(
-      c("Image", "Expectation"), c("Image", "Satisfaction"), c("Image", "Loyalty"), c("Expectation", "Quality"),
-      c("Expectation", "Value"), c("Expectation", "Satisfaction"), c("Quality", "Value"), c("Quality", "Satisfaction"),
-      c("Value", "Satisfaction"), c("Satisfaction", "Complaints"), c("Satisfaction", "Loyalty"), c("Complaints", "Loyalty")
+      c("Image", "Expectation"),
+      c("Image", "Satisfaction"),
+      c("Image", "Loyalty"),
+      c("Expectation", "Quality"),
+      c("Expectation", "Value"),
+      c("Expectation", "Satisfaction"),
+      c("Quality", "Value"),
+      c("Quality", "Satisfaction"),
+      c("Value", "Satisfaction"),
+      c("Satisfaction", "Complaints"),
+      c("Satisfaction", "Loyalty"),
+      c("Complaints", "Loyalty")
     )
   )
 }
 
 corp_rep_spec <- spec(
   list(
-    cons("QUAL", items("qual_", 8), "composite"), cons("PERF", items("perf_", 5), "composite"),
-    cons("CSOR", items("csor_", 5), "composite"), cons("ATTR", items("attr_", 3), "composite"),
-    cons("COMP", items("comp_", 3)), cons("LIKE", items("like_", 3)), cons("CUSA", "cusa"), cons("CUSL", items("cusl_", 3))
+    cons("QUAL", items("qual_", 8), "composite"),
+    cons("PERF", items("perf_", 5), "composite"),
+    cons("CSOR", items("csor_", 5), "composite"),
+    cons("ATTR", items("attr_", 3), "composite"),
+    cons("COMP", items("comp_", 3)),
+    cons("LIKE", items("like_", 3)),
+    cons("CUSA", "cusa"),
+    cons("CUSL", items("cusl_", 3))
   ),
   list(
     c("QUAL", "COMP"), c("QUAL", "LIKE"), c("PERF", "COMP"), c("PERF", "LIKE"), c("CSOR", "COMP"), c("CSOR", "LIKE"),
@@ -357,15 +441,27 @@ threecf_spec <- spec(
   list(c("eta1", "eta2"), c("eta1", "eta3"), c("eta2", "eta3"))
 )
 
-hs_spec <- spec(list(cons("visual", c("x1", "x2", "x3")), cons("textual", c("x4", "x5", "x6")), cons("speed", c("x7", "x8", "x9"))), list())
+hs_spec <- spec(
+  list(cons("visual", c("x1", "x2", "x3")), cons("textual", c("x4", "x5", "x6")), cons("speed", c("x7", "x8", "x9"))),
+  list()
+)
 
 poldem_spec <- spec(
-  list(cons("ind60", c("x1", "x2", "x3")), cons("dem60", c("y1", "y2", "y3", "y4")), cons("dem65", c("y5", "y6", "y7", "y8"))),
+  list(
+    cons("ind60", c("x1", "x2", "x3")),
+    cons("dem60", c("y1", "y2", "y3", "y4")),
+    cons("dem65", c("y5", "y6", "y7", "y8"))
+  ),
   list(c("ind60", "dem60"), c("ind60", "dem65"), c("dem60", "dem65"))
 )
 
 mobi_cb_small <- spec(
-  list(cons("Image", items("IMAG", 5)), cons("Quality", items("PERQ", 7)), cons("Satisfaction", items("CUSA", 3)), cons("Value", items("PERV", 2))),
+  list(
+    cons("Image", items("IMAG", 5)),
+    cons("Quality", items("PERQ", 7)),
+    cons("Satisfaction", items("CUSA", 3)),
+    cons("Value", items("PERV", 2))
+  ),
   list(c("Quality", "Value"), c("Image", "Satisfaction"), c("Quality", "Satisfaction"), c("Value", "Satisfaction"))
 )
 
@@ -375,7 +471,12 @@ seminr_case("pls_seminr_mobi_B", DATA$mobi, mobi_spec("composite"))
 seminr_case("pls_seminr_corp_rep", DATA$corp_rep, corp_rep_spec, missing_token = "-99")
 
 seminr_case("pls_seminr_moderation_mobi", DATA$mobi, spec(
-  list(cons("Image", items("IMAG", 5)), cons("Expectation", items("CUEX", 3)), cons("Value", items("PERV", 2)), cons("Satisfaction", items("CUSA", 3))),
+  list(
+    cons("Image", items("IMAG", 5)),
+    cons("Expectation", items("CUEX", 3)),
+    cons("Value", items("PERV", 2)),
+    cons("Satisfaction", items("CUSA", 3))
+  ),
   list(c("Image", "Satisfaction"), c("Expectation", "Satisfaction"), c("Value", "Satisfaction")),
   list(c("Image", "Expectation", "Satisfaction"))
 ))
@@ -431,7 +532,10 @@ cb_moderation_case <- function(name, dataset, s, estimator = "ML", at = c(-1, 0,
     paste(fac, "=~", paste(prods, collapse = " + ")),
     paste(mo$to, "~", paste(c(paste0(vapply(preds, lab, ""), preds), paste0("bint*", fac)), collapse = " + ")),
     # Slope of the predictor at moderator value m; for a quadratic term (X²) it is bx + 2·bint·m.
-    paste(sprintf("ce%d := bx + %sbint*(%s)", seq_along(at), if (mo$from == mo$moderator) "2*" else "", format(at)), collapse = "\n"),
+    paste(
+      sprintf("ce%d := bx + %sbint*(%s)", seq_along(at), if (mo$from == mo$moderator) "2*" else "", format(at)),
+      collapse = "\n"
+    ),
     sep = "\n"
   )
   fit <- sem(syntax, data = df, estimator = estimator)
@@ -458,7 +562,9 @@ cb_moderation_case <- function(name, dataset, s, estimator = "ML", at = c(-1, 0,
     options = list(estimator = estimator, missing = "casewise"),
     model = s,
     expected = list(
-      params = params, fit = lapply(fm, as.numeric), r2 = setNames(as.list(inspect(fit, "r2")), rn(names(inspect(fit, "r2")))),
+      params = params,
+      fit = lapply(fm, as.numeric),
+      r2 = setNames(as.list(inspect(fit, "r2")), rn(names(inspect(fit, "r2")))),
       n = lavInspect(fit, "nobs"),
       conditional = lapply(seq_along(at), function(i) list(m = at[i], est = cond$est[i], se = cond$se[i]))
     ),
@@ -495,7 +601,11 @@ mcci_case <- function(name, dataset, s, indirect, estimator = "ML") {
   # Label every regression a_<from>_<to> and define each requested indirect effect.
   mm <- vapply(s$constructs, function(c) paste(c$name, "=~", paste(c$indicators, collapse = " + ")), "")
   to <- unique(vapply(s$paths, `[[`, "", "to"))
-  sm <- vapply(to, function(t) paste(t, "~", paste(vapply(Filter(function(p) p$to == t, s$paths), function(p) paste0("a_", p$from, "_", t, "*", p$from), ""), collapse = " + ")), "")
+  sm <- vapply(
+    to,
+    function(t) paste(t, "~", paste(vapply(Filter(function(p) p$to == t, s$paths), function(p) paste0("a_", p$from, "_", t, "*", p$from), ""), collapse = " + ")),
+    ""
+  )
   defs <- vapply(indirect, function(d) paste0("ind_", d$from, "_", d$to, " := ", d$expr), "")
   fit <- sem(paste(c(mm, sm, defs), collapse = "\n"), data = df, estimator = estimator)
   set.seed(20261027)
@@ -531,7 +641,13 @@ mcci_case(
 emse_case <- function(name, which, syntax, s, estimator, indirect = NULL) {
   S <- as.matrix(read.csv(file.path(root, "data", paste0("emse-", which, "-s.csv")), header = TRUE, row.names = 1))
   NAC <- as.matrix(read.csv(file.path(root, "data", paste0("emse-", which, "-nacov.csv")), header = FALSE))
-  fit <- sem(syntax, sample.cov = S, sample.nobs = 155, NACOV = if (estimator == "ML") NULL else NAC, estimator = estimator)
+  fit <- sem(
+    syntax,
+    sample.cov = S,
+    sample.nobs = 155,
+    NACOV = if (estimator == "ML") NULL else NAC,
+    estimator = estimator
+  )
   if (!lavInspect(fit, "converged")) stop(name, ": lavaan did not converge")
   pe <- parameterEstimates(fit, standardized = TRUE)
   defs <- pe[pe$op == ":=", ]
@@ -551,7 +667,10 @@ emse_case <- function(name, which, syntax, s, estimator, indirect = NULL) {
     options = list(estimator = estimator, missing = "casewise"),
     model = s,
     expected = list(
-      params = params, fit = lapply(fm, as.numeric), r2 = as.list(inspect(fit, "r2")), n = 155,
+      params = params,
+      fit = lapply(fm, as.numeric),
+      r2 = as.list(inspect(fit, "r2")),
+      n = 155,
       indirectUnstd = if (nrow(defs)) lapply(seq_len(nrow(defs)), function(i) c(indirect[[i]], list(est = defs$est[i]))) else NULL
     ),
     tolerance = 1e-5
@@ -648,15 +767,23 @@ miiv_case <- function(name, dataset, s, syntax = lavaan_syntax(s), matrix = NULL
   eqs <- lapply(fit$eqn, function(e) {
     cf <- e$coefficients[!grepl("~1$", names(e$coefficients))]
     list(
-      dv = e$DVobs, regressors = e$IVobs, instruments = e$MIIVs, lhs = e$DVlat, rhs = e$IVlat,
+      dv = e$DVobs,
+      regressors = e$IVobs,
+      instruments = e$MIIVs,
+      lhs = e$DVlat,
+      rhs = e$IVlat,
       coefficients = lapply(names(cf), function(k) list(name = k, est = cf[[k]])),
       sigma2 = as.numeric(e$sigma),
-      sargan = if (is.null(e$sargan)) NULL else as.numeric(e$sargan), sarganDf = if (is.null(e$sargan.df)) NULL else as.numeric(e$sargan.df),
+      sargan = if (is.null(e$sargan)) NULL else as.numeric(e$sargan),
+      sarganDf = if (is.null(e$sargan.df)) NULL else as.numeric(e$sargan.df),
       sarganP = if (is.null(e$sargan.p)) NULL else as.numeric(e$sargan.p)
     )
   })
   et <- et[et$op %in% c("=~", "~") & et$se > 0, ]
-  params <- lapply(seq_len(nrow(et)), function(i) list(lhs = et$lhs[i], op = et$op[i], rhs = et$rhs[i], est = et$est[i], se = et$se[i], z = et$z[i], p = et$pvalue[i]))
+  params <- lapply(
+    seq_len(nrow(et)),
+    function(i) list(lhs = et$lhs[i], op = et$op[i], rhs = et$rhs[i], est = et$est[i], se = et$se[i], z = et$z[i], p = et$pvalue[i])
+  )
   write_case(list(
     name = name, source = "MIIVsem", kind = "miiv", dataset = dataset, matrix = matrix,
     options = list(estimator = "2SLS", missing = "casewise"), model = s,
@@ -707,8 +834,19 @@ cat("--- IPMA (cSEM)\n")
 ipma_case("ipma_csem_satisfaction_raw", DATA$satisfaction, sat_spec("factor"), "LOY")
 ipma_case("ipma_csem_satisfaction_rescaled", DATA$satisfaction, sat_spec("factor"), "LOY", rescale = list())
 ipma_case("ipma_csem_mobi_bounds", DATA$mobi, spec(
-  list(cons("Image", items("IMAG", 5)), cons("Expectation", items("CUEX", 3)), cons("Satisfaction", items("CUSA", 3)), cons("Loyalty", items("CUSL", 3))),
-  list(c("Image", "Expectation"), c("Image", "Satisfaction"), c("Expectation", "Satisfaction"), c("Satisfaction", "Loyalty"), c("Image", "Loyalty"))
+  list(
+    cons("Image", items("IMAG", 5)),
+    cons("Expectation", items("CUEX", 3)),
+    cons("Satisfaction", items("CUSA", 3)),
+    cons("Loyalty", items("CUSL", 3))
+  ),
+  list(
+    c("Image", "Expectation"),
+    c("Image", "Satisfaction"),
+    c("Expectation", "Satisfaction"),
+    c("Satisfaction", "Loyalty"),
+    c("Image", "Loyalty")
+  )
 ),
 "Loyalty",
 rescale = list(min = 1, max = 10)

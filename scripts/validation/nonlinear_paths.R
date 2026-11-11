@@ -15,7 +15,8 @@ m <- suppressMessages(estimate_pls(d, constructs(
   composite("Value", multi_items("PERV", 1:2)), composite("Satisfaction", multi_items("CUSA", 1:3)),
   composite("Loyalty", multi_items("CUSL", 1:3))
 ), relationships(
-  paths(from = c("Image", "Expectation", "Value"), to = "Satisfaction"), paths(from = c("Satisfaction", "Image"), to = "Loyalty")
+  paths(from = c("Image", "Expectation", "Value"), to = "Satisfaction"),
+  paths(from = c("Satisfaction", "Image"), to = "Loyalty")
 )))
 S <- as.data.frame(m$construct_scores)
 # Shapes: Image -> Satisfaction quadratic, Value -> Satisfaction cubic, Expectation -> Satisfaction linear;
@@ -24,7 +25,10 @@ fits <- list(
   Satisfaction = lm(Satisfaction ~ Image + I(Image^2) + Expectation + Value + I(Value^2) + I(Value^3), data = S),
   Loyalty = lm(Loyalty ~ Satisfaction + I(Satisfaction^2) + Image, data = S)
 )
-linear <- list(Satisfaction = lm(Satisfaction ~ Image + Expectation + Value, data = S), Loyalty = lm(Loyalty ~ Satisfaction + Image, data = S))
+linear <- list(
+  Satisfaction = lm(Satisfaction ~ Image + Expectation + Value, data = S),
+  Loyalty = lm(Loyalty ~ Satisfaction + Image, data = S)
+)
 out <- list(
   seminr = as.character(packageVersion("seminr")),
   scores = as.list(S),
