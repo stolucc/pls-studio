@@ -108,7 +108,10 @@ export type ExamplePackage =
   | 'restriktor'
   | 'bain'
   | 'piecewiseSEM'
-  | 'Bayesrel';
+  | 'Bayesrel'
+  | 'nortest'
+  | 'effectsize'
+  | 'TOSTER';
 export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'lavaan',
   'did',
@@ -172,6 +175,9 @@ export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'bain',
   'piecewiseSEM',
   'Bayesrel',
+  'nortest',
+  'effectsize',
+  'TOSTER',
 ];
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */
@@ -224,6 +230,7 @@ export function panelPreset(p: ExamplePanel): Record<string, unknown> {
  * the card takes them unchanged). Cards about the model (Bollen–Stine, PLSpredict, …) open beside the example's diagram.
  */
 export type CardPanelKind =
+  | 'explore'
   | 'ttest'
   | 'anova'
   | 'rmanova'

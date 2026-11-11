@@ -15,6 +15,7 @@ import type {
   ContingencyResult,
   CorrelationInput,
   CorrelationResult,
+  EffectSize,
   FreqTestInput,
   FreqTestResult,
   BayesReliabilityResult,
@@ -29,9 +30,11 @@ import type {
   TTestInput,
   TTestResult,
   TTestRow,
+  TostBounds,
 } from '../rengine/tests';
 import {
   Choice,
+  clampNum,
   ColumnSelect,
   columnsFingerprint,
   flag,
@@ -94,7 +97,114 @@ const Engine = ({ e }: { e: { package: string; version: string } }) => (
 
 // ---------------------------------------------------------------- t-tests
 
-export type TTestOptions = Omit<TTestInput, 'confidence'>;
+export type TTestOptions = Omit<TTestInput, 'confidence' | 'effectSizes' | 'tost'> & {
+  /** Effect sizes with confidence intervals (effectsize). */
+  effectSizes: boolean;
+  /** An equivalence test (TOSTER) with the bounds below. */
+  tost: boolean;
+  tostLow: number;
+  tostHigh: number;
+  tostUnits: TostBounds['units'];
+};
+
+/** A one-sided interval has an open end (null): shown as −∞ or ∞. */
+export function ciText(e: { ciLow: number | null; ciHigh: number | null }): string {
+  const lo = e.ciLow === null ? '−∞' : fmt(e.ciLow);
+  const hi = e.ciHigh === null ? '∞' : fmt(e.ciHigh);
+  return `[${lo}, ${hi}]`;
+}
+
+/** A finite number from a project file, or the fallback. */
+const finiteOr = (v: unknown, fallback: number) =>
+  typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+
+/** The effect-size checkbox of the basic test cards. */
+function EffectSizeField({
+  value,
+  onChange,
+  what,
+}: {
+  value: boolean;
+  onChange: (v: boolean) => void;
+  what: string;
+}) {
+  return (
+    <div className="field">
+      <label className="check">
+        <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />{' '}
+        Effect sizes with confidence intervals
+      </label>
+      <div className="hint">{what} (effectsize), at the confidence level of the settings.</div>
+    </div>
+  );
+}
+
+/** The bounds of a t-test's equivalence test. */
+function TostFields({ o, set }: { o: TTestOptions; set: (o: TTestOptions) => void }) {
+  const num = (v: string, fallback: number) => {
+    const n = Number(v);
+    return v.trim() !== '' && Number.isFinite(n) ? n : fallback;
+  };
+  return (
+    <div className="field">
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={o.tost}
+          onChange={(e) => set({ ...o, tost: e.target.checked })}
+        />{' '}
+        Equivalence test (TOST)
+      </label>
+      {o.tost && (
+        <>
+          <div className="row2">
+            <div className="field">
+              <label htmlFor="tt-tost-lo">Lower bound</label>
+              <input
+                id="tt-tost-lo"
+                className="input num"
+                type="number"
+                step="any"
+                value={o.tostLow}
+                onChange={(e) => set({ ...o, tostLow: num(e.target.value, o.tostLow) })}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="tt-tost-hi">Upper bound</label>
+              <input
+                id="tt-tost-hi"
+                className="input num"
+                type="number"
+                step="any"
+                value={o.tostHigh}
+                onChange={(e) => set({ ...o, tostHigh: num(e.target.value, o.tostHigh) })}
+              />
+            </div>
+          </div>
+          <Choice
+            label="Bounds in"
+            value={o.tostUnits}
+            onChange={(tostUnits) => set({ ...o, tostUnits })}
+            options={[
+              ['raw', 'Raw units'],
+              ['smd', 'Cohen’s d'],
+            ]}
+          />
+          <div className="hint">
+            Two one-sided tests (TOSTER’s t_TOST): is the difference
+            {o.type === 'one' ? ' from the test value' : ''} inside the bounds? Equivalence is shown
+            when both tests are significant at α = 1 − the confidence level. Bounds in raw units,
+            from the smallest difference that matters, are preferable: TOSTER warns that
+            standardised bounds give biased tests.
+            {o.type === 'independent'
+              ? ' Welch’s test when Welch is chosen, Student’s otherwise.'
+              : ''}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 /** What "greater" means for each kind of t-test. */
 const TTEST_GREATER_HINT: Record<TTestOptions['type'], string> = {
@@ -237,6 +347,16 @@ function TTestForm({ options: o, set, ctx, disabled }: OptionsProps<TTestOptions
         options={ALTS}
         hint={TTEST_GREATER_HINT[o.type]}
       />
+      <EffectSizeField
+        value={o.effectSizes}
+        onChange={(effectSizes) => set({ ...o, effectSizes })}
+        what={
+          o.type === 'independent'
+            ? 'Cohen’s d, Hedges’ g, Glass’s Δ and the rank-biserial correlation'
+            : 'Cohen’s d, Hedges’ g and the rank-biserial correlation'
+        }
+      />
+      <TostFields o={o} set={set} />
     </fieldset>
   );
 }
@@ -246,6 +366,88 @@ function ttestEffectSize(x: TTestRow, test: 'student' | 'welch' | 'rank') {
   if (test === 'rank') return x.rankBiserial;
   if (test === 'welch') return x.dWelch;
   return x.d;
+}
+
+/** What each effect size of a t-test is. */
+function ttestEffectName(id: string, type: TTestResult['type']): string {
+  if (id === 'd') return type === 'paired' ? 'Cohen’s d (of the differences, dz)' : 'Cohen’s d';
+  if (id === 'g') return 'Hedges’ g';
+  if (id === 'dWelch') return 'Cohen’s d (average variance, Welch)';
+  if (id === 'glass') return 'Glass’s Δ (SD of the second group)';
+  if (id === 'rb') return 'Rank-biserial r';
+  return id;
+}
+
+/** The effect sizes of a t-test card with their intervals. */
+function TTestEffects({ r }: { r: TTestResult }) {
+  const rows: Row[] = r.rows.flatMap((x) =>
+    (x.effects ?? []).map(
+      (e): Row => [c(x.label), c(ttestEffectName(e.id, r.type)), c(e.est), c(ciText(e))],
+    ),
+  );
+  if (!rows.length) return null;
+  const oneSided =
+    r.alternative !== 'two.sided' ? ` One-sided intervals (${r.alternative}), as the tests.` : '';
+  const pooled =
+    r.type === 'independent'
+      ? ' Cohen’s d and Hedges’ g with the pooled SD; Glass’s Δ without the small-sample correction.'
+      : '';
+  return (
+    <Table
+      title="Effect sizes"
+      file="ttest-effect-sizes"
+      columns={['Variable', 'Effect size', 'Estimate', `${pct(r.confidence)} CI`]}
+      rows={rows}
+      note={`effectsize: intervals from the noncentral t distribution (d, g, Δ) and Fisher’s z (rank-biserial r).${pooled}${oneSided}`}
+    />
+  );
+}
+
+/** The equivalence tests (TOST) of a t-test card. */
+function TTestTost({ r }: { r: TTestResult }) {
+  const rows: Row[] = r.rows.flatMap((x): Row[] => {
+    const t = x.tost;
+    if (!t) return [];
+    const alpha = (1 - t.level) / 2;
+    const equivalent = t.p < alpha;
+    return [
+      [
+        c(x.label),
+        c(`[${fmt(t.low)}, ${fmt(t.high)}]`),
+        c(`[${fmt(t.lowSmd)}, ${fmt(t.highSmd)}]`),
+        c(`t(${fmt(t.lower.df, 2)}) = ${fmt(t.lower.t)}`),
+        pCell(t.lower.p),
+        c(`t(${fmt(t.upper.df, 2)}) = ${fmt(t.upper.t)}`),
+        pCell(t.upper.p),
+        c(`${fmt(t.raw.est)} [${fmt(t.raw.ciLow)}, ${fmt(t.raw.ciHigh)}]`),
+        c(`${fmt(t.smd.est)} [${fmt(t.smd.ciLow)}, ${fmt(t.smd.ciHigh)}]`),
+        c(equivalent ? 'equivalent' : 'not shown', equivalent ? 'good' : 'dim'),
+      ],
+    ];
+  });
+  if (!rows.length) return null;
+  const level = r.rows.find((x) => x.tost)?.tost?.level ?? 0.9;
+  const smdName = r.rows.find((x) => x.tost)?.tost?.smd.label ?? 'SMD';
+  return (
+    <Table
+      title="Equivalence test (TOST)"
+      file="ttest-tost"
+      columns={[
+        'Variable',
+        'Bounds',
+        'Bounds (SMD)',
+        'Lower test',
+        'p',
+        'Upper test',
+        'p',
+        `Difference, ${pct(level)} CI`,
+        `${smdName}, ${pct(level)} CI`,
+        'Equivalence',
+      ]}
+      rows={rows}
+      note={`TOSTER’s t_TOST: the difference${r.type === 'one' ? ' from the test value' : ''} is equivalent to zero within the bounds when both one-sided tests reject at α = ${fmt((1 - level) / 2, 3)}, that is when the ${pct(level)} interval lies inside the bounds. The standardised difference and its interval are TOSTER’s (an approximation).`}
+    />
+  );
 }
 
 function TTestView({ r }: { r: TTestResult }) {
@@ -345,6 +547,8 @@ function TTestView({ r }: { r: TTestResult }) {
         rows={rows}
         note="Effect size: Cohen’s d for the t-tests (Student: pooled SD; Welch: the average of the two variances; paired: the SD of the differences), the rank-biserial correlation for the rank tests. Statistic: t, or W (V for the signed-rank test)."
       />
+      <TTestEffects r={r} />
+      <TTestTost r={r} />
       <Table
         title="Descriptives"
         file="ttest-descriptives"
@@ -367,14 +571,19 @@ const ttestCols = (o: TTestOptions) =>
     ? o.pairs.flat()
     : [...o.vars, o.type === 'independent' ? o.group : '']
   ).filter(Boolean);
-const ttestInput = (o: TTestOptions, ctx: Pick<AnalysisCtx, 'settings'>): TTestInput => ({
-  ...o,
-  vars: o.type === 'paired' ? [] : o.vars,
-  pairs: o.type === 'paired' ? o.pairs : [],
-  group: o.type === 'independent' ? o.group : '',
-  welch: o.type === 'independent' && o.welch,
-  confidence: ctx.settings.confidence,
-});
+const ttestInput = (o: TTestOptions, ctx: Pick<AnalysisCtx, 'settings'>): TTestInput => {
+  const { tost, tostLow, tostHigh, tostUnits, effectSizes, ...rest } = o;
+  return {
+    ...rest,
+    vars: o.type === 'paired' ? [] : o.vars,
+    pairs: o.type === 'paired' ? o.pairs : [],
+    group: o.type === 'independent' ? o.group : '',
+    welch: o.type === 'independent' && o.welch,
+    confidence: ctx.settings.confidence,
+    ...(effectSizes ? { effectSizes: true } : {}),
+    ...(tost ? { tost: { low: tostLow, high: tostHigh, units: tostUnits } } : {}),
+  };
+};
 const T_NAME = {
   one: 'One-sample t-test',
   paired: 'Paired-samples t-test',
@@ -414,6 +623,11 @@ export const ttestAnalysis: AnalysisType<TTestOptions, TTestResult> = {
     welch: true,
     rank: false,
     alternative: 'two.sided',
+    effectSizes: true,
+    tost: false,
+    tostLow: -0.5,
+    tostHigh: 0.5,
+    tostUnits: 'smd',
   }),
   parseOptions: (raw) =>
     isObj(raw)
@@ -430,6 +644,12 @@ export const ttestAnalysis: AnalysisType<TTestOptions, TTestResult> = {
           welch: flag(raw.welch),
           rank: flag(raw.rank),
           alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'),
+          // (absent in projects from before effect sizes: off, so that their results stay as they were)
+          effectSizes: flag(raw.effectSizes),
+          tost: flag(raw.tost),
+          tostLow: finiteOr(raw.tostLow, -0.5),
+          tostHigh: finiteOr(raw.tostHigh, 0.5),
+          tostUnits: oneOf(raw.tostUnits, ['raw', 'smd'] as const, 'smd'),
         }
       : null,
   Options: TTestForm,
@@ -445,6 +665,8 @@ export const ttestAnalysis: AnalysisType<TTestOptions, TTestResult> = {
     if (o.type === 'independent' && !o.group) return 'Choose the grouping variable.';
     if (o.type === 'independent' && o.vars.includes(o.group))
       return 'The grouping variable cannot be tested.';
+    if (o.tost && !(o.tostLow < o.tostHigh))
+      return 'The lower equivalence bound must be below the upper one.';
     return missingColumns(ctx, ttestCols(o), 't-test');
   },
   fingerprint: (o, ctx) =>
@@ -456,6 +678,9 @@ export const ttestAnalysis: AnalysisType<TTestOptions, TTestResult> = {
       String(o.welch),
       String(o.rank),
       ctx.settings.confidence,
+      // (only when chosen, so that cards from before these options keep their fingerprint)
+      ...(o.effectSizes ? ['es'] : []),
+      ...(o.tost ? [`tost:${o.tostLow}:${o.tostHigh}:${o.tostUnits}`] : []),
     ]),
   run: async (o, ctx) => (await engine()).ttestR(labelled(ctx, [o.group]), ttestInput(o, ctx)),
   script: async (o, ctx) =>
@@ -472,7 +697,20 @@ export const ttestAnalysis: AnalysisType<TTestOptions, TTestResult> = {
 
 // ---------------------------------------------------------------- ANOVA / ANCOVA
 
-export type AnovaOptions = Omit<AnovaInput, 'confidence'>;
+export type AnovaOptions = Omit<AnovaInput, 'confidence' | 'effectSizes' | 'seed'> & {
+  /** Effect sizes with confidence intervals (effectsize). */
+  effectSizes: boolean;
+};
+
+/** The request of an ANOVA card: the settings' confidence level, and their seed for the bootstrap of ε². */
+const anovaInput = (o: AnovaOptions, ctx: Pick<AnalysisCtx, 'settings'>): AnovaInput => {
+  const { effectSizes, ...rest } = o;
+  return {
+    ...rest,
+    confidence: ctx.settings.confidence,
+    ...(effectSizes ? { effectSizes: true, seed: ctx.settings.seed } : {}),
+  };
+};
 
 function AnovaForm({ options: o, set, ctx, disabled }: OptionsProps<AnovaOptions>) {
   const d = rawData(ctx);
@@ -527,7 +765,51 @@ function AnovaForm({ options: o, set, ctx, disabled }: OptionsProps<AnovaOptions
         for unbalanced designs. With one factor and no covariates the card adds Welch’s ANOVA,
         Kruskal–Wallis and Tukey’s comparisons.
       </div>
+      <EffectSizeField
+        value={o.effectSizes}
+        onChange={(effectSizes) => set({ ...o, effectSizes })}
+        what="η², partial η², ω² and partial ω² for every term; with one factor, ε² of Kruskal–Wallis"
+      />
     </fieldset>
+  );
+}
+
+/** The ANOVA's effect sizes with their intervals, by term, and ε² of Kruskal–Wallis. */
+function AnovaEffects({ r, conf }: { r: AnovaResult; conf: number }) {
+  if (!r.effects?.length) return null;
+  const cell = (e: { est: number; ciLow: number | null; ciHigh: number | null }) =>
+    c(`${fmt(e.est)} ${ciText(e)}`);
+  const typeIII =
+    r.ssType === 'III'
+      ? ' With type III sums of squares η² and ω² divide by the sum of the terms’ and the residual sums of squares (effectsize), which can differ a little from the table above (the total sum of squares) in unbalanced designs.'
+      : '';
+  return (
+    <div className="tables">
+      <Table
+        title="Effect sizes"
+        file="anova-effect-sizes"
+        columns={['Term', 'η²', 'Partial η²', 'ω²', 'Partial ω²']}
+        rows={r.effects.map(
+          (e): Row => [
+            c(e.term),
+            cell(e.eta2),
+            cell(e.partialEta2),
+            cell(e.omega2),
+            cell(e.partialOmega2),
+          ],
+        )}
+        note={`Each: the estimate with its two-sided ${pct(conf)} interval (effectsize, from the noncentral F distribution; a bound below zero is set to 0).${typeIII}`}
+      />
+      {r.epsilon2 && (
+        <Table
+          title="Kruskal–Wallis effect size"
+          file="anova-epsilon2"
+          columns={['Effect size', 'Estimate', `${pct(conf)} CI`]}
+          rows={[[c('Rank ε²'), c(r.epsilon2.est), c(ciText(r.epsilon2))]]}
+          note="effectsize::rank_epsilon_squared; its interval from 1000 bootstrap samples, seeded by the settings’ seed."
+        />
+      )}
+    </div>
   );
 }
 
@@ -579,6 +861,7 @@ function AnovaView({ r, conf }: { r: AnovaResult; conf: number }) {
         ]}
         rows={rows}
       />
+      <AnovaEffects r={r} conf={conf} />
       {(r.welch || r.kruskal) && (
         <Table
           title="One factor: robust and rank-based tests"
@@ -676,6 +959,7 @@ export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidenc
     covariates: [],
     ssType: 'III',
     interactions: true,
+    effectSizes: true,
   }),
   parseOptions: (raw) =>
     isObj(raw)
@@ -685,6 +969,7 @@ export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidenc
           covariates: names(raw.covariates),
           ssType: oneOf(raw.ssType, ['III', 'I'] as const, 'III'),
           interactions: raw.interactions !== false,
+          effectSizes: flag(raw.effectSizes),
         }
       : null,
   Options: AnovaForm,
@@ -704,18 +989,14 @@ export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidenc
       '|',
       ...o.covariates,
       ctx.settings.confidence,
+      ...(o.effectSizes ? ['es', ctx.settings.seed] : []),
     ]),
   run: async (o, ctx) => ({
-    ...(await (
-      await engine()
-    ).anovaR(labelled(ctx, o.factors), { ...o, confidence: ctx.settings.confidence })),
+    ...(await (await engine()).anovaR(labelled(ctx, o.factors), anovaInput(o, ctx))),
     confidence: ctx.settings.confidence,
   }),
   script: async (o, ctx) =>
-    (await engine()).anovaScriptR(labelled(ctx, o.factors), {
-      ...o,
-      confidence: ctx.settings.confidence,
-    }),
+    (await engine()).anovaScriptR(labelled(ctx, o.factors), anovaInput(o, ctx)),
   summary: (o) =>
     `${o.dependent || '…'} by ${o.factors.join(' × ') || '…'}${o.covariates.length ? ` + ${o.covariates.join(', ')}` : ''} · type ${o.ssType}`,
 };
@@ -1047,7 +1328,12 @@ export const manovaAnalysis: AnalysisType<ManovaOptions, ManovaResult> = {
 
 // ---------------------------------------------------------------- correlation
 
-export type CorrelationOptions = Omit<CorrelationInput, 'confidence'>;
+export type CorrelationOptions = Omit<CorrelationInput, 'confidence' | 'tostBound'> & {
+  /** Equivalence tests (TOSTER) of every pair: is |r| below tostBound? Absent in older projects. */
+  tost?: boolean;
+  tostBound?: number;
+};
+const TOST_COR_BOUND = 0.3;
 const METHOD_NAME = {
   pearson: 'Pearson',
   spearman: 'Spearman',
@@ -1121,7 +1407,65 @@ function CorrelationForm({ options: o, set, ctx, disabled }: OptionsProps<Correl
           </div>
         </div>
       )}
+      {o.method !== 'polychoric' && (
+        <div className="field">
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={!!o.tost}
+              onChange={(e) =>
+                set({ ...o, tost: e.target.checked, tostBound: o.tostBound ?? TOST_COR_BOUND })
+              }
+            />{' '}
+            Equivalence tests (TOST)
+          </label>
+          {o.tost && (
+            <NumField
+              id="cor-tost"
+              label="Equivalence bound |r| <"
+              value={o.tostBound ?? TOST_COR_BOUND}
+              lo={0.01}
+              hi={0.99}
+              step={0.05}
+              onChange={(tostBound) => set({ ...o, tostBound })}
+            />
+          )}
+          <div className="hint">
+            Two one-sided tests of each pair (TOSTER’s z_cor_test, Fisher’s z): is the correlation
+            between −bound and bound? Equivalence is shown when both reject at α = 1 − the
+            confidence level.
+          </div>
+        </div>
+      )}
     </fieldset>
+  );
+}
+
+/** The equivalence tests of a correlation card. */
+function CorrelationTostTable({ r }: { r: CorrelationResult }) {
+  const tested = r.pairs.filter((p) => p.tost);
+  if (!tested.length || r.tostBound === undefined || r.tostBound === null) return null;
+  const level = tested[0].tost!.level;
+  const alpha = (1 - level) / 2;
+  return (
+    <Table
+      title={`Equivalence tests: |correlation| < ${fmt(r.tostBound)}`}
+      file="correlation-tost"
+      columns={['Pair', 'Estimate', `${pct(level)} CI`, 'z', 'p (TOST)', 'Equivalence']}
+      rows={tested.map((p): Row => {
+        const t = p.tost!;
+        const equivalent = t.p < alpha;
+        return [
+          c(`${p.a} – ${p.b}`),
+          c(t.r),
+          c(ci(t.ciLow, t.ciHigh)),
+          c(t.z),
+          pCell(t.p),
+          c(equivalent ? 'equivalent' : 'not shown', equivalent ? 'good' : 'dim'),
+        ];
+      })}
+      note={`TOSTER’s z_cor_test (Fisher’s z${r.method === 'spearman' ? ', Bonett–Wright standard error' : ''}${r.method === 'kendall' ? ', Fieller standard error' : ''}): equivalent when both one-sided tests reject at α = ${fmt(alpha, 3)}, that is when the ${pct(level)} interval lies within ±${fmt(r.tostBound)}. z and p of the less significant of the two tests.`}
+    />
   );
 }
 
@@ -1195,6 +1539,7 @@ function CorrelationView({ r }: { r: CorrelationResult }) {
         )}
         note={pairsNote}
       />
+      <CorrelationTostTable r={r} />
       {poly &&
         !!r.normality?.length &&
         (() => {
@@ -1230,9 +1575,16 @@ function CorrelationView({ r }: { r: CorrelationResult }) {
 /** Exact p-values apply to Spearman and Kendall only. */
 const exactRank = (o: CorrelationOptions) =>
   !!o.exact && (o.method === 'spearman' || o.method === 'kendall');
+/** Equivalence tests apply to Pearson, Spearman and Kendall. */
+const corTost = (o: CorrelationOptions) => !!o.tost && o.method !== 'polychoric';
 const corInput = (o: CorrelationOptions, ctx: Pick<AnalysisCtx, 'settings'>): CorrelationInput => {
-  const { exact: _e, ...rest } = o;
-  return { ...rest, confidence: ctx.settings.confidence, ...(exactRank(o) ? { exact: true } : {}) };
+  const { exact: _e, tost: _t, tostBound, ...rest } = o;
+  return {
+    ...rest,
+    confidence: ctx.settings.confidence,
+    ...(exactRank(o) ? { exact: true } : {}),
+    ...(corTost(o) ? { tostBound: tostBound ?? TOST_COR_BOUND } : {}),
+  };
 };
 export const correlationAnalysis: AnalysisType<CorrelationOptions, CorrelationResult> = {
   id: 'correlation',
@@ -1249,6 +1601,9 @@ export const correlationAnalysis: AnalysisType<CorrelationOptions, CorrelationRe
           alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'),
           deletion: oneOf(raw.deletion, ['pairwise', 'listwise'] as const, 'pairwise'),
           ...(raw.exact === true ? { exact: true } : {}),
+          ...(raw.tost === true
+            ? { tost: true, tostBound: clampNum(raw.tostBound, 0.01, 0.99, TOST_COR_BOUND) }
+            : {}),
         }
       : null,
   Options: CorrelationForm,
@@ -1264,16 +1619,28 @@ export const correlationAnalysis: AnalysisType<CorrelationOptions, CorrelationRe
       o.deletion,
       ctx.settings.confidence,
       ...(exactRank(o) ? ['exact'] : []),
+      ...(corTost(o) ? [`tost:${o.tostBound ?? TOST_COR_BOUND}`] : []),
     ]),
   run: async (o, ctx) => (await engine()).correlationR(rawData(ctx)!, corInput(o, ctx)),
   script: async (o, ctx) => (await engine()).correlationScriptR(rawData(ctx)!, corInput(o, ctx)),
   summary: (o) =>
-    `${METHOD_NAME[o.method]}${exactRank(o) ? ' (exact p)' : ''} · ${o.vars.join(', ') || '…'}`,
+    `${METHOD_NAME[o.method]}${exactRank(o) ? ' (exact p)' : ''}${corTost(o) ? ' + TOST' : ''} · ${o.vars.join(', ') || '…'}`,
 };
 
 // ---------------------------------------------------------------- contingency tables
 
-export type ContingencyOptions = Omit<ContingencyInput, 'confidence'>;
+export type ContingencyOptions = Omit<ContingencyInput, 'confidence' | 'effectSizes'> & {
+  /** Cramér's V and φ with confidence intervals (effectsize). */
+  effectSizes: boolean;
+};
+const ctInput = (o: ContingencyOptions, ctx: Pick<AnalysisCtx, 'settings'>): ContingencyInput => {
+  const { effectSizes, ...rest } = o;
+  return {
+    ...rest,
+    confidence: ctx.settings.confidence,
+    ...(effectSizes ? { effectSizes: true } : {}),
+  };
+};
 
 function ContingencyForm({ options: o, set, ctx, disabled }: OptionsProps<ContingencyOptions>) {
   const d = rawData(ctx);
@@ -1306,6 +1673,11 @@ function ContingencyForm({ options: o, set, ctx, disabled }: OptionsProps<Contin
         columns={d.names.filter((n) => !d.categories?.[n])}
         exclude={[o.rows, o.columns]}
         onChange={(counts) => set({ ...o, counts })}
+      />
+      <EffectSizeField
+        value={o.effectSizes}
+        onChange={(effectSizes) => set({ ...o, effectSizes })}
+        what="Cramér’s V and (2 × 2) φ with intervals"
       />
     </fieldset>
   );
@@ -1343,6 +1715,9 @@ function ContingencyView({ r }: { r: ContingencyResult }) {
     ],
   ];
   const small = r.expected.flat().filter((e) => e < 5).length;
+  const effect = (id: string): EffectSize | undefined => r.effects?.find((e) => e.id === id);
+  const vCi = effect('cramerV');
+  const phiCi = effect('phi');
   return (
     <div className="tables">
       <Engine e={r.engine} />
@@ -1390,8 +1765,10 @@ function ContingencyView({ r }: { r: ContingencyResult }) {
         file="contingency-association"
         columns={['Measure', 'Value', `${pct(r.confidence)} CI`]}
         rows={[
-          [c('Cramér’s V'), c(r.cramerV), c(null)],
-          ...(r.phi !== null ? [[c('φ'), c(r.phi), c(null)] as Row] : []),
+          [c('Cramér’s V'), c(r.cramerV), c(vCi ? ciText(vCi) : null)],
+          ...(r.phi !== null
+            ? [[c('φ'), c(r.phi), c(phiCi ? `|φ|: ${ciText(phiCi)}` : null)] as Row]
+            : []),
           ...(r.oddsRatio
             ? [
                 [
@@ -1411,6 +1788,11 @@ function ContingencyView({ r }: { r: ContingencyResult }) {
               ]
             : []),
         ]}
+        note={
+          vCi
+            ? 'Intervals of V and |φ| by effectsize (unadjusted, two-sided, from the noncentral χ² distribution); φ’s sign is that of the 2 × 2 table’s diagonal.'
+            : undefined
+        }
       />
     </div>
   );
@@ -1423,10 +1805,15 @@ export const contingencyAnalysis: AnalysisType<ContingencyOptions, ContingencyRe
   sub: 'χ², likelihood ratio, Fisher’s exact test, Cramér’s V, odds ratio',
   group: 'Basic statistics',
   cardTitle: (o) => `Contingency table${o.rows && o.columns ? `: ${o.rows} × ${o.columns}` : ''}`,
-  defaults: () => ({ rows: '', columns: '', counts: '' }),
+  defaults: () => ({ rows: '', columns: '', counts: '', effectSizes: true }),
   parseOptions: (raw) =>
     isObj(raw)
-      ? { rows: name(raw.rows), columns: name(raw.columns), counts: name(raw.counts) }
+      ? {
+          rows: name(raw.rows),
+          columns: name(raw.columns),
+          counts: name(raw.counts),
+          effectSizes: flag(raw.effectSizes),
+        }
       : null,
   Options: ContingencyForm,
   View: ({ result }) => <ContingencyView r={result} />,
@@ -1436,17 +1823,17 @@ export const contingencyAnalysis: AnalysisType<ContingencyOptions, ContingencyRe
     return missingColumns(ctx, ctCols(o), 'Contingency table');
   },
   fingerprint: (o, ctx) =>
-    columnsFingerprint(ctx, ctCols(o), [o.rows, o.columns, o.counts, ctx.settings.confidence]),
+    columnsFingerprint(ctx, ctCols(o), [
+      o.rows,
+      o.columns,
+      o.counts,
+      ctx.settings.confidence,
+      ...(o.effectSizes ? ['es'] : []),
+    ]),
   run: async (o, ctx) =>
-    (await engine()).contingencyR(labelled(ctx, [o.rows, o.columns]), {
-      ...o,
-      confidence: ctx.settings.confidence,
-    }),
+    (await engine()).contingencyR(labelled(ctx, [o.rows, o.columns]), ctInput(o, ctx)),
   script: async (o, ctx) =>
-    (await engine()).contingencyScriptR(labelled(ctx, [o.rows, o.columns]), {
-      ...o,
-      confidence: ctx.settings.confidence,
-    }),
+    (await engine()).contingencyScriptR(labelled(ctx, [o.rows, o.columns]), ctInput(o, ctx)),
   summary: (o) =>
     `${o.rows || '…'} × ${o.columns || '…'}${o.counts ? ` (counts ${o.counts})` : ''}`,
 };

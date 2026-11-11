@@ -6,7 +6,17 @@ import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../model/project';
-import { boxStats, counts, groupsOf, histogram, niceStep, olsLine } from './chartStats';
+import {
+  bandwidthNrd0,
+  boxStats,
+  counts,
+  groupsOf,
+  histogram,
+  kernelDensity,
+  niceStep,
+  olsLine,
+  qqPlot,
+} from './chartStats';
 import { quantileSorted } from '../engine/stats';
 import { chartAnalysis, chartColumns, chartResult, MAX_POINTS, type ChartOptions } from './charts';
 import type { Dataset } from '../engine/types';
@@ -102,6 +112,14 @@ describe('chart statistics against R (airquality: Ozone by Month)', () => {
   const ref = JSON.parse(readFileSync(join(FX, 'reference.json'), 'utf8')) as {
     box: Record<string, Record<'n' | 'q1' | 'median' | 'q3' | 'lo' | 'hi' | 'outliers', number[]>>;
     counts: Record<string, number[]>;
+    density: { bw: number[]; x: number[]; y: number[] };
+    qq: {
+      theoretical: number[];
+      sample: number[];
+      slope: number[];
+      intercept: number[];
+      small: number[];
+    };
   };
   const ozone = aq.cols[aq.names.indexOf('Ozone')],
     month = aq.cols[aq.names.indexOf('Month')];
@@ -118,6 +136,48 @@ describe('chart statistics against R (airquality: Ozone by Month)', () => {
     const c = counts(aq, 'Month')!;
     same('categories', c.map((x) => x.label).join(', '), Object.keys(ref.counts).join(', '));
     for (const x of c) same(`count of ${x.label}`, x.count, ref.counts[x.label][0]);
+  });
+});
+
+describe('density and Q-Q plot against R (airquality: Ozone)', () => {
+  const FX = join(__dirname, '..', 'engine', '__fixtures__', 'charts');
+  const aq = parseCsv(readFileSync(join(FX, 'airquality.csv'), 'utf8')).dataset;
+  const ref = JSON.parse(readFileSync(join(FX, 'reference.json'), 'utf8')) as {
+    density: { bw: number[]; x: number[]; y: number[] };
+    qq: Record<'theoretical' | 'sample' | 'slope' | 'intercept' | 'small', number[]>;
+  };
+  const ozone = aq.cols[aq.names.indexOf('Ozone')];
+  it('kernel density: bw.nrd0, density()’s range, the Gaussian estimate', () => {
+    const bw = bandwidthNrd0(ozone);
+    expect(bw, 'bandwidth (bw.nrd0)').toBeCloseTo(ref.density.bw[0], 12);
+    const k = kernelDensity(ozone, ref.density.x.length);
+    same('density points', k.length, ref.density.x.length);
+    // (closed forms in double precision on both sides: agreement to about 1e-12)
+    for (const i of [0, 31, 64, 100, 127]) {
+      expect(k[i].x, `density x[${i}]`).toBeCloseTo(ref.density.x[i], 10);
+      expect(k[i].y, `density y[${i}]`).toBeCloseTo(ref.density.y[i], 12);
+    }
+    expect(kernelDensity(Float64Array.from([1]))).toEqual([]);
+  });
+  it('normal Q-Q plot: qqnorm’s ppoints and qqline’s quartile line', () => {
+    const q = qqPlot(ozone)!;
+    same('Q-Q points', q.points.length, ref.qq.theoretical.length);
+    for (const i of [0, 10, 57, q.points.length - 1]) {
+      expect(q.points[i].theoretical, `theoretical quantile ${i}`).toBeCloseTo(
+        ref.qq.theoretical[i],
+        12,
+      );
+      expect(q.points[i].sample, `sample quantile ${i}`).toBe(ref.qq.sample[i]);
+    }
+    expect(q.slope, 'qqline slope').toBeCloseTo(ref.qq.slope[0], 12);
+    expect(q.intercept, 'qqline intercept').toBeCloseTo(ref.qq.intercept[0], 12);
+    // Up to 10 values ppoints uses a = 3/8.
+    const observed = Float64Array.from(ozone.filter((v) => Number.isFinite(v)));
+    const small = qqPlot(observed.slice(0, 8))!;
+    small.points.forEach((p, i) =>
+      expect(p.theoretical, `small sample: quantile ${i}`).toBeCloseTo(ref.qq.small[i], 12),
+    );
+    expect(qqPlot(Float64Array.from([1, 2]))).toBeNull();
   });
 });
 

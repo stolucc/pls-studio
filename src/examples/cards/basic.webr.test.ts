@@ -13,6 +13,7 @@ import type { Dataset } from '../../engine/types';
 import { categoriesOf } from '../../io';
 import { DEFAULT_SETTINGS } from '../../model/project';
 import { rCall, type RPackage } from '../../rengine/bridge';
+import type { ExploreCardResult } from '../../analyses/explore';
 import type {
   AnovaResult,
   ContingencyResult,
@@ -72,12 +73,11 @@ async function runCard<R>(
   const e = ex(id);
   const kind = e.panel!.kind,
     preset = panelPreset(e.panel!);
-  const pkg =
-    e.package === 'psych' || e.package === 'Bayesrel'
-      ? e.package
-      : (e.panel as { moreBetween?: string[] }).moreBetween?.length
-        ? 'car'
-        : 'stats';
+  const pkg = ['psych', 'Bayesrel', 'nortest', 'effectsize', 'TOSTER'].includes(e.package)
+    ? (e.package as RPackage)
+    : (e.panel as { moreBetween?: string[] }).moreBetween?.length
+      ? 'car'
+      : 'stats';
   example(e.id, { title: e.title, method: 'Basic statistics', packages: [pkg], definition: e });
   const data = await load(e);
   const ctx: AnalysisCtx = {
@@ -113,6 +113,77 @@ const helpPrinted = (page: string, url: string): EvidenceSource & { level: 'nati
 });
 
 describe('basic-statistics card examples in webR', () => {
+  it('effectsize-mtcars: cohens_d, hedges_g, glass_delta of mpg ~ am', async () => {
+    const r = await runCard<TTestResult>('effectsize-mtcars', helpRun('effectsize, ?cohens_d'));
+    const es = (id: string) => r.rows[0].effects!.find((e) => e.id === id)!;
+    // (desktop R 4.6.2, effectsize 1.0.3; intervals by root finding: 1e-6)
+    near('Cohen’s d', es('d').est, -1.477947096, 1e-6);
+    near('d: CI low', es('d').ciLow!, -2.265973269, 1e-6);
+    near('d: CI high', es('d').ciHigh!, -0.6705683808, 1e-6);
+    near('Hedges’ g', es('g').est, -1.440635402, 1e-6);
+    near('g: CI low', es('g').ciLow!, -2.208767365, 1e-6);
+    near('Cohen’s d (pooled_sd = FALSE)', es('dWelch').est, -1.411046011, 1e-6);
+    near('pooled_sd = FALSE: CI high', es('dWelch').ciHigh!, -0.5342256369, 1e-6);
+    near('Glass’s delta (adjust = FALSE)', es('glass').est, -1.174886045, 1e-6);
+    near('Glass’s delta: CI low', es('glass').ciLow!, -1.927445799, 1e-6);
+  }, 600_000);
+
+  it('effectsize-mtcars-anova: eta_squared(aov(mpg ~ am_f * cyl_f))', async () => {
+    const r = await runCard<AnovaResult>(
+      'effectsize-mtcars-anova',
+      helpRun('effectsize, ?eta_squared'),
+    );
+    const e = r.effects!;
+    same('terms', e.map((x) => x.term).join(', '), 'am, cyl, am × cyl');
+    // Partial η² as the help page prints it; two-sided intervals (alternative = "two.sided").
+    near('am: partial η²', e[0].partialEta2.est, 0.62891097997, 1e-6);
+    near('cyl: partial η²', e[1].partialEta2.est, 0.65625753252, 1e-6);
+    near('am × cyl: partial η²', e[2].partialEta2.est, 0.09616985595, 1e-6);
+    near('am: partial η² CI low', e[0].partialEta2.ciLow!, 0.3744613708, 1e-6);
+    near('cyl: partial η² CI high', e[1].partialEta2.ciHigh!, 0.7830501042, 1e-6);
+    near('am: η²', e[0].eta2.est, 0.35979894343, 1e-6);
+    near('cyl: η² CI low', e[1].eta2.ciLow!, 0.10101522912, 1e-6);
+    near('am × cyl: η² CI high', e[2].eta2.ciHigh!, 0.1730475966, 1e-6);
+  }, 600_000);
+
+  it('toster-sleep: t_TOST(extra ~ group, data = sleep, eqb = 0.5)', async () => {
+    const r = await runCard<TTestResult>('toster-sleep', helpRun('TOSTER, ?t_TOST'));
+    const t = r.rows[0].tost!;
+    near('Welch t', r.rows[0].welch!.stat, -1.860813467, 1e-8);
+    near('TOST lower t', t.lower.t, -1.271948446, 1e-8);
+    near('TOST lower p', t.lower.p, 0.89010996125, 1e-8);
+    near('TOST upper t', t.upper.t, -2.449678489, 1e-8);
+    near('TOST upper p', t.upper.p, 0.01245132772, 1e-8);
+    near('df', t.lower.df, 17.77647352, 1e-8);
+    near('90% CI of the difference, low', t.raw.ciLow, -3.053381497, 1e-8);
+    near('90% CI of the difference, high', t.raw.ciHigh, -0.10661850267, 1e-8);
+    near('Hedges’s g(av)', t.smd.est, -0.7964846472, 1e-6);
+    near('TOST p', t.p, 0.89010996125, 1e-8);
+  }, 600_000);
+
+  it('nortest-toothgrowth: shapiro.test, lillie.test and ad.test of len by supp', async () => {
+    const r = await runCard<ExploreCardResult>(
+      'nortest-toothgrowth',
+      helpRun('nortest, ?lillie.test and ?ad.test'),
+    );
+    same('groups', r.groups.join(', '), 'OJ, VC');
+    const oj = r.normality.find((t) => t.group === 'OJ')!;
+    const vc = r.normality.find((t) => t.group === 'VC')!;
+    // (desktop R 4.6.2, nortest 1.0-4, scripts/validation/explore.R)
+    near('OJ: Shapiro–Wilk W', oj.shapiro!.stat, 0.917843379389229, 1e-9);
+    near('OJ: Shapiro–Wilk p', oj.shapiro!.p, 0.0235877289994793, 1e-9);
+    near('OJ: Lilliefors D', oj.lilliefors!.stat, 0.138234008079919, 1e-9);
+    near('OJ: Lilliefors p', oj.lilliefors!.p, 0.151673554581771, 1e-9);
+    near('OJ: Anderson–Darling A', oj.anderson!.stat, 0.923361769732473, 1e-9);
+    near('OJ: Anderson–Darling p', oj.anderson!.p, 0.0164736139950087, 1e-9);
+    near('VC: Shapiro–Wilk p', vc.shapiro!.p, 0.428446463009781, 1e-9);
+    near('VC: Lilliefors p', vc.lilliefors!.p, 0.853656586886321, 1e-9);
+    const ojStats = r.stats.find((s) => s.group === 'OJ')!;
+    near('OJ: mean', ojStats.mean!, 20.6633333333333, 1e-9);
+    near('OJ: skewness (type 2)', ojStats.skewness!, -0.579907561825505, 1e-9);
+    same('dose levels', r.frequencies[0].levels.join(', '), '0.5, 1.0, 2.0');
+    same('plots: one per group', r.plots.length, 2);
+  }, 600_000);
   it('stats-ttest-mtcars: t.test(mpg ~ am, data = mtcars), Welch and Student', async () => {
     const r = await runCard<TTestResult>('stats-ttest-mtcars', helpRun('stats, ?t.test'));
     const row = r.rows[0];

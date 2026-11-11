@@ -81,6 +81,8 @@ ps_ttest <- function(req_json, export = FALSE) {
   welch <- isTRUE(req$welch)
   rank <- isTRUE(req$rank)
   if (!student && !welch && !rank) stop("Choose at least one test.")
+  es <- isTRUE(req$effectSizes)
+  tost <- if (!is.null(req$tost)) ps_tost_bounds(req$tost)
   pairs <- if (type == "paired") ps_string_rows(req$pairs) else NULL
   vars <- if (type == "paired") unique(unlist(pairs)) else unlist(req$vars)
   if (!length(vars)) {
@@ -180,11 +182,19 @@ ps_ttest <- function(req_json, export = FALSE) {
         )
       )
     }
+    if (es) {
+      body <- c(body, ps_es_ttest_lines(type, r, conf, alt, mu, welch, rank))
+    }
+    if (!is.null(tost)) {
+      body <- c(body, ps_tost_ttest_lines(type, r, tost, conf, mu, welch))
+    }
   }
   inputs <- list(data = fr$data)
   title <- c(one = "One-sample t-test", paired = "Paired-samples t-test", independent = "Independent-samples t-test")[[type]]
   if (export) {
-    return(ps_script(title, character(0), inputs, body, sprintf("r%d", seq_along(if (type == "paired") pairs else vars))))
+    pkgs <- c(if (es) "effectsize", if (!is.null(tost)) "TOSTER")
+    report <- sprintf("r%d", seq_along(if (type == "paired") pairs else vars))
+    return(ps_script(title, pkgs, inputs, body, report))
   }
   env <- ps_run(body, inputs)
   rows <- lapply(seq_along(if (type == "paired") pairs else vars), function(k) {
@@ -212,7 +222,9 @@ ps_ttest <- function(req_json, export = FALSE) {
       rankBiserial = r$rb,
       levene = if (!is.null(r$levene)) list(stat = r$levene$`F value`[1], df1 = r$levene$Df[1], df2 = r$levene$Df[2], p = r$levene$`Pr(>F)`[1]) else NULL,
       shapiro = if (type == "independent") lapply(r$shapiro, ps_htest) else list(ps_htest(r$shapiro)),
-      descriptives = desc
+      descriptives = desc,
+      effects = ps_es_rows(r$es),
+      tost = ps_tost_result(r$tost)
     )
   })
   groups <- if (type == "independent") {
@@ -243,6 +255,8 @@ ps_anova <- function(req_json, export = FALSE) {
   ss <- req$ssType %||% "III"
   if (!ss %in% c("I", "III")) stop("Invalid type of sums of squares in the request.")
   full <- !identical(req$interactions, FALSE)
+  es <- isTRUE(req$effectSizes)
+  seed <- ps_number(req$seed %||% 1234, "seed")
   fr <- ps_long_frame(req, unique(c(y, fac, cov)))
   v <- fr$v
   rhs <- paste(
@@ -281,11 +295,18 @@ ps_anova <- function(req_json, export = FALSE) {
           v[[fac[1]]]
         )
       )
-    }
+    },
+    if (es) ps_es_anova_lines(ss, ps_bt_conf(req), oneway, fml, seed)
   )
   inputs <- list(data = fr$data)
   if (export) {
-    return(ps_script(if (length(cov)) "ANCOVA" else "ANOVA", character(0), inputs, body, c("tab", "shapiro", "levene", if (oneway) c("welch", "kruskal", "tukey", "pwRank"))))
+    report <- c(
+      "tab", "shapiro", "levene",
+      if (oneway) c("welch", "kruskal", "tukey", "pwRank"),
+      if (es) c("es", if (oneway) "epsilon2")
+    )
+    pkgs <- if (es) "effectsize" else character(0)
+    return(ps_script(if (length(cov)) "ANCOVA" else "ANOVA", pkgs, inputs, body, report))
   }
   env <- ps_run(body, inputs)
   fit <- env$fit
@@ -352,6 +373,8 @@ ps_anova <- function(req_json, export = FALSE) {
       NULL
     },
     cells = lapply(names(cells), function(k) c(list(cell = k), ps_desc(cells[[k]]))),
+    effects = ps_es_anova_result(env, fr$back),
+    epsilon2 = if (!is.null(env$epsilon2)) ps_es_row("epsilon2", env$epsilon2) else NULL,
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
   ))
 }
@@ -883,6 +906,7 @@ ps_correlation <- function(req_json, export = FALSE) {
     return(ps_polychoric(fr, vars, alt, conf, listwise, export))
   }
   exact <- isTRUE(req$exact) && method %in% c("spearman", "kendall")
+  bound <- if (!is.null(req$tostBound)) ps_tost_cor_bound(req$tostBound)
   body <- c(
     if (listwise) sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[vars])))),
     sprintf("vars <- %s", ps_q(unname(unlist(v[vars])))),
@@ -911,11 +935,17 @@ ps_correlation <- function(req_json, export = FALSE) {
         if (method == "pearson") sprintf(", conf.level = %s", format(conf)) else ", exact = FALSE"
       )
     },
-    "n <- vapply(pairs, function(p) sum(complete.cases(data[[p[1]]], data[[p[2]]])), 0)"
+    "n <- vapply(pairs, function(p) sum(complete.cases(data[[p[1]]], data[[p[2]]])), 0)",
+    if (!is.null(bound)) ps_tost_cor_lines(method, bound, conf)
   )
   inputs <- list(data = fr$data)
   if (export) {
-    return(ps_script(sprintf("Correlations (%s)", method), character(0), inputs, body, "setNames(tests, vapply(pairs, paste, \"\", collapse = \" ~ \"))"))
+    report <- c(
+      "setNames(tests, vapply(pairs, paste, \"\", collapse = \" ~ \"))",
+      if (!is.null(bound)) "tost"
+    )
+    pkgs <- if (!is.null(bound)) "TOSTER" else character(0)
+    return(ps_script(sprintf("Correlations (%s)", method), pkgs, inputs, body, report))
   }
   env <- ps_run(body, inputs)
   rows <- lapply(seq_along(env$pairs), function(i) {
@@ -930,7 +960,8 @@ ps_correlation <- function(req_json, export = FALSE) {
       stat = unname(h$statistic),
       ciLow = if (is.null(h$conf.int)) NULL else h$conf.int[1],
       ciHigh = if (is.null(h$conf.int)) NULL else h$conf.int[2],
-      exact = if (exact) env$exact[i] else NULL
+      exact = if (exact) env$exact[i] else NULL,
+      tost = if (!is.null(bound)) ps_tost_cor_result(env$tost[[i]]) else NULL
     )
   })
   ps_json(list(
@@ -941,6 +972,7 @@ ps_correlation <- function(req_json, export = FALSE) {
     vars = vars,
     pairs = rows,
     exact = if (exact) TRUE else NULL,
+    tostBound = bound,
     warnings = env$.warnings,
     engine = list(package = "stats", version = as.character(getRversion()))
   ))
@@ -1049,6 +1081,7 @@ ps_contingency <- function(req_json, export = FALSE) {
     stop("Choose two different variables for the rows and the columns.")
   }
   conf <- ps_bt_conf(req)
+  es <- isTRUE(req$effectSizes)
   fr <- ps_long_frame(req, unique(c(rv, cv, if (nzchar(wv)) wv)))
   v <- fr$v
   body <- c(
@@ -1069,11 +1102,14 @@ ps_contingency <- function(req_json, export = FALSE) {
     "  phi <- (tab[1, 1] * tab[2, 2] - tab[1, 2] * tab[2, 1]) / sqrt(prod(rowSums(tab)) * prod(colSums(tab)))",
     "  or <- (tab[1, 1] * tab[2, 2]) / (tab[1, 2] * tab[2, 1])  # sample odds ratio; Wald interval on the log scale",
     sprintf("  orCI <- exp(log(or) + c(-1, 1) * qnorm(1 - (1 - %s) / 2) * sqrt(sum(1 / tab)))", format(conf)),
-    "}"
+    "}",
+    if (es) ps_es_contingency_lines(conf)
   )
   inputs <- list(data = fr$data)
   if (export) {
-    return(ps_script("Contingency table", character(0), inputs, body, c("tab", "chi", "chiYates", "c(G2 = G2, p = pG2)", "fisher", "cramerV")))
+    report <- c("tab", "chi", "chiYates", "c(G2 = G2, p = pG2)", "fisher", "cramerV", if (es) "es")
+    pkgs <- if (es) "effectsize" else character(0)
+    return(ps_script("Contingency table", pkgs, inputs, body, report))
   }
   env <- ps_run(body, inputs)
   tab <- env$tab
@@ -1093,6 +1129,7 @@ ps_contingency <- function(req_json, export = FALSE) {
     cramerV = env$cramerV,
     phi = if (two) env$phi else NULL,
     oddsRatio = if (two) list(est = env$or, ciLow = env$orCI[1], ciHigh = env$orCI[2]) else NULL,
+    effects = if (es) ps_es_rows(Filter(Negate(is.null), env$es)) else NULL,
     confidence = conf,
     warnings = env$.warnings,
     engine = list(package = "stats", version = as.character(getRversion()))

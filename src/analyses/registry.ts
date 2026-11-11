@@ -11,6 +11,7 @@ import { lmmAnalysis } from './lmm';
 import { glmmAnalysis } from './glmm';
 import { efaAnalysis } from './efa';
 import { influenceAnalysis, screenAnalysis } from './screen';
+import { exploreAnalysis } from './explore';
 import { missingDataAnalysis } from './missingData';
 import { chartAnalysis } from './charts';
 import { irtAnalysis, lcaAnalysis } from './items';
@@ -75,6 +76,7 @@ export const ANALYSIS_TYPES: AnalysisType[] = [
   methodCompareAnalysis,
   parcelAllocationAnalysis,
   screenAnalysis,
+  exploreAnalysis,
   missingDataAnalysis,
   withSplit(chartAnalysis),
   influenceAnalysis,

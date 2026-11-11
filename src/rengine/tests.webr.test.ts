@@ -299,7 +299,7 @@ describe('correlations and frequencies', () => {
       },
     );
     const ctx = { data: d, info, settings: DEFAULT_SETTINGS, pls: null, projectName: '' };
-    const o = { rows: 'am', columns: 'cyl', counts: '' };
+    const o = { rows: 'am', columns: 'cyl', counts: '', effectSizes: false };
     const r = await contingencyAnalysis.run(o, ctx, () => {});
     // Labelled values by their labels, an unlabelled one by its number; the statistics as before.
     expect(r.colLevels).toEqual(['four', '6', 'eight']);
