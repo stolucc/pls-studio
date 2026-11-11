@@ -549,6 +549,9 @@ export interface ReliabilityResult {
   glb?: number;
   mean?: number;
   sd?: number;
+  /** Scale: the SD of the scale score (the item mean) and the standard error of measurement, SD * sqrt(1 - reliability). */
+  scoreSd?: number;
+  sem?: { alpha: number; omega: number; glb: number };
   items?: { item: string; alphaIfDropped: number; itemRest: number; mean: number; sd: number }[];
   icc?: {
     type: string;
@@ -559,7 +562,12 @@ export interface ReliabilityResult {
     p: number;
     ciLow: number;
     ciHigh: number;
+    /** SD * sqrt(1 - ICC): the SD of all ratings (single rater) or of the subjects' means (k raters). */
+    sem?: number;
   }[];
+  /** ICC: the SD of all ratings and the SD of the subjects' mean ratings. */
+  sdSingle?: number;
+  sdMean?: number;
   kappa?: { est: number; ciLow: number; ciHigh: number };
   weighted?: { est: number; ciLow: number; ciHigh: number };
   categories?: number;

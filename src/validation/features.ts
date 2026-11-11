@@ -537,6 +537,12 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     script('tests.R', 'desktop R'),
     script('bayesrel.R', 'desktop Bayesrel, same seed'),
   ),
+  'rengine/agreement': native(
+    'Reliability and agreement: standard errors of measurement, multi-rater agreement',
+    'Basic statistics',
+    ['psych'],
+    script('agreement.R', 'desktop psych'),
+  ),
   'rengine/correlationPolychoric': native(
     'Polychoric correlations',
     'Basic statistics',

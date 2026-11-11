@@ -136,12 +136,13 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   'reliability:scale': {
     title: 'Scale reliability (alpha, omega, glb)',
     examples: ['psych-alpha-neuroticism'],
-    features: ['rengine/tests::scale reliability'],
+    features: ['rengine/tests::scale reliability', 'rengine/agreement::scale reliability'],
+    note: 'The standard errors of measurement: rengine/agreement (scripts/validation/agreement.R).',
   },
   'reliability:icc': {
     title: 'Intraclass correlations',
     examples: ['psych-icc-shroutfleiss'],
-    features: ['rengine/tests::intraclass'],
+    features: ['rengine/tests::intraclass', 'rengine/agreement::intraclass'],
   },
   'reliability:kappa': {
     title: 'Cohen’s kappa',

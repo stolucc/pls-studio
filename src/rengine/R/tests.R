@@ -1317,11 +1317,20 @@ ps_reliability <- function(req_json, export = FALSE) {
       "# Omega total of one factor (omega hierarchical is not reported: its one-factor warnings do not concern omega total).",
       "o <- suppressWarnings(suppressMessages(omega(X, nfactors = 1, plot = FALSE)))",
       "g <- glb.fa(cor(X))  # greatest lower bound (psych's factor-analytic estimate)",
+      "# Standard error of measurement of the scale score (the item mean, as psych scores it): SD * sqrt(1 - reliability).",
+      "scoreSd <- sd(rowMeans(X))",
+      "sem <- scoreSd * sqrt(1 - c(alpha = a$total$raw_alpha, omega = o$omega.tot, glb = g$glb))",
       if (!is.null(bayes)) ps_bayesrel_lines(bayes, conf)
     ),
     icc = c(
       "suppressPackageStartupMessages(library(psych))",
-      sprintf("icc <- ICC(X, lmer = FALSE, alpha = %s)  # rows: subjects; columns: raters", format(1 - conf))
+      sprintf("icc <- ICC(X, lmer = FALSE, alpha = %s)  # rows: subjects; columns: raters", format(1 - conf)),
+      "# Standard error of measurement, SD * sqrt(1 - ICC): the SD of all ratings for a single rater,",
+      "# the SD of the subjects' mean ratings for the mean of k raters.",
+      "sdSingle <- sd(unlist(X))",
+      "sdMean <- sd(rowMeans(X))",
+      "iccSd <- ifelse(grepl(\"k$\", icc$results$type), sdMean, sdSingle)",
+      "iccSem <- iccSd * sqrt(1 - icc$results$ICC)"
     ),
     kappa = c(
       "suppressPackageStartupMessages(library(psych))", ps_kappa_weights(req, NULL),
@@ -1347,8 +1356,8 @@ ps_reliability <- function(req_json, export = FALSE) {
     return(ps_script(
       title, packages, inputs, body,
       switch(type,
-        scale = c("a", "o$omega.tot", "g$glb", if (!is.null(bayes)) c("summary(br)", "rhat", "ess")),
-        icc = "icc",
+        scale = c("a", "o$omega.tot", "g$glb", "sem", if (!is.null(bayes)) c("summary(br)", "rhat", "ess")),
+        icc = c("icc", "data.frame(type = icc$results$type, sem = iccSem)"),
         kappa = "k",
         blandaltman = c("c(bias = bias, sd = s, lower = loa[1], upper = loa[2])", "biasCI")
       )
@@ -1370,6 +1379,8 @@ ps_reliability <- function(req_json, export = FALSE) {
         glb = env$g$glb,
         mean = tot$mean,
         sd = tot$sd,
+        scoreSd = env$scoreSd,
+        sem = as.list(env$sem),
         items = lapply(
           seq_len(nrow(dr)),
           function(i) list(item = vars[i], alphaIfDropped = dr$raw_alpha[i], itemRest = is$r.drop[i], mean = is$mean[i], sd = is$sd[i])
@@ -1379,7 +1390,20 @@ ps_reliability <- function(req_json, export = FALSE) {
     },
     icc = {
       r <- env$icc$results
-      list(icc = lapply(seq_len(nrow(r)), function(i) list(type = as.character(r$type[i]), icc = r$ICC[i], f = r$F[i], df1 = r$df1[i], df2 = r$df2[i], p = r$p[i], ciLow = r[i, "lower bound"], ciHigh = r[i, "upper bound"])))
+      rows <- lapply(seq_len(nrow(r)), function(i) {
+        list(
+          type = as.character(r$type[i]),
+          icc = r$ICC[i],
+          f = r$F[i],
+          df1 = r$df1[i],
+          df2 = r$df2[i],
+          p = r$p[i],
+          ciLow = r[i, "lower bound"],
+          ciHigh = r[i, "upper bound"],
+          sem = env$iccSem[i]
+        )
+      })
+      list(icc = rows, sdSingle = env$sdSingle, sdMean = env$sdMean)
     },
     kappa = {
       cf <- env$k$confid

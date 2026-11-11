@@ -2032,6 +2032,32 @@ const ICC_NAME: Record<string, string> = {
   ICC3k: 'ICC(3,k): mean of k raters, consistency',
 };
 
+const SCALE_NOTE =
+  'α assumes equal loadings (tau-equivalence); ω total uses a one-factor model’s loadings; the glb is the ' +
+  'largest reliability consistent with the inter-item correlations (psych’s factor-analytic estimate, ' +
+  'glb.fa). psych::alpha, omega and glb.fa.';
+const ICC_NOTE =
+  'Absolute agreement counts systematic differences between raters against agreement; consistency ' +
+  'ignores them. Use the k-rater forms when the mean of the raters is what is used.';
+
+/** How the scale's standard errors of measurement were computed (absent in results from before they were added). */
+function scaleSemNote(r: ReliabilityResult): string {
+  if (r.scoreSd === undefined) return '';
+  return (
+    ' SEM: the standard error of measurement of the scale score (the item mean), ' +
+    `SD × √(1 − reliability), with SD = ${fmt(r.scoreSd)}.`
+  );
+}
+
+/** How the ICCs' standard errors of measurement were computed. */
+function iccSemNote(r: ReliabilityResult): string {
+  if (r.sdSingle === undefined || r.sdMean === undefined) return '';
+  return (
+    ' SEM: SD × √(1 − ICC), with the SD of all ratings for a single rater ' +
+    `(${fmt(r.sdSingle)}) and the SD of the subjects’ mean ratings for k raters (${fmt(r.sdMean)}).`
+  );
+}
+
 function ReliabilityView({ r }: { r: ReliabilityResult }) {
   const conf = pct(r.confidence);
   return (
@@ -2044,15 +2070,19 @@ function ReliabilityView({ r }: { r: ReliabilityResult }) {
           <Table
             title="Scale reliability"
             file="reliability-scale"
-            columns={['Coefficient', 'Value']}
+            columns={['Coefficient', 'Value', 'SEM']}
             rows={[
-              [c('Cronbach’s α'), c(r.alpha ?? null)],
-              [c('Standardised α'), c(r.stdAlpha ?? null)],
-              [c('McDonald’s ω total (one factor)'), c(r.omegaTotal ?? null)],
-              [c('Greatest lower bound (glb)'), c(r.glb ?? null)],
-              [c('Average inter-item correlation'), c(r.averageR ?? null)],
+              [c('Cronbach’s α'), c(r.alpha ?? null), c(r.sem?.alpha ?? null)],
+              [c('Standardised α'), c(r.stdAlpha ?? null), c(null)],
+              [
+                c('McDonald’s ω total (one factor)'),
+                c(r.omegaTotal ?? null),
+                c(r.sem?.omega ?? null),
+              ],
+              [c('Greatest lower bound (glb)'), c(r.glb ?? null), c(r.sem?.glb ?? null)],
+              [c('Average inter-item correlation'), c(r.averageR ?? null), c(null)],
             ]}
-            note="α assumes equal loadings (tau-equivalence); ω total uses a one-factor model’s loadings; the glb is the largest reliability consistent with the inter-item correlations (psych’s factor-analytic estimate, glb.fa). psych::alpha, omega and glb.fa."
+            note={SCALE_NOTE + scaleSemNote(r)}
           />
           <Table
             title="Items"
@@ -2070,7 +2100,7 @@ function ReliabilityView({ r }: { r: ReliabilityResult }) {
         <Table
           title="Intraclass correlations (Shrout & Fleiss)"
           file="reliability-icc"
-          columns={['Type', 'ICC', 'F', 'df1', 'df2', 'p', `${conf} CI`]}
+          columns={['Type', 'ICC', 'F', 'df1', 'df2', 'p', `${conf} CI`, 'SEM']}
           rows={(r.icc ?? []).map(
             (x): Row => [
               c(ICC_NAME[x.type] ?? x.type),
@@ -2080,9 +2110,10 @@ function ReliabilityView({ r }: { r: ReliabilityResult }) {
               c(x.df2, undefined, 0),
               pCell(x.p),
               c(ci(x.ciLow, x.ciHigh)),
+              c(x.sem ?? null),
             ],
           )}
-          note="Absolute agreement counts systematic differences between raters against agreement; consistency ignores them. Use the k-rater forms when the mean of the raters is what is used."
+          note={ICC_NOTE + iccSemNote(r)}
         />
       )}
       {r.type === 'kappa' && (
