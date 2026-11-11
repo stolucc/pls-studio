@@ -1656,7 +1656,10 @@ export function estimateCb(
     intercept: 4,
   } as const;
   // Fixed values sort with their kind of parameter (op).
-  const rank = (e: CbEstimate) => (e.kind === 'fixed' ? (e.op === '~' ? 1 : 3) : order[e.kind]);
+  const rank = (e: CbEstimate) => {
+    if (e.kind !== 'fixed') return order[e.kind];
+    return e.op === '~' ? order.regression : order.fixed;
+  };
   estimates.sort((x, y) => rank(x) - rank(y));
 
   for (const e of estimates) {

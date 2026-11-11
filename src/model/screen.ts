@@ -62,12 +62,16 @@ export function mardiaVerdict(
   // Mardia's small-sample correction for the skewness test below n = 20 (psych's p.small).
   const skewP = m.n < 20 ? m.pSmall : m.pSkew;
   const normal = skewP >= alpha && m.pKurt >= alpha;
+  // (the tests that reject it: skewness, kurtosis or both)
+  const rejected: string[] = [];
+  if (skewP < alpha) rejected.push('skewness');
+  if (m.pKurt < alpha) rejected.push('kurtosis');
   return {
     normal,
     skewP,
     text: normal
       ? 'Multivariate normality is not rejected: maximum likelihood is appropriate.'
-      : `Multivariate normality is rejected (${skewP < alpha ? 'skewness' : ''}${skewP < alpha && m.pKurt < alpha ? ' and ' : ''}${m.pKurt < alpha ? 'kurtosis' : ''}): use robust ML (MLR) or bootstrap standard errors in CB-SEM.`,
+      : `Multivariate normality is rejected (${rejected.join(' and ')}): use robust ML (MLR) or bootstrap standard errors in CB-SEM.`,
   };
 }
 

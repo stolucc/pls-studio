@@ -405,14 +405,14 @@ async function main() {
     };
     for (const [name, p] of entries) {
       const file = `${name}_${p.version}.tar.gz`;
-      sources[name] = PATCHED[name]
-        ? patchedSrc(name, file)
-        : await fetchSrc(
-            file,
-            SNAPSHOT[name]
-              ? [SNAPSHOT[name].source]
-              : [`${CRAN}/${file}`, `${CRAN}/Archive/${name}/${file}`],
-          );
+      if (PATCHED[name]) sources[name] = patchedSrc(name, file);
+      else {
+        // (a snapshot's own source; otherwise CRAN, current or archived)
+        const urls = SNAPSHOT[name]
+          ? [SNAPSHOT[name].source]
+          : [`${CRAN}/${file}`, `${CRAN}/Archive/${name}/${file}`];
+        sources[name] = await fetchSrc(file, urls);
+      }
       if (!sources[name]) console.warn(`warning: no CRAN source found for ${name} ${p.version}`);
     }
     sources.webr = await fetchSrc(`webr-${lock.webr}.tar.gz`, [

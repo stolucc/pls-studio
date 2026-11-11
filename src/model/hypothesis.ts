@@ -192,10 +192,13 @@ export const usesAbs = (h: Hypothesis) =>
   h.constraints.some((c) => [...c.left, ...c.right].some((t) => t.abs));
 
 const termText = (t: HypTerm, first: boolean) => {
-  const body = t.name
-    ? `${t.coef ? `${t.coef}*` : ''}${t.abs ? `abs(${t.name})` : t.name}`
-    : t.coef;
-  return first ? `${t.sign < 0 ? '-' : ''}${body}` : `${t.sign < 0 ? ' - ' : ' + '}${body}`;
+  let body = t.coef;
+  if (t.name) {
+    const coef = t.coef ? `${t.coef}*` : '';
+    body = `${coef}${t.abs ? `abs(${t.name})` : t.name}`;
+  }
+  if (first) return `${t.sign < 0 ? '-' : ''}${body}`;
+  return `${t.sign < 0 ? ' - ' : ' + '}${body}`;
 };
 const sideText = (s: HypTerm[]) => s.map((t, i) => termText(t, i === 0)).join('');
 /** A constraint as restriktor and bain read it ("2*b1 - b2 > 0.1", "b1 = b2"). */

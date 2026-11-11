@@ -42,7 +42,9 @@ export function coverage(
   const rank = (k: string) => {
     const card = k.split(':')[0];
     const i = order.indexOf(card);
-    return i < 0 ? order.length + (card === 'model' ? 0 : 1) : i;
+    if (i >= 0) return i;
+    // (entries of no registered card last: the model's, then the rest)
+    return order.length + (card === 'model' ? 0 : 1);
   };
   // (a stable sort: registry order, the manifest's order within a card)
   return Object.keys(CARD_EVIDENCE)

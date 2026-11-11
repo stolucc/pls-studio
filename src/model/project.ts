@@ -809,68 +809,76 @@ export function sharedIndicators(model: Pick<ModelState, 'constructs'>): Set<str
   return shared;
 }
 
+/** One construct of the spec: references to other constructs by name, and only the options that apply to it. */
+function constructSpec(
+  c: Construct,
+  name: Map<string, string>,
+  shared: Set<string>,
+): ModelSpec['constructs'][number] {
+  const components = c.components ?? [];
+  const isComponent = (id: string) => components.includes(id);
+  const singleIndicator = c.indicators.length === 1 && !c.covariate;
+  return {
+    name: c.name,
+    type: c.type,
+    mode: c.mode,
+    indicators: c.indicators,
+    ...(components.length ? { components: components.map((id) => name.get(id) ?? id) } : {}),
+    ...(components.length &&
+    c.componentLoadings &&
+    Object.keys(c.componentLoadings).some(isComponent)
+      ? {
+          componentLoadings: Object.fromEntries(
+            Object.entries(c.componentLoadings)
+              .filter(([id]) => isComponent(id))
+              .map(([id, v]) => [name.get(id) ?? id, v]),
+          ),
+        }
+      : {}),
+    ...(components.length && c.markerFree ? { markerFree: true } : {}),
+    ...(c.covariate ? { covariate: true } : {}),
+    ...(c.reliability !== undefined && singleIndicator ? { reliability: c.reliability } : {}),
+    ...(c.freeError && c.reliability === undefined && singleIndicator ? { freeError: true } : {}),
+    ...(c.reliabilities &&
+    c.indicators.length > 1 &&
+    !c.covariate &&
+    Object.keys(c.reliabilities).some((k) => c.indicators.includes(k))
+      ? {
+          reliabilities: Object.fromEntries(
+            Object.entries(c.reliabilities).filter(([k]) => c.indicators.includes(k)),
+          ),
+        }
+      : {}),
+    ...(c.dominant && c.indicators.includes(c.dominant) ? { dominant: c.dominant } : {}),
+    ...(c.predefinedWeights
+      ? {
+          predefinedWeights: Object.fromEntries(
+            c.indicators.map((i) => [i, c.predefinedWeights![i] ?? 0]),
+          ),
+        }
+      : {}),
+    ...(c.categorical && c.indicators.length === 1 ? { categorical: true } : {}),
+    ...(c.fixedLoadings && Object.keys(c.fixedLoadings).length
+      ? { fixedLoadings: c.fixedLoadings }
+      : {}),
+    ...(c.loadingLabels && Object.keys(c.loadingLabels).length
+      ? { loadingLabels: c.loadingLabels }
+      : {}),
+    ...(c.scaling === 'variance' &&
+    (c.indicators.length > 1 || shared.has(c.indicators[0])) &&
+    !c.covariate &&
+    !components.length
+      ? { scaling: 'variance' as const }
+      : {}),
+  };
+}
+
 export function toSpec(model: ModelState): ModelSpec {
   const name = new Map(model.constructs.map((c) => [c.id, c.name]));
   // (a factor of one indicator it shares with other factors is a factor, not the variable: it may be scaled by its variance)
   const shared = sharedIndicators(model);
   return {
-    constructs: model.constructs.map((c) => ({
-      name: c.name,
-      type: c.type,
-      mode: c.mode,
-      indicators: c.indicators,
-      ...(c.components?.length ? { components: c.components.map((id) => name.get(id) ?? id) } : {}),
-      ...(c.components?.length &&
-      c.componentLoadings &&
-      Object.keys(c.componentLoadings).some((id) => c.components!.includes(id))
-        ? {
-            componentLoadings: Object.fromEntries(
-              Object.entries(c.componentLoadings)
-                .filter(([id]) => c.components!.includes(id))
-                .map(([id, v]) => [name.get(id) ?? id, v]),
-            ),
-          }
-        : {}),
-      ...(c.components?.length && c.markerFree ? { markerFree: true } : {}),
-      ...(c.covariate ? { covariate: true } : {}),
-      ...(c.reliability !== undefined && c.indicators.length === 1 && !c.covariate
-        ? { reliability: c.reliability }
-        : {}),
-      ...(c.freeError && c.reliability === undefined && c.indicators.length === 1 && !c.covariate
-        ? { freeError: true }
-        : {}),
-      ...(c.reliabilities &&
-      c.indicators.length > 1 &&
-      !c.covariate &&
-      Object.keys(c.reliabilities).some((k) => c.indicators.includes(k))
-        ? {
-            reliabilities: Object.fromEntries(
-              Object.entries(c.reliabilities).filter(([k]) => c.indicators.includes(k)),
-            ),
-          }
-        : {}),
-      ...(c.dominant && c.indicators.includes(c.dominant) ? { dominant: c.dominant } : {}),
-      ...(c.predefinedWeights
-        ? {
-            predefinedWeights: Object.fromEntries(
-              c.indicators.map((i) => [i, c.predefinedWeights![i] ?? 0]),
-            ),
-          }
-        : {}),
-      ...(c.categorical && c.indicators.length === 1 ? { categorical: true } : {}),
-      ...(c.fixedLoadings && Object.keys(c.fixedLoadings).length
-        ? { fixedLoadings: c.fixedLoadings }
-        : {}),
-      ...(c.loadingLabels && Object.keys(c.loadingLabels).length
-        ? { loadingLabels: c.loadingLabels }
-        : {}),
-      ...(c.scaling === 'variance' &&
-      (c.indicators.length > 1 || shared.has(c.indicators[0])) &&
-      !c.covariate &&
-      !c.components?.length
-        ? { scaling: 'variance' as const }
-        : {}),
-    })),
+    constructs: model.constructs.map((c) => constructSpec(c, name, shared)),
     paths: [
       ...model.paths.map((p) => ({
         from: name.get(p.from)!,

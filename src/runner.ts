@@ -49,6 +49,13 @@ export function cancelJob() {
   useStore.getState().toast('info', 'Calculation cancelled.');
 }
 
+/** "; 2 Sargan tests significant at .05" for a MIIV toast ('' when none rejects its instruments). */
+function sarganNote(equations: { sarganP: number | null }[]): string {
+  const rejected = equations.filter((e) => e.sarganP !== null && e.sarganP < 0.05).length;
+  if (!rejected) return '';
+  return `; ${rejected} Sargan test${rejected > 1 ? 's' : ''} significant at .05`;
+}
+
 function cbToast(r: CbResult, by: string) {
   const st = useStore.getState();
   const f = r.fit;
@@ -141,10 +148,9 @@ function runR(kind: JobKind, key: string) {
           if (!t) return;
           t.setResults({ miiv: r }, key);
           logged();
-          const rejected = r.equations.filter((e) => e.sarganP !== null && e.sarganP < 0.05).length;
           t.toast(
             'success',
-            `MIIVsem ${r.engine.version}: ${r.equations.length} equations estimated${rejected ? `; ${rejected} Sargan test${rejected > 1 ? 's' : ''} significant at .05` : ''}.`,
+            `MIIVsem ${r.engine.version}: ${r.equations.length} equations estimated${sarganNote(r.equations)}.`,
           );
         })
         .catch(failed);
@@ -446,12 +452,9 @@ export function run(kind: JobKind) {
       } else if (msg.kind === 'miiv') {
         st.setResults({ miiv: msg.result }, key);
         logged();
-        const rejected = msg.result.equations.filter(
-          (e) => e.sarganP !== null && e.sarganP < 0.05,
-        ).length;
         st.toast(
           'success',
-          `MIIV-2SLS: ${msg.result.equations.length} equations estimated${rejected ? `; ${rejected} Sargan test${rejected > 1 ? 's' : ''} significant at .05` : ''}.`,
+          `MIIV-2SLS: ${msg.result.equations.length} equations estimated${sarganNote(msg.result.equations)}.`,
         );
       } else if (msg.kind === 'cb') {
         st.setResults({ cb: msg.result }, key);

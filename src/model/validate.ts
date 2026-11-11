@@ -558,10 +558,12 @@ function checkExogenousCorrelations(v: Ctx): Issue[] {
         .slice(0, 4)
         .map(([a, b]) => `${a.name} ↔ ${b.name}`)
         .join(', ');
+      const hidden = pairs.length - 4;
+      const more = hidden > 0 ? ` and ${hidden} more pair${hidden > 1 ? 's' : ''}` : '';
       issues.push({
         level: 'warning',
         action: 'exogenous-correlations',
-        message: `No correlation is drawn between ${shown}${pairs.length > 4 ? ` and ${pairs.length - 4} more pair${pairs.length - 4 > 1 ? 's' : ''}` : ''}: as exogenous constructs they are estimated as uncorrelated. Intended?`,
+        message: `No correlation is drawn between ${shown}${more}: as exogenous constructs they are estimated as uncorrelated. Intended?`,
       });
     }
   }

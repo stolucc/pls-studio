@@ -45,7 +45,11 @@ export function expandCategorical(
         k = 2;
       while (names.includes(name)) name = `${column}: ${labels[i + 1]} (${k++})`;
       names.push(name);
-      cols.push(Float64Array.from(src, (x) => (Number.isNaN(x) ? NaN : x === v ? 1 : 0)));
+      const dummy = (x: number) => {
+        if (Number.isNaN(x)) return NaN;
+        return x === v ? 1 : 0;
+      };
+      cols.push(Float64Array.from(src, dummy));
       made.push(name);
     });
     dummies.set(c.name, made);
