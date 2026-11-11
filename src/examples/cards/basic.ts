@@ -2,7 +2,7 @@
 // the numbers it prints checked in cards/basic.webr.test.ts.
 //
 // Data written inline on a help page (sleep in wide form, RoundingTimes, the plastic film, Agresti's tables, Mendel's
-// cross, Shrout & Fleiss's ratings, Hollander & Wolfe's tuna, Cohen's agreement table, Krippendorff's coders) are shipped as CSV files in public/examples/tests, coded as the help page codes them.
+// cross, Shrout & Fleiss's ratings, Hollander & Wolfe's tuna, Cohen's agreement table, Krippendorff's coders, Agresti's approval table) are shipped as CSV files in public/examples/tests, coded as the help page codes them.
 
 import { CB } from '../define';
 import type { PackageExample } from '../packages';
@@ -307,6 +307,43 @@ export const CARD_BASIC: PackageExample[] = [
     paths: [],
     labels: { gender: ['F', 'M'], party: ['Democrat', 'Independent', 'Republican'] },
     panel: { kind: 'contingency', rows: 'gender', columns: 'party', counts: 'count' },
+    settings: CB('ML'),
+  },
+  {
+    id: 'stats-mcnemar-performance',
+    package: 'stats',
+    title: 'McNemar’s test: approval of the president, a month apart',
+    source: 'stats, ?mcnemar.test (Agresti 1990, p. 350)',
+    links: [RD('mcnemar.test')],
+    description:
+      'Agresti’s (1990) table on the help page: 1600 people asked twice, a month apart, whether they approve of the ' +
+      'president’s performance, one row per cell with its count. The help page’s mcnemar.test(Performance) gives ' +
+      'χ² = 16.82 on 1 df, p = 4.1e-5 (with the continuity correction, R’s default). With “Paired measurements” ' +
+      'the card adds that test, the uncorrected one and the exact test of the discordant pairs. Opens its card on ' +
+      'the Analyses tab.',
+    shows:
+      'Approval fell: 150 people moved from approve to disapprove and only 86 the other way. McNemar’s χ² = 16.82 ' +
+      '(continuity-corrected, the help page’s value), p = 0.00004; the uncorrected χ² (17.36) and the exact test ' +
+      '(p = 0.00004) agree. The χ² test of independence on the same card answers a different question: whether the ' +
+      'two answers are related, which they obviously are.',
+    data: {
+      package: 'stats',
+      name: 'presidential approval (?mcnemar.test)',
+      file: 'examples/tests/performance.csv',
+    },
+    constructs: [],
+    paths: [],
+    labels: {
+      first: ['Approve', 'Disapprove'],
+      second: ['Approve', 'Disapprove'],
+    },
+    panel: {
+      kind: 'contingency',
+      rows: 'first',
+      columns: 'second',
+      counts: 'count',
+      paired: true,
+    },
     settings: CB('ML'),
   },
   {

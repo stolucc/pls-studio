@@ -1,0 +1,63 @@
+{
+  "performance": {
+    "names": ["first", "second", "count"],
+    "cols": [
+      [1, 2, 1, 2],
+      [1, 1, 2, 2],
+      [794, 86, 150, 570]
+    ],
+    "categories": {
+      "first": ["Approve", "Disapprove"],
+      "second": ["Approve", "Disapprove"]
+    }
+  },
+  "mcnemar": {
+    "plain": {
+      "stat": 17.3559322033898,
+      "df": 1,
+      "p": 3.09929344104522e-05
+    },
+    "corrected": {
+      "stat": 16.8177966101695,
+      "df": 1,
+      "p": 4.11456228134594e-05
+    },
+    "exactP": 3.71593613957144e-05
+  },
+  "bowkerFull": {
+    "names": ["before", "after", "count"],
+    "cols": [
+      [1, 2, 3, 1, 2, 3, 1, 2, 3],
+      [1, 1, 1, 2, 2, 2, 3, 3, 3],
+      [10, 4, 2, 9, 12, 3, 6, 1, 13]
+    ],
+    "categories": {
+      "before": ["low", "mid", "high"],
+      "after": ["low", "mid", "high"]
+    }
+  },
+  "bowkerEmpty": {
+    "names": ["before", "after", "count"],
+    "cols": [
+      [1, 2, 3, 1, 2, 3, 1, 2, 3],
+      [1, 1, 1, 2, 2, 2, 3, 3, 3],
+      [10, 0, 2, 0, 12, 3, 6, 1, 13]
+    ],
+    "categories": {
+      "before": ["low", "mid", "high"],
+      "after": ["low", "mid", "high"]
+    }
+  },
+  "bowker": {
+    "full": {
+      "stat": 4.92307692307692,
+      "df": 3,
+      "p": 0.177517267688817
+    },
+    "empty": {
+      "stat": 3,
+      "df": 2,
+      "p": 0.22313016014843
+    }
+  }
+}

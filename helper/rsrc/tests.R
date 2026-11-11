@@ -1049,12 +1049,14 @@ ps_contingency <- function(req_json, export = FALSE) {
     stop("Choose two different variables for the rows and the columns.")
   }
   conf <- ps_bt_conf(req)
+  paired <- isTRUE(req$paired)
   fr <- ps_long_frame(req, unique(c(rv, cv, if (nzchar(wv)) wv)))
   v <- fr$v
   body <- c(
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(rv, cv, if (nzchar(wv)) wv)])))),
     ps_bt_factor_line(req, fr, rv),
     ps_bt_factor_line(req, fr, cv),
+    if (paired) ps_mcnemar_lines(v[[rv]], v[[cv]], if (nzchar(wv)) v[[wv]] else ""),
     sprintf("tab <- xtabs(%s~ %s + %s, data = data)", if (nzchar(wv)) paste0(v[[wv]], " ") else "", v[[rv]], v[[cv]]),
     "chi <- chisq.test(tab, correct = FALSE)",
     "chiYates <- if (all(dim(tab) == 2)) chisq.test(tab, correct = TRUE)",
@@ -1073,7 +1075,9 @@ ps_contingency <- function(req_json, export = FALSE) {
   )
   inputs <- list(data = fr$data)
   if (export) {
-    return(ps_script("Contingency table", character(0), inputs, body, c("tab", "chi", "chiYates", "c(G2 = G2, p = pG2)", "fisher", "cramerV")))
+    paired_report <- c("ptab", "if (length(lev) == 2) list(mcnemar, mcnemarCC, mcnemarExact) else c(stat = bowkerStat, df = bowkerDf, p = bowkerP)")
+    report <- c("tab", "chi", "chiYates", "c(G2 = G2, p = pG2)", "fisher", "cramerV", if (paired) paired_report)
+    return(ps_script("Contingency table", character(0), inputs, body, report))
   }
   env <- ps_run(body, inputs)
   tab <- env$tab
@@ -1093,6 +1097,7 @@ ps_contingency <- function(req_json, export = FALSE) {
     cramerV = env$cramerV,
     phi = if (two) env$phi else NULL,
     oddsRatio = if (two) list(est = env$or, ciLow = env$orCI[1], ciHigh = env$orCI[2]) else NULL,
+    paired = if (paired) ps_mcnemar_result(env),
     confidence = conf,
     warnings = env$.warnings,
     engine = list(package = "stats", version = as.character(getRversion()))

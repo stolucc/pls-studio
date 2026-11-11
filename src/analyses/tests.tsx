@@ -20,6 +20,7 @@ import type {
   BayesReliabilityResult,
   HTest,
   KappaTable,
+  PairedTests,
   GwetWeights,
   KrippLevel,
   ManovaInput,
@@ -1305,7 +1306,71 @@ function ContingencyForm({ options: o, set, ctx, disabled }: OptionsProps<Contin
         exclude={[o.rows, o.columns]}
         onChange={(counts) => set({ ...o, counts })}
       />
+      <div className="field">
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={!!o.paired}
+            onChange={(e) => {
+              const { paired: _p, ...rest } = o;
+              set(e.target.checked ? { ...rest, paired: true } : rest);
+            }}
+          />{' '}
+          Paired measurements (McNemar, Bowker)
+        </label>
+        <div className="hint">
+          The rows and columns are the same subjects measured twice on the same categories (before
+          and after, two raters): McNemar’s test for two categories, Bowker’s test of symmetry for
+          more.
+        </div>
+      </div>
     </fieldset>
+  );
+}
+
+/** McNemar's tests of a paired 2 × 2 table, or Bowker's test of symmetry. */
+function PairedTable({ p }: { p: PairedTests }) {
+  if (p.bowker) {
+    return (
+      <Table
+        title="Bowker’s test of symmetry"
+        file="contingency-bowker"
+        columns={['Test', 'χ²', 'df', 'p']}
+        rows={[[c('Bowker'), c(p.bowker.stat), c(p.bowker.df, undefined, 0), pCell(p.bowker.p)]]}
+        note={
+          'Whether the subjects move from category i to j as often as from j to i, over every pair of ' +
+          'categories. Pairs of cells without any subjects are left out (their count is the df).'
+        }
+      />
+    );
+  }
+  const rows: Row[] = [];
+  if (p.mcnemar)
+    rows.push([c('McNemar χ²'), c(p.mcnemar.stat), c(1, undefined, 0), pCell(p.mcnemar.p)]);
+  if (p.mcnemarCorrected) {
+    rows.push([
+      c('McNemar χ², continuity correction'),
+      c(p.mcnemarCorrected.stat),
+      c(1, undefined, 0),
+      pCell(p.mcnemarCorrected.p),
+    ]);
+  }
+  if (p.exact) rows.push([c('Exact (binomial)'), c(null), c(null), pCell(p.exact.p)]);
+  const exactNote = p.exact
+    ? ` The exact test: the ${fmt(p.exact.b, 0)} subjects who moved one way against the ` +
+      `${fmt(p.exact.c, 0)} who moved the other, binomial with p = ½.`
+    : '';
+  return (
+    <Table
+      title="McNemar’s test (paired)"
+      file="contingency-mcnemar"
+      columns={['Test', 'χ²', 'df', 'p']}
+      rows={rows}
+      note={
+        'Whether the share in the first category changed between the two measurements: only the ' +
+        `subjects who changed category count.${exactNote} Prefer the exact test when they are few.`
+      }
+    />
   );
 }
 
@@ -1351,6 +1416,7 @@ function ContingencyView({ r }: { r: ContingencyResult }) {
         rows={rows}
         note="Each cell: count (expected count; row percentage)."
       />
+      {r.paired && <PairedTable p={r.paired} />}
       <Table
         title="Tests of independence"
         file="contingency-tests"
@@ -1418,13 +1484,18 @@ const ctCols = (o: ContingencyOptions) => [o.rows, o.columns, o.counts].filter(B
 export const contingencyAnalysis: AnalysisType<ContingencyOptions, ContingencyResult> = {
   id: 'contingency',
   title: 'Contingency table',
-  sub: 'χ², likelihood ratio, Fisher’s exact test, Cramér’s V, odds ratio',
+  sub: 'χ², likelihood ratio, Fisher’s exact test, Cramér’s V, odds ratio; McNemar and Bowker (paired)',
   group: 'Basic statistics',
   cardTitle: (o) => `Contingency table${o.rows && o.columns ? `: ${o.rows} × ${o.columns}` : ''}`,
   defaults: () => ({ rows: '', columns: '', counts: '' }),
   parseOptions: (raw) =>
     isObj(raw)
-      ? { rows: name(raw.rows), columns: name(raw.columns), counts: name(raw.counts) }
+      ? {
+          rows: name(raw.rows),
+          columns: name(raw.columns),
+          counts: name(raw.counts),
+          ...(raw.paired === true ? { paired: true as const } : {}),
+        }
       : null,
   Options: ContingencyForm,
   View: ({ result }) => <ContingencyView r={result} />,
@@ -1434,7 +1505,14 @@ export const contingencyAnalysis: AnalysisType<ContingencyOptions, ContingencyRe
     return missingColumns(ctx, ctCols(o), 'Contingency table');
   },
   fingerprint: (o, ctx) =>
-    columnsFingerprint(ctx, ctCols(o), [o.rows, o.columns, o.counts, ctx.settings.confidence]),
+    columnsFingerprint(ctx, ctCols(o), [
+      o.rows,
+      o.columns,
+      o.counts,
+      ctx.settings.confidence,
+      // (only when set: earlier fingerprints are unchanged)
+      ...(o.paired ? ['paired'] : []),
+    ]),
   run: async (o, ctx) =>
     (await engine()).contingencyR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
   script: async (o, ctx) =>

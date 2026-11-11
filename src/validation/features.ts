@@ -543,6 +543,12 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     ['psych', 'irr', 'irrCAC'],
     script('agreement.R', 'desktop psych, irr and irrCAC'),
   ),
+  'rengine/nonparametric': native(
+    'Nonparametric tests: McNemar, Bowker, Cochran’s Q, Dunn, Conover',
+    'Basic statistics',
+    ['stats'],
+    script('nonparametric.R', 'desktop R, DescTools, dunn.test and PMCMRplus'),
+  ),
   'rengine/correlationPolychoric': native(
     'Polychoric correlations',
     'Basic statistics',

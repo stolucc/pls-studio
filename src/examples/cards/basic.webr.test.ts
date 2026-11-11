@@ -407,6 +407,19 @@ describe('basic-statistics card examples in webR', () => {
     near('p', r.chisq.p, 2.953589e-7, 1e-12);
   }, 600_000);
 
+  it('stats-mcnemar-performance: mcnemar.test(Performance), paired', async () => {
+    const r = await runCard<ContingencyResult>(
+      'stats-mcnemar-performance',
+      helpRun('stats, ?mcnemar.test'),
+    );
+    const p = r.paired!;
+    near('χ², continuity correction', p.mcnemarCorrected!.stat, 16.8177966, 1e-6);
+    near('p, continuity correction', p.mcnemarCorrected!.p, 4.114562281e-5, 1e-12);
+    near('χ²', p.mcnemar!.stat, 17.3559322, 1e-6);
+    near('exact p', p.exact!.p, 3.71593614e-5, 1e-12);
+    same('approve → disapprove', p.exact!.b, 150);
+  }, 600_000);
+
   it('stats-contingency-job: fisher.test(Job)', async () => {
     const r = await runCard<ContingencyResult>(
       'stats-contingency-job',

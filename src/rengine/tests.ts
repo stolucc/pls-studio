@@ -256,11 +256,26 @@ export interface CorrelationResult {
   engine: REngineInfo;
 }
 
+/** `paired`: the rows and columns are the same subjects' two measurements on the same categories (McNemar, Bowker). */
 export interface ContingencyInput {
   rows: string;
   columns: string;
   counts: string;
   confidence: number;
+  paired?: true;
+}
+/**
+ * The paired tests: the square table on the categories of both measurements; for 2 x 2 McNemar's chi-square without
+ * and with the continuity correction and the exact (binomial) test of the discordant pairs b and c; for k x k
+ * Bowker's test of symmetry (over the pairs of cells that hold any subjects).
+ */
+export interface PairedTests {
+  levels: string[];
+  counts: number[][];
+  mcnemar: HTest | null;
+  mcnemarCorrected: HTest | null;
+  exact: { p: number; b: number; c: number } | null;
+  bowker: { stat: number; df: number; p: number } | null;
 }
 export interface ContingencyResult {
   rows: string;
@@ -277,6 +292,7 @@ export interface ContingencyResult {
   cramerV: number;
   phi: number | null;
   oddsRatio: { est: number; ciLow: number; ciHigh: number } | null;
+  paired?: PairedTests;
   confidence: number;
   warnings: string[];
   engine: REngineInfo;
@@ -460,8 +476,20 @@ export async function contingencyR(d: Dataset, i: ContingencyInput): Promise<Con
     fisher: obj<HTest>(r.fisher),
     phi: r.phi ?? null,
     oddsRatio: obj(r.oddsRatio),
+    ...(r.paired ? { paired: parsePaired(r.paired) } : {}),
     warnings: rStrings(r.warnings),
   } as ContingencyResult;
+}
+/** The paired tests from R's JSON. */
+function parsePaired(raw: Record<string, any>): PairedTests {
+  return {
+    levels: rList<string>(raw.levels),
+    counts: rList<unknown>(raw.counts).map((row) => rList<number>(row)),
+    mcnemar: obj<HTest>(raw.mcnemar),
+    mcnemarCorrected: obj<HTest>(raw.mcnemarCorrected),
+    exact: obj(raw.exact),
+    bowker: obj(raw.bowker),
+  };
 }
 export const contingencyScriptR = (d: Dataset, i: ContingencyInput) =>
   rScript('ps_contingency', contingencyRequest(d, i), 'stats');

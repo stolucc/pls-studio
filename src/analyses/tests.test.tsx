@@ -18,7 +18,7 @@ import {
   ttestAnalysis,
 } from './tests';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { ReliabilityResult } from '../rengine/tests';
+import type { ContingencyResult, ReliabilityResult } from '../rengine/tests';
 import type { AnalysisCtx } from './types';
 
 const data = {
@@ -378,5 +378,72 @@ describe('Gwet’s AC1 / AC2 (irrCAC)', () => {
     expect(html).toContain('Gwet’s AC2 (quadratic): 4 raters, 12 subjects');
     expect(html).toContain('Chance agreement');
     expect(html).toContain('p (one-sided)');
+  });
+});
+
+describe('paired contingency tables (McNemar, Bowker)', () => {
+  const t = contingencyAnalysis;
+  const o = { rows: 'g', columns: 'h', counts: '' };
+
+  it('keeps `paired` only when true, and it makes the result stale', () => {
+    expect(t.parseOptions({ ...o, paired: true })).toEqual({ ...o, paired: true });
+    expect(t.parseOptions({ ...o, paired: 'yes' })).toEqual(o);
+    expect(t.fingerprint({ ...o, paired: true }, ctx)).not.toBe(t.fingerprint(o, ctx));
+  });
+
+  it('shows McNemar’s tests for 2 × 2 and Bowker’s for larger tables', () => {
+    const base = {
+      rows: 'g',
+      columns: 'h',
+      rowLevels: ['a', 'b'],
+      colLevels: ['a', 'b'],
+      counts: [
+        [794, 150],
+        [86, 570],
+      ],
+      expected: [
+        [500, 400],
+        [400, 300],
+      ],
+      n: 1600,
+      chisq: { stat: 1, df: 1, p: 0.3 },
+      yates: null,
+      likelihoodRatio: { stat: 1, df: 1, p: 0.3 },
+      fisher: null,
+      cramerV: 0.1,
+      phi: null,
+      oddsRatio: null,
+      confidence: 0.95,
+      warnings: [],
+      engine: { package: 'stats', version: '4.6.2' },
+    };
+    const paired = {
+      levels: ['a', 'b'],
+      counts: base.counts,
+      mcnemar: { stat: 17.36, df: 1, p: 3e-5 },
+      mcnemarCorrected: { stat: 16.82, df: 1, p: 4e-5 },
+      exact: { p: 3.7e-5, b: 150, c: 86 },
+      bowker: null,
+    };
+    const view = (p: object) =>
+      renderToStaticMarkup(
+        <t.View
+          result={{ ...base, paired: p } as unknown as ContingencyResult}
+          options={o}
+          current
+        />,
+      );
+    const two = view(paired);
+    expect(two).toContain('McNemar χ², continuity correction');
+    expect(two).toContain('the 150 subjects who moved one way against the 86');
+    const three = view({
+      ...paired,
+      mcnemar: null,
+      mcnemarCorrected: null,
+      exact: null,
+      bowker: { stat: 3, df: 2, p: 0.22 },
+    });
+    expect(three).toContain('Bowker’s test of symmetry');
+    expect(three).not.toContain('McNemar');
   });
 });

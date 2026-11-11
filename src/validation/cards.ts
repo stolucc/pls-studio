@@ -118,8 +118,12 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     features: ['rengine/correlationPolychoric'],
   },
   contingency: {
-    examples: ['stats-contingency-party', 'stats-contingency-job'],
-    features: ['rengine/tests::contingency tables'],
+    examples: ['stats-contingency-party', 'stats-contingency-job', 'stats-mcnemar-performance'],
+    features: [
+      'rengine/tests::contingency tables',
+      'rengine/nonparametric::McNemar',
+      'rengine/nonparametric::Bowker',
+    ],
   },
   freqtest: {},
   'freqtest:binomial': {

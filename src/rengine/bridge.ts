@@ -18,6 +18,7 @@ import mcR from './R/mc.R?raw';
 import mixedR from './R/mixed.R?raw';
 import mixtureR from './R/mixture.R?raw';
 import ncaR from './R/nca.R?raw';
+import nonparametricR from './R/nonparametric.R?raw';
 import plsR from './R/pls.R?raw';
 import regressionR from './R/regression.R?raw';
 import plsxR from './R/plsx.R?raw';
@@ -85,6 +86,7 @@ export const SOURCES = {
   network: networkR,
   tests: testsR,
   agreement: agreementR,
+  nonparametric: nonparametricR,
   bayes: bayesR,
   customml: customMlR,
   twolevelefa: twoLevelEfaR,
