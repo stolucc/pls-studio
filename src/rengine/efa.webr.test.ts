@@ -82,6 +82,35 @@ describe('exploratory factor analysis (psych)', () => {
     expect(r.factors).toEqual(['RC1', 'RC2']);
   }, 900_000);
 
+  it('bfi: Tucker congruence of minres + oblimin with ML + varimax equals desktop psych (factor.congruence)', async () => {
+    const cg = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'congruence.json'), 'utf8'));
+    const d = await load('bfi');
+    const design = {
+      ...DEFAULT_EFA,
+      criterion: 'fixed' as const,
+      vars: d.names.slice(0, 25),
+      nfactors: 5,
+      parallel: 0,
+      compare: { method: 'ml' as const, rotation: 'varimax' as const },
+    };
+    const r = await efaR(d, design, 1);
+    const got = r.congruence!;
+    expect(got.method).toBe('ml');
+    expect(got.factors).toHaveLength(5);
+    // A factor's sign is arbitrary, so the coefficients are compared in absolute value. The oblimin loadings
+    // come from GPArotation's iterative rotation, which lands within a few 1e-6 of itself from run to run in
+    // the same desktop R (checked: fa(bfi[, 1:25], 5) twice differs by 2.8e-6), so 4 digits.
+    cg.coefficients.forEach((row: number[], i: number) => row.forEach((v, j) => {
+      expect(Math.abs(got.coefficients[i][j]), `φ[${i + 1},${j + 1}]`).toBeCloseTo(Math.abs(v), 4);
+    }));
+    sameLoadings(got.loadings, cg.loadings, 5);
+    const script = await efaScriptR(d, design, 1);
+    expect(script).toContain('fit2 <- fa(X, nfactors = k, fm = "ml", rotate = "varimax")');
+    expect(script).toContain('congruence <- factor.congruence(fit, fit2, digits = 15)');
+    const bad = { ...design, compare: { method: 'lavaan', rotation: 'varimax' } as never };
+    await expect(efaR(d, bad, 1)).rejects.toThrow(/Invalid extraction for the comparison/);
+  }, 900_000);
+
   it('retention criteria set the number of components in R (Kaiser, MAP, parallel analysis)', async () => {
     const d = await load('bfi');
     const vars = d.names.slice(0, 25);

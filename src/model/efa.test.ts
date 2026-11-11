@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { constructsFromSolution, crossLoadings, DEFAULT_EFA, factorName, kmoLabel, loadingOrder, parseEfaDesign, switchAnalysis, toggleVariables } from './efa';
+import { congruenceLabel, congruenceMatches, constructsFromSolution, crossLoadings, DEFAULT_EFA, factorName, kmoLabel, loadingOrder, parseEfaDesign, switchAnalysis, toggleVariables } from './efa';
 
 describe('EFA design from a project file', () => {
   it('keeps valid values and replaces invalid ones', () => {
@@ -94,5 +94,43 @@ describe('cross-loadings', () => {
       { variable: 0, primary: 0, primaryLoading: 0.7, secondary: null, secondaryLoading: null, gap: null, flags: [] },
       { variable: 1, primary: 0, primaryLoading: 0.2, secondary: null, secondaryLoading: null, gap: null, flags: ['weak'] },
     ]);
+  });
+});
+
+describe('Tucker congruence (Lorenzo-Seva & ten Berge 2006)', () => {
+  it('reads |φ| ≥ .95 as equal, .85–.94 as fair similarity, below as not similar; the sign does not matter', () => {
+    expect(congruenceLabel(0.95)).toBe('equal');
+    expect(congruenceLabel(-0.97)).toBe('equal');
+    expect(congruenceLabel(0.9499)).toBe('fair similarity');
+    expect(congruenceLabel(0.85)).toBe('fair similarity');
+    expect(congruenceLabel(-0.86)).toBe('fair similarity');
+    expect(congruenceLabel(0.849)).toBe('not similar');
+    expect(congruenceLabel(0)).toBe('not similar');
+  });
+
+  it('matches each factor with the most congruent one of the second solution, reflected or reordered', () => {
+    const m = congruenceMatches([
+      [0.1, -0.98, 0.2],
+      [0.96, 0.1, 0.3],
+      [0.5, 0.2, 0.6],
+    ]);
+    expect(m.map((x) => [x.match, x.coefficient])).toEqual([[1, -0.98], [0, 0.96], [2, 0.6]]);
+    expect(m.some((x) => x.shared)).toBe(false);
+  });
+
+  it('flags two factors that match the same one', () => {
+    const m = congruenceMatches([[0.9, 0.1], [0.88, 0.2]]);
+    expect(m.map((x) => x.shared)).toEqual([true, true]);
+  });
+
+  it('keeps a comparison from a project file only with a known psych extraction and rotation', () => {
+    const base = { vars: ['a'], method: 'minres' };
+    expect(parseEfaDesign({ ...base, compare: { method: 'pca', rotation: 'varimax' } })?.compare)
+      .toEqual({ method: 'pca', rotation: 'varimax' });
+    expect(parseEfaDesign({ ...base, compare: { method: 'lavaan', rotation: 'varimax' } })?.compare).toBeUndefined();
+    expect(parseEfaDesign({ ...base, compare: { method: 'ml', rotation: 'bigeomin' } })?.compare).toBeUndefined();
+    expect(parseEfaDesign({ ...base, compare: { method: 'ml', rotation: 'evil()' } })?.compare).toBeUndefined();
+    expect(parseEfaDesign({ ...base, compare: 'ml' })?.compare).toBeUndefined();
+    expect('compare' in parseEfaDesign(base)!).toBe(false);
   });
 });

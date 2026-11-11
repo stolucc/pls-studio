@@ -112,6 +112,11 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   'efa:pa': { title: 'Principal axis factoring (psych)', features: ['rengine/efa::principal axis'], note: 'psych::fa(fm = "pa") on bfi (scripts/validation/efa_pa.R).' },
   'efa:lavaan': { title: 'EFA by lavaan (ML, WLSMV; Mplus-style)', examples: ['mplus-ex4.1part1', 'mplus-ex4.2', 'mplus-ex4.7'] },
   'efa:pca': { title: 'Principal components (psych)', features: ['rengine/efa::Harman.5'] },
+  'efa:congruence': {
+    title: 'Tucker’s congruence with a second solution (psych::factor.congruence)',
+    features: ['rengine/efa::Tucker congruence'],
+    note: 'bfi, minres + oblimin against ML + varimax (scripts/validation/efa_congruence.R).',
+  },
   efa2l: ex('mplus-ex4.5', 'lavaan-efa2l-twolevel'),
   cmb: {},
   'cmb:harman': { title: 'Harman’s single-factor test', examples: ['seminr-corprep-cmb'] },

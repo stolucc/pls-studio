@@ -51,6 +51,17 @@ export interface EfaDesign {
   mimic?: 'Mplus';
   /** lavaan extraction: the fit is compared for every number of factors from this one (absent: 1) to the solution's (Mplus: TYPE = EFA 1 4). */
   from?: number;
+  /**
+   * A second solution of the same data and number of factors, compared with this one by Tucker's congruence
+   * coefficients (psych::factor.congruence): a psych extraction and rotation. Absent: no comparison.
+   */
+  compare?: EfaComparison;
+}
+
+/** The second solution of a congruence comparison: a psych extraction (not lavaan's) and a non-bifactor rotation. */
+export interface EfaComparison {
+  method: Exclude<EfaMethod, 'lavaan'>;
+  rotation: Exclude<EfaRotation, 'bigeomin' | 'biquartimin'>;
 }
 
 /** Parallel analysis on polychoric correlations recomputes them for every sample: at most this many by default. */
@@ -78,7 +89,56 @@ export function parseEfaDesign(v: unknown): EfaDesign | undefined {
     ...(r.wlsmvSe === 'lavaan' ? { wlsmvSe: 'lavaan' as const } : {}),
     ...(r.mimic === 'Mplus' ? { mimic: 'Mplus' as const } : {}),
     ...(typeof r.from === 'number' && Number.isFinite(r.from) && r.from >= 1 ? { from: Math.min(100, Math.round(r.from)) } : {}),
+    ...parseComparison(r.compare),
   };
+}
+
+/** The comparison of an (untrusted) design: kept only when both its extraction and rotation are known. */
+function parseComparison(v: unknown): { compare?: EfaComparison } {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return {};
+  const r = v as Record<string, unknown>;
+  const method = EFA_METHODS.find((m) => m.id === r.method && m.id !== 'lavaan')?.id;
+  const rotation = EFA_ROTATIONS.find((m) => m.id === r.rotation && !m.lavaan)?.id;
+  if (!method || method === 'lavaan' || !rotation || rotation === 'bigeomin' || rotation === 'biquartimin') {
+    return {};
+  }
+  return { compare: { method, rotation } };
+}
+
+/**
+ * Lorenzo-Seva & ten Berge's (2006) reading of Tucker's congruence coefficient (its absolute value: a factor's sign
+ * is arbitrary): .95 or more, the factors can be considered equal; .85 to .94, fair similarity; below .85, not similar.
+ */
+export function congruenceLabel(phi: number): 'equal' | 'fair similarity' | 'not similar' {
+  const a = Math.abs(phi);
+  if (a >= 0.95) return 'equal';
+  if (a >= 0.85) return 'fair similarity';
+  return 'not similar';
+}
+
+export interface CongruenceMatch {
+  /** Row: the solution's factor. */
+  factor: number;
+  /** Column: the second solution's factor most congruent with it (largest absolute coefficient). */
+  match: number;
+  coefficient: number;
+  /** Another of the solution's factors matches the same factor better or as well. */
+  shared: boolean;
+}
+
+/** For each of the solution's factors, the most congruent factor of the second solution (factor order and sign are arbitrary). */
+export function congruenceMatches(coefficients: number[][]): CongruenceMatch[] {
+  const matches = coefficients.map((row, factor) => {
+    let match = 0;
+    for (let j = 1; j < row.length; j++) {
+      if (Math.abs(row[j]) > Math.abs(row[match])) match = j;
+    }
+    return { factor, match, coefficient: row[match], shared: false };
+  });
+  for (const m of matches) {
+    m.shared = matches.some((o) => o !== m && o.match === m.match);
+  }
+  return matches;
 }
 
 /**

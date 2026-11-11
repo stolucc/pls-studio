@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { fmt } from '../format';
-import { constructsFromSolution, crossLoadings, DEFAULT_EFA, EFA_CRITERIA, EFA_METHODS, EFA_ROTATIONS, kmoLabel, loadingOrder, parseEfaDesign, POLYCHORIC_PARALLEL, switchAnalysis, type EfaDesign } from '../model/efa';
+import { congruenceLabel, congruenceMatches, constructsFromSolution, crossLoadings, DEFAULT_EFA, EFA_CRITERIA, EFA_METHODS, EFA_ROTATIONS, kmoLabel, loadingOrder, parseEfaDesign, POLYCHORIC_PARALLEL, switchAnalysis, type EfaComparison, type EfaDesign } from '../model/efa';
 import type { EfaResult } from '../rengine/efa';
 import { useStore } from '../store';
 import { ChartFrame } from '../components/ChartFrame';
@@ -14,7 +14,7 @@ import { columnsFingerprint, missingColumns, rawData } from './common';
 import type { AnalysisType, OptionsProps } from './types';
 
 export type EfaPreset = Partial<EfaDesign>;
-type EfaTab = 'suitability' | 'number' | 'loadings' | 'cross' | 'correlations' | 'variance' | 'fit';
+type EfaTab = 'suitability' | 'number' | 'loadings' | 'cross' | 'correlations' | 'variance' | 'fit' | 'congruence';
 
 /** Scree plot: eigenvalues, with parallel analysis's simulated ones and the eigenvalue-1 line. */
 function Scree({ r }: { r: EfaResult }) {
@@ -56,7 +56,8 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
   const rows = (m: number[][], blank = true): Row[] => order.map((i) => [c(r.variables[i]), ...m[i].map((v) => (blank ? cell(v) : c(v))), c(r.communality[i]), c(r.uniqueness[i]), c(r.complexity[i], undefined, 2)]);
   const cross = crossLoadings(r.loadings, threshold);
   const clean = cross.filter((x) => x.flags.length === 0).length;
-  const tabs: [EfaTab, string][] = [['suitability', 'Suitability'], ['number', `Number of ${unit}s`], ['loadings', 'Loadings'], ['cross', 'Cross-loadings'], ['correlations', 'Correlations'], ['variance', pca ? 'Components' : 'Factors'], ...(pca ? [] : [['fit', 'Fit'] as [EfaTab, string]])];
+  const tabs: [EfaTab, string][] = [['suitability', 'Suitability'], ['number', `Number of ${unit}s`], ['loadings', 'Loadings'], ['cross', 'Cross-loadings'], ['correlations', 'Correlations'], ['variance', pca ? 'Components' : 'Factors'], ...(pca ? [] : [['fit', 'Fit'] as [EfaTab, string]]),
+    ...(r.congruence ? [['congruence', 'Congruence'] as [EfaTab, string]] : [])];
   const shown = tabs.some(([id]) => id === tab) ? tab : 'loadings';
   const flagText = { 'cross-loads': `cross-loads (≥ ${threshold})`, weak: 'weak (< .40)', close: 'close (gap < .20)' };
   return (
@@ -157,6 +158,7 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
               c(r.fit.rmseaLow != null && r.fit.rmseaHigh != null ? `${fmt(r.fit.rmseaLow)}–${fmt(r.fit.rmseaHigh)}` : '–'), c(r.fit.tli ?? null), c(r.fit.bic ?? null, undefined, 1)]]}
             note={`Likelihood-ratio test of the ${r.k}-factor model against the saturated one (psych; n = ${r.n}). RMSEA ≤ .06 and TLI ≥ .95 suggest good fit (Hu & Bentler 1999). χ² rejects easily in large samples.`} />
         )}
+        {shown === 'congruence' && r.congruence && <CongruenceTables r={r} unit={unit} />}
         <div className="hint">{r.engine.package === 'lavaan'
           ? `Solution calculated by lavaan ${r.engine.version} (efa(), ${r.estimator ?? 'ML'}, rotation with random starts); suitability and the number of factors by psych.`
           : `Calculated by psych ${r.engine.version} (Revelle)${r.rotation !== 'none' && r.oblique ? ' with GPArotation' : ''}.`}</div>
@@ -165,6 +167,70 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
   );
 }
 
+
+/** A solution's description for table titles: extraction and rotation. */
+function solutionName(method: EfaDesign['method'], rotation: EfaDesign['rotation']): string {
+  const extraction = EFA_METHODS.find((m) => m.id === method)?.label.toLowerCase() ?? method;
+  if (rotation === 'none') return `${extraction}, unrotated`;
+  const rot = EFA_ROTATIONS.find((x) => x.id === rotation)?.label.toLowerCase() ?? rotation;
+  return `${extraction}, ${rot}`;
+}
+
+const CONGRUENCE_SOURCE = 'Lorenzo-Seva, U., & ten Berge, J. M. F. (2006). Tucker’s congruence coefficient as a '
+  + 'meaningful index of factor similarity. Methodology, 2(2), 57–64. https://doi.org/10.1027/1614-2241.2.2.57';
+
+/** Cell class by Lorenzo-Seva & ten Berge's thresholds. */
+function congruenceClass(phi: number): string | undefined {
+  const label = congruenceLabel(phi);
+  if (label === 'equal') return 'good';
+  if (label === 'not similar') return 'dim';
+  return undefined;
+}
+
+/** Tucker's congruence coefficients between the solution and the second one, and each factor's best match. */
+export function CongruenceTables({ r, unit }: { r: EfaResult; unit: string }) {
+  const cg = r.congruence!;
+  const first = solutionName(r.method, r.rotation);
+  const second = solutionName(cg.method, cg.rotation);
+  const matches = congruenceMatches(cg.coefficients);
+  const equal = matches.filter((m) => congruenceLabel(m.coefficient) === 'equal' && !m.shared).length;
+  const matchRows: Row[] = matches.map((m) => {
+    const label = congruenceLabel(m.coefficient);
+    return [
+      c(r.factors[m.factor]),
+      c(cg.factors[m.match]),
+      { ...c(m.coefficient), bold: Math.abs(m.coefficient) >= 0.95 },
+      m.shared ? c(`${label}; shares its match`, 'bad') : c(label, congruenceClass(m.coefficient)),
+    ];
+  });
+  const matrixRows: Row[] = r.factors.map((f, i) => [
+    c(f),
+    ...cg.coefficients[i].map((v) => ({ ...c(v, congruenceClass(v)), bold: Math.abs(v) >= 0.95 })),
+  ]);
+  const loadingRows: Row[] = loadingOrder(cg.loadings).map((i) => [
+    c(r.variables[i]),
+    ...cg.loadings[i].map((v) => c(v)),
+  ]);
+  const Unit = `${unit[0].toUpperCase()}${unit.slice(1)}`;
+  return (
+    <>
+      <Table title={`Best matches: ${equal} of ${matches.length} ${unit}s reappear in the second solution`}
+        file="efa-congruence-matches"
+        columns={[`${Unit} (${first})`, `Match (${second})`, 'Congruence', 'Reading']}
+        rows={matchRows}
+        note={`Each ${unit}’s most congruent ${unit} in the second solution (largest |φ|; the order and sign of `
+          + `${unit}s are arbitrary, so a negative φ is a reflected match). Lorenzo-Seva & ten Berge (2006): `
+          + '|φ| ≥ .95, the factors can be considered equal; .85–.94, fair similarity; below .85, not similar. '
+          + `Source: ${CONGRUENCE_SOURCE}.`} />
+      <Table title={`Tucker’s congruence coefficients: ${first} (rows) and ${second} (columns)`}
+        file="efa-congruence" columns={['', ...cg.factors]} rows={matrixRows}
+        note={'φ = Σ xᵢyᵢ / √(Σ xᵢ² Σ yᵢ²) over the two factors’ loadings (psych::factor.congruence); '
+          + 'bold: ≥ .95. It compares the pattern of the loadings, not their size, and is not a significance test.'} />
+      <Table title={`Loadings of the second solution: ${second}`} file="efa-congruence-loadings"
+        columns={['Variable', ...cg.factors]} rows={loadingRows} />
+    </>
+  );
+}
 
 /** Add one construct per factor, with the variables loading most on it, to the diagram. */
 function BuildModel({ r, threshold }: { r: EfaResult; threshold: number }) {
@@ -178,6 +244,50 @@ function BuildModel({ r, threshold }: { r: EfaResult; threshold: number }) {
     st.toast('success', `Added ${s.constructs.length} construct${s.constructs.length > 1 ? 's' : ''} to the diagram (Model tab), each with the variables loading most on it (≥ ${threshold})${s.correlated ? ', correlated (oblique solution)' : ''}.${s.left.length ? ` Left out: ${s.left.join(', ')}.` : ''} For a confirmatory factor analysis, choose CB-SEM.`);
   };
   return <button className="btn sm" disabled={readOnly} onClick={build} title="Add one construct per factor, with the variables loading most on it, to the diagram">Build model from this solution</button>;
+}
+
+/** The rotations a comparison can use: psych's (not lavaan's bifactor ones). */
+const COMPARE_ROTATIONS = EFA_ROTATIONS.filter((m) => !m.lavaan);
+
+/** The second solution of a congruence comparison: none, or a psych extraction and rotation. */
+function CompareFields({ d, setDesign, unit }: {
+  d: EfaDesign;
+  setDesign: (p: Partial<EfaDesign>) => void;
+  unit: string;
+}) {
+  const cmp = d.compare;
+  const setMethod = (value: string) => {
+    if (value === '') {
+      setDesign({ compare: undefined });
+      return;
+    }
+    const method = value as EfaComparison['method'];
+    // A new comparison starts from the solution's own rotation.
+    const own = COMPARE_ROTATIONS.find((m) => m.id === d.rotation)?.id as EfaComparison['rotation'] | undefined;
+    setDesign({ compare: { method, rotation: cmp?.rotation ?? own ?? 'varimax' } });
+  };
+  const setRotation = (value: string) => {
+    if (!cmp) return;
+    setDesign({ compare: { ...cmp, rotation: value as EfaComparison['rotation'] } });
+  };
+  return (
+    <div className="row2">
+      <div className="field"><label htmlFor="efa-cmp">Compare with (congruence)</label>
+        <select id="efa-cmp" className="select" value={cmp?.method ?? ''} onChange={(e) => setMethod(e.target.value)}>
+          <option value="">No comparison</option>
+          {EFA_METHODS.filter((m) => m.id !== 'lavaan').map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+        </select>
+        <div className="hint">A second solution with the same number of {unit}, compared one by one with
+          Tucker’s congruence coefficient (psych::factor.congruence): does the structure survive another
+          extraction or rotation?</div></div>
+      {cmp && (
+        <div className="field"><label htmlFor="efa-cmp-rot">Its rotation</label>
+          <select id="efa-cmp-rot" className="select" value={cmp.rotation} onChange={(e) => setRotation(e.target.value)}>
+            {COMPARE_ROTATIONS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+          </select></div>
+      )}
+    </div>
+  );
 }
 
 function EfaOptionsForm({ options: d, set, ctx, disabled }: OptionsProps<EfaDesign>) {
@@ -259,6 +369,7 @@ function EfaOptionsForm({ options: d, set, ctx, disabled }: OptionsProps<EfaDesi
           )}
         </div>
       )}
+      {d.method !== 'lavaan' && <CompareFields d={d} setDesign={setDesign} unit={unit} />}
       <div className="field"><label htmlFor="efa-thr">Hide loadings below</label>
         <input id="efa-thr" className="input num" type="number" min={0} max={0.95} step={0.05} value={d.threshold} onChange={(e) => setDesign({ threshold: Math.max(0, Math.min(0.95, Number(e.target.value) || 0)) })} />
         <div className="hint">Changes the tables and Build model only; no need to run again.</div></div>
@@ -320,6 +431,9 @@ export const efaAnalysis: AnalysisType<EfaDesign, EfaResult> = {
     if (vars.length < 3) return 'Choose at least three variables.';
     if (d.criterion === 'fixed' && d.nfactors >= vars.length) return `Choose fewer ${d.method === 'pca' ? 'components' : 'factors'} than variables.`;
     if (d.criterion === 'parallel' && d.parallel <= 0) return 'Parallel analysis needs samples.';
+    if (d.compare && d.method === 'lavaan') {
+      return 'The congruence comparison needs a psych extraction for the solution: choose another extraction or no comparison.';
+    }
     if (EFA_ROTATIONS.find((x) => x.id === d.rotation)?.lavaan) {
       if (d.method !== 'lavaan') return 'Bifactor rotations need the lavaan extraction (maximum likelihood with standard errors).';
       if ((d.from ?? 1) < 2 || (d.criterion === 'fixed' && d.nfactors < 2)) return 'A bifactor rotation needs at least two factors (a general and a specific one): compare fit from 2.';

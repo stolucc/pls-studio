@@ -2,7 +2,7 @@
 // of factors, and the solution.
 
 import type { Dataset } from '../engine/types';
-import type { EfaDesign } from '../model/efa';
+import type { EfaComparison, EfaDesign } from '../model/efa';
 import { rCall, rScript, rStrings } from './bridge';
 import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
@@ -31,7 +31,21 @@ export interface EfaResult {
   se?: { loadings: number[][]; phi: number[][] | null; uniqueness: number[] };
   /** lavaan extraction: the fit of each number of factors up to the solution's (Mplus: SUMMARY OF MODEL FIT INFORMATION). */
   comparison?: ({ k: number } & EfaFit)[];
+  /** A second solution and Tucker's congruence coefficients with it (rows: this solution's factors). */
+  congruence?: EfaCongruence;
   warnings: string[]; engine: REngineInfo;
+}
+
+/** The congruence comparison (psych::factor.congruence): the second solution, its loadings and the coefficients. */
+export interface EfaCongruence {
+  method: EfaComparison['method'];
+  rotation: EfaComparison['rotation'];
+  /** The second solution's factors (the coefficients' columns). */
+  factors: string[];
+  /** Rows: the solution's factors; columns: the second solution's. */
+  coefficients: number[][];
+  /** The second solution's loadings (rows: the variables). */
+  loadings: number[][];
 }
 
 export interface EfaFit {
@@ -50,7 +64,22 @@ export function efaRequest(data: Dataset, d: EfaDesign, seed: number) {
     vars: d.vars, method: d.method, criterion: d.criterion, nfactors: d.nfactors, rotation: d.rotation, deletion: d.missing, parallel: d.parallel, seed,
     ...(d.correlation === 'polychoric' ? { correlation: 'polychoric' } : {}),
     ...(d.method === 'lavaan' ? { ...(d.epsilon !== undefined ? { epsilon: d.epsilon } : {}), ...(d.information ? { information: d.information } : {}), ...(d.wlsmvSe && d.correlation === 'polychoric' ? { wlsmvSe: d.wlsmvSe } : {}), ...(d.mimic && d.correlation === 'polychoric' ? { mimic: d.mimic } : {}), ...(d.from !== undefined ? { from: d.from } : {}) } : {}),
+    ...(d.compare && d.method !== 'lavaan' ? { compare: d.compare } : {}),
     data: rColumns(data, d.vars),
+  };
+}
+
+/** The congruence comparison from R's JSON (absent when none was asked for). */
+function parseCongruence(raw: unknown): EfaCongruence | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const r = raw as Record<string, unknown>;
+  const factors = rStrings(r.factors);
+  return {
+    method: r.method as EfaComparison['method'],
+    rotation: r.rotation as EfaComparison['rotation'],
+    factors,
+    coefficients: mat(r.coefficients, factors.length),
+    loadings: mat(r.loadings, factors.length),
   };
 }
 
@@ -74,6 +103,7 @@ export function parseEfa(raw: Record<string, any>): EfaResult {
     kaiser: Number(raw.kaiser), fit: raw.fit ?? {}, warnings: rStrings(raw.warnings), engine: raw.engine,
     ...(raw.estimator === 'ML' || raw.estimator === 'WLSMV' ? { estimator: raw.estimator } : {}),
     ...(raw.se ? { se: { loadings: mat(raw.se.loadings, k), phi: raw.se.phi ? mat(raw.se.phi, k) : null, uniqueness: nums(raw.se.uniqueness) } } : {}),
+    ...(raw.congruence ? { congruence: parseCongruence(raw.congruence) } : {}),
     ...(raw.comparison ? { comparison: rList<Record<string, any>>(raw.comparison).map((x) => ({ ...x, k: Number(x.k) })) } : {}),
   };
 }

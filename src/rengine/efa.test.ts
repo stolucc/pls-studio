@@ -25,6 +25,32 @@ describe('EFA request', () => {
   });
 });
 
+describe('EFA congruence comparison', () => {
+  it('sends the second solution with a psych extraction only', () => {
+    const d = { ...DEFAULT_EFA, vars: ['a', 'b', 'c'], compare: { method: 'ml' as const, rotation: 'varimax' as const } };
+    expect(efaRequest(data, d, 1)).toMatchObject({ compare: { method: 'ml', rotation: 'varimax' } });
+    expect('compare' in efaRequest(data, { ...d, method: 'lavaan' }, 1)).toBe(false);
+    expect('compare' in efaRequest(data, DEFAULT_EFA, 1)).toBe(false);
+  });
+
+  it('reads the coefficients and the second solution’s loadings back', () => {
+    const r = parseEfa({
+      method: 'minres', rotation: 'oblimin', oblique: true, n: 3, k: 2,
+      variables: ['a', 'b', 'c'], factors: ['MR1', 'MR2'], loadings: [[0.7, 0], [0.6, 0.1], [0, 0.8]],
+      congruence: {
+        method: 'pca', rotation: 'varimax', factors: ['RC1', 'RC2'],
+        coefficients: [[0.99, 0.1], [-0.2, 0.9]], loadings: [[0.8, 0], [0.7, 0.1], [0.1, 0.9]],
+      },
+      fit: {}, engine: { package: 'psych', version: '2.6.9' },
+    });
+    expect(r.congruence).toEqual({
+      method: 'pca', rotation: 'varimax', factors: ['RC1', 'RC2'],
+      coefficients: [[0.99, 0.1], [-0.2, 0.9]], loadings: [[0.8, 0], [0.7, 0.1], [0.1, 0.9]],
+    });
+    expect(parseEfa({ ...r, congruence: undefined }).congruence).toBeUndefined();
+  });
+});
+
 describe('EFA result', () => {
   const raw = { method: 'lavaan', rotation: 'geominQ', oblique: true, n: 3, k: 2, variables: ['a', 'b', 'c'], factors: ['f1', 'f2'], estimator: 'ML',
     loadings: [[0.7, 0], [0.6, 0.1], [0, 0.8]], se: { loadings: [[0.05, 0.02], [0.04, 0.03], [0.01, 0.06]], phi: [[0, 0.07], [0.07, 0]], uniqueness: [0.1, 0.1, 0.2] },

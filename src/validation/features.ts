@@ -99,7 +99,8 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'rengine/cpaSam': { title: 'Mediation with structural-after-measurement (manymome)', method: 'PROCESS', level: 'published', packages: ['manymome'], sources: [{ label: 'manymome’s SAM article: printed values' }] },
 
   // Other analyses
-  'rengine/efa': native('Exploratory factor analysis and PCA', 'EFA', ['psych'], script('efa.R', 'desktop psych'), script('efa_polychoric.R', 'desktop psych and lavaan::lavCor'), script('efa_pa.R', 'desktop psych, principal axis')),
+  'rengine/efa': native('Exploratory factor analysis and PCA', 'EFA', ['psych'], script('efa.R', 'desktop psych'), script('efa_polychoric.R', 'desktop psych and lavaan::lavCor'), script('efa_pa.R', 'desktop psych, principal axis'),
+    script('efa_congruence.R', 'desktop psych, factor.congruence')),
   'rengine/items': native('IRT and latent class analysis', 'Items', ['ltm', 'poLCA', 'mirt', 'glca'], script('items.R', 'desktop ltm and poLCA')),
   'rengine/psem': native('Piecewise SEM: d-separation tests, Fisher’s C, AIC, standardised coefficients', 'Regression', ['piecewiseSEM', 'lme4'],
     script('psem.R', 'desktop piecewiseSEM on its keeley and shipley data')),

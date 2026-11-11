@@ -65,6 +65,7 @@ ps_efa <- function(req_json, export = FALSE) {
   if (from < 1) stop("Invalid smallest number of factors in the request.")
   if (rotation %in% c("bigeomin", "biquartimin") && (from < 2 || (criterion == "fixed" && k < 2))) stop("A bifactor rotation needs at least two factors (a general and a specific one): compare fit from 2.")
   fm <- if (pca) "minres" else if (lav) "ml" else method
+  compare <- ps_efa_compare(req$compare, lav, carg)
   unit <- if (pca) "components" else "factors"
   # k is set in the script: the given number, or what the criterion retains (at least 1, fewer than the variables).
   kline <- switch(criterion,
@@ -109,10 +110,12 @@ ps_efa <- function(req_json, export = FALSE) {
       sprintf("fits <- %s", call), if (mplus_se) ps_mplus_se_lines("fits"), "fit <- fits[[length(fits)]]", "std <- standardizedSolution(fit)",
       sprintf("comparison <- t(sapply(fits, fitMeasures, %s))", if (poly) "c(\"npar\", \"chisq.scaled\", \"df.scaled\", \"pvalue.scaled\")" else "c(\"npar\", \"logl\", \"chisq\", \"df\", \"pvalue\", \"aic\", \"bic\")"))
     else sprintf("fit <- %s", call),
+    compare$lines,
     if (lav) "summary(fit)" else "print(fit, sort = TRUE)")
   inputs <- list(data = fr$data)
   if (export) return(ps_script(sprintf("%s: %s, %s rotation", PS_EFA_METHODS[[method]], what, rotation),
-    c("psych", "GPArotation", if (lav) "lavaan"), inputs, body, c("kmo", "bartlett", if (iter > 0) "parallel", if (lav) c("comparison", "std") else "fit")))
+    c("psych", "GPArotation", if (lav) "lavaan"), inputs, body, c("kmo", "bartlett", if (iter > 0) "parallel", if (lav) c("comparison", "std") else "fit",
+      if (!is.null(compare)) "congruence")))
   env <- ps_run(body[-length(body)], inputs)
   if (lav) return(ps_efa_lavaan(env, fr$back, method, rotation, criterion, correlation, poly, iter, pca))
   fit <- env$fit
@@ -145,6 +148,7 @@ ps_efa <- function(req_json, export = FALSE) {
       suggested = if (pca) par$ncomp else par$nfact, iterations = iter),
     map = list(values = unname(env$map), suggested = which.min(env$map)),
     kaiser = sum(env$eigenvalues > 1),
+    congruence = if (is.null(compare)) NULL else ps_efa_congruence(env, compare),
     fit = if (pca) list(offDiagonal = stat(fit$fit.off)) else list(
       chisq = stat(fit$STATISTIC), df = stat(fit$dof), p = stat(fit$PVAL), rmsea = stat(fit$RMSEA), rmseaLow = stat(fit$RMSEA[2]), rmseaHigh = stat(fit$RMSEA[3]),
       tli = stat(fit$TLI), bic = stat(fit$BIC), rms = stat(fit$rms)),
@@ -199,4 +203,46 @@ ps_efa_lavaan <- function(env, back, method, rotation, criterion, correlation, p
     fit = fits(fit), comparison = comparison,
     warnings = env$.warnings,
     engine = ps_engine("lavaan")))
+}
+
+# Tucker's congruence coefficients (psych::factor.congruence) between the solution and a second one of the same
+# data and number of factors: another extraction and / or rotation. `spec` is the request's
+# compare = list(method, rotation); NULL when absent. Returns the script lines and the choice.
+ps_efa_compare <- function(spec, lav, carg) {
+  if (is.null(spec)) return(NULL)
+  if (lav) stop("The congruence comparison needs a psych extraction for the solution, not lavaan.")
+  if (!is.list(spec)) stop("Invalid comparison in the request.")
+  method <- spec$method
+  rotation <- spec$rotation
+  psych_methods <- setdiff(names(PS_EFA_METHODS), "lavaan")
+  psych_rotations <- setdiff(PS_EFA_ROTATIONS, c("bigeomin", "biquartimin"))
+  if (!(is.character(method) && length(method) == 1 && method %in% psych_methods)) {
+    stop("Invalid extraction for the comparison in the request.")
+  }
+  if (!(is.character(rotation) && length(rotation) == 1 && rotation %in% psych_rotations)) {
+    stop("Invalid rotation for the comparison in the request.")
+  }
+  call <- if (method == "pca") {
+    sprintf("principal(X, nfactors = k, rotate = \"%s\"%s)", rotation, carg)
+  } else {
+    sprintf("fa(X, nfactors = k, fm = \"%s\", rotate = \"%s\"%s)", method, rotation, carg)
+  }
+  lines <- c(
+    sprintf("# A second solution to compare with: %s, rotation %s, the same number of factors.",
+      PS_EFA_METHODS[[method]], rotation),
+    sprintf("fit2 <- %s", call),
+    "# Tucker's congruence coefficients: rows the solution's factors, columns the second solution's.",
+    "congruence <- factor.congruence(fit, fit2, digits = 15)")
+  list(method = method, rotation = rotation, lines = lines)
+}
+
+# The comparison's results from the run environment: the congruence matrix and the second solution's loadings.
+ps_efa_congruence <- function(env, compare) {
+  L2 <- unclass(env$fit2$loadings)
+  list(
+    method = compare$method,
+    rotation = compare$rotation,
+    factors = colnames(L2),
+    coefficients = unname(env$congruence),
+    loadings = unname(L2))
 }

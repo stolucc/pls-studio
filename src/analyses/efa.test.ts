@@ -34,6 +34,10 @@ describe('factor analysis / PCA card', () => {
     expect(t.blocked({ ...d, rotation: 'bigeomin' }, ctx())).toContain('need the lavaan extraction');
     expect(t.blocked({ ...d, method: 'lavaan', rotation: 'bigeomin', nfactors: 2 }, ctx())).toContain('compare fit from 2');
     expect(t.blocked({ ...d, method: 'lavaan', rotation: 'bigeomin', nfactors: 2, from: 2 }, ctx())).toBeNull();
+    // The congruence comparison: a psych solution against another psych solution.
+    const compare = { method: 'ml' as const, rotation: 'varimax' as const };
+    expect(t.blocked({ ...d, compare }, ctx())).toBeNull();
+    expect(t.blocked({ ...d, method: 'lavaan', compare }, ctx())).toContain('congruence comparison needs a psych extraction');
   });
 
   it('changing the display threshold does not make the result stale', () => {
