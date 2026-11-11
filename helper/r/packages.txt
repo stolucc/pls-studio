@@ -59,6 +59,7 @@ piecewiseSEM
 plspm
 plssem
 poLCA
+ppcor
 pscl
 psych
 psychotools

@@ -553,3 +553,99 @@ it('Durbin–Watson equals lmtest::dwtest (exact p below 100 rows, normal approx
   const weighted = await regressionR(withWeights, { ...input, weights: 'w' });
   expect(weighted.diagnostics.durbinWatson).toBeUndefined();
 }, 900_000);
+
+// The linear model's extras (scripts/validation/regression_extras.R on ?swiss): hierarchical blocks against the F test
+// written out from residual sums of squares, β against lm on scale()d variables, partial and part correlations
+// against ppcor, tolerance against car::vif, case diagnostics against influence.measures.
+const extrasRef = JSON.parse(
+  readFileSync(
+    join(__dirname, '..', 'engine', '__fixtures__', 'regression', 'extras.json'),
+    'utf8',
+  ),
+);
+
+it('hierarchical blocks, standardised coefficients, part and partial correlations and case diagnostics equal lm, ppcor, car and influence.measures', async () => {
+  const raw = await rCall<{ names: string[]; cols: number[][] }>(
+    'ps_dataset',
+    { package: 'datasets', name: 'swiss', na: [] },
+    'regression',
+  );
+  const swiss: Dataset = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c)) };
+  const input: RegressionInput = {
+    family: 'gaussian',
+    link: 'identity',
+    outcome: 'Fertility',
+    predictors: ['Agriculture', 'Examination'],
+    categorical: [],
+    interactions: [],
+    trials: '',
+    weights: '',
+    se: 'model',
+    cluster: '',
+    confidence: 0.95,
+    blocks: [['Education', 'Catholic'], ['Infant.Mortality']],
+    caseDiagnostics: true,
+  };
+  const r = await regressionR(swiss, input);
+  const h = extrasRef.hierarchical;
+  // (closed forms of one lm fit: 1e-8; F tail probabilities: 1e-10 absolute)
+  r.blocks!.forEach((b, i) => {
+    expect(b.r2, `block ${i + 1}: R²`).toBeCloseTo(h.r2[i], 8);
+    expect(b.r2_change, `block ${i + 1}: ΔR²`).toBeCloseTo(h.r2_change[i], 8);
+    expect(b.f_change, `block ${i + 1}: F change`).toBeCloseTo(h.f_change[i], 6);
+    expect(b.df1).toBe(h.df1[i]);
+    expect(b.df2).toBe(h.df2[i]);
+    expect(b.p_change, `block ${i + 1}: p of the change`).toBeCloseTo(h.p_change[i], 10);
+  });
+  const t = extrasRef.terms;
+  expect(r.details!.map((d) => d.term)).toEqual(t.term);
+  r.details!.forEach((d, i) => {
+    expect(d.beta, `${d.term}: β`).toBeCloseTo(t.beta[i], 8);
+    expect(d.zero_order, `${d.term}: zero-order r`).toBeCloseTo(t.zero_order[i], 8);
+    expect(d.partial, `${d.term}: partial r (ppcor)`).toBeCloseTo(t.partial[i], 8);
+    expect(d.part, `${d.term}: part r (ppcor)`).toBeCloseTo(t.part[i], 8);
+    expect(d.tolerance, `${d.term}: tolerance (car::vif)`).toBeCloseTo(t.tolerance[i], 8);
+  });
+  const k = extrasRef.cases;
+  const cs = r.cases!;
+  expect(cs.row).toEqual(Array.from({ length: 47 }, (_, i) => i + 1));
+  for (const [key, got] of [
+    ['standardized', cs.standardized],
+    ['studentized', cs.studentized],
+    ['leverage', cs.leverage],
+    ['cooks', cs.cooks],
+  ] as const)
+    got.forEach((v, i) => expect(v, `case ${i + 1}: ${key}`).toBeCloseTo(k[key][i], 8));
+  cs.dfbetas.forEach((d, j) =>
+    d.values.forEach((v, i) =>
+      expect(v, `case ${i + 1}: DFBETAS ${d.term}`).toBeCloseTo(k.dfbetas[j][i], 8),
+    ),
+  );
+  const script = await regressionScriptR(swiss, input);
+  expect(script).toContain(
+    'lm(Fertility ~ Agriculture + Examination + Education + Catholic, data = data)',
+  );
+  expect(script).toContain('case_dfbetas <- dfbetas(fit)');
+  // Rows with a missing value are left out: their row numbers say where the cases belong.
+  const holes: Dataset = {
+    names: swiss.names,
+    cols: swiss.cols.map((c, j) =>
+      j === 0 ? Float64Array.from(c, (v, i) => (i === 2 ? NaN : v)) : c,
+    ),
+  };
+  const withHoles = await regressionR(holes, { ...input, blocks: [] });
+  expect(withHoles.cases!.row.length).toBe(46);
+  expect(withHoles.cases!.row.slice(0, 3)).toEqual([1, 2, 4]);
+  expect(withHoles.blocks).toBeUndefined();
+  // Not for weighted fits (no standardised details) nor other families.
+  const weighted = await regressionR(swiss, { ...input, weights: 'Catholic', blocks: [] });
+  expect(weighted.details).toBeUndefined();
+  const logit = await regressionR(swiss, {
+    ...input,
+    family: 'poisson',
+    blocks: [['Education']],
+    caseDiagnostics: true,
+  });
+  expect(logit.blocks).toBeUndefined();
+  expect(logit.cases).toBeUndefined();
+}, 900_000);

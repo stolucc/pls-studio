@@ -100,6 +100,7 @@ export type ExamplePackage =
   | 'lslx'
   | 'semPower'
   | 'pwr'
+  | 'ppcor'
   | 'metaSEM'
   | 'semtree'
   | 'sirt'
@@ -164,6 +165,7 @@ export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'lslx',
   'semPower',
   'pwr',
+  'ppcor',
   'metaSEM',
   'semtree',
   'sirt',
@@ -268,6 +270,7 @@ export type CardPanelKind =
   | 'regsem'
   | 'sempower'
   | 'pwr'
+  | 'pcor'
   | 'metasem'
   | 'semtree'
   | 'alignment'
@@ -2402,6 +2405,29 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     settings: CB('ML'),
   },
   {
+    id: 'ppcor-help',
+    package: 'ppcor',
+    title: 'Partial and semi-partial correlations: ppcor’s help-page data',
+    source: 'ppcor, ?pcor and ?spcor.test (Kim 2015)',
+    links: [
+      { label: '?pcor', url: 'https://rdrr.io/cran/ppcor/man/pcor.html' },
+      { label: '?spcor.test', url: 'https://rdrr.io/cran/ppcor/man/spcor.test.html' },
+      {
+        label: 'Kim (2015), Communications for Statistical Applications and Methods',
+        url: 'https://doi.org/10.5351/CSAM.2015.22.6.665',
+      },
+    ],
+    description:
+      'The ten cases of four variables (hl, disp, deg, BC) that ppcor’s help pages type in: pcor(y.data), each pair’s partial correlation controlling for the other two, and the semi-partial correlations, among them spcor.test(hl, disp, deg + BC). The data are copied from the help page (GPL-2), shipped with the app. Opens its card on the Analyses tab.',
+    shows:
+      'The partial correlation of hl and disp is −0.672 (p = .068) once deg and BC are held constant; with deg and BC removed from disp only, the semi-partial correlation is −0.579 (p = .13), as the help page prints. With ten cases none of the tests reach .05.',
+    data: { package: 'ppcor', name: 'y.data (?pcor)', file: 'examples/ppcor/y-data.csv' },
+    constructs: [],
+    paths: [],
+    panel: { kind: 'pcor', vars: ['hl', 'disp', 'deg', 'BC'], controls: [], method: 'pearson' },
+    settings: CB('ML'),
+  },
+  {
     id: 'metasem-digman97',
     package: 'metaSEM',
     title: 'Meta-analytic SEM: the Big Five’s higher-order factors (Digman 1997)',
@@ -3471,6 +3497,7 @@ export function panelColumns(p: ExamplePanel, names?: string[]): string[] {
             p.outcome,
             ...p.predictors,
             ...p.interactions.flat(),
+            ...(p.blocks ?? []).flat(),
             p.trials,
             p.weights,
             p.cluster,
@@ -3605,6 +3632,7 @@ export function panelColumns(p: ExamplePanel, names?: string[]): string[] {
 /** Options of the further cards (CardPanelKind) that hold column names. */
 const COLUMN_OPTIONS = [
   'vars',
+  'controls',
   'outcome',
   'outcomes',
   'cluster',

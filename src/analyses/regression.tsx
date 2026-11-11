@@ -10,7 +10,9 @@ import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { fmt, fmtP, pIs } from '../format';
 import {
+  isPlainLinear,
   isZeroModel,
+  linearExtras,
   type Coefficient,
   type DurbinWatson,
   type Family,
@@ -18,6 +20,7 @@ import {
   type RegressionInput,
   type RegressionResult,
 } from '../rengine/regression';
+import { CaseDiagnosticsView, HierarchicalBlocks, TermDetails } from './regressionExtras';
 import { confirmDialog } from '../components/Overlays';
 import { newId, type Construct, type ModelState, type Path } from '../model/project';
 import { useStore } from '../store';
@@ -49,6 +52,8 @@ export interface RegressionOptions
     | 'zeroModel'
     | 'zeroPart'
     | 'zeroPredictors'
+    | 'blocks'
+    | 'caseDiagnostics'
   > {
   outcome: string;
   predictors: string[];
@@ -167,6 +172,7 @@ function RegressionOptionsForm({
     o.weights,
     o.cluster,
     o.family === 'survival' ? (o.status ?? '') : '',
+    ...(o.blocks ?? []).flat(),
   ];
   const text = (n: string) => !!d.categories?.[n];
   const links = LINKS[o.family];
@@ -484,6 +490,9 @@ function RegressionOptionsForm({
           </div>
         </div>
       )}
+      {isPlainLinear(o) && (
+        <LinearExtrasForm o={o} set={set} columns={columns.filter((n) => !taken.includes(n))} />
+      )}
       {o.family === 'gaussian' && (
         <div className="field">
           <ColumnSelect
@@ -500,6 +509,8 @@ function RegressionOptionsForm({
                       ...rest,
                       randomSlope: v,
                       weights: '',
+                      blocks: [],
+                      caseDiagnostics: false,
                       ...(o.se !== 'model' && o.se !== 'HC0'
                         ? { se: 'model' as const, cluster: '' }
                         : {}),
@@ -754,14 +765,16 @@ export function regressionModel(o: RegressionOptions): ModelState | string {
     return 'Weighted regression is not a path model; CB-SEM has sampling weights under the Model inspector instead.';
   if (!o.outcome || !o.predictors.length) return 'Choose the outcome and at least one predictor.';
   const gap = 180;
-  const predictors: Construct[] = o.predictors.map((x, i) => ({
+  // (the full model: every block's predictors too)
+  const all = [...o.predictors, ...(o.blocks ?? []).flat()];
+  const predictors: Construct[] = all.map((x, i) => ({
     id: newId('c'),
     name: x,
     type: 'factor',
     mode: 'A',
     indicators: [x],
     x: 0,
-    y: Math.round((i - (o.predictors.length - 1) / 2) * gap),
+    y: Math.round((i - (all.length - 1) / 2) * gap),
     side: 'left',
     covariate: true,
   }));
@@ -842,7 +855,17 @@ function robustSeName(se: string) {
   return 'Cluster-robust';
 }
 
-function RegressionView({ r, plot, o }: { r: Result; plot: string; o: RegressionOptions }) {
+function RegressionView({
+  r,
+  plot,
+  o,
+  current,
+}: {
+  r: Result;
+  plot: string;
+  o: RegressionOptions;
+  current: boolean;
+}) {
   const curves = curvesOf(r);
   const cv = curves.find((k) => k.x === plot) ?? curves[0];
   const f = r.fit;
@@ -1080,6 +1103,9 @@ function RegressionView({ r, plot, o }: { r: Result; plot: string; o: Regression
           note={diagnosticsNote(dg.durbinWatson)}
         />
       ) : null}
+      {r.blocks && r.blocks.length > 0 && <HierarchicalBlocks r={r} o={o} />}
+      {r.details && r.details.length > 0 && <TermDetails details={r.details} />}
+      {r.cases && <CaseDiagnosticsView cases={r.cases} r={r} current={current} />}
       {cv && <Curve r={{ ...r, curves }} cv={cv} />}
     </div>
   );
@@ -1096,6 +1122,7 @@ export const regressionColumns = (o: RegressionOptions) => [
       ...o.predictors,
       ...o.interactions.flat(),
       ...zeroPreds(o),
+      ...linearExtras({ ...o, confidence: 0.95 }).flat(),
       o.trials,
       o.weights,
       o.se === 'cluster' ? o.cluster : '',
@@ -1209,10 +1236,13 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
           names(raw.zeroPredictors).length
             ? { zeroPredictors: names(raw.zeroPredictors) }
             : {}),
+          ...parseLinearExtras(raw),
         }
       : null,
   Options: RegressionOptionsForm,
-  View: ({ result, options }) => <RegressionView r={result} plot={options.plot} o={options} />,
+  View: ({ result, options, current }) => (
+    <RegressionView r={result} plot={options.plot} o={options} current={current} />
+  ),
   display: ['plot'],
   blocked: (o, ctx) => {
     if (!o.outcome) return 'Choose the outcome.';
@@ -1248,6 +1278,15 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
         return 'Choose the predictors of the zero part (or an intercept only).';
       if (zeroPreds(o).includes(o.outcome)) return 'The outcome cannot be a predictor.';
     }
+    const blockVars = linearExtras({ ...o, confidence: 0.95 }).flat();
+    if (blockVars.length && !o.predictors.length && !o.interactions.length)
+      return 'Choose the first block’s predictors (Predictors) before further blocks.';
+    if (blockVars.includes(o.outcome)) return 'The outcome cannot be a predictor.';
+    if (
+      new Set(blockVars).size !== blockVars.length ||
+      blockVars.some((x) => o.predictors.includes(x))
+    )
+      return 'Each predictor enters in one block only.';
     if (o.randomSlope && o.family === 'gaussian') {
       if (!o.predictors.includes(o.randomSlope))
         return `The random slope (${o.randomSlope}) must be one of the predictors.`;
@@ -1276,6 +1315,8 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
       ...(isZeroModel(o)
         ? [`zero:${o.zeroModel}:${o.zeroPart ?? 'same'}:${zeroPreds(o).join(',')}`]
         : []),
+      ...linearExtras({ ...o, confidence: 0.95 }).map((b) => `block:${b.join(',')}`),
+      ...(isPlainLinear(o) && o.caseDiagnostics ? ['cases'] : []),
     ]),
   run: async (o, ctx) => {
     const input = regressionInput(o, ctx);
@@ -1303,3 +1344,85 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
     return `${zeroKind}${FAMILY_NAME[o.family].toLowerCase()} · ${o.outcome || '…'} on ${predictors}${zeroPart}${slope}${se}`;
   },
 };
+
+/** The linear model's extras from a project file: blocks of column names (at most 20), case diagnostics. */
+export function parseLinearExtras(
+  raw: Record<string, unknown>,
+): Pick<RegressionOptions, 'blocks' | 'caseDiagnostics'> {
+  const blocks = (Array.isArray(raw.blocks) ? raw.blocks.slice(0, 20) : [])
+    .map((b) => names(b))
+    .filter((b) => b.length > 0);
+  return {
+    ...(blocks.length ? { blocks } : {}),
+    ...(raw.caseDiagnostics === true ? { caseDiagnostics: true } : {}),
+  };
+}
+
+/** Further blocks of predictors (hierarchical regression) and case diagnostics, for a linear model. */
+function LinearExtrasForm({
+  o,
+  set,
+  columns,
+}: {
+  o: RegressionOptions;
+  set: (o: RegressionOptions) => void;
+  columns: string[];
+}) {
+  const blocks = o.blocks ?? [];
+  const setBlock = (i: number, b: string[]) =>
+    set({ ...o, blocks: blocks.map((x, k) => (k === i ? b : x)) });
+  return (
+    <>
+      <div className="field">
+        <label>Further blocks (hierarchical regression)</label>
+        {blocks.map((b, i) => (
+          <div key={i} className="chips" style={{ alignItems: 'flex-start' }}>
+            <OrderedPicker
+              label={`Block ${i + 2}`}
+              columns={[...columns, ...b]}
+              value={b}
+              onChange={(v) => setBlock(i, v)}
+            />
+            <button
+              className="btn sm ghost"
+              aria-label={`Remove block ${i + 2}`}
+              title={`Remove block ${i + 2}`}
+              onClick={() => set({ ...o, blocks: blocks.filter((_, k) => k !== i) })}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <div>
+          <button
+            className="btn sm"
+            disabled={blocks.length >= 20 || blocks.some((b) => !b.length)}
+            onClick={() => set({ ...o, blocks: [...blocks, []] })}
+          >
+            Add block
+          </button>
+        </div>
+        <div className="hint">
+          The predictors above are block 1; each further block is added to the model before it, with
+          the change in R² and its F test (as SPSS’s R² change). The coefficients are those of the
+          full model.
+        </div>
+      </div>
+      <div className="field">
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={!!o.caseDiagnostics}
+            onChange={(e) => set({ ...o, caseDiagnostics: e.target.checked })}
+          />{' '}
+          Case diagnostics
+        </label>
+        <div className="hint">
+          Standardised and studentised residuals, leverage, Cook’s distance and DFBETAs of each
+          case, with the unusual ones flagged; predicted values and residuals can be saved as data
+          columns.
+        </div>
+      </div>
+    </>
+  );
+}

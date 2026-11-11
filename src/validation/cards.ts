@@ -211,8 +211,8 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
       'mplus-ex6.23',
       'mplus-ex6.24',
     ],
-    features: ['rengine/regression::Durbin'],
-    note: 'mplus-ex3.9: random slope (TYPE = RANDOM). Durbin–Watson: lmtest::dwtest (scripts/validation/durbin_watson.R).',
+    features: ['rengine/regression::Durbin', 'rengine/regression::hierarchical'],
+    note: 'mplus-ex3.9: random slope (TYPE = RANDOM). Durbin–Watson: lmtest::dwtest (scripts/validation/durbin_watson.R). Hierarchical blocks (R² change, F change), standardised β, part and partial correlations, tolerance and case diagnostics: lm, ppcor, car::vif and influence.measures on ?swiss (scripts/validation/regression_extras.R).',
   },
   'regression:binomial': {
     title: 'Logistic (logit link)',
@@ -265,6 +265,13 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     examples: ['pscl-hurdle'],
     features: ['rengine/regression::pscl'],
   },
+  pcor: {
+    examples: ['ppcor-help'],
+    note: 'Partial and semi-partial correlations against ppcor in desktop R (scripts/validation/regression_extras.R).',
+  },
+  'pcor:pearson': { title: 'Pearson partial correlations', features: ['rengine/pcor::pearson'] },
+  'pcor:spearman': { title: 'Spearman partial correlations', features: ['rengine/pcor::spearman'] },
+  'pcor:kendall': { title: 'Kendall partial correlations', features: ['rengine/pcor::kendall'] },
   pwr: {
     examples: ['pwr-cohen'],
     note: 'A priori N, achieved power and sensitivity against pwr in desktop R (scripts/validation/pwr.R).',

@@ -69,6 +69,7 @@ const PANEL_TAGS: Record<string, string[]> = {
   dmacs: ['Measurement invariance', 'Effect sizes'],
   sempower: ['Power analysis', 'Sample size'],
   pwr: ['Basic statistics', 'Power analysis', 'Sample size'],
+  pcor: ['Basic statistics', 'Partial correlations'],
   metasem: ['Meta-analysis'],
   semtree: ['SEM trees', 'Heterogeneity'],
   psem: ['Piecewise SEM', 'Path analysis', 'd-separation'],

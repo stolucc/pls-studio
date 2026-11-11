@@ -139,6 +139,7 @@ const ROOTS = [
   'mediation',
   'semPower',
   'pwr',
+  'ppcor',
   'sirt',
   'mnlfa',
   'lslx',

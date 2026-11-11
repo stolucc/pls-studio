@@ -509,6 +509,16 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     script('zeroinfl.R', 'desktop pscl (zeroinfl, hurdle, vuong)'),
     script('regression_links.R', 'desktop glm and MASS::polr with the other links'),
     script('durbin_watson.R', 'desktop lmtest::dwtest'),
+    script(
+      'regression_extras.R',
+      'desktop lm, ppcor, car::vif and influence.measures (blocks, part and partial r, case diagnostics)',
+    ),
+  ),
+  'rengine/pcor': native(
+    'Partial and semi-partial correlations (Pearson, Spearman, Kendall)',
+    'Basic statistics',
+    ['ppcor'],
+    script('regression_extras.R', 'desktop ppcor on its help page’s data and ?swiss'),
   ),
   'rengine/rsa': native(
     'Response surface analysis',
