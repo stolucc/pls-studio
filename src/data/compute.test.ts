@@ -182,3 +182,9 @@ describe('words and categories in formulas', () => {
     expect(() => parseFormula('country == "Spain')).toThrow(/not closed/);
   });
 });
+
+it('reads NA as a missing value (a column in backticks)', () => {
+  expect(ev('ifelse(x == 2, NA, x)')).toEqual([1, NaN, 3, 4, NaN]);
+  const d: Dataset = { names: ['NA'], cols: [Float64Array.from([5])] };
+  expect(ev('`NA` + 1', d)).toEqual([6]);
+});

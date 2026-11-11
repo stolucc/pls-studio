@@ -11,6 +11,7 @@ import {
 import { observedRange, reverseCode } from '../data/recode';
 import { restoreCases, transformData } from '../data/pipeline';
 import { editFilter, FilterBadge } from './FilterBadge';
+import { RecodeDialog } from './RecodeDialog';
 import { importCsv, loadSample } from '../io';
 import { formDialog, confirmDialog, textDialog } from './Overlays';
 import { useStore } from '../store';
@@ -26,6 +27,7 @@ export function DataPanel() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'free'>('all');
   const [over, setOver] = useState(false);
+  const [recoding, setRecoding] = useState<string | null>(null);
   const anchor = useRef<string | null>(null);
 
   const owner = useMemo(() => {
@@ -261,6 +263,7 @@ export function DataPanel() {
 
   return (
     <aside className="panel left" aria-label="Data">
+      {recoding && <RecodeDialog column={recoding} onClose={() => setRecoding(null)} />}
       <div className="panel-head">
         <span>Data</span>
         {data && (
@@ -431,6 +434,15 @@ export function DataPanel() {
                   >
                     Reverse-code…
                   </button>
+                  {selected.length === 1 && !data.categories?.[selected[0]] && (
+                    <button
+                      className="btn sm ghost"
+                      onClick={() => setRecoding(selected[0])}
+                      title="A new column from this one: bins (equal width, equal counts, cut points) or old values to new ones"
+                    >
+                      Recode…
+                    </button>
+                  )}
                   {selected.length === 1 && computed.has(selected[0]) && (
                     <button
                       className="btn sm ghost"

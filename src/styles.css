@@ -997,3 +997,7 @@ table.grid.evidence-table th:last-child, table.grid.evidence-table td.hint { tex
 .data-grid .value-label { color: var(--text-3); font-size: 11px; }
 .variables-grid th, .variables-grid td { text-align: left; white-space: normal; vertical-align: middle; }
 .variables-grid .labels-cell { display: inline-flex; align-items: center; gap: 4px; }
+.modal.recode-dialog { width: min(620px, calc(100vw - 32px)); max-height: 90vh; overflow: auto; }
+.recode-dialog .hint.bad { color: var(--bad); }
+.recode-formula { display: block; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; padding: 6px 8px; background: var(--surface-3); border-radius: 6px; }
+.recode-preview { margin-top: 8px; }

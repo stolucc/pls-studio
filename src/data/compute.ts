@@ -49,7 +49,7 @@ export const MAX_NAME = 64;
 type Tok =
   | { k: 'num'; v: number }
   | { k: 'str'; v: string }
-  | { k: 'name'; v: string }
+  | { k: 'name'; v: string; quoted?: true }
   | { k: 'op'; v: string };
 
 /** Words that read as the logical operators: `age >= 18 and group == 2`. */
@@ -88,7 +88,7 @@ function tokenize(src: string): Tok[] {
     if (ch === '`') {
       const j = src.indexOf('`', i + 1);
       if (j < 0) throw new Error('A name opened with ` is not closed.');
-      out.push({ k: 'name', v: src.slice(i + 1, j) });
+      out.push({ k: 'name', v: src.slice(i + 1, j), quoted: true });
       i = j + 1;
       continue;
     }
@@ -247,6 +247,8 @@ export function parseFormula(src: string): Node {
           throw new Error(`${t.v}() takes ${argumentCountText(f.arity)}.`);
         return { t: 'call', fn: t.v, args };
       }
+      // NA: a missing value (as in R), e.g. ifelse(x == -99, NA, x); `NA` in backticks is a column.
+      if (t.v === 'NA' && !t.quoted) return { t: 'num', v: NaN };
       return { t: 'col', name: t.v };
     }
     if (t.k === 'op' && t.v === '(') {
