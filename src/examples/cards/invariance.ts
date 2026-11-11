@@ -1,6 +1,6 @@
 // Examples that open the measurement invariance cards: sirt's alignment help-page example (four groups of
-// data.inv4gr) and mnlfa's model 4 (data.mnlfa01), checked against the packages run natively in
-// cards/invariance.webr.test.ts (scripts/validation/invariance_cards.R).
+// data.inv4gr), mnlfa's model 4 (data.mnlfa01) and sirt's local SEM example (data.lsem01), checked against the
+// packages run natively in cards/invariance.webr.test.ts (scripts/validation/invariance_cards.R, lsem.R).
 
 import { CB, f, type ExConstruct } from '../define';
 import type { PackageExample } from '../packages';
@@ -28,5 +28,14 @@ export const CARD_INVARIANCE: PackageExample[] = [
     data: { package: 'mnlfa', name: 'data.mnlfa01' }, constructs: [], paths: [],
     panel: { kind: 'mnlfa', items: Array.from({ length: 12 }, (_, i) => `I${i + 1}`), itemType: '1PL', covariates: ['female', 'age'], categorical: [], intercept: ['female', 'age'], slope: [], mean: ['female', 'age'], sd: [], moderated: ['I4', 'I5', 'I6', 'I7'] },
     settings: CB('ML'),
+  },
+  {
+    id: 'sirt-lsem01-age', package: 'sirt', title: 'Local SEM: age differentiation of one factor', source: 'sirt, ?lsem.estimate, example 1, model 1 (data.lsem01)',
+    links: [{ label: '?lsem.estimate (sirt)', url: 'https://rdrr.io/cran/sirt/man/lsem.estimate.html' }, { label: '?lsem.permutationTest (sirt)', url: 'https://rdrr.io/cran/sirt/man/lsem.permutationTest.html' },
+      { label: 'Hildebrandt et al. (2016), MBR 51(2–3)', url: 'https://doi.org/10.1080/00273171.2016.1142856' }],
+    description: 'The help page’s example 1, model 1: five tests v1–v5 of one factor F, scaled by its variance (F ~~ 1*F, every loading free), in 989 simulated persons aged 4 to 23 (data.lsem01, sirt’s age-differentiation data). The model is fitted at the 20 focal ages 4, 5, …, 23, each time to all persons weighted by a Gaussian kernel around that age with h = 2 (bandwidth 2.63 years), and the permutation test permutes age 10 times, as the help page does “only for illustrative purposes”: raise the permutations (and tick the bootstrap) for real use. Opens its card on the Analyses tab beside the diagram.',
+    shows: 'The loadings of v1, v3 and v4 climb to a peak around age 15 (v4 from 1.21 at age 4 to 1.77) and fall steeply into the early twenties (v3 to 0.96 at 23), while v2’s and v5’s move less (0.70–0.99 and 0.52–0.64). With the help page’s 10 permutations the p values are multiples of .1: the SD of v1’s and v4’s loadings along age exceeds that of every permutation (p = 0), v3’s p is .1, v2’s .3 and v5’s .4; the residual variances vary beyond the permutations too. Switch the chart to Residual variances or Fit to see them.',
+    data: { package: 'sirt', name: 'data.lsem01' }, syntax: 'F =~ NA*v1 + v2 + v3 + v4 + v5\nF ~~ 1*F', constructs: [], paths: [],
+    panel: { kind: 'lsem', moderator: 'age', from: 4, to: 23, points: 20, h: 2, kernel: 'gaussian', bootstrap: false, bootR: 100, permutation: true, permB: 10 }, settings: CB('ML'),
   },
 ];

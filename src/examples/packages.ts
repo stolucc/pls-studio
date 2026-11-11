@@ -84,7 +84,7 @@ export function panelPreset(p: ExamplePanel): Record<string, unknown> {
  */
 export type CardPanelKind = 'ttest' | 'anova' | 'rmanova' | 'manova' | 'correlation' | 'contingency' | 'freqtest' | 'reliability'
   | 'bttest' | 'banova' | 'brmanova' | 'bregression' | 'bcontingency' | 'bbinomial' | 'chart'
-  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi' | 'cbmodels' | 'scoretest' | 'lcs' | 'semsens' | 'medsens' | 'regsem' | 'sempower' | 'metasem' | 'semtree' | 'alignment' | 'mnlfa' | 'plsmultilevel';
+  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi' | 'cbmodels' | 'scoretest' | 'lcs' | 'semsens' | 'medsens' | 'regsem' | 'sempower' | 'metasem' | 'semtree' | 'alignment' | 'mnlfa' | 'lsem' | 'plsmultilevel';
 
 /** A message an example is expected to raise (see PackageExample.expectedMessages). */
 export interface ExpectedMessage { pattern: string; why: string; level?: 'warning' | 'note' }
@@ -1101,6 +1101,8 @@ export function panelColumns(p: ExamplePanel, names?: string[]): string[] {
     case 'bsem': return [];
     // (the score-based invariance test fits the diagram too: its one column of its own is the covariate)
     case 'scoretest': return [String(panelPreset(p).covariate ?? '')].filter(Boolean);
+    // (local SEM fits the diagram along a moderator: that column)
+    case 'lsem': return [String(panelPreset(p).moderator ?? '')].filter(Boolean);
     // (the custom likelihood: the outcomes, and the data columns its expressions use, which are not its parameters)
     case 'customml': {
       const o = panelPreset(p) as { outcomes: string[]; parameters: { name: string }[]; logits?: string[]; means?: string[]; variances?: string[]; covariances?: string[] };

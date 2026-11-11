@@ -305,3 +305,99 @@ ps_mimic_dif <- function(req_json, export = FALSE) {
     scoreError = is.null(sc), warnings = env$.warnings,
     engine = ps_engine("lavaan")))
 }
+
+#' Local structural equation models (LSEM; Hildebrandt, Wilhelm & Robitzsch 2009; Hildebrandt, Luedtke, Robitzsch,
+#' Sommer & Wilhelm 2016) with sirt::lsem.estimate: the CB-SEM model on the canvas (as lavaan syntax) is fitted at
+#' each focal point of a continuous moderator to the cases weighted by a kernel around it (bandwidth h x SD x N^-1/5),
+#' so every parameter becomes a curve along the moderator. Optionally lsem.bootstrap (resampled cases: standard
+#' errors and normal-theory intervals per focal point) and lsem.permutationTest (the moderator permuted: p values of
+#' each parameter's variation, SD and MAD over the focal points and its linear slope, and pointwise), each after
+#' set.seed() so a run reproduces. Continuous indicators, one group, ML.
+ps_lsem <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  o <- req$lsem
+  if (!is.list(o)) stop("Invalid local SEM options in the request.")
+  b <- ps_cb_build(req)
+  ps_cb_plain(b, "Local SEM")
+  if (!grepl("^fit <- sem\\(.*\\)$", b$call)) stop("Local SEM is not available for this model.")
+  if (!is.null(b$group_var)) stop("Local SEM moderates one sample by a continuous variable: remove the grouping (the moderator replaces the groups).")
+  if (!is.null(req$model$weights)) stop("Local SEM here does not take sampling weights: remove them under the model's settings.")
+  if (!is.null(req$model$cluster)) stop("Local SEM here does not take sampling clusters.")
+  if (length(b$composites)) stop("Local SEM is for common-factor models; the model has composites (<~).")
+  if (length(unlist(req$model$ordered))) stop("Local SEM here is for continuous indicators (ML); the model has ordinal indicators.")
+  if (length(b$esem_blocks)) stop("Local SEM is not available for ESEM blocks (the rotation would differ between focal points).")
+  est <- req$estimator %||% "ML"
+  if (!est %in% c("ML", "MLR")) stop("Local SEM fits each focal point by maximum likelihood: choose ML or MLR (Model settings).")
+  miss <- req$missing %||% "casewise"
+  if (miss %in% c("pairwise", "twostage", "robusttwostage", "mi")) stop("Local SEM handles missing values by FIML, casewise deletion or mean replacement (Model settings).")
+  fiml <- identical(miss, "fiml")
+  mo <- req$moderator
+  mname <- mo$name
+  if (!(is.character(mname) && length(mname) == 1 && nzchar(mname))) stop("Choose a moderator.")
+  if (mname %in% b$n$all_inds) stop("The moderator is a variable of the model; choose another column.")
+  mcol <- as.numeric(unlist(lapply(mo$col, function(v) if (is.null(v)) NA_real_ else v)))
+  if (length(mcol) != nrow(b$inputs$data)) stop("The moderator does not have one value per case.")
+  if (length(unique(mcol[is.finite(mcol)])) < 3) stop("The moderator needs at least three distinct values.")
+  mv <- ps_ident(c(names(b$inputs$data), mname))[ncol(b$inputs$data) + 1]
+  while (mv %in% names(b$inputs$data)) mv <- paste0(mv, "_mod")
+  b$inputs$data[[mv]] <- mcol
+  num <- function(x, what, lo, hi) { v <- ps_number(x, what); if (v < lo || v > hi) stop(sprintf("The %s must be between %s and %s.", what, lo, hi)); v }
+  from <- ps_number(o$from, "first focal point"); to <- ps_number(o$to, "last focal point")
+  if (from >= to) stop("The last focal point must be above the first.")
+  points <- num(o$points, "number of focal points", 2, 100)
+  if (points != round(points)) stop("The number of focal points must be a whole number.")
+  h <- num(o$h %||% 1.1, "bandwidth factor h", 0.05, 20)
+  kernel <- o$kernel %||% "gaussian"
+  if (!(is.character(kernel) && length(kernel) == 1 && kernel %in% c("gaussian", "epanechnikov", "uniform"))) stop("Invalid kernel in the request.")
+  R <- if (is.null(o$bootstrap)) 0L else as.integer(num(o$bootstrap, "number of bootstrap samples", 10, 5000))
+  B <- if (is.null(o$permutations)) 0L else as.integer(num(o$permutations, "number of permutations", 10, 5000))
+  seed <- as.integer(num(o$seed %||% 1, "seed", -2147483647, 2147483647))
+  span <- ps_model_span(b)
+  f15 <- function(x) format(x, digits = 15)
+  args <- c(sprintf("h = %s", f15(h)), sprintf("kernel = \"%s\"", kernel),
+    if (fiml) "sufficient_statistics = FALSE, missing = \"fiml\"",   # (FIML needs the cases, not weighted moments)
+    if (isTRUE(b$means)) "meanstructure = TRUE")
+  body <- c(b$body[seq_len(span[2])],
+    "suppressPackageStartupMessages(library(sirt))",
+    sprintf("data <- data[!is.na(data$%s), , drop = FALSE]  # (cases without a moderator value are left out)", mv),
+    sprintf("# Focal points of the moderator %s; each fit weights the cases by a %s kernel around the point", ps_comment(mname), kernel),
+    sprintf("# (bandwidth h x SD(moderator) x N^(-1/5), h = %s)", f15(h)),
+    sprintf("moderator_grid <- seq(%s, %s, length.out = %d)", f15(from), f15(to), as.integer(points)),
+    sprintf("mod <- lsem.estimate(data, moderator = \"%s\", moderator.grid = moderator_grid, lavmodel = model, %s, verbose = FALSE)", mv, paste(args, collapse = ", ")),
+    if (R > 0) c(sprintf("# Bootstrap: %d resamples of the cases, each refitted at every focal point (standard errors and intervals)", R),
+      sprintf("set.seed(%d)", seed), sprintf("boot <- lsem.bootstrap(mod, R = %d, verbose = FALSE)", R)),
+    if (B > 0) c(sprintf("# Permutation test of invariance: the moderator permuted %d times; how often the parameters vary as much", B),
+      sprintf("set.seed(%d)", seed), sprintf("perm <- lsem.permutationTest(mod, B = %d, verbose = FALSE)", B)))
+  inputs <- b$inputs
+  if (export) return(ps_script("Local structural equation model (sirt)", c("lavaan", "sirt"), inputs, body,
+    c("summary(mod)", if (R > 0) "boot$parameters", if (B > 0) "summary(perm)")))
+  env <- ps_run(body, inputs)
+  mod <- env$mod
+  back <- ps_cb_back(b)
+  P <- mod$parameters
+  pars <- unique(as.character(P$par))
+  S <- mod$parameters_summary
+  bp <- if (R > 0) env$boot$parameters else NULL
+  ts <- if (B > 0) env$perm$teststat else NULL
+  pw <- if (B > 0) env$perm$parameters_pointwise_test else NULL
+  nn <- function(x) unname(as.numeric(x))
+  params <- lapply(pars, function(p) {
+    r <- P[P$par == p, , drop = FALSE]; r <- r[order(r$grid_index), , drop = FALSE]
+    s <- S[S$par == p, , drop = FALSE]
+    fit <- identical(as.character(r$op[1]), "fit")
+    out <- list(par = p, op = if (fit) "fit" else as.character(r$op[1]),
+      lhs = if (fit) p else ps_back(as.character(r$lhs[1]), back), rhs = if (fit) "" else ps_back(as.character(r$rhs[1]), back),
+      est = I(nn(r$est)), se = I(nn(r$se)))
+    if (nrow(s)) out$summary <- list(mean = nn(s$M), sd = nn(s$SD), mad = nn(s$MAD), min = nn(s$Min), max = nn(s$Max), linInt = nn(s$lin_int), linSlope = nn(s$lin_slo), sdNonlin = nn(s$SD_nonlin))
+    if (!is.null(bp)) { q <- bp[bp$par == p, , drop = FALSE]; q <- q[order(q$grid_index), , drop = FALSE]
+      if (nrow(q)) out$boot <- list(se = I(nn(q$se)), lower = I(nn(q$ci.lower)), upper = I(nn(q$ci.upper))) }
+    if (!is.null(ts)) { t <- ts[ts$par == p, , drop = FALSE]
+      if (nrow(t)) { w <- pw[pw$par == p, , drop = FALSE]; w <- w[order(w$grid_index), , drop = FALSE]
+        out$test <- list(sdP = nn(t$SD_p), madP = nn(t$MAD_p), linSlopeP = nn(t$lin_slo_p), pointwise = I(nn(w$p))) } }
+    out
+  })
+  dens <- mod$moderator.density
+  ps_json(list(moderator = mname, grid = I(nn(mod$moderator.grid)), n = nrow(env$data), h = nn(mod$h), bw = nn(mod$bw), kernel = kernel,
+    weight = I(nn(dens$wgt)), neff = I(nn(dens$Neff)), params = params, bootstrap = R, permutations = B, seed = seed,
+    warnings = env$.warnings, engine = ps_engine("sirt", lavaan = "lavaan")))
+}
