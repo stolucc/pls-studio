@@ -671,11 +671,11 @@ export function buildMixture(
             const ci = lc(e.name);
             fac.classInd ??= [];
             if (!fac.classInd.includes(ci)) fac.classInd.push(ci);
-            const mod = Object.keys(e.mod).length
-              ? e.mod
-              : fac.classInd[0] === ci && j === 0 && !Object.keys(cond).length
-                ? { fixed: 1 }
-                : {};
+            // Without modifiers, the factor's first indicator in an overall statement has its loading fixed at 1.
+            const fixesScale = fac.classInd[0] === ci && j === 0 && !Object.keys(cond).length;
+            let mod: typeof e.mod = {};
+            if (Object.keys(e.mod).length) mod = e.mod;
+            else if (fixesScale) mod = { fixed: 1 };
             add(`=~|${lc(f.name)}|${ci}`, cond, mod, label, s.order);
             return;
           }
@@ -683,11 +683,10 @@ export function buildMixture(
             colOf(e.name) ?? fail(`${f.name} BY ${e.name}: ${e.name} is not a column of the data.`);
           if (!fac.indicators.includes(y)) fac.indicators.push(y);
           const first = fac.indicators[0] === y;
-          const mod = Object.keys(e.mod).length
-            ? e.mod
-            : first && j === 0 && !Object.keys(cond).length
-              ? { fixed: 1 }
-              : {};
+          const fixesScale = first && j === 0 && !Object.keys(cond).length;
+          let mod: typeof e.mod = {};
+          if (Object.keys(e.mod).length) mod = e.mod;
+          else if (fixesScale) mod = { fixed: 1 };
           if (/\*/.test(by[2].split(/\s+/)[j] ?? '') && first) mod.fixed = undefined;
           add(`=~|${lc(f.name)}|${y}`, cond, mod, label, s.order);
         });
@@ -865,20 +864,19 @@ export function buildMixture(
   for (const p of onPairs)
     if (!isFactor(p.rhs) && !isClass(p.rhs) && !dv.has(p.rhs)) covariates.add(p.rhs);
   if (!dv.size) fail('No outcome (latent class indicator) in the model.');
-  const typeOf = (y: string): 'cat' | 'nominal' | 'count' | 'zip' | 'nb' | 'censored' | 'normal' =>
-    categorical.has(y)
-      ? 'cat'
-      : nominal.has(y)
-        ? 'nominal'
-        : count.has(y)
-          ? negbin.has(y)
-            ? 'nb'
-            : count.get(y)
-              ? 'zip'
-              : 'count'
-          : censored.has(y)
-            ? 'censored'
-            : 'normal';
+  const typeOf = (
+    y: string,
+  ): 'cat' | 'nominal' | 'count' | 'zip' | 'nb' | 'censored' | 'normal' => {
+    if (categorical.has(y)) return 'cat';
+    if (nominal.has(y)) return 'nominal';
+    if (count.has(y)) {
+      if (negbin.has(y)) return 'nb';
+      // (the count map's value says whether the outcome is zero-inflated)
+      return count.get(y) ? 'zip' : 'count';
+    }
+    if (censored.has(y)) return 'censored';
+    return 'normal';
+  };
   const isSlope = (f: string) => [...slopeAlias.values()].includes(`~1|${f}`);
   if (twolevel) {
     for (const y of dv)
@@ -921,9 +919,9 @@ export function buildMixture(
             items.splice(i, 1);
             continue;
           }
-          fail(
-            `${base}: its cluster-level part (variance fixed at 0) cannot be ${kind === '~' ? 'regressed on' : 'related to'} ${a === nm ? b : a}.`,
-          );
+          const verb = kind === '~' ? 'regressed on' : 'related to';
+          const other = a === nm ? b : a;
+          fail(`${base}: its cluster-level part (variance fixed at 0) cannot be ${verb} ${other}.`);
         }
       }
       factors.delete(nm);
@@ -1091,12 +1089,13 @@ export function buildMixture(
         dt = g.times[g.times.length - 1] - g.times[0] || 1;
       return {
         varying: true,
-        start: (z, of) =>
-          gi === 0
-            ? S(y0).mean + spread(z, of) * S(y0).sd
-            : gi === 1
-              ? (S(yl).mean - S(y0).mean) / dt + (spread(z, of) * 0.5 * S(y0).sd) / dt
-              : 0,
+        // Intercept factor: around the first outcome's mean; slope: around the mean change per time unit.
+        start: (z, of) => {
+          if (gi === 0) return S(y0).mean + spread(z, of) * S(y0).sd;
+          if (gi === 1)
+            return (S(yl).mean - S(y0).mean) / dt + (spread(z, of) * 0.5 * S(y0).sd) / dt;
+          return 0;
+        },
         scale: gi === 0 ? S(y0).sd : S(y0).sd / dt,
         free: true,
       };
@@ -1210,14 +1209,17 @@ export function buildMixture(
         if (!f.indicators.length || f.indicators.some((y) => typeOf(y) !== 'normal')) {
           const gi = f.growth ? f.growth.factors.indexOf(a) : 0,
             t = f.growth ? growthType(f.growth) : 'cat';
-          const v0 = t === 'censored' ? S(f.indicators[0]).variance * 0.5 : t === 'cat' ? 1 : 0.3;
+          let v0 = 0.3;
+          if (t === 'censored') v0 = S(f.indicators[0]).variance * 0.5;
+          else if (t === 'cat') v0 = 1;
           return { varying: false, start: () => (gi === 0 ? v0 : v0 * 0.1), scale: 0, free: true };
         }
+        // A growth slope starts with a tenth of the first indicator's variance, other factors with half.
+        const isGrowthSlope = !!f.growth && f.growth.factors.indexOf(a) !== 0;
+        const share = isGrowthSlope ? 0.1 : 0.5;
         return {
           varying: false,
-          start: () =>
-            (f.growth ? (f.growth.factors.indexOf(a) === 0 ? 0.5 : 0.1) : 0.5) *
-            S(f.indicators[0]).variance,
+          start: () => share * S(f.indicators[0]).variance,
           scale: 0,
           free: true,
         };
@@ -1271,9 +1273,13 @@ export function buildMixture(
       if (g) {
         const t = g.times[g.outcomes.indexOf(b)];
         const gi = g.factors.indexOf(a);
+        // Growth loadings: 1 on the intercept, the time score on the slope, its square on the quadratic.
+        let loading = t * t;
+        if (gi === 0) loading = 1;
+        else if (gi === 1) loading = t;
         return {
           varying: false,
-          fixed: gi === 0 ? 1 : gi === 1 ? t : t * t,
+          fixed: loading,
           start: () => 0,
           scale: 0,
           free: false,
@@ -1375,8 +1381,9 @@ export function buildMixture(
       } else {
         // One parameter per class-specific statement; an overall statement (or the default) is shared by the classes
         // it applies to, unless the parameter is class-specific by default.
-        const own =
-          it && Object.keys(it.cond).length ? `${key}#${it.order}` : d?.varying ? ck : key;
+        let own = key;
+        if (it && Object.keys(it.cond).length) own = `${key}#${it.order}`;
+        else if (d?.varying) own = ck;
         const tk = `__${own}`;
         if (!labelTheta.has(tk))
           labelTheta.set(
@@ -1768,14 +1775,14 @@ export function buildMixture(
     if (!groups.has(r)) groups.set(r, { ys: [], fs: [] });
     (isFactor(x) ? groups.get(r)!.fs : groups.get(r)!.ys).push(x);
   }
-  const covKey = (a: string, b: string) =>
-    byKey.has(`~~|${a}|${b}`)
-      ? `~~|${a}|${b}`
-      : byKey.has(`~~|${b}|${a}`)
-        ? `~~|${b}|${a}`
-        : a < b
-          ? `~~|${a}|${b}`
-          : `~~|${b}|${a}`;
+  // The key of a covariance as the model has it (either order), else in alphabetical order.
+  const covKey = (a: string, b: string) => {
+    const ab = `~~|${a}|${b}`;
+    const ba = `~~|${b}|${a}`;
+    if (byKey.has(ab)) return ab;
+    if (byKey.has(ba)) return ba;
+    return a < b ? ab : ba;
+  };
   for (const { ys, fs } of groups.values()) {
     const ordered = [...dv].filter((y) => ys.includes(y));
     if (!ordered.length) fail(`${fs.join(', ')}: a factor without continuous indicators.`);
@@ -1835,15 +1842,15 @@ export function buildMixture(
     for (let j = 0; j < m; j++)
       for (let i = 0; i < m; i++)
         keys.push(i === j ? `~~|${fs[i]}|${fs[i]}` : covKey(fs[i], fs[j]));
+    // The (co)variances of the block, column-major; null where a covariance is not in the model.
     for (let j = 0; j < p; j++)
-      for (let i = 0; i < p; i++)
-        keys.push(
-          i === j
-            ? `~~|${ordered[i]}|${ordered[i]}`
-            : byKey.has(covKey(ordered[i], ordered[j]))
-              ? covKey(ordered[i], ordered[j])
-              : null,
-        );
+      for (let i = 0; i < p; i++) {
+        if (i === j) keys.push(`~~|${ordered[i]}|${ordered[i]}`);
+        else {
+          const k = covKey(ordered[i], ordered[j]);
+          keys.push(byKey.has(k) ? k : null);
+        }
+      }
     const real = keys.filter((k): k is string => !!k);
     const by = blockVary([...real, ...lkm]);
     const sl: number[] = [];
@@ -2011,17 +2018,19 @@ export function buildMixture(
       for (let i = 0; i < d; i++)
         keys.push(byKey.has(`~|${intList[i]}|${lx[j]}`) ? `~|${intList[i]}|${lx[j]}` : null);
     for (let j = 0; j < d; j++)
-      for (let i = 0; i < d; i++)
-        keys.push(
-          i === j
-            ? `~~|${intList[i]}|${intList[i]}`
-            : has(covKey(intList[i], intList[j]))
-              ? covKey(intList[i], intList[j])
-              : null,
-        );
-    const levels = new Set(
-      intList.map((f) => (twolevel ? (factors.get(f)!.level ?? 'w') : classPred.size ? 'b' : 'w')),
-    );
+      for (let i = 0; i < d; i++) {
+        if (i === j) keys.push(`~~|${intList[i]}|${intList[i]}`);
+        else {
+          const k = covKey(intList[i], intList[j]);
+          keys.push(has(k) ? k : null);
+        }
+      }
+    // Single-level models: integrated variables are between-level when the class is predicted.
+    const levelOf = (f: string) => {
+      if (twolevel) return factors.get(f)!.level ?? 'w';
+      return classPred.size ? 'b' : 'w';
+    };
+    const levels = new Set(intList.map(levelOf));
     if (levels.size > 1)
       fail(`${intList.join(', ')}: integrated latent variables at both levels are not fitted.`);
     const between = levels.has('b');
@@ -2080,7 +2089,7 @@ export function buildMixture(
         );
       if (!(kind === '~~' && isFactor(a)))
         fail(
-          `${key.split('|').slice(1).join(' ').trim()} (${kind === '~' ? 'ON' : kind === '~1' ? 'mean' : kind === '~~' ? 'WITH' : 'BY'}) is not part of the model.`,
+          `${key.split('|').slice(1).join(' ').trim()} (${mplusWord(kind)}) is not part of the model.`,
         );
     }
   }
@@ -2329,12 +2338,17 @@ export function parseExpr(text: string): Expr {
     }
     return fail(`MODEL CONSTRAINT: unexpected “${t}” in ${text}.`);
   };
-  const unary = (): Expr =>
-    peek() === '-'
-      ? (next(), { op: 'neg', args: [unary()] })
-      : peek() === '+'
-        ? (next(), unary())
-        : power();
+  const unary = (): Expr => {
+    if (peek() === '-') {
+      next();
+      return { op: 'neg', args: [unary()] };
+    }
+    if (peek() === '+') {
+      next();
+      return unary();
+    }
+    return power();
+  };
   const power = (): Expr => {
     const b = primary();
     if (peek() === '**' || peek() === '^') {
@@ -2363,28 +2377,38 @@ export function parseExpr(text: string): Expr {
   if (i < toks.length) fail(`MODEL CONSTRAINT: cannot read ${text}.`);
   return e;
 }
-const exprNames = (e: Expr): string[] =>
-  'name' in e ? [e.name] : 'op' in e ? e.args.flatMap(exprNames) : [];
+/** The Mplus word for a kind of statement, for messages. */
+function mplusWord(kind: string): string {
+  if (kind === '~') return 'ON';
+  if (kind === '~1') return 'mean';
+  if (kind === '~~') return 'WITH';
+  return 'BY';
+}
+const exprNames = (e: Expr): string[] => {
+  if ('name' in e) return [e.name];
+  if ('op' in e) return e.args.flatMap(exprNames);
+  return [];
+};
 /** Linear in the names: sums of numbers times names (no products of names, divisions by names, powers or functions). */
 function isLinear(e: Expr): boolean {
-  const deg = (x: Expr): number =>
-    'num' in x || 'th' in x
-      ? 0
-      : 'name' in x
-        ? 1
-        : x.op === '+' || x.op === '-'
-          ? Math.max(...x.args.map(deg))
-          : x.op === 'neg'
-            ? deg(x.args[0])
-            : x.op === '*'
-              ? deg(x.args[0]) + deg(x.args[1])
-              : x.op === '/'
-                ? deg(x.args[1])
-                  ? 9
-                  : deg(x.args[0])
-                : x.args.some(deg)
-                  ? 9
-                  : 0;
+  // The degree of an expression in the names; 9 stands for "not a polynomial" (a division by a name, a function of one).
+  const deg = (x: Expr): number => {
+    if ('num' in x || 'th' in x) return 0;
+    if ('name' in x) return 1;
+    switch (x.op) {
+      case '+':
+      case '-':
+        return Math.max(...x.args.map(deg));
+      case 'neg':
+        return deg(x.args[0]);
+      case '*':
+        return deg(x.args[0]) + deg(x.args[1]);
+      case '/':
+        return deg(x.args[1]) ? 9 : deg(x.args[0]);
+      default:
+        return x.args.some(deg) ? 9 : 0;
+    }
+  };
   return deg(e) <= 1;
 }
 
