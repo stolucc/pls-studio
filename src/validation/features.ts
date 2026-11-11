@@ -113,7 +113,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'rengine/endo': native('Endogeneity: IV, copulas, Heckman', 'Regression', ['ivreg', 'REndo', 'sampleSelection'], script('endo.R', 'desktop R')),
   'rengine/regression': native('Regression (linear, GLM, ordinal, multinomial, censored, survival, zero-inflated and hurdle counts)', 'Regression', ['stats', 'MASS', 'nnet', 'survival', 'pscl'], script('regression.R', 'desktop R'), script('zeroinfl.R', 'desktop pscl (zeroinfl, hurdle, vuong)'), script('regression_links.R', 'desktop glm and MASS::polr with the other links')),
   'rengine/rsa': native('Response surface analysis', 'Regression', ['RSA'], script('rsa.R', 'desktop RSA')),
-  'rengine/nca': native('Necessary condition analysis', 'NCA', ['NCA'], script('nca.R', 'desktop NCA')),
+  'rengine/nca': native('Necessary condition analysis', 'NCA', ['NCA'], script('nca.R', 'desktop NCA'), script('nca-outliers.R', 'desktop NCA: nca_outliers and nca_analysis without each outlier')),
   'rengine/network': native('Network psychometrics and EGA', 'Networks', ['bootnet', 'EGAnet'], script('network.R', 'desktop bootnet and EGAnet'), script('network_modes.R', 'desktop bootnet (pcor, cor, Spearman) and EGAnet (TMFG)')),
   'rengine/tests': native('Basic statistics: t-tests, ANOVA, correlations, contingency tables', 'Basic statistics', ['stats'], script('tests.R', 'desktop R')),
   'rengine/correlationPolychoric': native('Polychoric correlations', 'Basic statistics', ['lavaan'], script('correlation_polychoric.R', 'desktop lavaan and psych::polychoric')),

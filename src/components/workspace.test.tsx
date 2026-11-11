@@ -179,7 +179,7 @@ describe('Analyses tab', () => {
 
   it('marks a result whose data changed as stale, with a way to rerun it', () => {
     s().setData({ names: ['x1', 'x2'], cols: [Float64Array.from([1, 2, 3]), Float64Array.from([1, 3, 2])] }, { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] });
-    const opts = { source: 'data', x: ['x1'], y: 'x2', permutations: 0 };
+    const opts = { source: 'data', x: ['x1'], y: 'x2', permutations: 0, outliers: true };
     const id = addAnalysis('nca', opts)!;
     const options = JSON.stringify(opts);
     useAnalyses.setState((st) => ({ cards: st.cards.map((c) => (c.kind === 'analysis' ? { ...c, run: { at: 1, fingerprint: 'old', options } } : c)), results: { [id]: { y: 'x2', permutations: 0, conditions: [{ x: 'x1', n: 3, scope: [1, 3, 1, 3], ceFdh: 0.25, crFdh: 0.2, intercept: null, slope: null, accuracy: null, p: null, peers: { x: [1], y: [1] }, points: { x: [1], y: [1] }, bottleneck: [{ y: 0, ceFdh: null, crFdh: null }] }], warnings: [] } } }));
