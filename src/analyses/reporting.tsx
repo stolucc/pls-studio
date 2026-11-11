@@ -52,7 +52,10 @@ export function reportInput(
 }
 
 /** The other cards of the analysis log, and the browser R session's versions. */
-async function context(): Promise<{ log: LogEntry[]; runtime: ReportInput['runtime'] }> {
+export async function methodsContext(): Promise<{
+  log: LogEntry[];
+  runtime: ReportInput['runtime'];
+}> {
   const [{ useAnalyses }, { useR }] = await Promise.all([
     import('./store'),
     import('../rengine/status'),
@@ -193,7 +196,7 @@ export const methodsAnalysis: AnalysisType<Record<string, never>, MethodsText> =
   },
   fingerprint: (_o, ctx) => resultsFingerprint(ctx, ['methods']),
   run: async (_o, ctx) => {
-    const { log, runtime } = await context();
+    const { log, runtime } = await methodsContext();
     return methodsText(reportInput(ctx, log, runtime)!);
   },
   summary: () => 'draft from the current results',
@@ -340,7 +343,7 @@ export const checklistAnalysis: AnalysisType<Record<string, never>, ChecklistRes
   },
   fingerprint: (_o, ctx) => resultsFingerprint(ctx, ['checklist']),
   run: async (_o, ctx) => {
-    const { log } = await context();
+    const { log } = await methodsContext();
     const input = reportInput(ctx, log)!;
     return {
       method: ctx.settings.method,

@@ -39,13 +39,11 @@ export function currentRunHash(): string {
 }
 
 /**
- * Log the results on screen (if they are current) as a model run: a new
- * version, or the existing card of this version with the results it now has
- * (an added bootstrap, a fit test).
+ * The results on screen as a snapshot (with the diagram), if they are
+ * current for the model, settings and data; null otherwise.
  */
-export async function logCurrentRun(): Promise<string | null> {
+export function currentModelResult(): SnapshotResult | null {
   const s = useStore.getState();
-  if (s.cloud?.role === 'viewer') return null;
   const r = s.results;
   if (!r || r.key !== resultsKey(s)) return null;
   const method = s.settings.method;
@@ -55,7 +53,6 @@ export async function logCurrentRun(): Promise<string | null> {
   if (method === 'process') current = r.process;
   else if (method === 'cbsem') current = twoSls ? r.miiv : r.cb;
   if (!current) return null;
-  const hash = runHash(s.model, s.settings, s.data);
   const data = runData(s.data, s.dataInfo);
   let diagram: string | null;
   try {
@@ -66,7 +63,7 @@ export async function logCurrentRun(): Promise<string | null> {
   }
   const recognised = method === 'process' ? processGraph(s.model).recognised : null;
   const engine = engineOf(r, method, twoSls);
-  const result: SnapshotResult = {
+  return {
     method: twoSls ? 'miiv' : method,
     description: `${engine ?? METHOD_LABEL[method]}${data.rows ? `, ${data.rows.toLocaleString()} observations` : ''} · ${new Date().toLocaleString()}`,
     diagram,
@@ -81,6 +78,20 @@ export async function logCurrentRun(): Promise<string | null> {
       : 'Custom conditional process model',
     level: s.settings.confidence,
   };
+}
+
+/**
+ * Log the results on screen (if they are current) as a model run: a new
+ * version, or the existing card of this version with the results it now has
+ * (an added bootstrap, a fit test).
+ */
+export async function logCurrentRun(): Promise<string | null> {
+  const s = useStore.getState();
+  if (s.cloud?.role === 'viewer') return null;
+  const result = currentModelResult();
+  if (!result) return null;
+  const hash = runHash(s.model, s.settings, s.data);
+  const data = runData(s.data, s.dataInfo);
   const runs = runCards(useAnalyses.getState().cards);
   const existing = runs.find((c) => c.options.hash === hash);
   if (existing) {

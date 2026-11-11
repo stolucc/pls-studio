@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { analysisType, ANALYSIS_TYPES } from '../../analyses/registry';
+import { ranWith } from '../../analyses/ranWith';
 import { matchesSearch } from '../../analyses/search';
 import {
   addAnalysis,
@@ -37,6 +38,7 @@ import { useFreshResults, useStore } from '../../store';
 import { IconCopy, IconPencil, IconPlay, IconRepeat, IconTrash } from '../icons';
 import { confirmDialog } from '../Overlays';
 import { openReplication, ReplicationDialog } from './ReplicationDialog';
+import { openReportDialog, ReportDialog } from './ReportDialog';
 import { ExampleBanner } from '../ExampleBanner';
 
 /** The project as the analyses see it, re-rendering when it changes. */
@@ -183,21 +185,6 @@ class ResultBoundary extends Component<{ children: ReactNode }, { error: string 
     ) : (
       this.props.children
     );
-  }
-}
-
-/** The options a card's result was computed with (the result is shown with them, even after the options change). */
-function ranWith(card: AnalysisCard): unknown {
-  const t = analysisType(card.type);
-  if (!t || !card.run) return card.options;
-  try {
-    const ran = t.parseOptions(JSON.parse(card.run.options));
-    if (!ran) return card.options;
-    // Display-only options follow the card as it is now.
-    const now = card.options as Record<string, unknown>;
-    return { ...ran, ...Object.fromEntries((t.display ?? []).map((k) => [k, now[k]])) };
-  } catch {
-    return card.options;
   }
 }
 
@@ -888,9 +875,8 @@ export function AnalysesWorkspace() {
           <AddMenu disabled={readOnly} />
           <button
             className="btn"
-            disabled={!cards.length}
-            onClick={() => void import('../../analyses/report').then((m) => m.exportReport())}
-            title="The log as one HTML file: headings, notes and every result as shown here, in APA-like style"
+            onClick={openReportDialog}
+            title="The session as one document (HTML or Word): the model, its results, every card, the methods text, references and software versions"
           >
             Export report
           </button>
@@ -945,6 +931,7 @@ export function AnalysesWorkspace() {
       </main>
       <Outline cards={cards} ctx={ctx} results={results} readOnly={readOnly} />
       <ReplicationDialog />
+      <ReportDialog />
     </section>
   );
 }

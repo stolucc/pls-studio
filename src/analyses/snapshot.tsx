@@ -13,6 +13,7 @@ import { CB_TABS, CbTab, type CbTabId } from '../components/results/CbTabs';
 import { MIIV_TABS, MiivTab, type MiivTabId } from '../components/results/MiivTabs';
 import { PLS_TABS, PlsTab, type PlsTabId } from '../components/results/PlsTabs';
 import { PROCESS_TABS, ProcessTab, type ProcessTabId } from '../components/results/ProcessTabs';
+import { useReportMode } from '../report/context';
 import { fingerprint } from './codec';
 import { isObj, name } from './common';
 import type { AnalysisType } from './types';
@@ -50,36 +51,66 @@ const tabsOf = (m: SnapshotResult['method']) =>
 export const diagramSrc = (svg: string) =>
   `data:image/svg+xml;base64,${btoa(String.fromCharCode(...new TextEncoder().encode(svg)))}`;
 
-export function SnapshotView({ r }: { r: SnapshotResult }) {
-  const tabs = tabsOf(r.method) as readonly { id: string; label: string }[];
-  const [tab, setTab] = useState(tabs[0].id);
-  const body =
-    r.method === 'pls' && r.pls ? (
+/** The body of one results tab of a snapshot (or model run). */
+function tabBody(r: SnapshotResult, tab: string) {
+  if (r.method === 'pls' && r.pls) {
+    return (
       <PlsTab tab={tab as PlsTabId} pls={r.pls} boot={r.boot ?? null} fitTest={r.fitTest ?? null} />
-    ) : r.method === 'cbsem' && r.cb ? (
-      <CbTab tab={tab as CbTabId} cb={r.cb} boot={r.boot ?? null} />
-    ) : r.method === 'miiv' && r.miiv ? (
-      <MiivTab tab={tab as MiivTabId} miiv={r.miiv} />
-    ) : r.method === 'process' && r.process ? (
+    );
+  }
+  if (r.method === 'cbsem' && r.cb) {
+    return <CbTab tab={tab as CbTabId} cb={r.cb} boot={r.boot ?? null} />;
+  }
+  if (r.method === 'miiv' && r.miiv) {
+    return <MiivTab tab={tab as MiivTabId} miiv={r.miiv} />;
+  }
+  if (r.method === 'process' && r.process) {
+    return (
       <ProcessTab
         tab={tab as ProcessTabId}
         res={r.process}
         title={r.processTitle ?? 'Conditional process model'}
         level={r.level}
       />
-    ) : (
-      <div className="muted">This snapshot has no results.</div>
     );
+  }
+  return null;
+}
+
+/** Results of a snapshot or a model run: its diagram and its tabs (in the report, every tab). */
+export function SnapshotView({ r }: { r: SnapshotResult }) {
+  const tabs = tabsOf(r.method) as readonly { id: string; label: string }[];
+  const [tab, setTab] = useState(tabs[0].id);
+  const report = useReportMode();
+  const empty = <div className="muted">This snapshot has no results.</div>;
+  const diagram = r.diagram && (
+    <img
+      className="snapshot-diagram"
+      src={diagramSrc(r.diagram)}
+      alt="The model’s diagram at the time of the snapshot"
+    />
+  );
+  if (report) {
+    const has = tabBody(r, tabs[0].id) !== null;
+    return (
+      <div className="snapshot">
+        <div className="hint">{r.description}</div>
+        {diagram}
+        {has
+          ? tabs.map((t) => (
+              <section key={t.id}>
+                <h4>{t.label}</h4>
+                {tabBody(r, t.id)}
+              </section>
+            ))
+          : empty}
+      </div>
+    );
+  }
   return (
     <div className="snapshot">
       <div className="hint">{r.description}</div>
-      {r.diagram && (
-        <img
-          className="snapshot-diagram"
-          src={diagramSrc(r.diagram)}
-          alt="The model’s diagram at the time of the snapshot"
-        />
-      )}
+      {diagram}
       <div className="segmented wrap efa-tabs" role="tablist" aria-label="Snapshot results">
         {tabs.map((t) => (
           <button
@@ -93,7 +124,7 @@ export function SnapshotView({ r }: { r: SnapshotResult }) {
           </button>
         ))}
       </div>
-      <div className="results-body">{body}</div>
+      <div className="results-body">{tabBody(r, tab) ?? empty}</div>
     </div>
   );
 }

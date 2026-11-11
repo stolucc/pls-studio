@@ -170,7 +170,7 @@ export function ReplicationDialog() {
             disabled={!!busy}
             onChange={(e) => setReport(e.target.checked)}
           />
-          <span>The HTML report of the Analyses tab</span>
+          <span>The HTML report (model, results, analysis log, methods)</span>
         </label>
         {error && (
           <div className="card-bar bad" role="alert">

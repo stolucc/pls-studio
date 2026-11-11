@@ -1,4 +1,5 @@
 import { openReplication } from './analyses/ReplicationDialog';
+import { openReportDialog } from './analyses/ReportDialog';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import {
   exportCovarianceCsv,
@@ -91,6 +92,7 @@ export function FileMenu() {
           {item('Inspect data', () => useStore.getState().setWorkspace('data'), {
             disabled: !hasData,
           })}
+          {item('Export report (HTML, Word)…', () => openReportDialog())}
           {item('Create replication package…', () => openReplication())}
           <div className="menu-sep" role="separator" />
           {item('Import model syntax (lavaan, Mplus)…', () => void importModelSyntax())}

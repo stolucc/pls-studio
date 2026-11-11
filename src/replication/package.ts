@@ -291,7 +291,7 @@ export async function createPackage(
   return p;
 }
 
-/** The zip for the chosen items; report: include the HTML report (the Analyses tab must be showing). */
+/** The zip for the chosen items; report: include the HTML report (model, results, log, methods). */
 export async function buildPackage(
   chosen: Set<string>,
   opts: { data: boolean | DataSharing; report: boolean },
@@ -382,10 +382,13 @@ export async function buildPackage(
   });
   if (opts.report) {
     progress('Adding the report…');
-    const { buildReport } = await import('../analyses/report');
+    const [{ buildReport }, { reportHtml }] = await Promise.all([
+      import('../report/build'),
+      import('../report/html'),
+    ]);
     files.push({
       path: `${root}/report/report.html`,
-      data: buildReport(useAnalyses.getState().cards, s.projectName),
+      data: reportHtml(await buildReport()),
     });
   }
   progress('Reading the R and package versions…');

@@ -1,5 +1,6 @@
 import { isValidElement, type ReactNode } from 'react';
 import { toLatex } from '../../latex';
+import { registerTable } from '../../report/tableRegistry';
 import { copyText, csvCell, downloadText, fmt, fmtP, safeFileName, stars } from '../../format';
 import type { BootstrapResult, BootstrapStat } from '../../engine/types';
 import { useStore } from '../../store';
@@ -60,6 +61,16 @@ export function Table({
       `LaTeX table saved${ok ? ' and copied' : ''}. It uses the booktabs package (\\usepackage{booktabs}).`,
     );
   };
+  // The report reads the table's values from here (report/tableRegistry.ts).
+  const register = (el: HTMLTableElement | null) => {
+    if (!el) return;
+    registerTable(el, {
+      title,
+      columns,
+      rows: rows.map((r) => r.map((cell) => ({ v: cell.v, d: cell.d, bold: cell.bold }))),
+      note: textOf(note),
+    });
+  };
   return (
     <div>
       <div className="table-tools">
@@ -82,7 +93,7 @@ export function Table({
           <IconDownload size={13} /> LaTeX
         </button>
       </div>
-      <table className="grid">
+      <table className="grid" ref={register}>
         <thead>
           <tr>
             {columns.map((h, i) => (
