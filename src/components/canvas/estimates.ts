@@ -47,16 +47,15 @@ export function diagramEstimates(
     const cb = results.cb;
     // Standardised (std.all) or unstandardised estimates, as chosen on the canvas.
     const ind = new Map(cb.indicators.map((x, k) => [x.name, k]));
+    const shown = (e: { est: number; std: number }) => (unstd ? e.est : e.std);
+    /** The loading (or composite weight) of an indicator on its own construct. */
     const loading = (name: string) => {
       const k = ind.get(name);
-      return k === undefined
-        ? undefined
-        : cb.estimates.find(
-            (e) =>
-              (e.op === '=~' || e.op === '<~') &&
-              e.rhs === name &&
-              e.lhs === cb.constructs[cb.indicators[k].construct],
-          );
+      if (k === undefined) return undefined;
+      const construct = cb.constructs[cb.indicators[k].construct];
+      return cb.estimates.find(
+        (e) => (e.op === '=~' || e.op === '<~') && e.rhs === name && e.lhs === construct,
+      );
     };
     return {
       r2: (name: string) => {
@@ -71,10 +70,12 @@ export function diagramEstimates(
           ? cb.estimates.find((x) => x.op === '=~' && x.lhs === construct && x.rhs === name)
           : undefined;
         if (own && cb.estimates.filter((x) => x.op === '=~' && x.rhs === name).length > 1)
-          return unstd ? own.est : own.std;
+          return shown(own);
         // Composites show their weights (as in PLS), common factors their loadings.
         const e = loading(name);
-        return unstd ? (e?.est ?? null) : e?.op === '<~' ? e.std : cb.stdLoadings[k];
+        if (unstd) return e?.est ?? null;
+        if (e?.op === '<~') return e.std;
+        return cb.stdLoadings[k];
       },
       fixed: (name: string) =>
         loading(name)?.kind === 'fixed-loading' || loading(name)?.kind === 'fixed-weight',
@@ -86,11 +87,11 @@ export function diagramEstimates(
         if (!mo) return null;
         const name = cb.constructs[mo.construct];
         const e = cb.estimates.find((x) => x.op === '~' && x.lhs === to && x.rhs === name);
-        return { beta: e ? (unstd ? e.est : e.std) : null, p: e?.p ?? null };
+        return { beta: e ? shown(e) : null, p: e?.p ?? null };
       },
       path: (from: string, to: string) => {
-        const i = cb.constructs.indexOf(from),
-          j = cb.constructs.indexOf(to);
+        const i = cb.constructs.indexOf(from);
+        const j = cb.constructs.indexOf(to);
         if (i < 0 || j < 0) return { beta: null, p: null };
         const boot = results.boot?.stats.find((s) => s.key === `path:${from}:${to}`)?.p;
         const e = cb.estimates.find((x) => x.op === '~' && x.lhs === to && x.rhs === from);
@@ -101,7 +102,7 @@ export function diagramEstimates(
         const e = cb.estimates.find(
           (x) => (x.kind === 'mean' || x.kind === 'intercept') && x.lhs === name,
         );
-        return e ? { value: unstd ? e.est : e.std, p: e.p } : null;
+        return e ? { value: shown(e), p: e.p } : null;
       },
     };
   }
@@ -151,8 +152,8 @@ export function diagramEstimates(
       },
       reflectiveThresholds: (type: string) => type === 'factor',
       path: (from: string, to: string) => {
-        const i = pls.constructs.indexOf(from),
-          j = pls.constructs.indexOf(to);
+        const i = pls.constructs.indexOf(from);
+        const j = pls.constructs.indexOf(to);
         return {
           beta: i >= 0 && j >= 0 ? pls.pathCoef[i][j] : null,
           p: results.boot?.stats.find((s) => s.key === `path:${from}:${to}`)?.p ?? null,
@@ -163,8 +164,8 @@ export function diagramEstimates(
           (x) => x.from === from && x.moderator === moderator && x.to === to,
         );
         if (!mo) return null;
-        const name = pls.constructs[mo.construct],
-          j = pls.constructs.indexOf(to);
+        const name = pls.constructs[mo.construct];
+        const j = pls.constructs.indexOf(to);
         return {
           beta: pls.pathCoef[mo.construct][j],
           p: results.boot?.stats.find((s) => s.key === `path:${name}:${to}`)?.p ?? null,
@@ -184,8 +185,8 @@ export function diagramEstimates(
             x.to === to,
         );
         if (!t) return null;
-        const name = pls.constructs[t.construct],
-          j = pls.constructs.indexOf(to);
+        const name = pls.constructs[t.construct];
+        const j = pls.constructs.indexOf(to);
         return {
           beta: pls.pathCoef[t.construct][j],
           p: results.boot?.stats.find((s) => s.key === `path:${name}:${to}`)?.p ?? null,
@@ -206,6 +207,7 @@ export function useEstimateLabels(
   unstd: boolean,
 ) {
   const st = useStore.getState;
+  const shown = useCallback((e: { est: number; std: number }) => (unstd ? e.est : e.std), [unstd]);
   const display = useMemo(
     () => diagramEstimates(results, showResults, method, estimator, model.constructs, unstd),
     [showResults, results, method, model.constructs, estimator, unstd],
@@ -222,8 +224,8 @@ export function useEstimateLabels(
     (k: Correlation): CorrelationLabel | null => {
       const nameOf = (id: string) =>
         k.kind === 'construct' ? model.constructs.find((c) => c.id === id)?.name : id;
-      const a = nameOf(k.a),
-        b = nameOf(k.b);
+      const a = nameOf(k.a);
+      const b = nameOf(k.b);
       if (miivVar) {
         const v = miivVar.find(
           (x) =>
@@ -241,9 +243,9 @@ export function useEstimateLabels(
           ((x.lhs === a && x.rhs === b) || (x.lhs === b && x.rhs === a)) &&
           (k.kind === 'indicator' ? x.kind === 'rescov' : x.kind !== 'rescov'),
       );
-      return e ? { value: unstd ? e.est : e.std, p: e.p } : null;
+      return e ? { value: shown(e), p: e.p } : null;
     },
-    [cbEst, miivVar, model.constructs, unstd],
+    [cbEst, miivVar, model.constructs, unstd, shown],
   );
   const errorValue = useCallback(
     (kind: Correlation['kind'], name: string): number | null => {
@@ -261,9 +263,9 @@ export function useEstimateLabels(
           x.op === '~~' &&
           (kind === 'indicator' ? x.kind === 'residual' : x.kind === 'lvcov'),
       );
-      return e ? (unstd ? e.est : e.std) : null;
+      return e ? shown(e) : null;
     },
-    [cbEst, miivVar, unstd],
+    [cbEst, miivVar, unstd, shown],
   );
 
   // The estimate of a mean arrow (CB-SEM results only).
@@ -303,25 +305,18 @@ export function useEstimateLabels(
           (x) => pls.constructs[x.construct] === parent && pls.constructs[x.component] === child,
         );
         if (!h) return null;
-        return {
-          value:
-            model.constructs.find((k) => k.name === parent)?.type === 'composite'
-              ? h.weight
-              : h.loading,
-          fixed: false,
-        };
+        const composite = model.constructs.find((k) => k.name === parent)?.type === 'composite';
+        return { value: composite ? h.weight : h.loading, fixed: false };
       }
       if (method !== 'cbsem') return null;
-      const par = model.constructs.find((k) => k.name === parent),
-        kid = model.constructs.find((k) => k.name === child);
+      const par = model.constructs.find((k) => k.name === parent);
+      const kid = model.constructs.find((k) => k.name === child);
       const held = kid && par?.componentLoadings?.[kid.id];
       const isMarker = par?.components?.[0] === kid?.id && !par?.markerFree;
-      const marker =
-        held !== undefined
-          ? { value: held, fixed: true }
-          : isMarker
-            ? { value: 1, fixed: true }
-            : null;
+      // What the diagram shows before (or without) results: a held loading, or the marker's 1.
+      let marker: HoLabel | null = null;
+      if (held !== undefined) marker = { value: held, fixed: true };
+      else if (isMarker) marker = { value: 1, fixed: true };
       if (!showResults) return marker;
       if (estimator === '2SLS') {
         const m = results?.miiv;
@@ -333,9 +328,9 @@ export function useEstimateLabels(
       const e = results?.cb?.estimates.find(
         (x) => x.op === '=~' && x.lhs === parent && x.rhs === child,
       );
-      return e ? { value: unstd ? e.est : e.std, fixed: e.kind === 'fixed-loading' } : marker;
+      return e ? { value: shown(e), fixed: e.kind === 'fixed-loading' } : marker;
     },
-    [showResults, method, results, estimator, model.constructs, unstd],
+    [showResults, method, results, estimator, model.constructs, unstd, shown],
   );
 
   return { display, correlationLabel, errorValue, meanOf, moderationLabel, hoLoading };

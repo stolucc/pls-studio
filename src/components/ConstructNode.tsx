@@ -23,6 +23,12 @@ const NO_ORDERED: string[] = [];
  * indicators; `unusual` (a common factor in Mode B, a composite in Mode A)
  * is drawn a touch stronger. Other methods: none.
  */
+const MODE_TITLE = {
+  A: 'Mode A: PLS weights from correlations (an estimation choice, not a measurement model)',
+  B: 'Mode B: PLS weights from a multiple regression (an estimation choice, not a measurement model)',
+  unit: 'Sum scores: equal weights on the standardised indicators (an estimation choice, not a measurement model)',
+};
+
 export function modeLabel(
   method: string,
   c: Pick<Construct, 'type' | 'mode' | 'indicators'> & { categorical?: Construct['categorical'] },
@@ -38,12 +44,7 @@ export function modeLabel(
     text: c.mode === 'unit' ? 'Sum scores' : `Mode ${c.mode}`,
     // Mode A / B are PLS weighting algorithms, not measurement models (Henseler 2021): either can
     // estimate a composite; a common factor is estimated consistently with PLSc.
-    title:
-      c.mode === 'A'
-        ? 'Mode A: PLS weights from correlations (an estimation choice, not a measurement model)'
-        : c.mode === 'B'
-          ? 'Mode B: PLS weights from a multiple regression (an estimation choice, not a measurement model)'
-          : 'Sum scores: equal weights on the standardised indicators (an estimation choice, not a measurement model)',
+    title: MODE_TITLE[c.mode] ?? MODE_TITLE.unit,
     unusual: c.type === 'composite' ? c.mode === 'A' : c.mode === 'B',
   };
 }
@@ -134,19 +135,25 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
   const circle = c.circle && !c.covariate && !semplot;
   // (above a name that sits above the circle)
   const modeY = circle && c.side === 'bottom' ? -ry - 20 : -ry - 8;
-  const nameY = circle
-    ? c.side === 'bottom'
-      ? -ry - 6
-      : ry + 17
-    : c.covariate
-      ? 4
-      : (r2 !== null && !amos && figure.showR2) || (c.indicators.length === 0 && !higher)
-        ? -5
-        : 4;
+  // The name's baseline: outside a circle (above or below it), or centred in the shape, raised
+  // when R² is printed under it or the empty shape shows its hint.
+  let nameY = 4;
+  if (circle) nameY = c.side === 'bottom' ? -ry - 6 : ry + 17;
+  else if (!c.covariate) {
+    const r2Below = r2 !== null && !amos && figure.showR2;
+    const emptyHint = c.indicators.length === 0 && !higher;
+    if (r2Below || emptyHint) nameY = -5;
+  }
 
   return (
     <div
-      className={`cnode${selected || picked === true ? ' selected' : ''}${hasError ? ' error' : ''}${dropping ? ' drop' : ''}${tool === 'correlate' ? ' picking' : ''}`}
+      className={[
+        'cnode',
+        selected || picked === true ? ' selected' : '',
+        hasError ? ' error' : '',
+        dropping ? ' drop' : '',
+        tool === 'correlate' ? ' picking' : '',
+      ].join('')}
       style={{ width: bounds.w, height: bounds.h }}
       onDragOver={onDragOver}
       onDragLeave={() => setDropping(false)}
@@ -163,8 +170,12 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
                 : { dx: 0, dy: 0 };
               const value = semplot && label ? Number(label.text) : NaN;
               const edge = semplot ? semplotEdge(Number.isFinite(value) ? value : null) : null;
-              const mx = (ind.ex + ind.ax) / 2 + off.dx,
-                my = (ind.ey + ind.ay) / 2 + off.dy;
+              const mx = (ind.ex + ind.ax) / 2 + off.dx;
+              const my = (ind.ey + ind.ay) / 2 + off.dy;
+              // PLS notation draws a single indicator without an arrowhead.
+              let markerEnd: string | undefined = 'url(#arrow-ind)';
+              if (figure.notation === 'pls' && c.indicators.length === 1) markerEnd = undefined;
+              else if (edge) markerEnd = 'url(#arrow-sp)';
               return (
                 <g
                   key={ind.name}
@@ -177,13 +188,7 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
                     y1={composite ? ind.ay : ind.ey}
                     x2={composite ? ind.ex : ind.ax}
                     y2={composite ? ind.ey : ind.ay}
-                    markerEnd={
-                      figure.notation === 'pls' && c.indicators.length === 1
-                        ? undefined
-                        : edge
-                          ? 'url(#arrow-sp)'
-                          : 'url(#arrow-ind)'
-                    }
+                    markerEnd={markerEnd}
                     style={
                       edge
                         ? {
