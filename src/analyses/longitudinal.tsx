@@ -95,15 +95,15 @@ const estCols = ['Parameter', 'Estimate', 'Std. error', 'z', 'p', 'Standardised'
 
 /** The model-implied mean at each occasion (line) and the observed means (dots). */
 function Trajectory({ r }: { r: GrowthResult }) {
-  const W = 460,
-    H = 240,
-    pad = { l: 56, r: 14, t: 12, b: 40 };
+  const W = 460;
+  const H = 240;
+  const pad = { l: 56, r: 14, t: 12, b: 40 };
   const all = [...r.impliedMeans, ...r.observedMeans];
-  const lo = Math.min(...all),
-    hi = Math.max(...all),
-    span = hi - lo || 1;
-  const t0 = Math.min(...r.times),
-    t1 = Math.max(...r.times);
+  const lo = Math.min(...all);
+  const hi = Math.max(...all);
+  const span = hi - lo || 1;
+  const t0 = Math.min(...r.times);
+  const t1 = Math.max(...r.times);
   const sx = (t: number) => pad.l + ((t - t0) / (t1 - t0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((hi + 0.08 * span - v) / (span * 1.16)) * (H - pad.t - pad.b);
   return (
@@ -176,12 +176,11 @@ function SyntaxGrowthView({ r }: { r: GrowthResult & { input?: { estimator?: str
     '~*~': 'scale',
     ':=': 'defined',
   };
-  const label = (e: LongEstimate) =>
-    e.op === '~1'
-      ? `${e.lhs} (${OPS[e.op]})`
-      : e.op === '~~' && e.lhs === e.rhs
-        ? `${e.lhs} (variance)`
-        : `${e.lhs} ${OPS[e.op] ?? e.op} ${e.rhs}`;
+  const label = (e: LongEstimate) => {
+    if (e.op === '~1') return `${e.lhs} (${OPS[e.op]})`;
+    if (e.op === '~~' && e.lhs === e.rhs) return `${e.lhs} (variance)`;
+    return `${e.lhs} ${OPS[e.op] ?? e.op} ${e.rhs}`;
+  };
   const groups = r.groups?.length ? r.groups : [''];
   return (
     <div className="tables">
@@ -357,18 +356,18 @@ export const bestByBic = (models: GmmModel[]) =>
   models.reduce((a, b) => (b.bic < a.bic ? b : a), models[0]);
 
 function Trajectories({ r, m }: { r: GmmResult; m: GmmModel }) {
-  const W = 480,
-    H = 260,
-    pad = { l: 56, r: 14, t: 12, b: 40 };
+  const W = 480;
+  const H = 260;
+  const pad = { l: 56, r: 14, t: 12, b: 40 };
   const all = [
     ...m.trajectories.flat(),
     ...(m.observed ?? []).flat().filter((v): v is number => v !== null),
   ];
-  const lo = Math.min(...all),
-    hi = Math.max(...all),
-    span = hi - lo || 1;
-  const t0 = r.times[0],
-    t1 = r.times[r.times.length - 1];
+  const lo = Math.min(...all);
+  const hi = Math.max(...all);
+  const span = hi - lo || 1;
+  const t0 = r.times[0];
+  const t1 = r.times[r.times.length - 1];
   const sx = (t: number) => pad.l + ((t - t0) / (t1 - t0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((hi + 0.08 * span - v) / (span * 1.16)) * (H - pad.t - pad.b);
   return (
@@ -991,10 +990,14 @@ export const growthAnalysis: AnalysisType<GrowthOptions, WithInput<GrowthResult,
   },
   script: async (o, ctx) =>
     (await import('../rengine/longitudinal')).growthScriptR(rawData(ctx)!, growthInput(o, ctx)),
-  summary: (o) =>
-    o.syntax?.trim()
-      ? `written as lavaan syntax${o.group ? ` · groups by ${o.group}` : ''}`
-      : `${o.measures.length} occasions · ${o.shape === 'basis' ? 'latent basis' : o.shape}${o.covariates.length ? ` · ${o.covariates.length} covariates` : ''}${o.timeVarying.length ? ' · time-varying' : ''}`,
+  summary: (o) => {
+    if (o.syntax?.trim())
+      return `written as lavaan syntax${o.group ? ` · groups by ${o.group}` : ''}`;
+    const shape = o.shape === 'basis' ? 'latent basis' : o.shape;
+    const covariates = o.covariates.length ? ` · ${o.covariates.length} covariates` : '';
+    const timeVarying = o.timeVarying.length ? ' · time-varying' : '';
+    return `${o.measures.length} occasions · ${shape}${covariates}${timeVarying}`;
+  },
 };
 
 export const riclpmAnalysis: AnalysisType<RiclpmOptions, WithInput<RiclpmResult, RiclpmInput>> = {
@@ -1091,6 +1094,12 @@ export const gmmAnalysis: AnalysisType<GmmOptions, GmmResult> = {
     (await import('../rengine/mixed')).gmmR(rawData(ctx)!, gmmInput(o, ctx.settings.seed)),
   script: async (o, ctx) =>
     (await import('../rengine/mixed')).gmmScriptR(rawData(ctx)!, gmmInput(o, ctx.settings.seed)),
-  summary: (o) =>
-    `${o.format === 'wide' ? `${o.measures.length} occasions` : `${o.outcome || '…'} by ${o.time || '…'}`} · 1–${o.to} classes · ${o.random === 'none' ? 'LCGA' : `random ${o.random}`}`,
+  summary: (o) => {
+    const data =
+      o.format === 'wide'
+        ? `${o.measures.length} occasions`
+        : `${o.outcome || '…'} by ${o.time || '…'}`;
+    const model = o.random === 'none' ? 'LCGA' : `random ${o.random}`;
+    return `${data} · 1–${o.to} classes · ${model}`;
+  },
 };

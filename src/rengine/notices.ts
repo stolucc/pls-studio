@@ -2,6 +2,8 @@
 // the call (some panels show their own warnings only inline, or none). The
 // store registers the sink; the bridge reports each result's warnings to it.
 
+import { rList } from './rjson';
+
 export type WarningSink = (warnings: string[], source: string, level?: 'warning' | 'info') => void;
 
 let sink: WarningSink | null = null;
@@ -10,9 +12,7 @@ export function setWarningSink(f: WarningSink | null) {
 }
 
 const strings = (v: unknown) =>
-  (Array.isArray(v) ? v : v == null ? [] : [v]).filter(
-    (w): w is string => typeof w === 'string' && w.trim() !== '',
-  );
+  rList<unknown>(v).filter((w): w is string => typeof w === 'string' && w.trim() !== '');
 
 /** Report the warnings of an R result (its `warnings`, one string or a list) and its notes (`notes`, as information). */
 export function reportRWarnings(result: unknown, pkg: string) {
@@ -22,8 +22,8 @@ export function reportRWarnings(result: unknown, pkg: string) {
     notes?: unknown;
     engine?: { package?: unknown; version?: unknown };
   };
-  const warnings = strings(r.warnings),
-    notes = strings(r.notes);
+  const warnings = strings(r.warnings);
+  const notes = strings(r.notes);
   if (!warnings.length && !notes.length) return;
   const source =
     typeof r.engine?.package === 'string'

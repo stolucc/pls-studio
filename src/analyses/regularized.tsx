@@ -63,7 +63,8 @@ const deltasOf = (v: unknown, penalty: Penalty): Delta[] => {
     parseDeltas(
       v
         .slice(0, 10)
-        .map((x) => (x === 'Inf' ? 'Inf' : typeof x === 'number' ? String(x) : 'x'))
+        // Anything but a number or Inf becomes 'x', which parseDeltas rejects.
+        .map((x) => (x === 'Inf' || typeof x === 'number' ? String(x) : 'x'))
         .join(','),
       penalty,
     ) ?? DEFAULT_DELTA[penalty]
@@ -84,16 +85,16 @@ function PathChart({ r }: { r: RegsemResult }) {
     .filter((l) => l.delta === r.selected.delta && l.converged)
     .sort((a, b) => a.lambda - b.lambda);
   if (levels.length < 2) return null;
-  const W = 560,
-    H = 300,
-    pad = { l: 54, r: 12, t: 12, b: 38 };
-  const xs = levels.map((l) => l.lambda),
-    lo = Math.min(...xs),
-    hi = Math.max(...xs);
+  const W = 560;
+  const H = 300;
+  const pad = { l: 54, r: 12, t: 12, b: 38 };
+  const xs = levels.map((l) => l.lambda);
+  const lo = Math.min(...xs);
+  const hi = Math.max(...xs);
   const vals = levels.flatMap((l) => l.values.filter((v): v is number => v !== null));
-  const ymin = Math.min(0, ...vals),
-    ymax = Math.max(0, ...vals),
-    span = ymax - ymin || 1;
+  const ymin = Math.min(0, ...vals);
+  const ymax = Math.max(0, ...vals);
+  const span = ymax - ymin || 1;
   const sx = (x: number) => pad.l + ((x - lo) / (hi - lo || 1)) * (W - pad.l - pad.r);
   const sy = (y: number) => pad.t + (1 - (y - ymin) / span) * (H - pad.t - pad.b);
   const sel = levels.findIndex((l) => Math.abs(l.lambda - r.selected.lambda) < 1e-12);
@@ -203,6 +204,18 @@ function RegsemView({ r }: { r: RegsemResult }) {
     ]);
   const fi = r.fitIndex;
   const penaltyName = PENALTIES.find(([k]) => k === r.method)![1];
+  let deltaMeaning = '';
+  if (r.method === 'enet') deltaMeaning = ', δ the lasso’s share';
+  else if (r.method === 'mcp') deltaMeaning = ', δ the convexity';
+  const lambdas = new Set(r.path.map((l) => l.lambda)).size;
+  const deltas =
+    r.method === 'enet' || r.method === 'mcp'
+      ? ` × ${new Set(r.path.map((l) => l.delta)).size} δ`
+      : '';
+  const failed = r.path.filter((l) => !l.converged).length;
+  const failedNote = failed
+    ? ` ${failed} level(s) did not converge and are left out of the path.`
+    : '';
   return (
     <>
       <div className="tables">
@@ -237,7 +250,7 @@ function RegsemView({ r }: { r: RegsemResult }) {
               c(fi.srmr ?? null, undefined, 3),
             ],
           ]}
-          note={`lslx ${r.engine.version} (Huang, Chen & Weng 2017): the model fitted by penalised maximum likelihood (${penaltyName.toLowerCase()}${r.method === 'enet' ? ', δ the lasso’s share' : r.method === 'mcp' ? ', δ the convexity' : ''}) at ${new Set(r.path.map((l) => l.lambda)).size} penalty levels${r.method === 'enet' || r.method === 'mcp' ? ` × ${new Set(r.path.map((l) => l.delta)).size} δ` : ''}; the level with the smallest ${C} (lslx’s, per observation) is chosen. χ² is the likelihood-ratio test of the selected model, its df counting only the non-zero coefficients. N = ${r.n}.${r.path.some((l) => !l.converged) ? ` ${r.path.filter((l) => !l.converged).length} level(s) did not converge and are left out of the path.` : ''}`}
+          note={`lslx ${r.engine.version} (Huang, Chen & Weng 2017): the model fitted by penalised maximum likelihood (${penaltyName.toLowerCase()}${deltaMeaning}) at ${lambdas} penalty levels${deltas}; the level with the smallest ${C} (lslx’s, per observation) is chosen. χ² is the likelihood-ratio test of the selected model, its df counting only the non-zero coefficients. N = ${r.n}.${failedNote}`}
         />
         <Table
           title="Penalised parameters at the selected level"
@@ -272,6 +285,12 @@ function Options({
   const [text, setText] = useState(deltasText(o.deltas));
   useEffect(() => setText(deltasText(o.deltas)), [o.deltas]);
   const deltaOk = parseDeltas(text, o.penalty) !== null;
+  let deltaHint = 'One or more values, separated by commas; each is tried.';
+  if (!deltaOk)
+    deltaHint =
+      o.penalty === 'enet'
+        ? 'Values between 0 and 1, separated by commas.'
+        : 'Values above 1 or Inf, separated by commas.';
   return (
     <fieldset className="card-options" disabled={disabled}>
       <p className="hint" style={{ marginTop: 0 }}>
@@ -324,13 +343,7 @@ function Options({
               if (d) set({ ...o, deltas: d });
             }}
           />
-          <div className="hint">
-            {deltaOk
-              ? 'One or more values, separated by commas; each is tried.'
-              : o.penalty === 'enet'
-                ? 'Values between 0 and 1, separated by commas.'
-                : 'Values above 1 or Inf, separated by commas.'}
-          </div>
+          <div className="hint">{deltaHint}</div>
         </div>
       )}
       <Choice

@@ -117,6 +117,11 @@ export const LAVAAN_FIT: Record<string, keyof CbFit> = {
 };
 
 const num = (v: unknown) => (typeof v === 'number' ? v : NaN);
+/** A list of R objects, or one unboxed object, as an array; none for a missing (or empty) value. */
+const objectList = (v: any): any[] => {
+  if (Array.isArray(v)) return v;
+  return v ? [v] : [];
+};
 const mat = (m: unknown) => ((m ?? []) as (number | null)[][]).map((r) => r.map(num));
 
 export interface REngineInfo {
@@ -145,9 +150,9 @@ function parseTech4(t: Record<string, any>): NonNullable<CbResultR['tech4']> {
 /** SAMPSTAT from R: the correlation matrix (a single indicator arrives unboxed) and the thresholds, column-wise. */
 function parseSampleCor(s: Record<string, any>): NonNullable<CbResultR['sampleCor']> {
   const th = s.thresholds ?? {};
-  const v = rList<unknown>(th.variable).map(String),
-    idx = rList<unknown>(th.index).map(num),
-    val = rList<unknown>(th.value).map(num);
+  const v = rList<unknown>(th.variable).map(String);
+  const idx = rList<unknown>(th.index).map(num);
+  const val = rList<unknown>(th.value).map(num);
   return {
     names: rStrings(s.names),
     ordinal: rList<unknown>(s.ordinal).map((x) => x === true),
@@ -158,8 +163,8 @@ function parseSampleCor(s: Record<string, any>): NonNullable<CbResultR['sampleCo
 
 /** TECH10 from R: columns, one entry per pair of ordinal indicators. */
 function parseTech10(t: Record<string, any>): NonNullable<CbResultR['tech10']> {
-  const lhs = rList<unknown>(t.lhs).map(String),
-    rhs = rList<unknown>(t.rhs).map(String);
+  const lhs = rList<unknown>(t.lhs).map(String);
+  const rhs = rList<unknown>(t.rhs).map(String);
   const col = (k: string) => rList<unknown>(t[k]).map(num);
   const [df, x2, x2p, g2, g2p] = ['df', 'x2', 'x2p', 'g2', 'g2p'].map(col);
   return lhs.map((a, i) => ({
@@ -249,14 +254,12 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
             ecv: num(x.ecv),
             omega: num(x.omega),
             omegaH: num(x.omegaH),
-            specific: (Array.isArray(x.specific) ? x.specific : x.specific ? [x.specific] : []).map(
-              (s: any) => ({
-                factor: String(s.factor),
-                omega: num(s.omega),
-                omegaHS: num(s.omegaHS),
-                items: num(s.items),
-              }),
-            ),
+            specific: objectList(x.specific).map((s: any) => ({
+              factor: String(s.factor),
+              omega: num(s.omega),
+              omegaHS: num(s.omegaHS),
+              items: num(s.items),
+            })),
           })),
         }
       : {}),
@@ -310,7 +313,7 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
       sepc: num(m.sepc),
       ...(m.group ? { group: String(m.group) } : {}),
     })),
-    wald: (Array.isArray(raw.wald) ? raw.wald : raw.wald ? [raw.wald] : []).map((w: any) => ({
+    wald: objectList(raw.wald).map((w: any) => ({
       name: String(w.name),
       stat: num(w.stat),
       df: num(w.df),
@@ -342,16 +345,13 @@ const cbPackage = (
   interaction: LatentInteraction,
   missing: MissingTreatment,
   estimator: CbEstimator,
-) =>
-  usesModsem(spec, interaction)
-    ? 'modsem'
-    : missing === 'mi'
-      ? 'lavaan.mi'
-      : estimator === 'RML'
-        ? 'rsem'
-        : spec.esem?.invariant
-          ? 'lavaanRotate'
-          : 'lavaan';
+) => {
+  if (usesModsem(spec, interaction)) return 'modsem';
+  if (missing === 'mi') return 'lavaan.mi';
+  if (estimator === 'RML') return 'rsem';
+  if (spec.esem?.invariant) return 'lavaanRotate';
+  return 'lavaan';
+};
 
 /** Estimate a CB-SEM model with lavaan (latent interactions by LMS / QML: modsem). */
 export async function estimateCbLavaan(
@@ -490,7 +490,7 @@ export async function cbScoresR(
     },
     'lavaan',
   );
-  const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
+  const arr = rList;
   const cols = (v: unknown) => arr<unknown>(v).map((c) => arr<number>(c));
   return {
     method: raw.method,
@@ -518,8 +518,8 @@ export function scoreColumns(
   const n = data.cols[0]?.length ?? 0;
   const out = { ...data, names: [...data.names], cols: [...data.cols] };
   names.forEach((name, j) => {
-    let col = `${name.replace(/[^A-Za-z0-9_.]+/g, '_')}${suffix}`,
-      k = 2;
+    let col = `${name.replace(/[^A-Za-z0-9_.]+/g, '_')}${suffix}`;
+    let k = 2;
     const base = col;
     while (out.names.includes(col)) col = `${base}_${k++}`;
     const v = new Float64Array(n).fill(NaN);

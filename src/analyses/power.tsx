@@ -146,6 +146,15 @@ function PowerForm({ options: o, set, ctx, disabled }: OptionsProps<PowerOptions
       ? [o.param, ...params]
       : params;
   const s = (p: Partial<PowerOptions>) => set({ ...o, ...p });
+  const modelDfHint = () => {
+    const df = ctx.cb ? ` (${ctx.cb.fit.df})` : ' (calculated when you run)';
+    // GFI and AGFI also depend on the number of observed variables.
+    const vars =
+      o.measure === 'GFI' || o.measure === 'AGFI'
+        ? `, and its ${modelVars(ctx)} observed variables`
+        : '';
+    return `The df of the CB-SEM model on the canvas${df}${vars}.`;
+  };
   return (
     <fieldset className="card-options" disabled={disabled}>
       <p className="hint" style={{ marginTop: 0 }}>
@@ -198,11 +207,7 @@ function PowerForm({ options: o, set, ctx, disabled }: OptionsProps<PowerOptions
               ['manual', 'Enter'],
             ]}
             onChange={(dfSource) => s({ dfSource })}
-            hint={
-              o.dfSource === 'model'
-                ? `The df of the CB-SEM model on the canvas${ctx.cb ? ` (${ctx.cb.fit.df})` : ' (calculated when you run)'}${o.measure === 'GFI' || o.measure === 'AGFI' ? `, and its ${modelVars(ctx)} observed variables` : ''}.`
-                : undefined
-            }
+            hint={o.dfSource === 'model' ? modelDfHint() : undefined}
           />
           {o.dfSource === 'manual' && (
             <div className="row2">
@@ -358,15 +363,18 @@ function PowerView({ r, o }: { r: PowerResult; o: PowerOptions }) {
   const eng = `semPower ${r.engine.version}${r.engine.desktop ? ` in desktop ${r.engine.desktop}` : ''}.`;
   if (r.analysis === 'equivalence') {
     const cut = r.cutoffs ?? [];
+    // The RMSEA range of the i-th band: up to the first cutoff, between two, or beyond the last.
+    const range = (i: number) => {
+      if (i === 0) return `≤ ${fmt(cut[0], 3)}`;
+      if (i === 4) return `> ${fmt(cut[3], 3)}`;
+      return `${fmt(cut[i - 1], 3)} – ${fmt(cut[i], 3)}`;
+    };
+    let verdictClass = 'warn';
+    if (r.verdict === 'excellent' || r.verdict === 'close') verdictClass = 'good';
+    else if (r.verdict === 'poor') verdictClass = 'bad';
     const bands: Row[] = BANDS.map((b, i) => [
       c(b, r.verdict === b.toLowerCase() ? 'good' : ''),
-      c(
-        i === 0
-          ? `≤ ${fmt(cut[0], 3)}`
-          : i === 4
-            ? `> ${fmt(cut[3], 3)}`
-            : `${fmt(cut[i - 1], 3)} – ${fmt(cut[i], 3)}`,
-      ),
+      c(range(i)),
       c(CONVENTIONAL[i], 'dim'),
     ]);
     return (
@@ -382,14 +390,7 @@ function PowerView({ r, o }: { r: PowerResult; o: PowerOptions }) {
               c(r.n ?? null, undefined, 0),
               c(r.rmsea ?? null),
               c(r.rmseaT ?? null, undefined, 3),
-              c(
-                r.verdict ?? '',
-                r.verdict === 'excellent' || r.verdict === 'close'
-                  ? 'good'
-                  : r.verdict === 'poor'
-                    ? 'bad'
-                    : 'warn',
-              ),
+              c(r.verdict ?? '', verdictClass),
             ],
           ]}
           note={`Equivalence testing (Yuan, Chan, Marcoulides & Bentler 2016): the null hypothesis is a misfit at least as large as a cutoff, rejected when the T-size RMSEA is below it. The T-size RMSEA is the noncentrality at which χ² would be the 5% quantile of the noncentral χ² (λ = ${fmt(r.ncpT ?? 0, 3)}), scaled as √(λ / (df·N)): the smallest misfit the data can rule out at α = .05, equal to the upper limit of the 90% RMSEA interval. RMSEA as lavaan, √(max(0, χ² − df) / (df·N)).${o.equivSource === 'model' ? ' χ²: the ML statistic of the CB-SEM model on the canvas.' : ''}`}
@@ -446,14 +447,26 @@ function PowerView({ r, o }: { r: PowerResult; o: PowerOptions }) {
       </div>
     );
   }
-  const measure = o.measure,
-    df = r.df;
-  const head =
-    r.analysis === 'apriori'
-      ? `N needed: ${r.n} (power ${fmt(r.power ?? 0, 3)})`
-      : r.analysis === 'posthoc'
-        ? `Power at N = ${r.n}: ${fmt(r.power ?? 0, 3)}`
-        : `Critical χ²: ${fmt(r.chiCrit ?? 0, 3)} (α = β = ${fmt(r.alpha ?? 0, 4)})`;
+  const measure = o.measure;
+  const df = r.df;
+  let head: string;
+  let what: string;
+  let fn: string;
+  if (r.analysis === 'apriori') {
+    head = `N needed: ${r.n} (power ${fmt(r.power ?? 0, 3)})`;
+    what =
+      'The smallest N at which the χ² test of fit rejects a model with this misfit with the power asked for';
+    fn = 'aPriori';
+  } else if (r.analysis === 'posthoc') {
+    head = `Power at N = ${r.n}: ${fmt(r.power ?? 0, 3)}`;
+    what = 'The power of the χ² test of fit at this N against a model with this misfit';
+    fn = 'postHoc';
+  } else {
+    head = `Critical χ²: ${fmt(r.chiCrit ?? 0, 3)} (α = β = ${fmt(r.alpha ?? 0, 4)})`;
+    what = 'The critical χ² at which α and β stand in the ratio asked for, at this N';
+    fn = 'compromise';
+  }
+  const dfNote = o.dfSource === 'model' ? ' df: the CB-SEM model on the canvas.' : '';
   return (
     <div className="tables">
       <Table
@@ -485,7 +498,7 @@ function PowerView({ r, o }: { r: PowerResult; o: PowerOptions }) {
               ? pCell(v)
               : c(v as number | string, undefined, k === 'df' || k === 'N' ? 0 : 4),
           ])}
-        note={`${r.analysis === 'apriori' ? 'The smallest N at which the χ² test of fit rejects a model with this misfit with the power asked for' : r.analysis === 'posthoc' ? 'The power of the χ² test of fit at this N against a model with this misfit' : 'The critical χ² at which α and β stand in the ratio asked for, at this N'} (semPower.${r.analysis === 'apriori' ? 'aPriori' : r.analysis === 'posthoc' ? 'postHoc' : 'compromise'}; Moshagen & Erdfelder 2016). The misfit converts to F0, and the noncentrality is (N − 1)·F0; the other indices are its equivalents.${o.dfSource === 'model' ? ' df: the CB-SEM model on the canvas.' : ''} ${eng}`}
+        note={`${what} (semPower.${fn}; Moshagen & Erdfelder 2016). The misfit converts to F0, and the noncentrality is (N − 1)·F0; the other indices are its equivalents.${dfNote} ${eng}`}
       />
       {r.curve && <PowerCurve r={r} title={`${measure} = ${fmt(o.effect, 4)}, df = ${df}`} />}
     </div>
@@ -526,8 +539,8 @@ export const powerAnalysis: AnalysisType<PowerOptions, PowerResult> = {
     if (!isObj(raw)) return null;
     const measure = oneOf(raw.measure, MEASURES, 'RMSEA');
     const pr = isObj(raw.param) ? raw.param : null;
-    const lhs = pr ? name(pr.lhs) : '',
-      rhs = pr ? name(pr.rhs) : '';
+    const lhs = pr ? name(pr.lhs) : '';
+    const rhs = pr ? name(pr.rhs) : '';
     return {
       analysis: oneOf(
         raw.analysis,
@@ -565,16 +578,7 @@ export const powerAnalysis: AnalysisType<PowerOptions, PowerResult> = {
   blocked: (o, ctx) => {
     if (o.analysis === 'parameter' && !o.param)
       return 'Choose the parameter (calculate the CB-SEM model first to list them).';
-    if (usesModel(o))
-      return cbModelBlocked(
-        ctx,
-        o.analysis === 'parameter'
-          ? 'Power for a parameter'
-          : o.analysis === 'equivalence'
-            ? 'The RMSEA equivalence test of the model'
-            : 'The model’s df',
-        false,
-      );
+    if (usesModel(o)) return cbModelBlocked(ctx, modelUse(o.analysis), false);
     return null;
   },
   fingerprint: (o, ctx) =>
@@ -587,13 +591,29 @@ export const powerAnalysis: AnalysisType<PowerOptions, PowerResult> = {
     (await import('../rengine/power')).powerR(powerInput(o, ctx), modelOf(o, ctx)),
   script: async (o, ctx) =>
     (await import('../rengine/power')).powerScriptR(powerInput(o, ctx), modelOf(o, ctx)),
-  summary: (o) =>
-    o.analysis === 'parameter'
-      ? `${o.param ? paramName(o.param) : 'no parameter'} · ${o.paramType === 'apriori' ? `power ${o.power}` : `N ${o.n}`}`
-      : o.analysis === 'equivalence'
-        ? `RMSEA equivalence test · ${o.equivSource === 'model' ? 'the canvas model' : `χ² ${o.chisq}, df ${o.edf}, N ${o.en}`}`
-        : `${ANALYSES.find(([a]) => a === o.analysis)![1]} · ${o.measure} ${o.effect} · df ${o.dfSource === 'model' ? 'of the model' : o.df}`,
+  summary: (o) => {
+    if (o.analysis === 'parameter') {
+      const param = o.param ? paramName(o.param) : 'no parameter';
+      const target = o.paramType === 'apriori' ? `power ${o.power}` : `N ${o.n}`;
+      return `${param} · ${target}`;
+    }
+    if (o.analysis === 'equivalence') {
+      const source =
+        o.equivSource === 'model' ? 'the canvas model' : `χ² ${o.chisq}, df ${o.edf}, N ${o.en}`;
+      return `RMSEA equivalence test · ${source}`;
+    }
+    const analysisName = ANALYSES.find(([a]) => a === o.analysis)![1];
+    const df = o.dfSource === 'model' ? 'of the model' : o.df;
+    return `${analysisName} · ${o.measure} ${o.effect} · df ${df}`;
+  },
 };
+
+/** What the canvas model is needed for, for the message when it cannot be used. */
+function modelUse(analysis: PowerOptions['analysis']) {
+  if (analysis === 'parameter') return 'Power for a parameter';
+  if (analysis === 'equivalence') return 'The RMSEA equivalence test of the model';
+  return 'The model’s df';
+}
 
 const modelOf = (o: PowerOptions, ctx: AnalysisCtx) =>
   o.analysis === 'parameter' || (o.analysis === 'equivalence' && o.equivSource === 'model')

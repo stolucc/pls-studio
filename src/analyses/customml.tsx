@@ -116,10 +116,17 @@ function Area({
   );
 }
 
+/** How many outcomes a model takes: one for nominal, two for the bivariate probit, else up to 10. */
+function maxOutcomes(type: CustomMlOptions['type']) {
+  if (type === 'nominal') return 1;
+  if (type === 'probit') return 2;
+  return 10;
+}
+
 function CustomMlForm({ options: o, set, ctx, disabled }: OptionsProps<CustomMlOptions>) {
   const columns = rawData(ctx)?.names ?? [];
-  const p = o.outcomes.length,
-    pairs = pairsOf(p);
+  const p = o.outcomes.length;
+  const pairs = pairsOf(p);
   const shape = (x: CustomMlOptions): CustomMlOptions => ({
     ...x,
     means: fit(x.means, x.outcomes.length),
@@ -142,12 +149,11 @@ function CustomMlForm({ options: o, set, ctx, disabled }: OptionsProps<CustomMlO
             shape({
               ...o,
               type,
+              // (the other models keep the outcomes chosen)
               outcomes:
-                type === 'nominal'
-                  ? o.outcomes.slice(0, 1)
-                  : type === 'probit'
-                    ? o.outcomes.slice(0, 2)
-                    : o.outcomes,
+                type === 'nominal' || type === 'probit'
+                  ? o.outcomes.slice(0, maxOutcomes(type))
+                  : o.outcomes,
             }),
           )
         }
@@ -161,13 +167,12 @@ function CustomMlForm({ options: o, set, ctx, disabled }: OptionsProps<CustomMlO
               key={n}
               className={o.outcomes.includes(n) ? 'on' : ''}
               onClick={() => {
-                const has = o.outcomes.includes(n),
-                  max = o.type === 'nominal' ? 1 : o.type === 'probit' ? 2 : 10;
-                const outcomes = has
-                  ? o.outcomes.filter((x) => x !== n)
-                  : max === 1
-                    ? [n]
-                    : [...o.outcomes, n].slice(0, max);
+                const max = maxOutcomes(o.type);
+                // Clicking a chosen outcome drops it; with room for one only, a new one replaces it.
+                let outcomes: string[];
+                if (o.outcomes.includes(n)) outcomes = o.outcomes.filter((x) => x !== n);
+                else if (max === 1) outcomes = [n];
+                else outcomes = [...o.outcomes, n].slice(0, max);
                 set(shape({ ...o, outcomes }));
               }}
             >
@@ -265,6 +270,16 @@ function CustomMlForm({ options: o, set, ctx, disabled }: OptionsProps<CustomMlO
   );
 }
 
+/** Where the standard errors come from (a clause continuing the sentence). */
+function standardErrorsNote(r: CustomMlResult): string {
+  if (r.se === 'robust') return '; sandwich standard errors from the cases’ scores (Mplus MLR)';
+  if (r.se === 'mplus') {
+    const scaling = r.scaling != null ? `; scaling correction factor ${fmt(r.scaling, 4)}` : '';
+    return `; sandwich standard errors with Mplus’s information for parameters under MODEL CONSTRAINT (the observed information plus once more the term of the parts’ curvature, as Mplus’s MLR)${scaling}`;
+  }
+  return '; standard errors from the observed information';
+}
+
 function CustomMlView({ result: r }: { result: CustomMlResult }) {
   const row = (n: string, est: number | null, se: number | null, extra = '') => [
     c(n),
@@ -293,13 +308,8 @@ function CustomMlView({ result: r }: { result: CustomMlResult }) {
         ))}
       </div>
       <p className="hint" style={{ marginTop: 0 }}>
-        Maximum likelihood ({r.engine.package} {r.engine.version})
-        {r.se === 'robust'
-          ? '; sandwich standard errors from the cases’ scores (Mplus MLR)'
-          : r.se === 'mplus'
-            ? `; sandwich standard errors with Mplus’s information for parameters under MODEL CONSTRAINT (the observed information plus once more the term of the parts’ curvature, as Mplus’s MLR)${r.scaling != null ? `; scaling correction factor ${fmt(r.scaling, 4)}` : ''}`
-            : '; standard errors from the observed information'}
-        .{r.categories ? ` Categories ${r.categories.join(', ')}: the last is the reference.` : ''}
+        Maximum likelihood ({r.engine.package} {r.engine.version}){standardErrorsNote(r)}.
+        {r.categories ? ` Categories ${r.categories.join(', ')}: the last is the reference.` : ''}
         {r.converged ? '' : ' The optimiser did not report convergence.'}
       </p>
       <Table
@@ -437,10 +447,14 @@ export const customMlAnalysis: AnalysisType<CustomMlOptions, CustomMlResult> = {
   },
   run: async (o, ctx) => (await import('../rengine/customml')).customMlR(rawData(ctx)!, o),
   script: async (o, ctx) => (await import('../rengine/customml')).customMlScriptR(rawData(ctx)!, o),
-  summary: (o) =>
-    o.outcomes.length
-      ? `${o.type} · ${o.outcomes.join(', ')} · ${o.parameters.length} parameter${o.parameters.length === 1 ? '' : 's'}${o.se === 'robust' ? ' · MLR' : o.se === 'mplus' ? ' · MLR (Mplus)' : ''}`
-      : 'not set up yet',
+  summary: (o) => {
+    if (!o.outcomes.length) return 'not set up yet';
+    const plural = o.parameters.length === 1 ? '' : 's';
+    let se = '';
+    if (o.se === 'robust') se = ' · MLR';
+    else if (o.se === 'mplus') se = ' · MLR (Mplus)';
+    return `${o.type} · ${o.outcomes.join(', ')} · ${o.parameters.length} parameter${plural}${se}`;
+  },
 };
 
 // Bayesian multivariate regression with flat priors: the exact posterior (R/customml.R, ps_bmvreg).

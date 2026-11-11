@@ -136,9 +136,9 @@ export function littleText(l: LittleMcar): string {
 }
 
 function McarTables({ r }: { r: MissingDataResult }) {
-  const l = r.little,
-    j: JamJal | undefined = r.jamjal,
-    v = r.variables;
+  const l = r.little;
+  const j: JamJal | undefined = r.jamjal;
+  const v = r.variables;
   return (
     <>
       {l && (
@@ -202,6 +202,14 @@ function McarTables({ r }: { r: MissingDataResult }) {
         ))}
     </>
   );
+}
+
+/** The H1 log-likelihood, or why there is none. */
+function loglikNote(em: { loglik: number | null; singular: boolean }) {
+  if (em.loglik !== null) return `H1 log-likelihood ${fmt(em.loglik, 3)}.`;
+  if (em.singular)
+    return 'The covariance matrix is (near) singular, e.g. with variables that are functions of the missingness: the likelihood has no finite maximum, and no log-likelihood is shown.';
+  return '';
 }
 
 function MissingDataView({ result: r }: { result: MissingDataResult }) {
@@ -274,7 +282,7 @@ function MissingDataView({ result: r }: { result: MissingDataResult }) {
               file="missing-em-means"
               columns={['Variable', 'Mean']}
               rows={v.map((x, i) => [c(x), c(r.em.means[i])])}
-              note={`The unrestricted (H1) model by FIML (lavaan’s EM). ${r.em.loglik !== null ? `H1 log-likelihood ${fmt(r.em.loglik, 3)}.` : r.em.singular ? 'The covariance matrix is (near) singular, e.g. with variables that are functions of the missingness: the likelihood has no finite maximum, and no log-likelihood is shown.' : ''}`}
+              note={`The unrestricted (H1) model by FIML (lavaan’s EM). ${loglikNote(r.em)}`}
             />
             <Table
               title="EM estimates: covariances"
@@ -394,6 +402,11 @@ export const missingDataAnalysis: AnalysisType<MissingDataOptions, MissingDataRe
       ...o,
       seed: ctx.settings.seed,
     }),
-  summary: (o) =>
-    `${o.vars.length} variable${o.vars.length === 1 ? '' : 's'}${o.mcar ? ' · Little’s test' : ''}${o.jamjal ? ' · Jamshidian & Jalal' : ''}${o.measures.length ? ` · dropout over ${o.measures.length} occasions` : ''}`,
+  summary: (o) => {
+    const plural = o.vars.length === 1 ? '' : 's';
+    const little = o.mcar ? ' · Little’s test' : '';
+    const jamjal = o.jamjal ? ' · Jamshidian & Jalal' : '';
+    const dropout = o.measures.length ? ` · dropout over ${o.measures.length} occasions` : '';
+    return `${o.vars.length} variable${plural}${little}${jamjal}${dropout}`;
+  },
 };

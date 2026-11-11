@@ -29,7 +29,9 @@ export const levelText = (v: LevelFactors[]) => v.map(String).join(' ');
 export function readLevels(s: string): LevelFactors[] {
   const out: LevelFactors[] = [];
   for (const t of s.split(/[\s,]+/).filter(Boolean)) {
-    const v: LevelFactors | null = /^u$/i.test(t) ? 'U' : /^[1-6]$/.test(t) ? Number(t) : null;
+    let v: LevelFactors | null = null;
+    if (/^u$/i.test(t)) v = 'U';
+    else if (/^[1-6]$/.test(t)) v = Number(t);
     if (v !== null && !out.includes(v)) out.push(v);
   }
   return out;

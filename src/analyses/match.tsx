@@ -74,9 +74,9 @@ const METHODS: { id: MatchMethod; label: string; hint: string }[] = [
 /** Love plot: absolute standardised mean differences before and after matching. */
 function LovePlot({ b }: { b: MatchResult['balance'] }) {
   const rows = b.filter((x) => Number.isFinite(x.diffBefore));
-  const W = 460,
-    rowH = 20,
-    pad = { l: 150, r: 16, t: 12, b: 40 };
+  const W = 460;
+  const rowH = 20;
+  const pad = { l: 150, r: 16, t: 12, b: 40 };
   const H = pad.t + pad.b + rows.length * rowH;
   const max = Math.max(
     0.25,
@@ -142,6 +142,28 @@ function LovePlot({ b }: { b: MatchResult['balance'] }) {
       )}
     </ChartFrame>
   );
+}
+
+/** Whom the effect is averaged over: the treated, the controls, or everyone (`all`). */
+function estimandGroup(estimand: MatchResult['estimand'], all: string) {
+  if (estimand === 'ATT') return 'treated';
+  if (estimand === 'ATC') return 'controls';
+  return all;
+}
+
+/** How the treatment effect was estimated, for the note under its table. */
+function effectNote(r: MatchResult, input: MatchInput): string {
+  if (r.method === 'weighting') {
+    if (r.effectModel === 'ipw')
+      return 'IPW: the weighted difference in the outcome between treated and controls (lm_weightit), with standard errors that account for estimating the weights (M-estimation; WeightIt).';
+    return `Doubly robust: the weighted outcome model with the covariates and their interactions with treatment, averaged over the ${estimandGroup(r.estimand, 'whole sample')} by g-computation (marginaleffects); consistent if either the propensity or the outcome model is right. Standard errors account for estimating the weights (WeightIt’s recommended approach).`;
+  }
+  const errors = input.replace
+    ? 'HC3 robust standard errors (matching with replacement)'
+    : 'standard errors clustered by matched set';
+  if (r.matchEffect === 'dr')
+    return `The outcome model with the covariates and their interactions with treatment, fitted to the matched sample with the matching weights and averaged over the ${estimandGroup(r.estimand, 'matched sample')} by g-computation (marginaleffects); ${errors}, as in MatchIt’s “Getting started” vignette.`;
+  return `Difference in the outcome between treated and controls in the matched sample, weighted by the matching weights; ${errors} (MatchIt’s recommended approach).`;
 }
 
 function MatchView({ r, input }: { r: MatchResult; input: MatchInput }) {
@@ -220,15 +242,7 @@ function MatchView({ r, input }: { r: MatchResult; input: MatchInput }) {
               c(r.effect.n, undefined, 0),
             ],
           ]}
-          note={
-            weighting
-              ? r.effectModel === 'ipw'
-                ? 'IPW: the weighted difference in the outcome between treated and controls (lm_weightit), with standard errors that account for estimating the weights (M-estimation; WeightIt).'
-                : `Doubly robust: the weighted outcome model with the covariates and their interactions with treatment, averaged over the ${r.estimand === 'ATT' ? 'treated' : r.estimand === 'ATC' ? 'controls' : 'whole sample'} by g-computation (marginaleffects); consistent if either the propensity or the outcome model is right. Standard errors account for estimating the weights (WeightIt’s recommended approach).`
-              : r.matchEffect === 'dr'
-                ? `The outcome model with the covariates and their interactions with treatment, fitted to the matched sample with the matching weights and averaged over the ${r.estimand === 'ATT' ? 'treated' : r.estimand === 'ATC' ? 'controls' : 'matched sample'} by g-computation (marginaleffects); ${input.replace ? 'HC3 robust standard errors (matching with replacement)' : 'standard errors clustered by matched set'}, as in MatchIt’s “Getting started” vignette.`
-                : `Difference in the outcome between treated and controls in the matched sample, weighted by the matching weights; ${input.replace ? 'HC3 robust standard errors (matching with replacement)' : 'standard errors clustered by matched set'} (MatchIt’s recommended approach).`
-          }
+          note={effectNote(r, input)}
         />
       )}
       {r.warnings.length > 0 && (
@@ -460,11 +474,11 @@ function MatchOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Match
                 onChange={(e) => {
                   setCaliper(e.target.value);
                   const v = Number(e.target.value);
-                  set({
-                    ...o,
-                    caliper:
-                      e.target.value.trim() === '' ? null : Number.isFinite(v) && v > 0 ? v : -1,
-                  });
+                  // Empty: no caliper; anything but a positive number: -1, which blocks the run.
+                  let typed: number | null = -1;
+                  if (e.target.value.trim() === '') typed = null;
+                  else if (Number.isFinite(v) && v > 0) typed = v;
+                  set({ ...o, caliper: typed });
                 }}
               />
             </div>
@@ -565,8 +579,11 @@ export const matchAnalysis: AnalysisType<MatchOptions, MatchCardResult> = {
       rawData(ctx)!,
       toInput(o, ctx.settings.seed, ctx.settings.confidence),
     ),
-  summary: (o) =>
-    o.treatment
-      ? `${o.treatment} on ${o.covariates.length} covariate${o.covariates.length === 1 ? '' : 's'}${o.outcome ? ` → ${o.outcome}` : ''} · ${METHODS.find((m) => m.id === o.method)!.label}`
-      : 'not set up yet',
+  summary: (o) => {
+    if (!o.treatment) return 'not set up yet';
+    const plural = o.covariates.length === 1 ? '' : 's';
+    const outcome = o.outcome ? ` → ${o.outcome}` : '';
+    const method = METHODS.find((m) => m.id === o.method)!.label;
+    return `${o.treatment} on ${o.covariates.length} covariate${plural}${outcome} · ${method}`;
+  },
 };

@@ -180,30 +180,26 @@ const OP: Record<string, string> = {
   '~1': 'Mean / intercept',
   '|': 'Threshold',
 };
-const label = (p: MixtureParam) =>
-  p.op === 'new'
-    ? p.lhs
-    : p.op === '~1'
-      ? `[${p.lhs}]`
-      : p.op === '|'
-        ? `${p.lhs}$${p.rhs.slice(1)}`
-        : p.op === '~~' && p.lhs === p.rhs
-          ? `${p.lhs} (variance)`
-          : `${p.lhs} ${OP[p.op] ?? p.op} ${p.rhs}`;
+/** A parameter as Mplus writes it: [mean], threshold y$1, a variance, or an operator between two names. */
+const label = (p: MixtureParam) => {
+  if (p.op === 'new') return p.lhs;
+  if (p.op === '~1') return `[${p.lhs}]`;
+  if (p.op === '|') return `${p.lhs}$${p.rhs.slice(1)}`;
+  if (p.op === '~~' && p.lhs === p.rhs) return `${p.lhs} (variance)`;
+  return `${p.lhs} ${OP[p.op] ?? p.op} ${p.rhs}`;
+};
+/** Blocks in order: the parameters shared by all classes first, the latent-class part last, classes by number. */
+const blockOrder = (a: string, b: string) => {
+  if (a === 'All classes') return -1;
+  if (b === 'All classes') return 1;
+  if (a.startsWith('Latent')) return 1;
+  if (b.startsWith('Latent')) return -1;
+  return a.localeCompare(b, undefined, { numeric: true });
+};
 
 function MixtureView({ r }: { r: MixtureResult }) {
   const names = r.classes.map((x) => x.name);
-  const blocks = [...new Set(r.params.map((p) => blockOf(p, names)))].sort((a, b) =>
-    a === 'All classes'
-      ? -1
-      : b === 'All classes'
-        ? 1
-        : a.startsWith('Latent')
-          ? 1
-          : b.startsWith('Latent')
-            ? -1
-            : a.localeCompare(b, undefined, { numeric: true }),
-  );
+  const blocks = [...new Set(r.params.map((p) => blockOf(p, names)))].sort(blockOrder);
   const z = (p: MixtureParam) => (p.se && !p.fixed ? p.est / p.se : null);
   const best = r.lls.filter((l) => Math.abs(l - r.lls[0]) < 1e-3).length;
   return (

@@ -33,8 +33,8 @@ export function histogram(
   if (n === 0) return { bins: [], n: 0, mean: NaN, sd: NaN };
   const m = mean(v);
   const s = n > 1 ? sd(v) : 0;
-  let lo = Infinity,
-    hi = -Infinity;
+  let lo = Infinity;
+  let hi = -Infinity;
   for (const x of v) {
     if (x < lo) lo = x;
     if (x > hi) hi = x;
@@ -62,7 +62,8 @@ export function niceStep(raw: number): number {
   if (!(raw > 0)) return 1;
   const p = 10 ** Math.floor(Math.log10(raw));
   const f = raw / p;
-  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+  const mantissa = [1, 2, 2.5, 5].find((m) => f <= m) ?? 10;
+  return mantissa * p;
 }
 
 /** Quantile by linear interpolation (R's type 7) of sorted values: the engine's. */
@@ -71,10 +72,10 @@ export function niceStep(raw: number): number {
 export function boxStats(col: ArrayLike<number>, label: string): BoxStats | null {
   const v = finite(col).sort((a, b) => a - b);
   if (!v.length) return null;
-  const q1 = quantileSorted(v, 0.25),
-    median = quantileSorted(v, 0.5),
-    q3 = quantileSorted(v, 0.75),
-    iqr = q3 - q1;
+  const q1 = quantileSorted(v, 0.25);
+  const median = quantileSorted(v, 0.5);
+  const q3 = quantileSorted(v, 0.75);
+  const iqr = q3 - q1;
   const inside = v.filter((x) => x >= q1 - 1.5 * iqr && x <= q3 + 1.5 * iqr);
   return {
     label,
@@ -93,8 +94,8 @@ export function olsLine(
   x: ArrayLike<number>,
   y: ArrayLike<number>,
 ): { slope: number; intercept: number; r: number; n: number } | null {
-  const xs: number[] = [],
-    ys: number[] = [];
+  const xs: number[] = [];
+  const ys: number[] = [];
   for (let i = 0; i < x.length; i++)
     if (Number.isFinite(x[i]) && Number.isFinite(y[i])) {
       xs.push(x[i]);
@@ -102,11 +103,11 @@ export function olsLine(
     }
   const n = xs.length;
   if (n < 3) return null;
-  const mx = mean(xs),
-    my = mean(ys);
-  let sxx = 0,
-    syy = 0,
-    sxy = 0;
+  const mx = mean(xs);
+  const my = mean(ys);
+  let sxx = 0;
+  let syy = 0;
+  let sxy = 0;
   for (let i = 0; i < n; i++) {
     sxx += (xs[i] - mx) ** 2;
     syy += (ys[i] - my) ** 2;

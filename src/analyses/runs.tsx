@@ -50,8 +50,11 @@ export async function logCurrentRun(): Promise<string | null> {
   if (!r || r.key !== resultsKey(s)) return null;
   const method = s.settings.method;
   const twoSls = method === 'cbsem' && s.settings.estimator === '2SLS';
-  if (!(method === 'process' ? r.process : method === 'cbsem' ? (twoSls ? r.miiv : r.cb) : r.pls))
-    return null;
+  // The results of the current method (MIIV for two-stage least squares).
+  let current: unknown = r.pls;
+  if (method === 'process') current = r.process;
+  else if (method === 'cbsem') current = twoSls ? r.miiv : r.cb;
+  if (!current) return null;
   const hash = runHash(s.model, s.settings, s.data);
   const data = runData(s.data, s.dataInfo);
   let diagram: string | null;

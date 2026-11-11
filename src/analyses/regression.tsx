@@ -106,8 +106,11 @@ const zeroPreds = (o: RegressionOptions) =>
   isZeroModel(o) && o.zeroPart === 'chosen' ? (o.zeroPredictors ?? []) : [];
 /** The count models' treatment of zeros: none, pscl's zero-inflated or hurdle model, or (Poisson) the zero-inflated Poisson written out. */
 type ZeroChoice = 'none' | 'zeroinfl' | 'hurdle' | 'mplus';
-const zeroChoice = (o: RegressionOptions): ZeroChoice =>
-  o.family === 'poisson' && o.inflated ? 'mplus' : isZeroModel(o) ? o.zeroModel! : 'none';
+const zeroChoice = (o: RegressionOptions): ZeroChoice => {
+  if (o.family === 'poisson' && o.inflated) return 'mplus';
+  if (isZeroModel(o)) return o.zeroModel!;
+  return 'none';
+};
 const ZERO_HINT: Record<ZeroChoice, string> = {
   none: 'Every zero comes from the count distribution.',
   zeroinfl:
@@ -123,8 +126,8 @@ export function parseCuts(text: string): number[] {
   for (const piece of text.split(/[,;\s]+/).filter(Boolean)) {
     const m = /^(-?[\d.]+):(-?[\d.]+)$/.exec(piece);
     if (m) {
-      const a = Number(m[1]),
-        b = Number(m[2]);
+      const a = Number(m[1]);
+      const b = Number(m[2]);
       if (Number.isFinite(a) && Number.isFinite(b) && b - a <= 1000)
         for (let x = Math.ceil(a); x <= b; x++) out.push(x);
     } else if (Number.isFinite(Number(piece))) out.push(Number(piece));
@@ -297,17 +300,17 @@ function RegressionOptionsForm({
               const z = e.target.value as ZeroChoice;
               const { inflated: _i, zeroModel: _m, ...rest } = o;
               const robustOk = o.se === 'model' || o.se === 'HC0';
-              set({
-                ...rest,
-                ...(z === 'mplus'
-                  ? { inflated: true }
-                  : z !== 'none'
-                    ? { zeroModel: z, zeroPart: o.zeroPart ?? 'same' }
-                    : {}),
-                ...(z !== 'none'
-                  ? { weights: '', ...(robustOk ? {} : { se: 'model' as const, cluster: '' }) }
-                  : {}),
-              });
+              let zeroOptions = {};
+              if (z === 'mplus') zeroOptions = { inflated: true };
+              else if (z !== 'none') zeroOptions = { zeroModel: z, zeroPart: o.zeroPart ?? 'same' };
+              // The zero models take no weights, and of the robust standard errors only HC0.
+              let restrictions = {};
+              if (z !== 'none')
+                restrictions = {
+                  weights: '',
+                  ...(robustOk ? {} : { se: 'model' as const, cluster: '' }),
+                };
+              set({ ...rest, ...zeroOptions, ...restrictions });
             }}
           >
             <option value="none">None (the standard count model)</option>
@@ -607,15 +610,15 @@ function diagnosticsNote(dw: DurbinWatson | undefined): string {
 }
 
 function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
-  const W = 520,
-    H = 300,
-    pad = { l: 56, r: 16, t: 14, b: 44 };
+  const W = 520;
+  const H = 300;
+  const pad = { l: 56, r: 16, t: 14, b: 44 };
   const probs = cv.probs;
   const ys = probs
     ? [0, 1]
     : (() => {
-        let lo = Infinity,
-          hi = -Infinity;
+        let lo = Infinity;
+        let hi = -Infinity;
         for (const v of [...(cv.y ?? []), ...(cv.points?.y ?? [])]) {
           if (v < lo) lo = v;
           if (v > hi) hi = v;
@@ -623,8 +626,8 @@ function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
         const m = (hi - lo || 1) * 0.05;
         return [lo - m, hi + m];
       })();
-  const x0 = cv.grid[0],
-    x1 = cv.grid[cv.grid.length - 1];
+  const x0 = cv.grid[0];
+  const x1 = cv.grid[cv.grid.length - 1];
   const sx = (v: number) => pad.l + ((v - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((ys[1] - v) / (ys[1] - ys[0] || 1)) * (H - pad.t - pad.b);
   const ticks = (lo: number, hi: number) =>
@@ -637,7 +640,7 @@ function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
       height={H}
       defaults={{
         x: cv.x,
-        y: probs ? 'Probability' : r.family === 'binomial' ? 'Probability' : 'Predicted outcome',
+        y: probs || r.family === 'binomial' ? 'Probability' : 'Predicted outcome',
       }}
       caption={
         <span className="hint">
@@ -727,12 +730,11 @@ function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
 }
 
 /** A result as stored by this version, or by the one before it (one `curve`, no `curves`). */
-const curvesOf = (r: Result): RegressionCurve[] =>
-  Array.isArray(r.curves)
-    ? r.curves
-    : (r as unknown as { curve?: RegressionCurve | null }).curve
-      ? [(r as unknown as { curve: RegressionCurve }).curve]
-      : [];
+const curvesOf = (r: Result): RegressionCurve[] => {
+  if (Array.isArray(r.curves)) return r.curves;
+  const older = (r as unknown as { curve?: RegressionCurve | null }).curve;
+  return older ? [older] : [];
+};
 
 /**
  * A linear regression as a path model: the predictors as observed covariates (fixed.x), the outcome
@@ -802,9 +804,13 @@ export async function drawRegressionModel(o: RegressionOptions): Promise<boolean
   st.commit(() => m);
   st.setSettings({ method: 'cbsem', estimator: 'ML' });
   st.setWorkspace('model');
+  let seNote = '';
+  if (o.se === 'cluster' && o.cluster) seNote = ` Sampling clusters: ${o.cluster}.`;
+  else if (o.se === 'HC3' || o.se === 'HC0')
+    seNote = ` ${o.se} errors are not carried over; choose MLR for robust ones.`;
   st.toast(
     'success',
-    `${o.outcome} on ${o.predictors.join(', ')} as a path model: the predictors as observed covariates, the outcome a single indicator. CB-SEM with ML gives the regression's coefficients (standard errors divide by N rather than N − p). Add indicators, mediators or groups from here.${o.se === 'cluster' && o.cluster ? ` Sampling clusters: ${o.cluster}.` : o.se === 'HC3' || o.se === 'HC0' ? ` ${o.se} errors are not carried over; choose MLR for robust ones.` : ''}`,
+    `${o.outcome} on ${o.predictors.join(', ')} as a path model: the predictors as observed covariates, the outcome a single indicator. CB-SEM with ML gives the regression's coefficients (standard errors divide by N rather than N − p). Add indicators, mediators or groups from here.${seNote}`,
   );
   return true;
 }
@@ -828,18 +834,24 @@ function DrawModel({ o }: { o: RegressionOptions }) {
   );
 }
 
+const VUONG_VERSION = { raw: 'Raw', aic: 'AIC-corrected', bic: 'BIC-corrected' } as const;
+
+function robustSeName(se: string) {
+  if (se === 'HC3') return 'Heteroskedasticity-consistent (HC3)';
+  if (se === 'HC0') return 'Heteroskedasticity-consistent (HC0, White; Mplus MLR)';
+  return 'Cluster-robust';
+}
+
 function RegressionView({ r, plot, o }: { r: Result; plot: string; o: RegressionOptions }) {
   const curves = curvesOf(r);
   const cv = curves.find((k) => k.x === plot) ?? curves[0];
-  const f = r.fit,
-    pct = Math.round(r.input.confidence * 100);
+  const f = r.fit;
+  const pct = Math.round(r.input.confidence * 100);
   const ratio = (r.coefficients ?? []).some((e) => e.ratio !== undefined && e.ratio !== null);
-  const ratioName =
-    r.family === 'binomial' || r.family === 'ordinal' || r.family === 'multinomial'
-      ? 'Odds ratio'
-      : r.family === 'survival'
-        ? 'Hazard ratio'
-        : 'Rate ratio';
+  const oddsFamily = r.family === 'binomial' || r.family === 'ordinal';
+  let ratioName = 'Rate ratio';
+  if (oddsFamily || r.family === 'multinomial') ratioName = 'Odds ratio';
+  else if (r.family === 'survival') ratioName = 'Hazard ratio';
   const cols = [
     'Term',
     'Estimate',
@@ -889,12 +901,18 @@ function RegressionView({ r, plot, o }: { r: Result; plot: string; o: Regression
       ? ([['Events', String(f.events)]] as [string, string][])
       : []),
   ];
-  const main = (r.coefficients ?? []).filter((e) => !e.part),
-    inflation = (r.coefficients ?? []).filter((e) => e.part === 'inflation'),
-    baseline = (r.coefficients ?? []).filter((e) => e.part === 'baseline');
-  const zero = (r.coefficients ?? []).filter((e) => e.part === 'zero'),
-    hurdle = r.zeroModel === 'hurdle';
+  const main = (r.coefficients ?? []).filter((e) => !e.part);
+  const inflation = (r.coefficients ?? []).filter((e) => e.part === 'inflation');
+  const baseline = (r.coefficients ?? []).filter((e) => e.part === 'baseline');
+  const zero = (r.coefficients ?? []).filter((e) => e.part === 'zero');
+  const hurdle = r.zeroModel === 'hurdle';
   const std = r.family === 'negbin' ? 'negative binomial' : 'Poisson';
+  // What a ratio multiplies: the odds, the hazard, or (count models) an expected count.
+  let ratioScale = 'expected count';
+  if (oddsFamily) ratioScale = 'odds';
+  else if (r.family === 'survival') ratioScale = 'hazard';
+  else if (r.zeroModel && hurdle) ratioScale = 'expected positive count';
+  else if (r.zeroModel) ratioScale = 'expected count of the cases that are not structural zeros';
   const random = (r.coefficients ?? []).filter((e) => e.part === 'random');
   const dg = r.diagnostics;
   return (
@@ -919,8 +937,7 @@ function RegressionView({ r, plot, o }: { r: Result; plot: string; o: Regression
         {FAMILY_NAME[r.family]}
         {r.link && r.link !== 'logit' && r.link !== 'logistic' ? ` (${r.link} link)` : ''}:{' '}
         <code>{r.formula}</code>; {r.engine.package} {r.engine.version}.
-        {r.se !== 'model' &&
-          ` ${r.se === 'HC3' ? 'Heteroskedasticity-consistent (HC3)' : r.se === 'HC0' ? 'Heteroskedasticity-consistent (HC0, White; Mplus MLR)' : 'Cluster-robust'} standard errors.`}
+        {r.se !== 'model' && ` ${robustSeName(r.se)} standard errors.`}
         {r.lrt && (
           <>
             {' '}
@@ -956,7 +973,7 @@ function RegressionView({ r, plot, o }: { r: Result; plot: string; o: Regression
           rows={main.map((e) => coefRow(e, ratio))}
           note={
             ratio
-              ? `${ratioName}s: exp(estimate), the multiplicative change in the ${r.family === 'binomial' || r.family === 'ordinal' ? 'odds' : r.family === 'survival' ? 'hazard' : r.zeroModel ? (hurdle ? 'expected positive count' : 'expected count of the cases that are not structural zeros') : 'expected count'} per unit of the predictor.`
+              ? `${ratioName}s: exp(estimate), the multiplicative change in the ${ratioScale} per unit of the predictor.`
               : undefined
           }
         />
@@ -985,7 +1002,7 @@ function RegressionView({ r, plot, o }: { r: Result; plot: string; o: Regression
           columns={['Version', 'z', 'p (one-sided)', 'Favours']}
           rows={(['raw', 'aic', 'bic'] as const).map(
             (k): Row => [
-              c(k === 'raw' ? 'Raw' : k === 'aic' ? 'AIC-corrected' : 'BIC-corrected'),
+              c(VUONG_VERSION[k]),
               c(r.vuong![k].z),
               pCell(r.vuong![k].p),
               c(
@@ -1004,7 +1021,11 @@ function RegressionView({ r, plot, o }: { r: Result; plot: string; o: Regression
           file="regression-inflation"
           columns={cols.slice(0, 6)}
           rows={inflation.map((e) => coefRow(e, false))}
-          note={`The log-odds of a ${r.family === 'poisson' ? 'structural zero' : 'value at the censoring point beyond the censored-normal model'} (Mplus: ${r.family === 'poisson' ? 'u' : 'y'}#1 ON …).`}
+          note={
+            r.family === 'poisson'
+              ? 'The log-odds of a structural zero (Mplus: u#1 ON …).'
+              : 'The log-odds of a value at the censoring point beyond the censored-normal model (Mplus: y#1 ON …).'
+          }
         />
       )}
       {random.length > 0 && (
@@ -1131,8 +1152,14 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
       options: (o) => ({ ...o, family: 'survival' }),
     },
   ],
-  cardTitle: (o) =>
-    `${isZeroModel(o) ? `${o.zeroModel === 'hurdle' ? 'Hurdle' : 'Zero-inflated'} ${FAMILY_NAME[o.family].toLowerCase()}` : FAMILY_NAME[o.family]}${o.outcome ? `: ${o.outcome}` : ''}`,
+  cardTitle: (o) => {
+    let model = FAMILY_NAME[o.family];
+    if (isZeroModel(o)) {
+      const zeroKind = o.zeroModel === 'hurdle' ? 'Hurdle' : 'Zero-inflated';
+      model = `${zeroKind} ${FAMILY_NAME[o.family].toLowerCase()}`;
+    }
+    return `${model}${o.outcome ? `: ${o.outcome}` : ''}`;
+  },
   defaults: () => ({
     outcome: '',
     predictors: [],
@@ -1262,6 +1289,17 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
       rawData(ctx)!,
       regressionInput(o, ctx),
     ),
-  summary: (o) =>
-    `${isZeroModel(o) ? `${o.zeroModel === 'hurdle' ? 'hurdle' : 'zero-inflated'} ` : ''}${FAMILY_NAME[o.family].toLowerCase()} · ${o.outcome || '…'} on ${o.predictors.length ? o.predictors.join(', ') : '…'}${isZeroModel(o) && o.zeroPart === 'intercept' ? ' | 1' : isZeroModel(o) && o.zeroPart === 'chosen' ? ` | ${zeroPreds(o).join(', ') || '…'}` : ''}${o.family === 'gaussian' && o.randomSlope ? ` · random slope of ${o.randomSlope}` : ''}${o.se !== 'model' ? ` · ${o.se} SEs` : ''}`,
+  summary: (o) => {
+    const zero = isZeroModel(o);
+    const zeroKind = zero ? `${o.zeroModel === 'hurdle' ? 'hurdle' : 'zero-inflated'} ` : '';
+    const predictors = o.predictors.length ? o.predictors.join(', ') : '…';
+    // The zero part's predictors, after a bar as in pscl's formulas.
+    let zeroPart = '';
+    if (zero && o.zeroPart === 'intercept') zeroPart = ' | 1';
+    else if (zero && o.zeroPart === 'chosen') zeroPart = ` | ${zeroPreds(o).join(', ') || '…'}`;
+    const slope =
+      o.family === 'gaussian' && o.randomSlope ? ` · random slope of ${o.randomSlope}` : '';
+    const se = o.se !== 'model' ? ` · ${o.se} SEs` : '';
+    return `${zeroKind}${FAMILY_NAME[o.family].toLowerCase()} · ${o.outcome || '…'} on ${predictors}${zeroPart}${slope}${se}`;
+  },
 };

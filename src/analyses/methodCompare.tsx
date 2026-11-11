@@ -50,8 +50,8 @@ export function comparisonFigure(
           path: (from, to) => ({ beta: std('~', to, from) }),
           error: (_kind, name) => std('~~', name, name),
           correlation: (k) => {
-            const a = k.kind === 'construct' ? (byId.get(k.a)?.name ?? k.a) : k.a,
-              b = k.kind === 'construct' ? (byId.get(k.b)?.name ?? k.b) : k.b;
+            const a = k.kind === 'construct' ? (byId.get(k.a)?.name ?? k.a) : k.a;
+            const b = k.kind === 'construct' ? (byId.get(k.b)?.name ?? k.b) : k.b;
             return { value: std('~~', a, b) ?? std('~~', b, a) };
           },
         };

@@ -212,16 +212,20 @@ const STATUS: Record<CheckStatus, { label: string; cls: string }> = {
   author: { label: 'Your call', cls: 'warn' },
   na: { label: 'Not applicable', cls: 'dim' },
 };
-const StatusIcon = ({ s }: { s: CheckStatus }) =>
-  s === 'done' ? (
-    <IconCheck size={15} />
-  ) : s === 'issue' ? (
-    <IconAlert size={15} />
-  ) : s === 'author' ? (
-    <IconHelp size={15} />
-  ) : (
-    <span aria-hidden="true">–</span>
-  );
+const StatusIcon = ({ s }: { s: CheckStatus }) => {
+  if (s === 'done') return <IconCheck size={15} />;
+  if (s === 'issue') return <IconAlert size={15} />;
+  if (s === 'author') return <IconHelp size={15} />;
+  return <span aria-hidden="true">–</span>;
+};
+/** The reporting guidelines the checklist follows for each method. */
+const guidelines = (method: string) => {
+  if (method === 'pls')
+    return 'Hair, Risher, Sarstedt & Ringle (2019), “When to use and how to report the results of PLS-SEM”, and Becker et al. (2023)';
+  if (method === 'cbsem')
+    return 'Jackson, Gillaspy & Purc-Stephenson (2009), “Reporting practices in confirmatory factor analysis”, with Hu & Bentler’s (1999) cut-offs';
+  return 'Hayes (2022), Introduction to mediation, moderation, and conditional process analysis';
+};
 const sources = (keys: string[]) => keys.map((k) => citeText(k)).join('; ');
 
 /** Go where the item can be addressed: the Model tab (its results tab named on the button), or a new card. */
@@ -306,13 +310,9 @@ function ChecklistView({ r }: { r: ChecklistResult }) {
       <div className="hint">
         What reviewers typically ask for, marked from the current results: done (with the evidence),
         an issue, not applicable, or your call where nothing in the results can show it. Based on{' '}
-        {r.method === 'pls'
-          ? 'Hair, Risher, Sarstedt & Ringle (2019), “When to use and how to report the results of PLS-SEM”, and Becker et al. (2023)'
-          : r.method === 'cbsem'
-            ? 'Jackson, Gillaspy & Purc-Stephenson (2009), “Reporting practices in confirmatory factor analysis”, with Hu & Bentler’s (1999) cut-offs'
-            : 'Hayes (2022), Introduction to mediation, moderation, and conditional process analysis'}{' '}
-        and the JARS-Quant standards for structural equation modeling (Appelbaum et al., 2018, Table
-        7). Thresholds are conventions; justify departures rather than hide them.
+        {guidelines(r.method)} and the JARS-Quant standards for structural equation modeling
+        (Appelbaum et al., 2018, Table 7). Thresholds are conventions; justify departures rather
+        than hide them.
       </div>
     </div>
   );

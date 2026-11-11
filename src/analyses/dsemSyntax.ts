@@ -129,11 +129,11 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
   const expandCols = (x: string): string[] => {
     const [a, b] = x.split('-');
     if (b === undefined) return [colOf(a) ?? a];
-    const ia = columns.findIndex((c) => lc(c) === lc(a)),
-      ib = columns.findIndex((c) => lc(c) === lc(b));
+    const ia = columns.findIndex((c) => lc(c) === lc(a));
+    const ib = columns.findIndex((c) => lc(c) === lc(b));
     if (ia >= 0 && ib >= ia) return columns.slice(ia, ib + 1);
-    const ra = /^(.*?)(\d+)$/.exec(a),
-      rb = /^(.*?)(\d+)$/.exec(b);
+    const ra = /^(.*?)(\d+)$/.exec(a);
+    const rb = /^(.*?)(\d+)$/.exec(b);
     if (!ra || !rb || lc(ra[1]) !== lc(rb[1])) return fail(`Cannot read the range “${x}”.`);
     return Array.from(
       { length: Number(rb[2]) - Number(ra[2]) + 1 },
@@ -144,7 +144,10 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
     if (s.section === 'MODEL') {
       const h = /^%\s*(WITHIN|BETWEEN)(?:\s+(\S+))?\s*%$/i.exec(s.text);
       if (h) {
-        level = lc(h[1]) === 'within' ? 'within' : h[2] ? `between:${lc(h[2])}` : 'between';
+        // %BETWEEN% or, with several cluster variables, %BETWEEN id% names the level.
+        if (lc(h[1]) === 'within') level = 'within';
+        else if (h[2]) level = `between:${lc(h[2])}`;
+        else level = 'between';
         continue;
       }
       if (/^%/.test(s.text)) fail(`Unknown model part “${s.text}”.`);
@@ -320,14 +323,12 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
     return i >= 0 ? i : fail(`%BETWEEN ${name}%: ${name} is not a cluster variable.`);
   };
   const meanLevel = 0;
-  const blockName = (l: number) =>
-    !multilevel
-      ? ''
-      : l < 0
-        ? 'Within Level'
-        : levels.length === 1
-          ? 'Between Level'
-          : `Between ${levels[l].column.toUpperCase()} Level`;
+  const blockName = (l: number) => {
+    if (!multilevel) return '';
+    if (l < 0) return 'Within Level';
+    if (levels.length === 1) return 'Between Level';
+    return `Between ${levels[l].column.toUpperCase()} Level`;
+  };
 
   // ---- MODEL statements ----
   type Stmt = {
@@ -357,8 +358,8 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
   const expandNames = (x: string): string[] => {
     const [a, b] = x.split('-');
     if (b === undefined) return [colOf(a) ?? declared.find((d) => lc(d) === lc(a)) ?? a];
-    const ia = declared.findIndex((d) => lc(d) === lc(a)),
-      ib = declared.findIndex((d) => lc(d) === lc(b));
+    const ia = declared.findIndex((d) => lc(d) === lc(a));
+    const ib = declared.findIndex((d) => lc(d) === lc(b));
     // (on a between level a range runs over the between-level variables: within-level factors are left out)
     if (ia >= 0 && ib >= ia) return declared.slice(ia, ib + 1).filter((d) => !rangeSkip.has(lc(d)));
     return expandCols(x);
@@ -510,12 +511,12 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
   };
   /** All random loadings (their means start at 1). */
   const loadingRe = new Set<number>();
-  const coefOf = (e: El, type: 'real' | 'pos', defaultFixed?: number): DsemCoef =>
-    e.mod.fixed !== undefined
-      ? { v: e.mod.fixed }
-      : !e.mod.free && defaultFixed !== undefined
-        ? { v: defaultFixed }
-        : newParam(type, e.label);
+  // A coefficient fixed in the input, fixed by default (unless freed with *), or a new parameter.
+  const coefOf = (e: El, type: 'real' | 'pos', defaultFixed?: number): DsemCoef => {
+    if (e.mod.fixed !== undefined) return { v: e.mod.fixed };
+    if (!e.mod.free && defaultFixed !== undefined) return { v: defaultFixed };
+    return newParam(type, e.label);
+  };
 
   // ---- within level: nodes ----
   const nodes: DsemNode[] = [];
@@ -532,8 +533,12 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
     const isF = isLatentW(name);
     const col = isF ? undefined : colOf(name);
     if (!isF && !col) fail(`${name} is not a column of the data or a factor of the within level.`);
+    // Unless given: a factor (f), a categorical (u) or a continuous (y) observed variable.
+    let defaultKind: DsemNode['kind'] = 'y';
+    if (isF) defaultKind = 'f';
+    else if (isCat(name)) defaultKind = 'u';
     nodes.push({
-      kind: kind ?? (isF ? 'f' : isCat(name) ? 'u' : 'y'),
+      kind: kind ?? defaultKind,
       ...(col ? { column: col } : {}),
     });
     nodeIdx.set(k, nodes.length - 1);
@@ -555,8 +560,8 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
   /** Random effects that are a factor's first random loading: their mean is positive (one of the two mirror-image modes). */
   const firstLoading = new Set<number>();
   const reportW: { lhs: string; op: string; rhs: string; c: DsemCoef; order: number }[] = [];
-  const ON_ORDER = 1,
-    BY_ORDER = 0;
+  const ON_ORDER = 1;
+  const BY_ORDER = 0;
   const lagOK = (name: string, lag: number) => {
     if (!lag) return;
     const max = isLatentW(name) ? factorLag.get(lc(name)) : lagged.get(lc(name));
@@ -720,8 +725,8 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
     for (const a of s.lhs)
       for (const b of s.rhs)
         if (lc(a.name) !== lc(b.name)) {
-          const ia = node(a.name),
-            ib = node(b.name);
+          const ia = node(a.name);
+          const ib = node(b.name);
           if (!withPairs.some(([x, y]) => (x === ia && y === ib) || (x === ib && y === ia)))
             withPairs.push([ia, ib, b]);
         }
@@ -732,8 +737,8 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
   const finalDep = [...endogenous].filter(
     (i) => !predictorsAt0.has(i) && !indicators.has(i) && plainVar(i),
   );
-  const finalObs = finalDep.filter((i) => nodes[i].kind === 'y'),
-    finalLat = finalDep.filter((i) => nodes[i].kind === 'f');
+  const finalObs = finalDep.filter((i) => nodes[i].kind === 'y');
+  const finalLat = finalDep.filter((i) => nodes[i].kind === 'f');
   for (const grp of [finalObs, finalLat])
     for (let a = 0; a < grp.length; a++)
       for (let b = a + 1; b < grp.length; b++)
@@ -746,8 +751,8 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
   // blocks: connected components of the pairs, each complete
   const comp = new Map<number, number[]>();
   for (const [a, b] of withPairs) {
-    const ca = [...comp.values()].find((m) => m.includes(a)),
-      cb = [...comp.values()].find((m) => m.includes(b));
+    const ca = [...comp.values()].find((m) => m.includes(a));
+    const cb = [...comp.values()].find((m) => m.includes(b));
     if (ca && cb && ca !== cb) {
       ca.push(...cb);
       for (const [k, v] of comp) if (v === cb) comp.delete(k);
@@ -778,8 +783,8 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
     members.forEach((m, i) => inBlock.set(m, { b: p, i }));
     for (const [a, b] of withPairs)
       if (members.includes(a)) {
-        const ia = members.indexOf(a),
-          ib = members.indexOf(b);
+        const ia = members.indexOf(a);
+        const ib = members.indexOf(b);
         reportV.push({
           lhs: nodeName(a),
           op: '~~',
@@ -973,8 +978,8 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
       for (const a of s.lhs)
         for (const b of s.rhs)
           if (lc(a.name) !== lc(b.name)) {
-            const ia = tname(a.name, l),
-              ib = tname(b.name, l);
+            const ia = tname(a.name, l);
+            const ib = tname(b.name, l);
             if (!bPairs.some(([x, y]) => (x === ia && y === ib) || (x === ib && y === ia)))
               bPairs.push([ia, ib]);
           }
@@ -1072,8 +1077,8 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
   // residual variances and covariances on the between levels: blocks of complete WITH sets
   const bcomp: number[][] = [];
   for (const [a, b] of bPairs) {
-    const ca = bcomp.find((m) => m.includes(a)),
-      cb = bcomp.find((m) => m.includes(b));
+    const ca = bcomp.find((m) => m.includes(a));
+    const cb = bcomp.find((m) => m.includes(b));
     if (ca && cb && ca !== cb) {
       ca.push(...cb);
       bcomp.splice(bcomp.indexOf(cb), 1);
@@ -1107,8 +1112,8 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
     const l = btargets[members[0]].level;
     for (const [a, b] of bPairs)
       if (members.includes(a)) {
-        const ia = members.indexOf(a),
-          ib = members.indexOf(b);
+        const ia = members.indexOf(a);
+        const ib = members.indexOf(b);
         reportB.push({
           level: l,
           lhs: bname.get(a)!,
@@ -1260,8 +1265,8 @@ export function dsemColumns(syntax: string, names?: string[]): string[] {
   const range = (tok: string): string[] => {
     const parts = tok.split('-');
     if (parts.length !== 2) return [tok];
-    const a = /^(.*?)(\d+)$/.exec(parts[0]),
-      b = /^(.*?)(\d+)$/.exec(parts[1]);
+    const a = /^(.*?)(\d+)$/.exec(parts[0]);
+    const b = /^(.*?)(\d+)$/.exec(parts[1]);
     if (a && b && lcs(a[1]) === lcs(b[1]) && Number(b[2]) >= Number(a[2]))
       return Array.from(
         { length: Number(b[2]) - Number(a[2]) + 1 },

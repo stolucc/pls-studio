@@ -56,6 +56,7 @@ import {
   useHelper,
 } from './helper';
 import { reportRWarnings } from './notices';
+import { rList } from './rjson';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
 export const SOURCES = {
@@ -453,4 +454,4 @@ export const rMessage = (e: unknown) =>
  * arrives as a string, not a list. Always a list of strings.
  */
 export const rStrings = (v: unknown): string[] =>
-  (Array.isArray(v) ? v : v == null ? [] : [v]).filter((x): x is string => typeof x === 'string');
+  rList<unknown>(v).filter((x): x is string => typeof x === 'string');

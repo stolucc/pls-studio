@@ -227,12 +227,12 @@ export const regressionScriptR = (data: Dataset, input: RegressionInput) =>
 /** survival only when the model needs it (censored without inflation, survival); pscl for the zero models. */
 export const regressionPackages = (
   i: Pick<RegressionInput, 'family' | 'inflated' | 'zeroModel'>,
-) =>
-  i.family === 'survival' || (i.family === 'censored' && !i.inflated)
-    ? 'regressionSurvival'
-    : isZeroModel(i)
-      ? 'pscl'
-      : 'regression';
+) => {
+  if (i.family === 'survival' || (i.family === 'censored' && !i.inflated))
+    return 'regressionSurvival';
+  if (isZeroModel(i)) return 'pscl';
+  return 'regression';
+};
 /** A zero-inflated or hurdle model applies (a count family, not the zero-inflated Poisson written out). */
 export const isZeroModel = (i: Pick<RegressionInput, 'family' | 'inflated' | 'zeroModel'>) =>
   !!i.zeroModel && (i.family === 'poisson' || i.family === 'negbin') && !i.inflated;

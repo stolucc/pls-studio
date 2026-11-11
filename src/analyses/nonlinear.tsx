@@ -86,16 +86,16 @@ function Curve({
   path: NonlinearResult['paths'][number];
   k: number;
 }) {
-  const width = 300,
-    height = 210,
-    pad = { l: 46, r: 10, t: 10, b: 34 };
-  const lo = Math.min(...path.x),
-    hi = Math.max(...path.x);
+  const width = 300;
+  const height = 210;
+  const pad = { l: 46, r: 10, t: 10, b: 34 };
+  const lo = Math.min(...path.x);
+  const hi = Math.max(...path.x);
   const pts = pathCurve(eq, path.from, lo, hi);
-  const ylo = Math.min(...path.y, ...pts.map((p) => p[1])),
-    yhi = Math.max(...path.y, ...pts.map((p) => p[1]));
-  const W = width - pad.l - pad.r,
-    H = height - pad.t - pad.b;
+  const ylo = Math.min(...path.y, ...pts.map((p) => p[1]));
+  const yhi = Math.max(...path.y, ...pts.map((p) => p[1]));
+  const W = width - pad.l - pad.r;
+  const H = height - pad.t - pad.b;
   const sx = (x: number) => pad.l + ((x - lo) / (hi - lo || 1)) * W;
   const sy = (y: number) => pad.t + ((yhi - y) / (yhi - ylo || 1)) * H;
   const color = SERIES_COLORS[k % SERIES_COLORS.length];
@@ -168,7 +168,12 @@ function Curve({
 
 const verdict = (v: number, min: number) =>
   c(v >= min ? `acceptable (≥ ${min})` : `below ${min}`, v >= min ? 'good' : 'bad');
-const sup = (p: number) => (p === 2 ? '²' : p === 3 ? '³' : '');
+/** The superscript of a power: ² or ³ (nothing for 1). */
+const sup = (p: number) => {
+  if (p === 2) return '²';
+  if (p === 3) return '³';
+  return '';
+};
 
 function View({ result: r }: { result: NonlinearResult }) {
   const k = r.indices;

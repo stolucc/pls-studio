@@ -44,14 +44,14 @@ type EfaTab =
 
 /** Scree plot: eigenvalues, with parallel analysis's simulated ones and the eigenvalue-1 line. */
 function Scree({ r }: { r: EfaResult }) {
-  const W = 380,
-    H = 230,
-    pad = { l: 44, r: 12, t: 12, b: 36 };
+  const W = 380;
+  const H = 230;
+  const pad = { l: 44, r: 12, t: 12, b: 36 };
   const obs = r.parallel?.observed.length ? r.parallel.observed : r.eigenvalues;
   const sim = r.parallel?.simulated ?? [];
-  const n = obs.length,
-    top = Math.max(1, ...obs, ...sim) * 1.05,
-    bottom = Math.min(0, ...obs, ...sim);
+  const n = obs.length;
+  const top = Math.max(1, ...obs, ...sim) * 1.05;
+  const bottom = Math.min(0, ...obs, ...sim);
   const sx = (i: number) => pad.l + (n === 1 ? 0 : (i / (n - 1)) * (W - pad.l - pad.r));
   const sy = (v: number) => pad.t + ((top - v) / (top - bottom || 1)) * (H - pad.t - pad.b);
   const line = (v: number[]) => v.map((y, i) => `${i ? 'L' : 'M'} ${sx(i)} ${sy(y)}`).join(' ');
@@ -129,6 +129,15 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
   const pca = r.method === 'pca';
   const unit = pca ? 'component' : 'factor';
   const order = loadingOrder(r.loadings);
+  const estimation =
+    r.estimator === 'WLSMV'
+      ? 'WLSMV with standard errors (lavaan)'
+      : EFA_METHODS.find((m) => m.id === r.method)?.label.toLowerCase();
+  const rotation =
+    r.rotation === 'none'
+      ? 'unrotated'
+      : `${EFA_ROTATIONS.find((x) => x.id === r.rotation)?.label.toLowerCase()} rotation`;
+  const loadingsTitle = `${r.oblique ? 'Pattern matrix' : 'Loadings'}: ${r.k} ${unit}s, ${estimation}, ${rotation}`;
   const cell = (v: number) =>
     Math.abs(v) < threshold ? c('', 'dim') : { ...c(v), bold: Math.abs(v) >= 0.5 };
   const rows = (m: number[][], blank = true): Row[] =>
@@ -226,7 +235,7 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
         {shown === 'loadings' && (
           <>
             <Table
-              title={`${r.oblique ? 'Pattern matrix' : 'Loadings'}: ${r.k} ${unit}s, ${r.estimator === 'WLSMV' ? 'WLSMV with standard errors (lavaan)' : EFA_METHODS.find((m) => m.id === r.method)?.label.toLowerCase()}, ${r.rotation === 'none' ? 'unrotated' : `${EFA_ROTATIONS.find((x) => x.id === r.rotation)?.label.toLowerCase()} rotation`}`}
+              title={loadingsTitle}
               file="efa-loadings"
               columns={['Variable', ...r.factors, 'h²', 'u²', 'Complexity']}
               rows={rows(r.loadings)}
@@ -305,6 +314,27 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
             const pairs = (order.length * (order.length - 1)) / 2;
             // Shading by size: observed correlations in the accent colour; residuals above .10 flagged.
             const shade = (v: number) => `rgba(109, 40, 217, ${Math.min(1, Math.abs(v)) * 0.45})`;
+            let title = 'Correlations between the variables';
+            if (residual) title = `Residual correlations: ${big} of ${pairs} pairs above .10`;
+            else if (r.correlation === 'polychoric')
+              title = 'Polychoric correlations between the variables';
+            // Lower triangle with the diagonal; residuals above .10 in bold red, observed correlations shaded.
+            const cell = (i: number, a: number, j: number, b: number) => {
+              if (b > a) return c('');
+              if (b === a) return c(residual ? '' : '1', 'dim');
+              const v = m[i][j];
+              if (!residual) return { ...c(v), bg: shade(v) };
+              return Math.abs(v) > 0.1 ? { ...c(v, 'bad'), bold: true } : c(v, 'dim');
+            };
+            let correlationsNote = '';
+            if (r.correlation === 'polychoric') {
+              const ordinal = r.ordinal?.length ? r.ordinal.join(', ') : 'none';
+              const continuous =
+                r.ordinal && r.ordinal.length < r.variables.length
+                  ? `; continuous (polyserial, Pearson): ${r.variables.filter((v) => !r.ordinal!.includes(v)).join(', ')}`
+                  : '';
+              correlationsNote = `Polychoric correlations (psych’s mixedCor): ordinal ${ordinal}${continuous}. `;
+            }
             return (
               <>
                 <div className="segmented" style={{ marginBottom: 10, maxWidth: 360 }}>
@@ -316,33 +346,17 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
                   </button>
                 </div>
                 <Table
-                  title={
-                    residual
-                      ? `Residual correlations: ${big} of ${pairs} pairs above .10`
-                      : r.correlation === 'polychoric'
-                        ? 'Polychoric correlations between the variables'
-                        : 'Correlations between the variables'
-                  }
+                  title={title}
                   file={residual ? 'efa-residual-correlations' : 'efa-correlations'}
                   columns={['', ...order.map((i) => r.variables[i])]}
                   rows={order.map((i, a) => [
                     c(r.variables[i]),
-                    ...order.map((j, b) =>
-                      b > a
-                        ? c('')
-                        : b === a
-                          ? c(residual ? '' : '1', 'dim')
-                          : residual
-                            ? Math.abs(m[i][j]) > 0.1
-                              ? { ...c(m[i][j], 'bad'), bold: true }
-                              : c(m[i][j], 'dim')
-                            : { ...c(m[i][j]), bg: shade(m[i][j]) },
-                    ),
+                    ...order.map((j, b) => cell(i, a, j, b)),
                   ])}
                   note={
                     residual
                       ? `What the ${r.k}-${unit} solution leaves unexplained: observed minus model-implied correlation (ΛΦΛᵀ). Residuals above .10 (bold) point to a missing ${unit}, locally dependent items (similar wording) or a misplaced item.`
-                      : `${r.correlation === 'polychoric' ? `Polychoric correlations (psych’s mixedCor): ordinal ${r.ordinal?.length ? r.ordinal.join(', ') : 'none'}${r.ordinal && r.ordinal.length < r.variables.length ? `; continuous (polyserial, Pearson): ${r.variables.filter((v) => !r.ordinal!.includes(v)).join(', ')}` : ''}. ` : ''}Pairwise correlations the analysis starts from, ordered as the loadings table so its blocks show; shading by size. Very high correlations (above about .8) suggest redundant items; variables correlating with nothing will not load.`
+                      : `${correlationsNote}Pairwise correlations the analysis starts from, ordered as the loadings table so its blocks show; shading by size. Very high correlations (above about .8) suggest redundant items; variables correlating with nothing will not load.`
                   }
                 />
               </>
@@ -647,9 +661,12 @@ function BuildModel({ r, threshold }: { r: EfaResult; threshold: number }) {
       s.constructs.map((k) => k.name),
     );
     st.layout();
+    const plural = s.constructs.length > 1 ? 's' : '';
+    const correlated = s.correlated ? ', correlated (oblique solution)' : '';
+    const leftOut = s.left.length ? ` Left out: ${s.left.join(', ')}.` : '';
     st.toast(
       'success',
-      `Added ${s.constructs.length} construct${s.constructs.length > 1 ? 's' : ''} to the diagram (Model tab), each with the variables loading most on it (≥ ${threshold})${s.correlated ? ', correlated (oblique solution)' : ''}.${s.left.length ? ` Left out: ${s.left.join(', ')}.` : ''} For a confirmatory factor analysis, choose CB-SEM.`,
+      `Added ${s.constructs.length} construct${plural} to the diagram (Model tab), each with the variables loading most on it (≥ ${threshold})${correlated}.${leftOut} For a confirmatory factor analysis, choose CB-SEM.`,
     );
   };
   return (
@@ -736,6 +753,20 @@ function CompareFields({
       )}
     </div>
   );
+}
+
+/** A rotation's kind for its menu entry: oblique or orthogonal (nothing for no rotation). */
+function rotationKind(m: (typeof EFA_ROTATIONS)[number]) {
+  if (m.id === 'none') return '';
+  return m.oblique ? ' (oblique)' : ' (orthogonal)';
+}
+
+/** How lavaan estimates the solution, for the correlations hint (nothing for the psych methods). */
+function lavaanNote(d: EfaDesign) {
+  if (d.method !== 'lavaan') return '';
+  return d.correlation === 'polychoric'
+    ? ' lavaan estimates the solution by WLSMV from the polychoric correlations of the ordinal items.'
+    : ' lavaan estimates the solution by maximum likelihood; with pairwise missing values, by full-information ML.';
 }
 
 function EfaOptionsForm({ options: d, set, ctx, disabled }: OptionsProps<EfaDesign>) {
@@ -861,7 +892,7 @@ function EfaOptionsForm({ options: d, set, ctx, disabled }: OptionsProps<EfaDesi
             ).map((m) => (
               <option key={m.id} value={m.id}>
                 {m.label}
-                {m.id === 'none' ? '' : m.oblique ? ' (oblique)' : ' (orthogonal)'}
+                {rotationKind(m)}
               </option>
             ))}
           </select>
@@ -1047,11 +1078,7 @@ function EfaOptionsForm({ options: d, set, ctx, disabled }: OptionsProps<EfaDesi
           {d.correlation === 'polychoric'
             ? `For ordinal (Likert) items: the correlations of the continuous responses assumed to underlie the categories (psych’s mixedCor). Items with at most 8 categories are treated as ordinal (tetrachoric when binary), others as continuous (polyserial, Pearson). Pearson correlations of such items are too low, the more so with few or skewed categories, which lowers loadings and can split items by their popularity. Each parallel-analysis sample recomputes the polychoric correlations, so the samples are slow (about a second each for 25 items): set to ${POLYCHORIC_PARALLEL} when chosen.`
             : 'Pearson correlations treat the values as continuous. For ordinal (Likert) items with few or skewed categories choose polychoric.'}
-          {d.method === 'lavaan'
-            ? d.correlation === 'polychoric'
-              ? ' lavaan estimates the solution by WLSMV from the polychoric correlations of the ordinal items.'
-              : ' lavaan estimates the solution by maximum likelihood; with pairwise missing values, by full-information ML.'
-            : ''}
+          {lavaanNote(d)}
         </div>
       </div>
       <div className="field">

@@ -72,10 +72,10 @@ export interface TreeLayout {
 export function treeLayout(nodes: SemTreeNode[]): TreeLayout {
   const kids = (id: number) =>
     nodes.filter((n) => n.parent === id).sort((a, b) => (a.edge ?? 0) - (b.edge ?? 0));
-  const x = new Map<number, number>(),
-    depth = new Map<number, number>();
-  let next = 0,
-    depthMax = 0;
+  const x = new Map<number, number>();
+  const depth = new Map<number, number>();
+  let next = 0;
+  let depthMax = 0;
   const visit = (n: SemTreeNode, d: number): number => {
     depth.set(n.id, d);
     depthMax = Math.max(depthMax, d);
@@ -106,9 +106,33 @@ export function edgeLabel(
   return `${edge ? '' : 'not '}${rule.variable} ${rule.relation} ${v.join(', ')}`;
 }
 
-const pText = (p?: number) => (p === undefined ? '' : p < 0.001 ? 'p < .001' : `p = ${fmt(p, 3)}`);
+const pText = (p?: number) => {
+  if (p === undefined) return '';
+  return p < 0.001 ? 'p < .001' : `p = ${fmt(p, 3)}`;
+};
 const paramName = (p: SemTreeNode['params'][number]) =>
   p.op === '~1' ? `${p.lhs} (mean)` : `${p.lhs} ${p.op} ${p.rhs}`;
+
+/** A node's outline: the picked node, a leaf, or an inner node. */
+function nodeColor(picked: boolean, terminal: boolean) {
+  if (picked) return NEGATIVE_COLOR;
+  return terminal ? POSITIVE_COLOR : OTHER_COLOR;
+}
+
+/** How the splits were chosen, as the result names the method. */
+function splitTests(method: string) {
+  if (method === 'naive') return 'likelihood-ratio tests of every cut';
+  if (method === 'score') return 'score-based tests';
+  return 'the fair two-stage selection';
+}
+
+const METHOD_HINT: Record<SemTreeOptions['method'], string> = {
+  naive:
+    'Every cut of every covariate compared by its likelihood-ratio test (semtree’s default; exhaustive, favours covariates with many cuts).',
+  score:
+    'Score-based tests (Arnold et al. 2021): fast and unbiased between covariates; not with equality constraints between parameters.',
+  fair: 'Half the sample chooses each covariate’s best cut, the other half compares the covariates (Brandmaier et al. 2013).',
+};
 
 function TreeChart({
   r,
@@ -122,13 +146,13 @@ function TreeChart({
   labels: Record<string, string[]>;
 }) {
   const L = treeLayout(r.nodes);
-  const BW = 150,
-    BH = 54,
-    GAP = 24,
-    LEVEL = 110,
-    M = 16;
-  const W = Math.max(420, L.leaves * (BW + GAP) + 2 * M),
-    H = (L.depthMax + 1) * LEVEL + BH - LEVEL + 2 * M + 20;
+  const BW = 150;
+  const BH = 54;
+  const GAP = 24;
+  const LEVEL = 110;
+  const M = 16;
+  const W = Math.max(420, L.leaves * (BW + GAP) + 2 * M);
+  const H = (L.depthMax + 1) * LEVEL + BH - LEVEL + 2 * M + 20;
   const cx = (id: number) =>
     M + BW / 2 + L.x.get(id)! * (BW + GAP) + (W - 2 * M - L.leaves * (BW + GAP) + GAP) / 2;
   const cy = (id: number) => M + L.depth.get(id)! * LEVEL;
@@ -154,10 +178,10 @@ function TreeChart({
             .filter((n) => n.parent !== undefined)
             .map((n) => {
               const p = r.nodes.find((q) => q.id === n.parent)!;
-              const x1 = cx(p.id),
-                y1 = cy(p.id) + BH,
-                x2 = cx(n.id),
-                y2 = cy(n.id);
+              const x1 = cx(p.id);
+              const y1 = cy(p.id) + BH;
+              const x2 = cx(n.id);
+              const y2 = cy(n.id);
               return (
                 <g key={`e${n.id}`}>
                   <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={OTHER_COLOR} strokeWidth={1.5} />
@@ -175,9 +199,9 @@ function TreeChart({
               );
             })}
           {r.nodes.map((n) => {
-            const x = cx(n.id) - BW / 2,
-              y = cy(n.id),
-              on = n.id === picked;
+            const x = cx(n.id) - BW / 2;
+            const y = cy(n.id);
+            const on = n.id === picked;
             return (
               <g
                 key={n.id}
@@ -193,7 +217,7 @@ function TreeChart({
                   height={BH}
                   rx={6}
                   fill="var(--surface, #f6f7f9)"
-                  stroke={on ? NEGATIVE_COLOR : n.terminal ? POSITIVE_COLOR : OTHER_COLOR}
+                  stroke={nodeColor(on, n.terminal)}
                   strokeWidth={on ? 2.5 : 1.5}
                 />
                 <text x={x + BW / 2} y={y + 17} textAnchor="middle" fontWeight={600}>
@@ -220,11 +244,11 @@ function ImportanceChart({ f }: { f: NonNullable<SemTreeResult['forest']> }) {
   const rows = f.variables
     .map((v, i) => ({ v, imp: f.importance[i] }))
     .sort((a, b) => (b.imp ?? -Infinity) - (a.imp ?? -Infinity));
-  const W = 520,
-    bar = 26,
-    padL = 130,
-    padR = 70,
-    H = rows.length * bar + 50;
+  const W = 520;
+  const bar = 26;
+  const padL = 130;
+  const padR = 70;
+  const H = rows.length * bar + 50;
   const max = Math.max(1e-12, ...rows.map((x) => Math.abs(x.imp ?? 0)));
   const sx = (v: number) => padL + (Math.max(0, v) / max) * (W - padL - padR);
   return (
@@ -304,18 +328,16 @@ function SemTreeView({ r }: { r: SemTreeResult }) {
     ...leaves.map((l) => c(l.params[k]?.est ?? null)),
   ]);
   const splits = r.nodes.filter((n) => !n.terminal);
+  const nodePath = path(node);
+  const leaf = node.terminal ? ' (leaf)' : '';
+  const where = nodePath.length ? `, ${nodePath.join(' and ')}` : ' (all cases)';
+  const nodeTitle = `Node ${node.id}${leaf}: N = ${node.n}${where}`;
   return (
     <div className="tables">
       <p className="hint" style={{ marginTop: 0 }}>
         {r.n} cases; {splits.length} split{splits.length === 1 ? '' : 's'}, {leaves.length} leaves;
-        splits by{' '}
-        {r.method === 'naive'
-          ? 'likelihood-ratio tests of every cut'
-          : r.method === 'score'
-            ? 'score-based tests'
-            : 'the fair two-stage selection'}{' '}
-        at α = {r.alpha}, depth at most {r.maxDepth}, nodes of at least {r.minN} cases. semtree{' '}
-        {r.engine.version}
+        splits by {splitTests(r.method)} at α = {r.alpha}, depth at most {r.maxDepth}, nodes of at
+        least {r.minN} cases. semtree {r.engine.version}
         {r.engine.openmx ? `, OpenMx ${r.engine.openmx}` : ''}
         {r.engine.desktop ? ` in desktop ${r.engine.desktop}` : ''}.
       </p>
@@ -337,7 +359,7 @@ function SemTreeView({ r }: { r: SemTreeResult }) {
         />
       )}
       <Table
-        title={`Node ${node.id}${node.terminal ? ' (leaf)' : ''}: N = ${node.n}${path(node).length ? `, ${path(node).join(' and ')}` : ' (all cases)'}`}
+        title={nodeTitle}
         file={`semtree-node-${node.id}`}
         columns={['Parameter', 'Estimate']}
         rows={node.params.map((p) => [c(paramName(p)), c(p.est)])}
@@ -462,13 +484,7 @@ function SemTreeForm({ options: o, set, ctx, disabled }: OptionsProps<SemTreeOpt
           ['fair', 'Fair'],
         ]}
         onChange={(method) => set({ ...o, method })}
-        hint={
-          o.method === 'naive'
-            ? 'Every cut of every covariate compared by its likelihood-ratio test (semtree’s default; exhaustive, favours covariates with many cuts).'
-            : o.method === 'score'
-              ? 'Score-based tests (Arnold et al. 2021): fast and unbiased between covariates; not with equality constraints between parameters.'
-              : 'Half the sample chooses each covariate’s best cut, the other half compares the covariates (Brandmaier et al. 2013).'
-        }
+        hint={METHOD_HINT[o.method]}
       />
       <div className="row2">
         <NumField
@@ -594,11 +610,11 @@ export const semTreeAnalysis: AnalysisType<SemTreeOptions, SemTreeResult> = {
       : null;
   },
   fingerprint: (o, ctx) => {
-    const m = cbFingerprint(ctx),
-      cols = columnsFingerprint(
-        ctx,
-        o.covariates.map((c) => c.name),
-      );
+    const m = cbFingerprint(ctx);
+    const cols = columnsFingerprint(
+      ctx,
+      o.covariates.map((c) => c.name),
+    );
     return m && cols && fingerprint([m, cols, o.forest ? ctx.settings.seed : null]);
   },
   run: async (o, ctx) =>

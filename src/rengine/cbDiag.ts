@@ -224,15 +224,15 @@ const lrtAt = (c: ReturnType<typeof lrtCols>, i: number): Lrt => ({
   p: c.p[i] ?? null,
 });
 export function parseDiscriminant(r: Record<string, any>): DiscriminantResult {
-  const lhs = rList<string>(r.lhs),
-    rhs = rList<string>(r.rhs),
-    est = rList<unknown>(r.est).map(rNum),
-    low = rList<unknown>(r.low).map(rNum),
-    high = rList<unknown>(r.high).map(rNum);
-  const c80 = lrtCols(r.cut80),
-    c90 = lrtCols(r.cut90),
-    c100 = lrtCols(r.cut100),
-    merge = r.merge ? lrtCols(r.merge) : null;
+  const lhs = rList<string>(r.lhs);
+  const rhs = rList<string>(r.rhs);
+  const est = rList<unknown>(r.est).map(rNum);
+  const low = rList<unknown>(r.low).map(rNum);
+  const high = rList<unknown>(r.high).map(rNum);
+  const c80 = lrtCols(r.cut80);
+  const c90 = lrtCols(r.cut90);
+  const c100 = lrtCols(r.cut100);
+  const merge = r.merge ? lrtCols(r.merge) : null;
   return {
     level: Number(r.level),
     markers: r.markers === true,
@@ -274,7 +274,10 @@ export type DvClass = 'severe' | 'moderate' | 'marginal' | 'none';
 export function dvClass(low: number | null, high: number | null): DvClass | null {
   if (low === null || high === null) return null;
   const ul = Math.max(Math.abs(low), Math.abs(high));
-  return ul >= 1 ? 'severe' : ul >= 0.9 ? 'moderate' : ul >= 0.8 ? 'marginal' : 'none';
+  if (ul >= 1) return 'severe';
+  if (ul >= 0.9) return 'moderate';
+  if (ul >= 0.8) return 'marginal';
+  return 'none';
 }
 
 /** True when the fit is significantly worse with the correlation fixed at the cutoff (p < .05; no test: null). */
@@ -287,11 +290,14 @@ const worse = (t: Lrt) => (t.p === null ? null : t.p < 0.05);
 export function dvClassChi2(
   p: Pick<DiscriminantResult['pairs'][number], 'est' | 'cut80' | 'cut90' | 'cut100'>,
 ): DvClass | null {
-  const w1 = worse(p.cut100),
-    w9 = worse(p.cut90),
-    w8 = worse(p.cut80);
+  const w1 = worse(p.cut100);
+  const w9 = worse(p.cut90);
+  const w8 = worse(p.cut80);
   if (w1 === null || w9 === null || w8 === null || p.est === null) return null;
-  return !w1 ? 'severe' : !w9 ? 'moderate' : !w8 || Math.abs(p.est) >= 0.8 ? 'marginal' : 'none';
+  if (!w1) return 'severe';
+  if (!w9) return 'moderate';
+  if (!w8 || Math.abs(p.est) >= 0.8) return 'marginal';
+  return 'none';
 }
 
 // ---------- comparing two models (lavTestNET, lavTestLRT, nonnest2) ----------
@@ -364,10 +370,10 @@ const fitOf = (f: any): ModelFit => ({
 const noteOf = (t: any): TestNote => ({ error: str(t?.error), notes: rStrings(t?.notes) });
 const bool = (v: unknown) => (typeof v === 'boolean' ? v : null);
 export function parseCompareModels(r: Record<string, any>): CompareModelsResult {
-  const net = r.net ?? {},
-    lrt = r.lrt ?? {},
-    vt = r.vuong ?? {},
-    ic = r.icci ?? {};
+  const net = r.net ?? {};
+  const lrt = r.lrt ?? {};
+  const vt = r.vuong ?? {};
+  const ic = r.icci ?? {};
   return {
     fit1: fitOf(r.fit1),
     fit2: fitOf(r.fit2),
@@ -487,11 +493,11 @@ export interface EpcResult {
   engine: REngineInfo;
 }
 export function parseEpc(r: Record<string, any>): EpcResult {
-  const lhs = rList<string>(r.lhs),
-    at = <T>(k: string, f: (v: unknown) => T) => rList<unknown>(r[k]).map(f);
-  const n = (k: string) => at(k, rNum),
-    s = (k: string) => at(k, str),
-    b = (k: string) => at(k, (v) => (typeof v === 'boolean' ? v : null));
+  const lhs = rList<string>(r.lhs);
+  const at = <T>(k: string, f: (v: unknown) => T) => rList<unknown>(r[k]).map(f);
+  const n = (k: string) => at(k, rNum);
+  const s = (k: string) => at(k, str);
+  const b = (k: string) => at(k, (v) => (typeof v === 'boolean' ? v : null));
   const [
     op,
     rhs,
@@ -578,13 +584,9 @@ export type EpcVerdict =
   | 'NO PARAMETERS EVALUATED';
 /** semTools' global decision (its global_localfit_decision): any underpowered, then any misspecified, then any inconclusive. */
 export function epcVerdict(n: { M: number; I: number; U?: number; NM: number }): EpcVerdict {
-  return (n.U ?? 0) > 0
-    ? 'UNDERPOWERED'
-    : n.M > 0
-      ? 'SUBSTANTIAL MISSPECIFICATION'
-      : n.I > 0
-        ? 'INCONCLUSIVE'
-        : n.NM > 0
-          ? 'EQUIVALENT'
-          : 'NO PARAMETERS EVALUATED';
+  if ((n.U ?? 0) > 0) return 'UNDERPOWERED';
+  if (n.M > 0) return 'SUBSTANTIAL MISSPECIFICATION';
+  if (n.I > 0) return 'INCONCLUSIVE';
+  if (n.NM > 0) return 'EQUIVALENT';
+  return 'NO PARAMETERS EVALUATED';
 }

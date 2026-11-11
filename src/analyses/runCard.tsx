@@ -31,6 +31,21 @@ function parseRunData(raw: unknown): RunData | null {
     : null;
 }
 
+/** The package that estimated the version (R engine) or the built-in engine. */
+function engineName(s: Settings) {
+  if (s.engine !== 'r') return 'the built-in engine';
+  if (s.method === 'pls') return s.plsPackage;
+  if (s.method === 'cbsem') return s.estimator === '2SLS' ? 'MIIVsem' : 'lavaan';
+  return 'manymome';
+}
+
+/** The estimator (CB-SEM) or the PLS variant and scheme, after a comma. */
+function estimationDetail(s: Settings) {
+  if (s.method === 'cbsem') return `, ${s.estimator}`;
+  if (s.method === 'pls') return `, ${s.consistent ? 'PLSc' : 'PLS'}, ${s.scheme} scheme`;
+  return '';
+}
+
 export const runAnalysis: AnalysisType<RunOptions, SnapshotResult> = {
   id: 'run',
   title: 'Model run',
@@ -88,21 +103,9 @@ export const runAnalysis: AnalysisType<RunOptions, SnapshotResult> = {
       <p className="hint" style={{ marginTop: 0 }}>
         Version {o.version}
         {o.from ? `, edited from v${o.from}` : ''}: {METHOD_LABEL[o.settings.method]} with{' '}
-        {o.settings.engine === 'r'
-          ? o.settings.method === 'pls'
-            ? o.settings.plsPackage
-            : o.settings.method === 'cbsem'
-              ? o.settings.estimator === '2SLS'
-                ? 'MIIVsem'
-                : 'lavaan'
-              : 'manymome'
-          : 'the built-in engine'}
-        {o.settings.method === 'cbsem'
-          ? `, ${o.settings.estimator}`
-          : o.settings.method === 'pls'
-            ? `, ${o.settings.consistent ? 'PLSc' : 'PLS'}, ${o.settings.scheme} scheme`
-            : ''}
-        , missing values: {o.settings.missing}. Data: {o.data.name || 'none'}
+        {engineName(o.settings)}
+        {estimationDetail(o.settings)}, missing values: {o.settings.missing}. Data:{' '}
+        {o.data.name || 'none'}
         {o.data.rows ? ` (${o.data.rows.toLocaleString()} rows)` : ''}.
       </p>
       <div className="field">

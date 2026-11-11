@@ -83,8 +83,8 @@ const HAYAKAWA: readonly LocalFitTest[] = [
 
 /** Why a test does not apply to the model and its settings (lavaan's own conditions); null when it may. */
 export function localTestProblem(t: LocalFitTest, ctx: AnalysisCtx): string | null {
-  const s = ctx.settings,
-    m = ctx.model;
+  const s = ctx.settings;
+  const m = ctx.model;
   if (HAYAKAWA.includes(t)) {
     if (s.estimator !== 'ML') return 'needs the ML estimator';
     if (m?.multigroup) return 'is for one group';
@@ -114,16 +114,33 @@ const METRICS: [Metric, string][] = [
   ['residual', 'Residual correlation'],
 ];
 
+const RESIDUAL_TITLE: Record<Metric, string> = {
+  residual: 'correlations',
+  z: 'z-tests (standardized)',
+  normalized: 'z-tests (normalized)',
+};
+
+function residualNote(metric: Metric): string {
+  if (metric === 'normalized')
+    return 'Normalized residuals: each raw residual over its standard error under normality, ignoring that the model was estimated, so they are smaller than the standardized z (a conservative screen). Shaded where |value| ≥ 1.96.';
+  const what =
+    metric === 'z'
+      ? 'z = residual correlation / its standard error (lavaan::lavResiduals, type “cor.bentler”: observed minus model-implied, both scaled by the observed SDs; standard errors from the asymptotic covariance of the sample moments and the model’s estimation).'
+      : 'Observed minus model-implied correlation (Bentler’s scaling, as the SRMR).';
+  return `${what} Shaded where |z| ≥ 1.96: blue, the model under-predicts the correlation; red, it over-predicts it; bold where |z| ≥ 2.58.`;
+}
+
 function ResidualMatrix({ b }: { b: LocalFitBlock }) {
   const [metric, setMetric] = useState<Metric>('z');
-  const m =
-    metric === 'residual' ? b.residual : metric === 'normalized' ? (b.normalized ?? b.z) : b.z;
+  let m = b.z;
+  if (metric === 'residual') m = b.residual;
+  else if (metric === 'normalized') m = b.normalized ?? b.z;
   const rows: Row[] = b.names.map((n, i) => [
     c(n),
     ...b.names.map((_, j): Cell => {
       if (j >= i) return c(null, 'dim');
-      const v = m[i]?.[j] ?? null,
-        z = b.z[i]?.[j] ?? null;
+      const v = m[i]?.[j] ?? null;
+      const z = b.z[i]?.[j] ?? null;
       return {
         ...c(v, undefined, metric === 'residual' ? 3 : 2),
         bg: zShade(metric === 'normalized' ? v : z),
@@ -141,15 +158,11 @@ function ResidualMatrix({ b }: { b: LocalFitBlock }) {
         ))}
       </div>
       <Table
-        title={`Residual ${metric === 'residual' ? 'correlations' : `z-tests (${metric === 'z' ? 'standardized' : 'normalized'})`}${b.label ? `: ${b.label}` : ''}`}
+        title={`Residual ${RESIDUAL_TITLE[metric]}${b.label ? `: ${b.label}` : ''}`}
         file={`cb-localfit-${metric}`}
         columns={['', ...b.names]}
         rows={rows}
-        note={
-          metric === 'normalized'
-            ? 'Normalized residuals: each raw residual over its standard error under normality, ignoring that the model was estimated, so they are smaller than the standardized z (a conservative screen). Shaded where |value| ≥ 1.96.'
-            : `${metric === 'z' ? 'z = residual correlation / its standard error (lavaan::lavResiduals, type “cor.bentler”: observed minus model-implied, both scaled by the observed SDs; standard errors from the asymptotic covariance of the sample moments and the model’s estimation).' : 'Observed minus model-implied correlation (Bentler’s scaling, as the SRMR).'} Shaded where |z| ≥ 1.96: blue, the model under-predicts the correlation; red, it over-predicts it; bold where |z| ≥ 2.58.`
-        }
+        note={residualNote(metric)}
       />
     </>
   );
@@ -157,24 +170,30 @@ function ResidualMatrix({ b }: { b: LocalFitBlock }) {
 
 function Pairs({ b, top }: { b: LocalFitBlock; top: number }) {
   const all = largestResiduals(b);
-  const sig = all.filter((p) => Math.abs(p.z) >= 1.96).length,
-    k = all.length;
+  const sig = all.filter((p) => Math.abs(p.z) >= 1.96).length;
+  const k = all.length;
   const bonf = 0.05 / Math.max(1, k);
+  // Red below the Bonferroni level, amber below .05.
+  const pClass = (p: number) => {
+    if (p < bonf) return 'bad';
+    if (p < 0.05) return 'warn';
+    return 'dim';
+  };
   return (
     <Table
       title={`Largest residuals${b.label ? `: ${b.label}` : ''} (${Math.min(top, k)} of ${k} pairs)`}
       file="cb-localfit-largest"
       columns={['Pair', 'Residual correlation', 'SE', 'z', 'p', 'Normalized']}
       rows={all.slice(0, top).map((p): Row => {
-        const i = b.names.indexOf(p.b),
-          j = b.names.indexOf(p.a),
-          pz = normalP(p.z);
+        const i = b.names.indexOf(p.b);
+        const j = b.names.indexOf(p.a);
+        const pz = normalP(p.z);
         return [
           c(`${p.a} ↔ ${p.b}`),
           c(p.residual),
           c(p.se),
           { ...c(p.z, Math.abs(p.z) >= 1.96 ? 'bad' : 'dim', 2), bg: zShade(p.z) },
-          { ...pCell(pz), cls: pz < bonf ? 'bad' : pz < 0.05 ? 'warn' : 'dim' },
+          { ...pCell(pz), cls: pClass(pz) },
           c(b.normalized?.[i]?.[j] ?? null, undefined, 2),
         ];
       })}
@@ -224,6 +243,13 @@ function Tests({ r }: { r: LocalFitResult }) {
     t === 'standard'
       ? `Standard χ² (${['MLM', 'MLMV', 'MLR'].includes(r.estimator) ? 'ML' : r.estimator})`
       : (TEST_NAMES[t as LocalFitTest] ?? t);
+  // A test's warning, or which statistic a scaled test starts from.
+  const testComment = (t: (typeof r.tests)[number]) => {
+    if (t.warning) return `lavaan: ${t.warning}`;
+    if (!SCALED_TESTS.includes(t.test as LocalFitTest)) return '';
+    const rls = t.base === 'browne.residual.nt.model' || t.base === 'rls';
+    return `base: ${rls ? 'Browne’s RLS' : 'ML χ²'}`;
+  };
   const rows: Row[] = r.tests.map((t) => [
     c(name(t.test)),
     c(t.stat, undefined, 3),
@@ -231,15 +257,7 @@ function Tests({ r }: { r: LocalFitResult }) {
     t.p === null ? c(t.error ? 'not available' : null, 'dim') : pCell(t.p),
     c(t.scaling),
     c(t.shift),
-    c(
-      t.error ??
-        (t.warning
-          ? `lavaan: ${t.warning}`
-          : SCALED_TESTS.includes(t.test as LocalFitTest)
-            ? `base: ${t.base === 'browne.residual.nt.model' || t.base === 'rls' ? 'Browne’s RLS' : 'ML χ²'}`
-            : ''),
-      t.error ? 'bad' : 'dim',
-    ),
+    c(t.error ?? testComment(t), t.error ? 'bad' : 'dim'),
   ]);
   return (
     <Table
@@ -444,8 +462,12 @@ export const localFitAnalysis: AnalysisType<LocalFitOptions, LocalFitResult> = {
       tests: o.tests,
       base: o.base,
     }),
-  summary: (o) =>
-    `residual z-tests${o.tests.length ? `, ${o.tests.length} further test${o.tests.length === 1 ? '' : 's'}${o.base === 'RLS' ? ' (base RLS)' : ''}` : ''}`,
+  summary: (o) => {
+    if (!o.tests.length) return 'residual z-tests';
+    const plural = o.tests.length === 1 ? '' : 's';
+    const base = o.base === 'RLS' ? ' (base RLS)' : '';
+    return `residual z-tests, ${o.tests.length} further test${plural}${base}`;
+  },
 };
 
 // ---------- discriminant validity (Rönkkö & Cho 2022) ----------
@@ -477,6 +499,11 @@ export function DiscriminantView({ r }: { r: DiscriminantResult }) {
     );
   const pct = `${fmt(r.level * 100, 0)}%`;
   const merge = r.pairs.some((p) => p.merge);
+  // The merge test's columns appear when any pair has one; blank for the others.
+  const mergeCells = (p: (typeof r.pairs)[number]) => {
+    if (!merge) return [];
+    return p.merge ? lrtCells(p.merge) : [c(null), c(null)];
+  };
   const rows: Row[] = r.pairs.map((p) => [
     c(`${p.a} ↔ ${p.b}`),
     c(p.est),
@@ -486,7 +513,7 @@ export function DiscriminantView({ r }: { r: DiscriminantResult }) {
     ...lrtCells(p.cut90),
     ...lrtCells(p.cut100),
     dvCell(dvClassChi2(p)),
-    ...(merge && p.merge ? lrtCells(p.merge) : merge ? [c(null), c(null)] : []),
+    ...mergeCells(p),
   ]);
   return (
     <div className="tables">
@@ -608,6 +635,14 @@ export interface CompareModelsOptions {
   alternative: { model: ModelState; savedAt: number } | null;
   nested: Nesting;
 }
+
+/** The saved alternative in a line: its size, its groups and when it was saved. */
+function describeAlternative(alt: NonNullable<CompareModelsOptions['alternative']>): string {
+  const groups = alt.model.multigroup ? `, groups by ${alt.model.multigroup.column}` : '';
+  const saved = alt.savedAt ? ` (${new Date(alt.savedAt).toLocaleString()})` : '';
+  return `Alternative saved: ${alt.model.constructs.length} constructs, ${alt.model.paths.length} paths${groups}${saved}.`;
+}
+
 const NESTINGS: [Nesting, string][] = [
   ['auto', 'From the nesting test'],
   ['nested', 'Nested'],
@@ -641,79 +676,92 @@ export function compareModelsProblem(o: CompareModelsOptions, ctx: AnalysisCtx):
 const yesNo = (v: boolean | null) =>
   v === null ? c('could not be decided', 'dim') : c(v ? 'yes' : 'no', v ? 'good' : '');
 
+/** What the nesting and equivalence test (lavTestNET) says about the two models. */
+function nestingVerdict(n: CompareModelsResult['net'], equalDf: boolean): string {
+  if (n.error) return `Not available: ${n.error}`;
+  if (equalDf) {
+    if (n.nested12 && n.nested21)
+      return 'Equivalent: the two models imply the same covariances (equal df), so no test can tell them apart.';
+    if (n.nested12 === false || n.nested21 === false)
+      return 'Not equivalent, with equal df: neither is nested in the other, so the χ² difference test does not apply; use Vuong’s tests.';
+    return 'Equivalence could not be decided.';
+  }
+  if (n.nested12) return 'Model 1 is nested in model 2: the χ² difference test applies.';
+  if (n.nested21) return 'Model 2 is nested in model 1: the χ² difference test applies.';
+  if (n.nested12 === false && n.nested21 === false)
+    return 'Not nested: the χ² difference test is invalid; use Vuong’s tests and the information criteria.';
+  return 'Nesting could not be decided.';
+}
+
 export function CompareModelsView({ r }: { r: CompareModelsResult }) {
-  const f1 = r.fit1,
-    f2 = r.fit2;
+  const f1 = r.fit1;
+  const f2 = r.fit2;
   const fitRow = (label: string, k: keyof ModelFit, d = 3, lower = false): Row => {
-    const a = f1[k],
-      b = f2[k];
-    const better = lower && a !== null && b !== null && a !== b ? (a < b ? 1 : 2) : 0;
+    const a = f1[k];
+    const b = f2[k];
+    // Which model's value to bold (lower is better): 1, 2, or 0 for neither.
+    let better = 0;
+    if (lower && a !== null && b !== null && a !== b) better = a < b ? 1 : 2;
     return [
       c(label),
       { ...c(a, undefined, d), bold: better === 1 },
       { ...c(b, undefined, d), bold: better === 2 },
     ];
   };
-  const n = r.net,
-    equalDf = f1.df !== null && f1.df === f2.df;
-  const netVerdict = n.error
-    ? `Not available: ${n.error}`
-    : equalDf
-      ? n.nested12 && n.nested21
-        ? 'Equivalent: the two models imply the same covariances (equal df), so no test can tell them apart.'
-        : n.nested12 === false || n.nested21 === false
-          ? 'Not equivalent, with equal df: neither is nested in the other, so the χ² difference test does not apply; use Vuong’s tests.'
-          : 'Equivalence could not be decided.'
-      : n.nested12
-        ? 'Model 1 is nested in model 2: the χ² difference test applies.'
-        : n.nested21
-          ? 'Model 2 is nested in model 1: the χ² difference test applies.'
-          : n.nested12 === false && n.nested21 === false
-            ? 'Not nested: the χ² difference test is invalid; use Vuong’s tests and the information criteria.'
-            : 'Nesting could not be decided.';
-  const v = r.vuong,
-    ic = r.icci;
-  const vuongRows: Row[] = v.error
-    ? [[c('Vuong’s tests'), c('not available', 'dim'), c(null), c(v.error, 'bad')]]
-    : v.nested
-      ? [
-          [
-            c('Vuong’s test for nested models (robust LR)'),
-            c(v.stat, undefined, 3),
-            pCell(v.pA),
-            c(
-              'a small p: the larger model fits better, without assuming that either model is correct (weighted χ² reference distribution)',
-              'dim',
-            ),
-          ],
-        ]
-      : [
-          [
-            c('Distinguishability (variance test, ω²)'),
-            c(v.omega, undefined, 4),
-            pCell(v.pOmega),
-            c(
-              v.pOmega !== null && v.pOmega < 0.05
-                ? 'distinguishable: go on to the LR test'
-                : 'not distinguishable on these data: the LR test cannot favour either',
-              'dim',
-            ),
-          ],
-          [
-            c('Non-nested LR test: model 1 better'),
-            c(v.stat, undefined, 3),
-            pCell(v.pA),
-            c('H1: model 1 fits better (z of the mean log-likelihood difference)', 'dim'),
-          ],
-          [
-            c('Non-nested LR test: model 2 better'),
-            c(v.stat, undefined, 3),
-            pCell(v.pB),
-            c('H1: model 2 fits better', 'dim'),
-          ],
-        ];
+  const n = r.net;
+  const equalDf = f1.df !== null && f1.df === f2.df;
+  const netVerdict = nestingVerdict(n, equalDf);
+  const v = r.vuong;
+  const ic = r.icci;
+  let vuongRows: Row[];
+  if (v.error) {
+    vuongRows = [[c('Vuong’s tests'), c('not available', 'dim'), c(null), c(v.error, 'bad')]];
+  } else if (v.nested) {
+    vuongRows = [
+      [
+        c('Vuong’s test for nested models (robust LR)'),
+        c(v.stat, undefined, 3),
+        pCell(v.pA),
+        c(
+          'a small p: the larger model fits better, without assuming that either model is correct (weighted χ² reference distribution)',
+          'dim',
+        ),
+      ],
+    ];
+  } else {
+    vuongRows = [
+      [
+        c('Distinguishability (variance test, ω²)'),
+        c(v.omega, undefined, 4),
+        pCell(v.pOmega),
+        c(
+          v.pOmega !== null && v.pOmega < 0.05
+            ? 'distinguishable: go on to the LR test'
+            : 'not distinguishable on these data: the LR test cannot favour either',
+          'dim',
+        ),
+      ],
+      [
+        c('Non-nested LR test: model 1 better'),
+        c(v.stat, undefined, 3),
+        pCell(v.pA),
+        c('H1: model 1 fits better (z of the mean log-likelihood difference)', 'dim'),
+      ],
+      [
+        c('Non-nested LR test: model 2 better'),
+        c(v.stat, undefined, 3),
+        pCell(v.pB),
+        c('H1: model 2 fits better', 'dim'),
+      ],
+    ];
+  }
   const ci = (lo: number | null, hi: number | null) =>
     c(lo !== null && hi !== null ? `[${fmt(lo, 2)}, ${fmt(hi, 2)}]` : null);
+  const treatedAs = v.nested ? 'nested' : 'non-nested';
+  const decidedBy = r.nestedChoice === 'auto' ? 'from the nesting test' : 'as chosen';
+  const rNotes = [...v.notes, ...ic.notes];
+  const rNotesText = rNotes.length ? ` R: ${[...new Set(rNotes)].join(' ')}` : '';
+  const vuongNote = `Merkle, You & Preacher (2016), nonnest2 ${r.engine.version}: for non-nested models first ask whether the data can distinguish them (the variance test); only then does the LR test say which fits better. The models were treated as ${treatedAs} (${decidedBy}). The interval of the BIC difference (icci) is valid for non-nested, distinguishable models. Vuong (1989).${rNotesText}`;
   return (
     <div className="tables">
       <Table
@@ -803,7 +851,7 @@ export function CompareModelsView({ r }: { r: CompareModelsResult }) {
                 ] as Row,
               ]),
         ]}
-        note={`Merkle, You & Preacher (2016), nonnest2 ${r.engine.version}: for non-nested models first ask whether the data can distinguish them (the variance test); only then does the LR test say which fits better. ${v.nested ? 'The models were treated as nested' : 'The models were treated as non-nested'} (${r.nestedChoice === 'auto' ? 'from the nesting test' : 'as chosen'}). The interval of the BIC difference (icci) is valid for non-nested, distinguishable models. Vuong (1989).${[...v.notes, ...ic.notes].length ? ` R: ${[...new Set([...v.notes, ...ic.notes])].join(' ')}` : ''}`}
+        note={vuongNote}
       />
       {r.warnings.length > 0 && (
         <div>
@@ -838,7 +886,7 @@ function CompareModelsForm({ options: o, set, ctx, disabled }: OptionsProps<Comp
       </button>
       <div className="hint" style={{ marginTop: 6 }}>
         {alt
-          ? `Alternative saved: ${alt.model.constructs.length} constructs, ${alt.model.paths.length} paths${alt.model.multigroup ? `, groups by ${alt.model.multigroup.column}` : ''}${alt.savedAt ? ` (${new Date(alt.savedAt).toLocaleString()})` : ''}.`
+          ? describeAlternative(alt)
           : 'No alternative saved yet: save the model, change the diagram, then compare.'}
       </div>
       <div className="field" style={{ marginTop: 8 }}>
@@ -891,8 +939,8 @@ export const compareModelsAnalysis: AnalysisType<CompareModelsOptions, CompareMo
     fitBlocked(ctx, 'Comparing models') ??
     compareModelsProblem(o, ctx),
   fingerprint: (o, ctx) => {
-    const alt = o.alternative?.model,
-      col = alt?.multigroup?.column;
+    const alt = o.alternative?.model;
+    const col = alt?.multigroup?.column;
     return cbFingerprint(ctx, [
       alt ? JSON.stringify(toSpec(alt)) : null,
       o.nested,
@@ -945,18 +993,28 @@ const OP_WORD: Record<string, string> = {
 };
 const severity = (r: EpcRow) =>
   r.stdEpc !== null && r.stdSesoi ? Math.abs(r.stdEpc / r.stdSesoi) : 0;
-const rank = (r: EpcRow) =>
-  r.decisionCi === 'M' || r.decisionPow === 'M' || r.decisionPow === 'EPC:M'
-    ? 0
-    : r.decisionCi === 'NM' && (r.decisionPow === 'NM' || r.decisionPow === 'EPC:NM')
-      ? 2
-      : 1;
+/** 0: either judgement says misspecified; 2: both say not misspecified; 1: in between. */
+const rank = (r: EpcRow) => {
+  if (r.decisionCi === 'M' || r.decisionPow === 'M' || r.decisionPow === 'EPC:M') return 0;
+  const powNotMisspecified = r.decisionPow === 'NM' || r.decisionPow === 'EPC:NM';
+  if (r.decisionCi === 'NM' && powNotMisspecified) return 2;
+  return 1;
+};
+/** A parameter in words: a loading, a path, a covariance or an intercept. */
+const epcParameter = (x: EpcRow) => {
+  if (x.op === '=~') return `${x.lhs} → ${x.rhs}`;
+  if (x.op === '~') return `${x.rhs} → ${x.lhs}`;
+  if (x.op === '~~') return `${x.lhs} ↔ ${x.rhs}`;
+  return `${x.lhs} (intercept)`;
+};
 
 export function EpcView({ r, show }: { r: EpcResult; show: 'flagged' | 'all' }) {
-  const n = epcCounts(r.rows),
-    s = r.settings;
-  const label = (x: EpcRow) =>
-    `${x.op === '=~' ? `${x.lhs} → ${x.rhs}` : x.op === '~' ? `${x.rhs} → ${x.lhs}` : x.op === '~~' ? `${x.lhs} ↔ ${x.rhs}` : `${x.lhs} (intercept)`}${r.groups && x.group ? ` (${r.groups[x.group - 1] ?? x.group})` : ''}`;
+  const n = epcCounts(r.rows);
+  const s = r.settings;
+  const label = (x: EpcRow) => {
+    const group = r.groups && x.group ? ` (${r.groups[x.group - 1] ?? x.group})` : '';
+    return `${epcParameter(x)}${group}`;
+  };
   const sorted = [...r.rows].sort((a, b) => rank(a) - rank(b) || severity(b) - severity(a));
   const rows = show === 'all' ? sorted : sorted.filter((x) => rank(x) === 0);
   const pct = `${fmt(s.cilevel * 100, 0)}%`;

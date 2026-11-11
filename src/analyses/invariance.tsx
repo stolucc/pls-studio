@@ -144,15 +144,13 @@ function FactorPicker({
             type={single ? 'radio' : 'checkbox'}
             name={single ? 'inv-factor' : undefined}
             checked={value.includes(f.name)}
-            onChange={(e) =>
-              onChange(
-                single
-                  ? [f.name]
-                  : e.target.checked
-                    ? all.map((x) => x.name).filter((n) => n === f.name || value.includes(n))
-                    : value.filter((n) => n !== f.name),
-              )
-            }
+            onChange={(e) => {
+              if (single) onChange([f.name]);
+              // (ticking keeps the factors in the model's order)
+              else if (e.target.checked)
+                onChange(all.map((x) => x.name).filter((n) => n === f.name || value.includes(n)));
+              else onChange(value.filter((n) => n !== f.name));
+            }}
           />
           <span>
             {f.name} <span className="hint">({f.indicators.join(', ')})</span>
@@ -284,8 +282,8 @@ function AlignmentForm({ options: o, set, ctx, disabled }: OptionsProps<Alignmen
 const pct = (x: number) => `${fmt(x * 100, 1)}%`;
 /** Aligned parameters (groups × items), the non-invariant ones (outside the tolerance) marked. */
 function alignedRows(r: AlignmentResult, f: AlignedFactor, which: 'lambda' | 'nu'): Row[] {
-  const m = which === 'lambda' ? f.lambdaAligned : f.nuAligned,
-    dif = (which === 'lambda' ? f.lambdaConstraints : f.nuConstraints).dif;
+  const m = which === 'lambda' ? f.lambdaAligned : f.nuAligned;
+  const dif = (which === 'lambda' ? f.lambdaConstraints : f.nuConstraints).dif;
   const joint = (which === 'lambda' ? f.lambdaConstraints : f.nuConstraints).joint;
   return [
     ...r.groups.map(
@@ -300,9 +298,19 @@ function alignedRows(r: AlignmentResult, f: AlignedFactor, which: 'lambda' | 'nu
   ];
 }
 
+/** How the alignment was identified and whether it converged. */
+function alignmentNote(f: AlignedFactor): string {
+  const identification = f.fixed ? 'its SD 1' : 'the product of the SDs 1';
+  const groups = f.fixed ? ' for few groups' : ' for many groups';
+  const converged = f.converged
+    ? 'The alignment converged'
+    : 'The alignment did NOT converge: read with care';
+  return `The first group’s mean is 0 and ${identification} (sirt’s identification${groups}). The means are comparable across groups although scalar invariance is not assumed. ${converged} (loss ${fmt(f.fopt, 3)}). sirt gives no standard errors for a lavaan configural fit.`;
+}
+
 function AlignedFactorView({ r, f }: { r: AlignmentResult; f: AlignedFactor }) {
-  const lc = f.lambdaConstraints,
-    nc = f.nuConstraints;
+  const lc = f.lambdaConstraints;
+  const nc = f.nuConstraints;
   const multi = r.factors.length > 1;
   const t = (s: string) => (multi ? `${f.name}: ${s}` : s);
   return (
@@ -335,7 +343,7 @@ function AlignedFactorView({ r, f }: { r: AlignmentResult; f: AlignedFactor }) {
             c((f.sd[i] ?? NaN) ** 2),
           ],
         )}
-        note={`The first group’s mean is 0 and ${f.fixed ? 'its SD 1' : 'the product of the SDs 1'} (sirt’s identification${f.fixed ? ' for few groups' : ' for many groups'}). The means are comparable across groups although scalar invariance is not assumed. ${f.converged ? 'The alignment converged' : 'The alignment did NOT converge: read with care'} (loss ${fmt(f.fopt, 3)}). sirt gives no standard errors for a lavaan configural fit.`}
+        note={alignmentNote(f)}
       />
       <Table
         title={t('Effect sizes of approximate invariance')}
@@ -594,8 +602,8 @@ function MnlfaForm({ options: o, set, ctx, disabled }: OptionsProps<MnlfaOptions
 export function mnlfaUnidentified(i: MnlfaInput): string | null {
   const all = !i.moderated.length || i.moderated.length === i.items.length;
   if (!all) return null;
-  const a = i.intercept.find((v) => i.mean.includes(v)),
-    b = i.slope.find((v) => i.sd.includes(v));
+  const a = i.intercept.find((v) => i.mean.includes(v));
+  const b = i.slope.find((v) => i.sd.includes(v));
   if (a)
     return `${a} moderates the factor mean and the intercepts of every item: not identified. Leave at least one item unmoderated (an anchor).`;
   return b
@@ -607,7 +615,8 @@ function MnlfaView({ r }: { r: MnlfaResult }) {
   const label = (term: string) => {
     if (term === '(Intercept)') return 'Intercept';
     const t = r.terms.find((x) => x.term === term);
-    return t ? (t.level === null ? t.covariate : `${t.covariate} = ${t.level}`) : term;
+    if (!t) return term;
+    return t.level === null ? t.covariate : `${t.covariate} = ${t.level}`;
   };
   const items = [...new Set(r.items.map((p) => p.item))];
   const table = (kind: 'a' | 'b') => {
@@ -625,8 +634,8 @@ function MnlfaView({ r }: { r: MnlfaResult }) {
       ),
     };
   };
-  const b = table('b'),
-    a = table('a');
+  const b = table('b');
+  const a = table('a');
   const traitTerms = [...new Set(r.trait.map((t) => t.term))];
   const est = (kind: 'mu' | 'sigma', t: string) =>
     r.trait.find((x) => x.kind === kind && x.term === t)?.est;
@@ -778,11 +787,11 @@ const lsemModelVars = (ctx: AnalysisCtx) =>
   new Set((ctx.model?.constructs ?? []).flatMap((k) => k.indicators));
 /** The moderator's observed range (null when it has no values). */
 export function moderatorRange(ctx: AnalysisCtx, column: string): [number, number] | null {
-  const ds = rawData(ctx),
-    k = ds ? ds.names.indexOf(column) : -1;
+  const ds = rawData(ctx);
+  const k = ds ? ds.names.indexOf(column) : -1;
   if (!ds || k < 0) return null;
-  let lo = Infinity,
-    hi = -Infinity;
+  let lo = Infinity;
+  let hi = -Infinity;
   for (const v of ds.cols[k])
     if (Number.isFinite(v)) {
       if (v < lo) lo = v;
@@ -982,12 +991,11 @@ export function lsemKind(p: LsemParam, factors: Set<string>): LsemKind {
   if (p.lhs !== p.rhs) return 'covariance';
   return factors.has(p.lhs) ? 'variance' : 'residual';
 }
-export const lsemLabel = (p: LsemParam) =>
-  p.op === 'fit'
-    ? p.par.toUpperCase()
-    : p.op === '~1'
-      ? `${p.lhs} ~1`
-      : `${p.lhs} ${p.op} ${p.rhs}`;
+export const lsemLabel = (p: LsemParam) => {
+  if (p.op === 'fit') return p.par.toUpperCase();
+  if (p.op === '~1') return `${p.lhs} ~1`;
+  return `${p.lhs} ${p.op} ${p.rhs}`;
+};
 
 function LsemChart({ r, params, kind }: { r: LsemResult; params: LsemParam[]; kind: string }) {
   const band = (p: LsemParam, i: number) =>
@@ -996,16 +1004,16 @@ function LsemChart({ r, params, kind }: { r: LsemResult; params: LsemParam[]; ki
     .flatMap((p) => p.est.flatMap((v, i) => [v, ...band(p, i)]))
     .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
   if (!vals.length) return null;
-  const lo = Math.min(...vals),
-    hi = Math.max(...vals),
-    padY = (hi - lo) * 0.05 || Math.abs(hi) * 0.05 || 0.1;
-  const ys: [number, number] = [lo - padY, hi + padY],
-    xs: [number, number] = [r.grid[0], r.grid[r.grid.length - 1]];
+  const lo = Math.min(...vals);
+  const hi = Math.max(...vals);
+  const padY = (hi - lo) * 0.05 || Math.abs(hi) * 0.05 || 0.1;
+  const ys: [number, number] = [lo - padY, hi + padY];
+  const xs: [number, number] = [r.grid[0], r.grid[r.grid.length - 1]];
   const sx = (v: number) => pad.l + ((v - xs[0]) / (xs[1] - xs[0] || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((ys[1] - v) / (ys[1] - ys[0] || 1)) * (H - pad.t - pad.b);
-  const perRow = 3,
-    legendH = Math.ceil(params.length / perRow) * 16 + 8,
-    HT = H + legendH;
+  const perRow = 3;
+  const legendH = Math.ceil(params.length / perRow) * 16 + 8;
+  const HT = H + legendH;
   const fin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
   return (
     <ChartFrame
@@ -1060,8 +1068,8 @@ function LsemChart({ r, params, kind }: { r: LsemResult; params: LsemParam[]; ki
             );
           })}
           {params.map((p, k) => {
-            const x = pad.l + (k % perRow) * ((W - pad.l - pad.r) / perRow),
-              y = H + 12 + Math.floor(k / perRow) * 16;
+            const x = pad.l + (k % perRow) * ((W - pad.l - pad.r) / perRow);
+            const y = H + 12 + Math.floor(k / perRow) * 16;
             return (
               <g key={`l${p.par}`}>
                 <line
@@ -1092,6 +1100,12 @@ function LsemView({ r }: { r: LsemResult }) {
   const shown = r.params.filter((p) => lsemKind(p, factors) === kind);
   const model = r.params.filter((p) => p.op !== 'fit');
   const perm = r.permutations > 0;
+  // The permutation p values of a parameter's variation (blank where it has none).
+  const permutationCells = (t: LsemParam['test']) => {
+    if (!perm) return [];
+    if (!t) return [c(null), c(null), c(null)];
+    return [pCell(t.sdP), pCell(t.madP), pCell(t.linSlopeP)];
+  };
   const g = (v: number) => fmt(v, 3);
   return (
     <div className="tables">
@@ -1130,8 +1144,8 @@ function LsemView({ r }: { r: LsemResult }) {
         rows={r.params
           .filter((p) => p.summary)
           .map((p): Row => {
-            const s = p.summary!,
-              t = p.test;
+            const s = p.summary!;
+            const t = p.test;
             return [
               c(lsemLabel(p)),
               c(s.mean),
@@ -1141,11 +1155,7 @@ function LsemView({ r }: { r: LsemResult }) {
               c(s.max),
               c(s.linSlope),
               c(s.sdNonlin),
-              ...(perm
-                ? t
-                  ? [pCell(t.sdP), pCell(t.madP), pCell(t.linSlopeP)]
-                  : [c(null), c(null), c(null)]
-                : []),
+              ...permutationCells(t),
             ];
           })}
         note={`Over the focal points, weighted by the moderator’s density there (sirt’s parameters_summary): the mean, SD and mean absolute deviation (MAD) of each parameter’s curve, its range, the slope of a weighted linear regression on ${r.moderator} and the SD of what that line leaves.${perm ? ` p: the share of the ${r.permutations} permutations of ${r.moderator} in which the statistic was at least as large (lsem.permutationTest): a small p for the SD or MAD says the parameter is not invariant along ${r.moderator}; for the slope, that it changes linearly.` : ' Tick the permutation test for p values of this variation.'}`}
@@ -1254,14 +1264,17 @@ export const lsemAnalysis: AnalysisType<LsemOptions, LsemResult> = {
     return i.from < i.to ? null : 'The last focal point must be above the first.';
   },
   fingerprint: (o, ctx) => {
-    const m = cbFingerprint(ctx),
-      col = columnsFingerprint(ctx, [o.moderator]);
+    const m = cbFingerprint(ctx);
+    const col = columnsFingerprint(ctx, [o.moderator]);
     return m && col && fingerprint([m, col, JSON.stringify(lsemInput(o, ctx))]);
   },
   run: async (o, ctx) => (await engine()).lsemR(cbCall(ctx), lsemInput(o, ctx)),
   script: async (o, ctx) => (await engine()).lsemScriptR(cbCall(ctx), lsemInput(o, ctx)),
-  summary: (o) =>
-    `along ${o.moderator || '…'} · ${o.points} focal points, h = ${o.h}${o.bootstrap ? ` · bootstrap ${o.bootR}` : ''}${o.permutation ? ` · ${o.permB} permutations` : ''}`,
+  summary: (o) => {
+    const bootstrap = o.bootstrap ? ` · bootstrap ${o.bootR}` : '';
+    const permutation = o.permutation ? ` · ${o.permB} permutations` : '';
+    return `along ${o.moderator || '…'} · ${o.points} focal points, h = ${o.h}${bootstrap}${permutation}`;
+  },
 };
 
 // ---------------------------------------------------------------- effect sizes of non-invariance (dMACS)

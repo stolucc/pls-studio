@@ -291,20 +291,20 @@ export function scoreSummary(s: FactorScores) {
   const n = s.rows.length;
   const col = (j: number) => (s.scores[j] ?? []).filter((v) => Number.isFinite(v));
   const stats = s.names.map((name, j) => {
-    const x = col(j),
-      m = x.reduce((a, b) => a + b, 0) / (x.length || 1);
+    const x = col(j);
+    const m = x.reduce((a, b) => a + b, 0) / (x.length || 1);
     const sd = Math.sqrt(x.reduce((a, b) => a + (b - m) ** 2, 0) / Math.max(1, x.length - 1));
     return { name, n: x.length, mean: m, sd, min: Math.min(...x), max: Math.max(...x) };
   });
   const cor = s.names.map((_, i) =>
     s.names.map((__, j) => {
-      const xi = s.scores[i] ?? [],
-        xj = s.scores[j] ?? [];
-      const mi = stats[i].mean,
-        mj = stats[j].mean;
-      let num = 0,
-        di = 0,
-        dj = 0;
+      const xi = s.scores[i] ?? [];
+      const xj = s.scores[j] ?? [];
+      const mi = stats[i].mean;
+      const mj = stats[j].mean;
+      let num = 0;
+      let di = 0;
+      let dj = 0;
       for (let k = 0; k < n; k++) {
         if (!Number.isFinite(xi[k]) || !Number.isFinite(xj[k])) continue;
         num += (xi[k] - mi) * (xj[k] - mj);
@@ -365,7 +365,12 @@ function ScoresPanel({ r }: { r: FactorScoresCardResult }) {
                   rows={s.names.map(
                     (a, i): Row => [
                       c(a),
-                      ...s.names.map((_, j) => (j > i ? c(null) : j === i ? c('—') : c(cor[i][j]))),
+                      // (lower triangle; a dash on the diagonal)
+                      ...s.names.map((_, j) => {
+                        if (j > i) return c(null);
+                        if (j === i) return c('—');
+                        return c(cor[i][j]);
+                      }),
                     ],
                   )}
                 />

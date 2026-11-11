@@ -22,7 +22,7 @@ import type {
   BsemResult,
   InlaPriorType,
 } from '../rengine/bsem';
-import { Choice, clampNum, columnsFingerprint, isObj, oneOf, rawData } from './common';
+import { Choice, clampNum, columnsFingerprint, isObj, oneOf, rawData, rhatClass } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 import { fingerprint } from './codec';
 
@@ -76,12 +76,19 @@ const PRIOR_RE = new RegExp(
   `^\\s*(normal|gamma|beta)\\s*\\(\\s*(${NUM})\\s*,\\s*(${NUM})\\s*\\)\\s*(\\[sd\\]|\\[prec\\])?\\s*$`,
 );
 /** A default prior as INLAvaan writes it, checked and rewritten from its numbers: normal(mean, SD) for loadings, regressions, intercepts, means and thresholds; gamma(shape, rate) on a variance ([sd]: on the SD; [prec]: on the precision); beta(a, b) on a correlation. Null when invalid. */
+/** The distribution INLAvaan takes for a type: gamma for variances, beta for correlations, normal otherwise. */
+function priorFamily(type: InlaPriorType): 'gamma' | 'beta' | 'normal' {
+  if (type === 'theta' || type === 'psi') return 'gamma';
+  if (type === 'rho') return 'beta';
+  return 'normal';
+}
+
 export function inlaPrior(type: InlaPriorType, text: string): string | null {
   const m = text.length <= 60 ? PRIOR_RE.exec(text) : null;
   if (!m) return null;
-  const family = type === 'theta' || type === 'psi' ? 'gamma' : type === 'rho' ? 'beta' : 'normal';
-  const a = Number(m[2]),
-    b = Number(m[3]);
+  const family = priorFamily(type);
+  const a = Number(m[2]);
+  const b = Number(m[3]);
   if (
     m[1] !== family ||
     !Number.isFinite(a) ||
@@ -135,8 +142,8 @@ export function parsePriors(text: string): BsemPrior[] {
         throw new Error(
           `“${l}”: write a prior as labels ~ N(mean, variance), for example xload1-xload6 ~ N(0, 0.01).`,
         );
-      const mean = Number(m[2]),
-        variance = Number(m[3]);
+      const mean = Number(m[2]);
+      const variance = Number(m[3]);
       if (!Number.isFinite(mean) || !(variance > 0))
         throw new Error(`“${l}”: the variance must be positive.`);
       return { labels: expandLabels(m[1]), mean, variance };
@@ -177,6 +184,12 @@ function PriorBox({ value, onChange }: { value: BsemPrior[]; onChange: (v: BsemP
   );
 }
 
+const PRIOR_SYNTAX = {
+  beta: 'beta(a, b)',
+  gamma: 'gamma(shape, rate), on the variance, or with [sd] on the SD',
+  normal: 'normal(mean, SD)',
+} as const;
+
 const PRIOR_TYPE_NAME: Record<InlaPriorType, string> = {
   lambda: 'Loadings',
   beta: 'Regressions',
@@ -207,9 +220,7 @@ function TypePriors({
     }
     const p = inlaPrior(t, s);
     if (!p) {
-      setErr(
-        `${PRIOR_TYPE_NAME[t]}: write ${t === 'rho' ? 'beta(a, b)' : t === 'theta' || t === 'psi' ? 'gamma(shape, rate), on the variance, or with [sd] on the SD' : 'normal(mean, SD)'}.`,
-      );
+      setErr(`${PRIOR_TYPE_NAME[t]}: write ${PRIOR_SYNTAX[priorFamily(t)]}.`);
       return;
     }
     onChange({ ...value, [t]: p });
@@ -256,16 +267,14 @@ function BsemForm({ options: o, set, disabled, ctx }: OptionsProps<BsemOptions>)
     const v = Number(e.target.value);
     if (Number.isFinite(v)) setLoop({ [k]: v });
   };
-  const priorKind = o.priors === 'mplus' ? 'mplus' : inla && o.defaultPriors ? 'custom' : 'package';
+  let priorKind: 'package' | 'mplus' | 'custom' = 'package';
+  if (o.priors === 'mplus') priorKind = 'mplus';
+  else if (inla && o.defaultPriors) priorKind = 'custom';
   const setPriors = (p: 'package' | 'mplus' | 'custom') => {
     const { priors: _p, defaultPriors: _d, ...rest } = o;
-    set(
-      p === 'mplus'
-        ? { ...rest, priors: 'mplus' }
-        : p === 'custom'
-          ? { ...rest, defaultPriors: {} }
-          : rest,
-    );
+    if (p === 'mplus') set({ ...rest, priors: 'mplus' });
+    else if (p === 'custom') set({ ...rest, defaultPriors: {} });
+    else set(rest);
   };
   return (
     <fieldset className="card-options" disabled={disabled}>
@@ -577,14 +586,14 @@ function BsemForm({ options: o, set, disabled, ctx }: OptionsProps<BsemOptions>)
 }
 
 function LoopChart({ l, conf }: { l: BsemLoopResult; conf: number }) {
-  const W = 520,
-    H = 300,
-    pad = { l: 56, r: 16, t: 14, b: 44 };
-  const lo = Math.min(0, ...l.low),
-    hi = Math.max(0, ...l.high),
-    m = (hi - lo || 1) * 0.06;
-  const x0 = l.x[0],
-    x1 = l.x[l.x.length - 1];
+  const W = 520;
+  const H = 300;
+  const pad = { l: 56, r: 16, t: 14, b: 44 };
+  const lo = Math.min(0, ...l.low);
+  const hi = Math.max(0, ...l.high);
+  const m = (hi - lo || 1) * 0.06;
+  const x0 = l.x[0];
+  const x1 = l.x[l.x.length - 1];
   const sx = (v: number) => pad.l + ((v - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((hi + m - v) / (hi - lo + 2 * m)) * (H - pad.t - pad.b);
   const ticks = Array.from({ length: 6 }, (_, i) => lo - m + ((hi - lo + 2 * m) * i) / 5);
@@ -645,12 +654,12 @@ function LoopChart({ l, conf }: { l: BsemLoopResult; conf: number }) {
   );
 }
 
-const paramName = (p: BsemResult['parameters'][number]) =>
-  (p.op === '~1'
-    ? `${p.lhs} (intercept)`
-    : p.op === '|'
-      ? `${p.lhs} threshold ${p.rhs.replace(/^t/, '')}`
-      : `${p.lhs} ${p.op} ${p.rhs}`) + (p.label ? ` (${p.label})` : '');
+const paramName = (p: BsemResult['parameters'][number]) => {
+  let name = `${p.lhs} ${p.op} ${p.rhs}`;
+  if (p.op === '~1') name = `${p.lhs} (intercept)`;
+  else if (p.op === '|') name = `${p.lhs} threshold ${p.rhs.replace(/^t/, '')}`;
+  return name + (p.label ? ` (${p.label})` : '');
+};
 const present = (rows: [string, number | undefined | null][]) =>
   rows.filter((x): x is [string, number] => x[1] !== undefined && x[1] !== null);
 
@@ -726,8 +735,8 @@ function Derived({ r }: { r: BsemResult }) {
 
 /** INLAvaan's result: no chains; the diagnostics of the approximation instead of R-hat. */
 function InlaView({ r }: { r: BsemResult }) {
-  const f = r.fit,
-    d = r.diagnostics ?? {};
+  const f = r.fit;
+  const d = r.diagnostics ?? {};
   const groups = r.groups?.length ? r.groups : [null];
   const flag = (v: number | null | undefined, warn: number) =>
     v === null || v === undefined
@@ -744,14 +753,12 @@ function InlaView({ r }: { r: BsemResult }) {
     'VB shift (SD)',
     ...(withPrior ? ['Prior'] : []),
   ];
-  const priors =
-    r.priors === 'mplus'
-      ? 'Mplus’s default priors'
-      : r.priors === 'custom'
-        ? `default priors by type (${Object.entries(r.defaultPriors ?? {})
-            .map(([k, v]) => `${k} ${v}`)
-            .join(', ')})`
-        : 'INLAvaan’s default priors';
+  let priors = 'INLAvaan’s default priors';
+  if (r.priors === 'mplus') priors = 'Mplus’s default priors';
+  else if (r.priors === 'custom') {
+    const byType = Object.entries(r.defaultPriors ?? {}).map(([k, v]) => `${k} ${v}`);
+    priors = `default priors by type (${byType.join(', ')})`;
+  }
   return (
     <div className="tables">
       <p className="hint" style={{ marginTop: 0 }}>
@@ -901,9 +908,7 @@ function BsemView({ r }: { r: BsemResult }) {
   const f = r.fit;
   const groups = r.groups?.length ? r.groups : [null];
   const rhatCell = (v: number | null | undefined) =>
-    v === null || v === undefined
-      ? c(null)
-      : { v: fmt(v, 3), cls: v >= 1.05 ? 'bad' : v >= 1.01 ? 'warn' : 'good' };
+    v === null || v === undefined ? c(null) : { v: fmt(v, 3), cls: rhatClass(v) };
   const withPrior = r.parameters.some((p) => p.prior);
   const cols = [
     'Parameter',
@@ -936,11 +941,7 @@ function BsemView({ r }: { r: BsemResult }) {
         </div>
         <div className="stat-card">
           <div className="k">Largest R-hat</div>
-          <div
-            className={`v ${(r.maxRhat ?? 0) >= 1.05 ? 'bad' : (r.maxRhat ?? 0) >= 1.01 ? 'warn' : 'good'}`}
-          >
-            {fmt(r.maxRhat, 3)}
-          </div>
+          <div className={`v ${rhatClass(r.maxRhat ?? 0)}`}>{fmt(r.maxRhat, 3)}</div>
         </div>
         <div className="stat-card">
           <div className="k">Smallest n_eff</div>
@@ -1025,8 +1026,8 @@ const prior = (v: unknown): BsemPrior | null => {
   const labels = v.labels
     .filter((x): x is string => typeof x === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,30}$/.test(x))
     .slice(0, 500);
-  const mean = Number(v.mean),
-    variance = Number(v.variance);
+  const mean = Number(v.mean);
+  const variance = Number(v.variance);
   return labels.length && Number.isFinite(mean) && Number.isFinite(variance) && variance > 0
     ? { labels, mean, variance }
     : null;
@@ -1039,9 +1040,9 @@ const loopOf = (v: unknown): BsemLoop | null => {
     typeof v.variable !== 'string'
   )
     return null;
-  const from = Number(v.from),
-    to = Number(v.to),
-    by = Number(v.by);
+  const from = Number(v.from);
+  const to = Number(v.to);
+  const by = Number(v.by);
   return Number.isFinite(from) && Number.isFinite(to) && by > 0
     ? {
         name: v.name.slice(0, 31),
@@ -1238,6 +1239,16 @@ export const bsemAnalysis: AnalysisType<BsemOptions, BsemResult> = {
       ctx.settings.seed,
       ctx.settings.confidence,
     ),
-  summary: (o) =>
-    `the CB-SEM model on the canvas · ${o.engine === 'inlavaan' ? `INLAvaan, ${o.sample} draws` : `${o.chains} chains × ${o.sample}`} · ${o.identification === 'unit' ? 'unit variances' : 'markers'}${o.priors === 'mplus' ? ' · Mplus’s priors' : o.defaultPriors ? ' · priors by type' : ''}${o.labelPriors?.length ? ` · ${o.labelPriors.reduce((a, p) => a + p.labels.length, 0)} priors` : ''}${o.wiggle ? ' · approximate invariance' : ''}`,
+  summary: (o) => {
+    const sampling =
+      o.engine === 'inlavaan' ? `INLAvaan, ${o.sample} draws` : `${o.chains} chains × ${o.sample}`;
+    const identification = o.identification === 'unit' ? 'unit variances' : 'markers';
+    let priors = '';
+    if (o.priors === 'mplus') priors = ' · Mplus’s priors';
+    else if (o.defaultPriors) priors = ' · priors by type';
+    const labelled = o.labelPriors?.reduce((a, p) => a + p.labels.length, 0);
+    const labelPriors = o.labelPriors?.length ? ` · ${labelled} priors` : '';
+    const wiggle = o.wiggle ? ' · approximate invariance' : '';
+    return `the CB-SEM model on the canvas · ${sampling} · ${identification}${priors}${labelPriors}${wiggle}`;
+  },
 };

@@ -3,7 +3,7 @@
 // simulateData with cSEM and lavaan, or the built-in engine).
 
 import { useEffect, useMemo, useState } from 'react';
-import type { McDesign, McSummaryRow } from '../engine/montecarlo';
+import type { McDesign, McParam, McSummaryRow } from '../engine/montecarlo';
 import { buildPopulation, type PopulationSpec } from '../engine/population';
 import { fmt } from '../format';
 import {
@@ -57,9 +57,33 @@ function Num({
       value={text}
       onChange={(e) => setText(e.target.value)}
       onBlur={commit}
-      onKeyDown={(e) => e.key === 'Enter' && commit()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit();
+      }}
     />
   );
+}
+
+/** Each chart's reference line (80% power, 95% coverage, no bias) and axis title. */
+const METRIC_AXIS = {
+  rejection: { ref: 0.8, title: 'Power (rejection rate)' },
+  coverage: { ref: 0.95, title: 'CI coverage' },
+  relBias: { ref: 0, title: 'Relative bias' },
+} as const;
+
+/** A parameter in the menu, with its true value. */
+function paramOption(p: McParam): string {
+  if (p.kind === 'fit') return 'Model χ² test (CB-SEM, correct model)';
+  if (p.kind === 'covariance') return `${p.from} ↔ ${p.to} (correlation, true ${fmt(p.value)})`;
+  const indirect = p.kind === 'indirect' ? 'indirect ' : '';
+  return `${indirect}${p.from} → ${p.to} (true ${fmt(p.value)})`;
+}
+
+/** A parameter as the title of its table. */
+function paramTitle(p: McParam): string {
+  if (p.kind === 'fit') return 'Model χ² test';
+  if (p.kind === 'covariance') return `${p.from} ↔ ${p.to} (correlation)`;
+  return `${p.from} → ${p.to}${p.kind === 'indirect' ? ' (indirect)' : ''}`;
 }
 
 function PowerChart({
@@ -73,34 +97,30 @@ function PowerChart({
   estimators: string[];
   metric: 'rejection' | 'relBias' | 'coverage';
 }) {
-  const W = 460,
-    H = 240,
-    pad = { l: 54, r: 12, t: 12, b: 36 };
+  const W = 460;
+  const H = 240;
+  const pad = { l: 54, r: 12, t: 12, b: 36 };
   const sel = rows.filter((r) => r.param.key === paramKey);
   const ns = [...new Set(sel.map((r) => r.n))].sort((a, b) => a - b);
   if (ns.length === 0) return null;
-  const val = (r: McSummaryRow) =>
-    metric === 'rejection' ? r.rejection : metric === 'coverage' ? r.coverage : r.relBias;
+  const val = (r: McSummaryRow) => r[metric];
   const vals = sel.map(val).filter((v): v is number => v !== null && Number.isFinite(v));
-  const [lo, hi] =
-    metric === 'relBias'
-      ? [Math.min(-0.1, ...vals) * 1.1, Math.max(0.1, ...vals) * 1.1]
-      : [metric === 'coverage' ? Math.min(0.8, ...vals) : 0, 1];
-  const sx = (n: number) =>
-    pad.l +
-    (ns.length === 1
-      ? 0.5
-      : (Math.log(n) - Math.log(ns[0])) / (Math.log(ns[ns.length - 1]) - Math.log(ns[0]))) *
-      (W - pad.l - pad.r);
+  // The y range: symmetric around 0 for the bias (at least ±.1), up to 1 for the rates.
+  let lo = 0;
+  let hi = 1;
+  if (metric === 'relBias') {
+    lo = Math.min(-0.1, ...vals) * 1.1;
+    hi = Math.max(0.1, ...vals) * 1.1;
+  } else if (metric === 'coverage') lo = Math.min(0.8, ...vals);
+  // N on a log scale; a single N in the middle.
+  const xShare = (n: number) => {
+    if (ns.length === 1) return 0.5;
+    return (Math.log(n) - Math.log(ns[0])) / (Math.log(ns[ns.length - 1]) - Math.log(ns[0]));
+  };
+  const sx = (n: number) => pad.l + xShare(n) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((hi - v) / (hi - lo)) * (H - pad.t - pad.b);
-  const ref = metric === 'rejection' ? 0.8 : metric === 'coverage' ? 0.95 : 0;
+  const { ref, title: yTitle } = METRIC_AXIS[metric];
   const ticks = Array.from({ length: 5 }, (_, i) => lo + ((hi - lo) * i) / 4);
-  const yTitle =
-    metric === 'rejection'
-      ? 'Power (rejection rate)'
-      : metric === 'coverage'
-        ? 'CI coverage'
-        : 'Relative bias';
   return (
     <ChartFrame
       id={`mc:${metric}`}
@@ -247,23 +267,16 @@ function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: Optio
                   onChange={(v) =>
                     setPop((p) => ({
                       ...p,
-                      constructs: p.constructs.map((x, j) =>
-                        j !== ci
-                          ? x
-                          : k.type === 'factor'
-                            ? {
-                                ...x,
-                                loadings: (x.loadings ?? x.indicators.map(() => 0.75)).map(
-                                  (l, a) => (a === ii ? v : l),
-                                ),
-                              }
-                            : {
-                                ...x,
-                                weights: (x.weights ?? x.indicators.map(() => 1)).map((w, a) =>
-                                  a === ii ? v : w,
-                                ),
-                              },
-                      ),
+                      constructs: p.constructs.map((x, j) => {
+                        if (j !== ci) return x;
+                        // Set the ii-th loading (factor) or weight (composite), filling in the defaults.
+                        if (k.type === 'factor') {
+                          const loadings = x.loadings ?? x.indicators.map(() => 0.75);
+                          return { ...x, loadings: loadings.map((l, a) => (a === ii ? v : l)) };
+                        }
+                        const weights = x.weights ?? x.indicators.map(() => 1);
+                        return { ...x, weights: weights.map((w, a) => (a === ii ? v : w)) };
+                      }),
                     }))
                   }
                 />
@@ -531,11 +544,7 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                 >
                   {params.map((p) => (
                     <option key={p.key} value={p.key}>
-                      {p.kind === 'fit'
-                        ? 'Model χ² test (CB-SEM, correct model)'
-                        : p.kind === 'covariance'
-                          ? `${p.from} ↔ ${p.to} (correlation, true ${fmt(p.value)})`
-                          : `${p.kind === 'indirect' ? 'indirect ' : ''}${p.from} → ${p.to} (true ${fmt(p.value)})`}
+                      {paramOption(p)}
                     </option>
                   ))}
                 </select>
@@ -577,13 +586,7 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
               ))}
             </div>
             <Table
-              title={
-                activeParam.kind === 'fit'
-                  ? 'Model χ² test'
-                  : activeParam.kind === 'covariance'
-                    ? `${activeParam.from} ↔ ${activeParam.to} (correlation)`
-                    : `${activeParam.from} → ${activeParam.to}${activeParam.kind === 'indirect' ? ' (indirect)' : ''}`
-              }
+              title={paramTitle(activeParam)}
               file="simulation"
               columns={[
                 'Estimator',
@@ -671,16 +674,16 @@ export const mcAnalysis: AnalysisType<McDesign, McSummaryRow[]> = {
   parseOptions: (raw) => parseDesign(raw),
   Options: McOptionsForm,
   View: ({ result, options }) => <McView rows={result} design={options} />,
-  blocked: (d, ctx) =>
-    ctx.settings.method === 'process'
-      ? 'Monte Carlo simulation is for PLS-SEM and CB-SEM models.'
-      : !d.population.constructs.length
-        ? 'Build a model first (Model tab), then press Reset to defaults: the population uses its constructs, indicators and paths.'
-        : !d.estimators.length
-          ? 'Choose at least one estimator.'
-          : !d.population.paths.length && d.estimators.some((e) => e.method === 'pls')
-            ? 'PLS-SEM needs at least one path between constructs; for a measurement model only (correlated factors), use the CB-SEM estimators.'
-            : populationError(d),
+  blocked: (d, ctx) => {
+    if (ctx.settings.method === 'process')
+      return 'Monte Carlo simulation is for PLS-SEM and CB-SEM models.';
+    if (!d.population.constructs.length)
+      return 'Build a model first (Model tab), then press Reset to defaults: the population uses its constructs, indicators and paths.';
+    if (!d.estimators.length) return 'Choose at least one estimator.';
+    if (!d.population.paths.length && d.estimators.some((e) => e.method === 'pls'))
+      return 'PLS-SEM needs at least one path between constructs; for a measurement model only (correlated factors), use the CB-SEM estimators.';
+    return populationError(d);
+  },
   // The study depends on its design (the options) and the engine only, not on the data.
   fingerprint: (_d, ctx) => fingerprint(['mc', ctx.settings.engine]),
   run: async (d, ctx, progress) =>

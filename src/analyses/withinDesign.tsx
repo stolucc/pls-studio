@@ -158,8 +158,8 @@ export function WithinDesignForm<T extends WithinDesign>({
       </>
     );
   }
-  const fs = o.factors!,
-    cells = o.cells ?? [];
+  const fs = o.factors!;
+  const cells = o.cells ?? [];
   const setFactors = (next: WithinFactor[]) => {
     if (next.length < 2) {
       set({

@@ -246,13 +246,15 @@ export function parseCpaOutput(raw: Record<string, any>): CpaResult {
   };
 }
 
+/** The R packages of a conditional process model: GLMs for a binary outcome or counterfactual effects, SAM for latent variables. */
+function cpaPackage(input: CpaInput) {
+  if (input.binaryY || input.counterfactual) return 'processGlm';
+  if (input.variables.some((v) => v.latent)) return 'manymomeSam';
+  return 'manymome';
+}
+
 export async function estimateCpaR(data: Dataset, input: CpaInput): Promise<CpaResult> {
-  const pkg =
-    input.binaryY || input.counterfactual
-      ? 'processGlm'
-      : input.variables.some((v) => v.latent)
-        ? 'manymomeSam'
-        : 'manymome';
+  const pkg = cpaPackage(input);
   const r = parseCpaOutput(
     await rCall<Record<string, any>>('ps_cpa', cpaRequest(data, input), pkg),
   );
@@ -271,15 +273,7 @@ export async function estimateCpaR(data: Dataset, input: CpaInput): Promise<CpaR
 }
 
 export function cpaScriptR(data: Dataset, input: CpaInput): Promise<string> {
-  return rScript(
-    'ps_cpa',
-    cpaRequest(data, input),
-    input.binaryY || input.counterfactual
-      ? 'processGlm'
-      : input.variables.some((v) => v.latent)
-        ? 'manymomeSam'
-        : 'manymome',
-  );
+  return rScript('ps_cpa', cpaRequest(data, input), cpaPackage(input));
 }
 
 /** A Johnson–Neyman curve of a process result, in the moderator's own units (for JohnsonNeymanPlot). */
@@ -289,9 +283,9 @@ export function processJn(j: CpaResult['jn'][number]): JohnsonNeyman {
   const se = (m: number) => Math.sqrt(Math.max(0, v11 + 2 * m * v13 + m * m * v33));
   // (b + bint·m)² = crit²·se(m)²: a quadratic in m.
   const q = j.crit * j.crit;
-  const A = j.bint * j.bint - q * v33,
-    B = 2 * (j.b * j.bint - q * v13),
-    C = j.b * j.b - q * v11;
+  const A = j.bint * j.bint - q * v33;
+  const B = 2 * (j.b * j.bint - q * v13);
+  const C = j.b * j.b - q * v11;
   const disc = B * B - 4 * A * C;
   const boundaries =
     disc < 0 || A === 0

@@ -11,7 +11,10 @@ import type { Dataset } from '../engine/types';
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN);
 const nums = (v: unknown) => rList<unknown>(v).map(num);
-const str = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v));
+const str = (v: unknown) => {
+  if (typeof v === 'string') return v;
+  return v == null ? '' : String(v);
+};
 /** A number, or null when R gave none (NA, or an empty vector: no zero crossing within the grid). */
 const first = (v: unknown): number | null => {
   const x = rList<unknown>(v)[0];

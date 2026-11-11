@@ -85,24 +85,29 @@ export function dfiShape(model: ModelState | undefined, data: Dataset | null): D
       }
       return seen.size >= 2;
     });
-  const problem = model.multigroup
-    ? 'Dynamic fit cutoffs are for a single group: remove the grouping (or analyse each group’s data).'
-    : model.multilevel
-      ? 'Dynamic fit cutoffs are not available for two-level models.'
-      : model.constructs.some((k) => k.type === 'composite')
-        ? 'Dynamic fit cutoffs are for common-factor models; the model has composites.'
-        : model.moderations.length
-          ? 'Dynamic fit cutoffs are not available with latent interactions.'
-          : model.esem?.blocks?.length
-            ? 'Dynamic fit cutoffs are not available for ESEM blocks.'
-            : !first.length
-              ? 'Dynamic fit cutoffs need at least one common factor.'
-              : null;
+  let problem: string | null = null;
+  if (model.multigroup)
+    problem =
+      'Dynamic fit cutoffs are for a single group: remove the grouping (or analyse each group’s data).';
+  else if (model.multilevel)
+    problem = 'Dynamic fit cutoffs are not available for two-level models.';
+  else if (model.constructs.some((k) => k.type === 'composite'))
+    problem = 'Dynamic fit cutoffs are for common-factor models; the model has composites.';
+  else if (model.moderations.length)
+    problem = 'Dynamic fit cutoffs are not available with latent interactions.';
+  else if (model.esem?.blocks?.length)
+    problem = 'Dynamic fit cutoffs are not available for ESEM blocks.';
+  else if (!first.length) problem = 'Dynamic fit cutoffs need at least one common factor.';
+
+  let ordinal: DfiShape['ordinal'] = 'some';
+  if (nOrd === 0) ordinal = 'none';
+  else if (nOrd === indicators.length) ordinal = 'all';
+
   return {
     factors: first.length,
     hoc: latent.some((k) => !!k.components?.length),
     structural: model.paths.length > 0,
-    ordinal: nOrd === 0 ? 'none' : nOrd === indicators.length ? 'all' : 'some',
+    ordinal,
     raw,
     likert,
     problem,
@@ -122,12 +127,13 @@ export interface DfiFnInfo {
   fits: (s: DfiShape) => string | null;
 }
 
-const cfaOnly = (s: DfiShape) =>
-  s.structural
-    ? 'is for CFA models without structural paths; for a model with paths use DDDFI (or exactFit, equivTest).'
-    : s.hoc
-      ? 'is for first-order CFA models; for a hierarchical factor model use hier1HB or hier2.'
-      : null;
+const cfaOnly = (s: DfiShape) => {
+  if (s.structural)
+    return 'is for CFA models without structural paths; for a model with paths use DDDFI (or exactFit, equivTest).';
+  if (s.hoc)
+    return 'is for first-order CFA models; for a hierarchical factor model use hier1HB or hier2.';
+  return null;
+};
 const continuous = (s: DfiShape) =>
   s.ordinal !== 'none'
     ? 'is for continuous indicators; with ordinal indicators use catOne, catHB or DDDFI.'
@@ -138,20 +144,26 @@ const one = (s: DfiShape, other: string) =>
     : null;
 const multi = (s: DfiShape, other: string) =>
   s.factors < 2 ? `is for models with two or more factors (use ${other}).` : null;
-const likertData = (s: DfiShape) =>
-  s.ordinal !== 'none'
-    ? 'treats Likert items as continuous: declare no ordinal indicators (or use catOne / catHB).'
-    : !s.raw
-      ? 'needs raw data (the items’ response frequencies), not a covariance matrix.'
-      : !s.likert
-        ? 'needs integer-valued Likert-type items with at most 11 categories.'
-        : null;
-const rawOnly = (s: DfiShape) =>
-  s.ordinal !== 'none'
-    ? 'is for continuous indicators (MLR); with ordinal indicators use catOne, catHB or DDDFI.'
-    : !s.raw
-      ? 'needs raw data (a modified Bollen–Stine bootstrap of them), not a covariance matrix.'
-      : null;
+const likertData = (s: DfiShape) => {
+  if (s.ordinal !== 'none')
+    return 'treats Likert items as continuous: declare no ordinal indicators (or use catOne / catHB).';
+  if (!s.raw) return 'needs raw data (the items’ response frequencies), not a covariance matrix.';
+  if (!s.likert) return 'needs integer-valued Likert-type items with at most 11 categories.';
+  return null;
+};
+const rawOnly = (s: DfiShape) => {
+  if (s.ordinal !== 'none')
+    return 'is for continuous indicators (MLR); with ordinal indicators use catOne, catHB or DDDFI.';
+  if (!s.raw)
+    return 'needs raw data (a modified Bollen–Stine bootstrap of them), not a covariance matrix.';
+  return null;
+};
+/** For hier1HB and hier2. */
+const hierarchicalOnly = (s: DfiShape) => {
+  if (!s.hoc) return 'is for hierarchical (second-order) factor models; this model has none.';
+  if (s.structural) return 'is for hierarchical CFA models without structural paths.';
+  return continuous(s);
+};
 
 export const DFI_FN_INFO: DfiFnInfo[] = [
   {
@@ -234,12 +246,7 @@ export const DFI_FN_INFO: DfiFnInfo[] = [
     what: 'DFI cutoffs for a hierarchical (second-order) factor model with misspecification in the measurement part, adapted from Hu & Bentler (1999).',
     defaultReps: 500,
     defaultEstimator: 'ML',
-    fits: (s) =>
-      !s.hoc
-        ? 'is for hierarchical (second-order) factor models; this model has none.'
-        : s.structural
-          ? 'is for hierarchical CFA models without structural paths.'
-          : continuous(s),
+    fits: hierarchicalOnly,
   },
   {
     id: 'hier2',
@@ -247,12 +254,7 @@ export const DFI_FN_INFO: DfiFnInfo[] = [
     what: 'DFI cutoffs for a hierarchical factor model with misspecification in the structural part (the first-order factors’ covariances).',
     defaultReps: 500,
     defaultEstimator: 'ML',
-    fits: (s) =>
-      !s.hoc
-        ? 'is for hierarchical (second-order) factor models; this model has none.'
-        : s.structural
-          ? 'is for hierarchical CFA models without structural paths.'
-          : continuous(s),
+    fits: hierarchicalOnly,
   },
   {
     id: 'exactFit',
@@ -284,7 +286,10 @@ export const dfiInfo = (fn: DfiFn) => DFI_FN_INFO.find((f) => f.id === fn)!;
 /** The dynamic function the model's shape calls for. */
 export function dfiDefaultFn(s: DfiShape): DfiFn {
   const cfa = !s.structural && !s.hoc;
-  if (s.ordinal === 'all') return cfa ? (s.factors === 1 ? 'catOne' : 'catHB') : 'DDDFI';
+  if (s.ordinal === 'all') {
+    if (!cfa) return 'DDDFI';
+    return s.factors === 1 ? 'catOne' : 'catHB';
+  }
   if (s.ordinal === 'some') return 'DDDFI';
   if (s.hoc && !s.structural) return 'hier1HB';
   if (s.structural) return 'DDDFI';
@@ -336,12 +341,12 @@ export interface DfiLevel {
 export function dfiLevels(t: DfiTable | null): DfiLevel[] {
   if (!t) return [];
   const col = (name: string) => t.columns.findIndex((k) => k.trim().toLowerCase() === name);
-  const iS = col('srmr'),
-    iR = col('rmsea'),
-    iC = col('cfi'),
-    iX = col('chi-square'),
-    iM = col('magnitude'),
-    iH = col('90% ci');
+  const iS = col('srmr');
+  const iR = col('rmsea');
+  const iC = col('cfi');
+  const iX = col('chi-square');
+  const iM = col('magnitude');
+  const iH = col('90% ci');
   const out: DfiLevel[] = [];
   t.rows.forEach((name, i) => {
     const row = t.cells[i] ?? [];
@@ -349,15 +354,14 @@ export function dfiLevels(t: DfiTable | null): DfiLevel[] {
     if (!n || /^(specificity|sensitivity)$/i.test(n)) return;
     const at = (j: number) => (j >= 0 ? dfiNumber(row[j]) : null);
     const m = /^Level[- ](\d+)(?::\s*(95\/5|90\/10))?$/i.exec(n);
-    let kind: DfiLevel['kind'] = 'misspec',
-      label = n;
+    let kind: DfiLevel['kind'] = 'misspec';
+    let label = n;
     if (m) {
-      kind = m[1] === '0' ? 'true' : 'misspec';
-      label = m[2]
-        ? `Level ${m[1]} (${m[2]})`
-        : m[1] === '0'
-          ? 'Level 0 (correct model)'
-          : `Level ${m[1]}`;
+      const [, level, split] = m;
+      kind = level === '0' ? 'true' : 'misspec';
+      if (split) label = `Level ${level} (${split})`;
+      else if (level === '0') label = 'Level 0 (correct model)';
+      else label = `Level ${level}`;
     } else if (/^consistent$/i.test(n)) {
       kind = 'true';
       label = 'Consistent (correct model)';
@@ -433,27 +437,10 @@ function equivVerdict(index: 'RMSEA' | 'CFI', value: number | null, bins: string
   let at = -1;
   const edges = [bounds[0]?.[0], bounds[1]?.[1], bounds[2]?.[1], bounds[3]?.[1]];
   if (edges.every((e) => typeof e === 'number')) {
-    const e = edges as number[];
-    at =
-      index === 'RMSEA'
-        ? value <= e[0]
-          ? 0
-          : value <= e[1]
-            ? 1
-            : value <= e[2]
-              ? 2
-              : value <= e[3]
-                ? 3
-                : 4
-        : value >= e[0]
-          ? 0
-          : value >= e[1]
-            ? 1
-            : value >= e[2]
-              ? 2
-              : value >= e[3]
-                ? 3
-                : 4;
+    // The first bin whose boundary the value is on the good side of; past the last boundary, bin 4.
+    const withinBound = (edge: number) => (index === 'RMSEA' ? value <= edge : value >= edge);
+    const bin = (edges as number[]).findIndex(withinBound);
+    at = bin < 0 ? 4 : bin;
   }
   const name = at >= 0 ? (names[at] ?? 'poor') : '';
   return {
@@ -514,23 +501,25 @@ export function dfiVerdicts(r: DfiResult): DfiVerdict[] {
     const better = (cut: number) => (higherBetter ? value >= cut : value <= cut);
     if (r.fn === 'exactFit') {
       // Percentiles of the exact-fit distribution, printed 99th then 95th.
-      const p95 = cutoffs.find((k) => /95/.test(k.label))?.value ?? null,
-        p99 = cutoffs.find((k) => /99/.test(k.label))?.value ?? null;
-      const verdict =
-        p95 !== null && better(p95)
-          ? 'within the 95th percentile of exact fit: consistent with an exactly fitting model'
-          : p99 !== null && better(p99)
-            ? 'between the 95th and 99th percentiles of exact fit'
-            : 'beyond the 99th percentile of exact fit: worse than an exactly fitting model gives';
-      return [
-        {
-          index,
-          value,
-          cutoffs,
-          verdict,
-          ok: p95 !== null && better(p95) ? true : p99 !== null && better(p99) ? null : false,
-        },
-      ];
+      const p95 = cutoffs.find((k) => /95/.test(k.label))?.value ?? null;
+      const p99 = cutoffs.find((k) => /99/.test(k.label))?.value ?? null;
+      const within95 = p95 !== null && better(p95);
+      const within99 = p99 !== null && better(p99);
+      let verdict: string;
+      let ok: boolean | null;
+      if (within95) {
+        verdict =
+          'within the 95th percentile of exact fit: consistent with an exactly fitting model';
+        ok = true;
+      } else if (within99) {
+        verdict = 'between the 95th and 99th percentiles of exact fit';
+        ok = null;
+      } else {
+        verdict =
+          'beyond the 99th percentile of exact fit: worse than an exactly fitting model gives';
+        ok = false;
+      }
+      return [{ index, value, cutoffs, verdict, ok }];
     }
     // Misspecification levels in increasing severity: the first one the value is better than is the one it clears.
     const first = cutoffs.findIndex((k) => k.value !== null);
@@ -541,48 +530,26 @@ export function dfiVerdicts(r: DfiResult): DfiVerdict[] {
     const at = (k: { label: string; value: number | null }) =>
       `${k.label} ${k.value === null ? 'none' : num(k.value)}`;
     const dir = higherBetter ? 'below' : 'above';
-    const verdict =
-      clears < 0
-        ? `${index} ${num(value)} is ${dir} every cutoff (${cutoffs
-            .filter((k) => k.value !== null)
-            .map(at)
-            .join(
-              ', ',
-            )}): the fit is worse than even the ${last.label} misspecification tested gives, so by this method the fit is poor`
-        : clears === first
-          ? `${index} ${num(value)} is on the good side of the ${cutoffs[clears].label} cutoff (${num(cutoffs[clears].value!)}), the mildest misspecification tested: consistent with a correctly specified model${
-              cutoffs.slice(0, clears).length
-                ? ` (no cutoff could be derived at ${cutoffs
-                    .slice(0, clears)
-                    .map((k) => k.label)
-                    .join(', ')})`
-                : ''
-            }`
-          : `${index} ${num(value)} is on the good side of the ${cutoffs[clears].label} cutoff (${num(cutoffs[clears].value!)}) but ${dir} ${cutoffs
-              .slice(0, clears)
-              .filter((k) => k.value !== null)
-              .map(at)
-              .join(' and ')}: the fit is between those misspecifications`;
-    const short =
-      clears < 0
-        ? 'clears no level'
-        : clears === first
-          ? `clears ${cutoffs[clears].label}`
-          : `clears ${cutoffs[clears].label}, not ${cutoffs
-              .slice(0, clears)
-              .filter((k) => k.value !== null)
-              .map((k) => k.label)
-              .join(', ')}`;
-    return [
-      {
-        index,
-        value,
-        cutoffs,
-        verdict,
-        short,
-        ok: clears < 0 ? false : clears === first ? true : null,
-      },
-    ];
+    const derived = cutoffs.filter((k) => k.value !== null);
+    if (clears < 0) {
+      const verdict = `${index} ${num(value)} is ${dir} every cutoff (${derived.map(at).join(', ')}): the fit is worse than even the ${last.label} misspecification tested gives, so by this method the fit is poor`;
+      return [{ index, value, cutoffs, verdict, short: 'clears no level', ok: false }];
+    }
+    const cleared = cutoffs[clears];
+    const onGoodSide = `${index} ${num(value)} is on the good side of the ${cleared.label} cutoff (${num(cleared.value!)})`;
+    const milder = cutoffs.slice(0, clears);
+    if (clears === first) {
+      // Milder levels before it, if any, have no cutoff.
+      const underived = milder.length
+        ? ` (no cutoff could be derived at ${milder.map((k) => k.label).join(', ')})`
+        : '';
+      const verdict = `${onGoodSide}, the mildest misspecification tested: consistent with a correctly specified model${underived}`;
+      return [{ index, value, cutoffs, verdict, short: `clears ${cleared.label}`, ok: true }];
+    }
+    const missed = milder.filter((k) => k.value !== null);
+    const verdict = `${onGoodSide} but ${dir} ${missed.map(at).join(' and ')}: the fit is between those misspecifications`;
+    const short = `clears ${cleared.label}, not ${missed.map((k) => k.label).join(', ')}`;
+    return [{ index, value, cutoffs, verdict, short, ok: null }];
   });
 }
 
@@ -602,6 +569,33 @@ export const dfiCutoffText = (v: DfiVerdict) =>
     .join(' · ');
 
 // ---------- the card ----------
+
+/** The colour of a verdict: good news green, bad news red, undecided plain. */
+function verdictClass(ok: boolean | null) {
+  if (ok === true) return 'good';
+  if (ok === false) return 'bad';
+  return undefined;
+}
+
+/** How to read the verdict column for each kind of cutoff. */
+function readingNote(fn: DfiFn): string {
+  if (fn === 'exactFit')
+    return 'An index within the 95th percentile of the exact-fit distribution is what an exactly fitting model gives 95% of the time.';
+  if (fn === 'equivTest') return 'The bin the T-size value falls in.';
+  return 'Levels increase in severity: an index that clears Level 1 fits better than the mildest misspecification tested; one that clears no level fits worse than the most severe.';
+}
+
+/** The model's shape in words ("one factor, structural paths, Likert-type items"). */
+function describeShape(s: DfiShape): string {
+  const parts = [s.factors === 1 ? 'one factor' : `${s.factors} factors`];
+  if (s.hoc) parts.push('a higher-order factor');
+  if (s.structural) parts.push('structural paths');
+  if (s.ordinal === 'all') parts.push('ordinal indicators');
+  else if (s.ordinal === 'some') parts.push('some ordinal indicators');
+  if (!s.raw) parts.push('covariance-matrix input');
+  else if (s.likert) parts.push('Likert-type items');
+  return parts.join(', ');
+}
 
 const shapeOf = (ctx: AnalysisCtx) => dfiShape(ctx.model, ctx.data);
 const CB_ESTIMATORS = new Set(['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', 'WLS', 'WLSMV']);
@@ -642,9 +636,7 @@ function DfiOptionsForm({
   const info = dfiInfo(o.fn);
   const [madText, setMadText] = useState(o.mad.join(', '));
   const suggested = s.problem ? null : dfiDefaultFn(s);
-  const shapeText = s.problem
-    ? s.problem
-    : `${s.factors === 1 ? 'one factor' : `${s.factors} factors`}${s.hoc ? ', a higher-order factor' : ''}${s.structural ? ', structural paths' : ''}${s.ordinal === 'all' ? ', ordinal indicators' : s.ordinal === 'some' ? ', some ordinal indicators' : ''}${s.raw ? (s.likert ? ', Likert-type items' : '') : ', covariance-matrix input'}`;
+  const shapeText = s.problem || describeShape(s);
   return (
     <fieldset className="card-options" disabled={disabled}>
       <p className="hint" style={{ marginTop: 0 }}>
@@ -667,6 +659,9 @@ function DfiOptionsForm({
         >
           {DFI_FN_INFO.map((f) => {
             const why = f.fits(s);
+            let optionNote = '';
+            if (why) optionNote = ' (does not fit this model)';
+            else if (f.id === suggested) optionNote = ' (suggested)';
             return (
               <option
                 key={f.id}
@@ -675,7 +670,7 @@ function DfiOptionsForm({
                 title={why ? `dynamic::${f.id} ${why}` : f.what}
               >
                 {f.label}
-                {why ? ' (does not fit this model)' : f.id === suggested ? ' (suggested)' : ''}
+                {optionNote}
               </option>
             );
           })}
@@ -779,8 +774,8 @@ function DfiOptionsForm({
 
 // ---------- the view ----------
 
-const TRUE_COLOR = SERIES_COLORS[0],
-  MISSPEC_COLOR = SERIES_COLORS[1];
+const TRUE_COLOR = SERIES_COLORS[0];
+const MISSPEC_COLOR = SERIES_COLORS[1];
 const HB: Record<string, number> = { SRMR: 0.08, RMSEA: 0.06, CFI: 0.95 };
 
 /** Overlaid histograms of the fit index under the correct and a misspecified model, with the dynamic cutoff and Hu & Bentler's. */
@@ -801,10 +796,10 @@ function DfiHistogram({
 }) {
   const all = [...truth, ...(misspec ?? [])].filter((v) => Number.isFinite(v));
   if (!all.length) return null;
-  const lo = Math.min(...all),
-    hi = Math.max(...all);
-  const k = 30,
-    width = (hi - lo) / k || 1e-9;
+  const lo = Math.min(...all);
+  const hi = Math.max(...all);
+  const k = 30;
+  const width = (hi - lo) / k || 1e-9;
   const edges = Array.from({ length: k + 1 }, (_, i) => lo + i * width);
   const count = (v: number[]) => {
     const out = new Array(k).fill(0) as number[];
@@ -814,8 +809,8 @@ function DfiHistogram({
     }
     return out;
   };
-  const a = count(truth),
-    b = misspec ? count(misspec) : null;
+  const a = count(truth);
+  const b = misspec ? count(misspec) : null;
   const yMax = Math.max(...a, ...(b ?? [0])) * 1.05 || 1;
   const xs: [number, number] = [
     Math.min(lo, HB[index] ?? lo, cutoff ?? lo),
@@ -951,7 +946,11 @@ export function DfiView({ r }: { r: DfiResult }) {
   const verdicts = dfiVerdicts(r);
   const emp = dfiEmpirical(r.fit);
   const title = `Dynamic fit index cutoffs: dynamic::${r.fn}`;
-  const head = `${r.fn === 'equivTest' ? 'Equivalence testing' : `${r.reps} replications per level`}, N = ${r.n}${r.estimator ? `, simulation estimator ${r.estimator}` : ''}${r.scale && r.fn === 'DDDFI' ? `, ${r.scale} data` : ''}. dynamic ${r.engine.version} (Wolf & McNeish), lavaan ${r.engine.lavaan ?? ''}; the package's own fixed seeds.`;
+  const design = r.fn === 'equivTest' ? 'Equivalence testing' : `${r.reps} replications per level`;
+  const estimator = r.estimator ? `, simulation estimator ${r.estimator}` : '';
+  const scale = r.scale && r.fn === 'DDDFI' ? `, ${r.scale} data` : '';
+  const versions = `dynamic ${r.engine.version} (Wolf & McNeish), lavaan ${r.engine.lavaan ?? ''}`;
+  const head = `${design}, N = ${r.n}${estimator}${scale}. ${versions}; the package's own fixed seeds.`;
   const levels = dfiLevels(r.cutoffs);
   const misspec = levels.filter((l) => l.kind === 'misspec');
   const col = (name: string) => r.data?.cols[r.data.names.indexOf(name)] ?? null;
@@ -1006,7 +1005,7 @@ export function DfiView({ r }: { r: DfiResult }) {
             c(v.value, undefined, 3),
             c(dfiCutoffText(v)),
             {
-              ...c(v.verdict, v.ok === true ? 'good' : v.ok === false ? 'bad' : undefined),
+              ...c(v.verdict, verdictClass(v.ok)),
               bold: v.ok !== null,
             },
           ])}
@@ -1016,12 +1015,7 @@ export function DfiView({ r }: { r: DfiResult }) {
               {emp?.rmseaHigh !== null && emp?.rmseaHigh !== undefined
                 ? `; upper limit of the RMSEA 90% CI ${fmt(emp.rmseaHigh, 3)}`
                 : ''}
-              .{' '}
-              {r.fn === 'exactFit'
-                ? 'An index within the 95th percentile of the exact-fit distribution is what an exactly fitting model gives 95% of the time.'
-                : r.fn === 'equivTest'
-                  ? 'The bin the T-size value falls in.'
-                  : 'Levels increase in severity: an index that clears Level 1 fits better than the mildest misspecification tested; one that clears no level fits worse than the most severe.'}
+              . {readingNote(r.fn)}
             </>
           }
         />
@@ -1056,8 +1050,8 @@ export function DfiView({ r }: { r: DfiResult }) {
                 })
               : misspec.map((l, li) =>
                   (['SRMR', 'RMSEA', 'CFI'] as const).map((idx) => {
-                    const truth = col(`${idx}_L0`),
-                      bad = col(`${idx}_L${li + 1}`);
+                    const truth = col(`${idx}_L0`);
+                    const bad = col(`${idx}_L${li + 1}`);
                     if (!truth || !bad) return null;
                     const key = idx.toLowerCase() as 'srmr' | 'rmsea' | 'cfi';
                     return (
@@ -1120,6 +1114,10 @@ export const dfiAnalysis: AnalysisType<DfiOptions, DfiResult> = {
     cbFingerprint(ctx, [o.fn, o.reps, o.estimator, o.scale, ...(o.fn === 'DDDFI' ? o.mad : [])]),
   run: async (o, ctx) => (await import('../rengine/dfi')).dfiR(cbCall(ctx), o),
   script: async (o, ctx) => (await import('../rengine/dfi')).dfiScriptR(cbCall(ctx), o),
-  summary: (o) =>
-    `dynamic::${o.fn}${o.fn === 'equivTest' ? '' : `, ${o.reps} replications`}${o.estimator ? `, ${o.estimator}` : ''}${o.fn === 'DDDFI' ? `, ${o.scale} data` : ''}`,
+  summary: (o) => {
+    const reps = o.fn === 'equivTest' ? '' : `, ${o.reps} replications`;
+    const estimator = o.estimator ? `, ${o.estimator}` : '';
+    const scale = o.fn === 'DDDFI' ? `, ${o.scale} data` : '';
+    return `dynamic::${o.fn}${reps}${estimator}${scale}`;
+  },
 };

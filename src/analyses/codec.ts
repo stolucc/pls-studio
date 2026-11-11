@@ -9,28 +9,25 @@ export const MAX_UNPACKED = 64_000_000;
 
 const TYPED = '__f64';
 
+/** A non-finite number as JSON can carry it: 'NaN', 'Inf' or '-Inf'. */
+function nonFiniteName(x: number) {
+  if (Number.isNaN(x)) return 'NaN';
+  return x > 0 ? 'Inf' : '-Inf';
+}
 function replacer(_k: string, v: unknown) {
   if (v instanceof Float64Array || v instanceof Float32Array || v instanceof Int32Array) {
-    return {
-      [TYPED]: Array.from(v, (x) =>
-        Number.isFinite(x) ? x : Number.isNaN(x) ? 'NaN' : x > 0 ? 'Inf' : '-Inf',
-      ),
-    };
+    return { [TYPED]: Array.from(v, (x) => (Number.isFinite(x) ? x : nonFiniteName(x))) };
   }
-  if (typeof v === 'number' && !Number.isFinite(v))
-    return { [TYPED + 'n']: Number.isNaN(v) ? 'NaN' : v > 0 ? 'Inf' : '-Inf' };
+  if (typeof v === 'number' && !Number.isFinite(v)) return { [TYPED + 'n']: nonFiniteName(v) };
   return v;
 }
-const special = (x: unknown) =>
-  x === 'NaN'
-    ? NaN
-    : x === 'Inf'
-      ? Infinity
-      : x === '-Inf'
-        ? -Infinity
-        : typeof x === 'number'
-          ? x
-          : NaN;
+/** The number a stored value stands for (anything unreadable is NaN). */
+const special = (x: unknown) => {
+  if (x === 'NaN') return NaN;
+  if (x === 'Inf') return Infinity;
+  if (x === '-Inf') return -Infinity;
+  return typeof x === 'number' ? x : NaN;
+};
 function reviver(_k: string, v: unknown) {
   if (v && typeof v === 'object' && !Array.isArray(v)) {
     const o = v as Record<string, unknown>;
@@ -106,8 +103,8 @@ const colCache = new WeakMap<Float64Array, string>();
 
 /** 53-bit string hash (cyrb53). */
 function hashString(s: string, seed = 0): string {
-  let h1 = 0xdeadbeef ^ seed,
-    h2 = 0x41c6ce57 ^ seed;
+  let h1 = 0xdeadbeef ^ seed;
+  let h2 = 0x41c6ce57 ^ seed;
   for (let i = 0; i < s.length; i++) {
     const ch = s.charCodeAt(i);
     h1 = Math.imul(h1 ^ ch, 2654435761);
@@ -123,8 +120,8 @@ function hashColumn(col: Float64Array): string {
   if (hit) return hit;
   // The column's bytes, two 32-bit words per value (NaN is one bit pattern in a Float64Array from the app).
   const words = new Uint32Array(col.buffer, col.byteOffset, col.length * 2);
-  let h1 = 0x9e3779b9 ^ col.length,
-    h2 = 0x85ebca6b;
+  let h1 = 0x9e3779b9 ^ col.length;
+  let h2 = 0x85ebca6b;
   for (let i = 0; i < words.length; i++) {
     h1 = Math.imul(h1 ^ words[i], 2654435761);
     h2 = Math.imul(h2 ^ words[i], 1597334677);

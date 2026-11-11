@@ -67,8 +67,11 @@ export const endoRequest = (data: Dataset, i: EndoInput) => {
     throw new Error('These methods need raw data; this dataset is a covariance matrix.');
   return { ...i, data: rColumns(data, used(i).filter(Boolean)) };
 };
-const pkg = (i: EndoInput) =>
-  i.method === 'heckman' ? 'sampleSelection' : i.method === 'liv' ? 'optimx' : 'ivreg';
+const pkg = (i: EndoInput) => {
+  if (i.method === 'heckman') return 'sampleSelection';
+  if (i.method === 'liv') return 'optimx';
+  return 'ivreg';
+};
 
 export async function endoR(data: Dataset, input: EndoInput): Promise<EndoResult> {
   const raw = await rCall<Record<string, any>>('ps_endo', endoRequest(data, input), pkg(input));

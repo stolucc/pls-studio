@@ -120,7 +120,10 @@ export interface EfaFit {
 const nums = (v: unknown) => rList<unknown>(v).map((x) => (typeof x === 'number' ? x : NaN));
 /** A matrix from R's JSON (rows; a single column arrives as a vector of one-element rows or of numbers). */
 const mat = (v: unknown, cols: number): number[][] =>
-  rList<unknown>(v).map((r) => (Array.isArray(r) ? nums(r) : cols === 1 ? nums([r]) : nums(r)));
+  rList<unknown>(v).map((r) => {
+    if (Array.isArray(r)) return nums(r);
+    return cols === 1 ? nums([r]) : nums(r);
+  });
 
 export function efaRequest(data: Dataset, d: EfaDesign, seed: number) {
   if (data.moments && data.cols.length === 0)

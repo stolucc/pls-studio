@@ -108,8 +108,8 @@ function CompareView({ r }: { r: CompareResult }) {
     .flatMap((k) => {
       const alt = r.criteriaAlt.find((a) => a.criterion === k.criterion)!;
       return names.map((n) => {
-        const a = k.byConstruct[n],
-          b = alt?.byConstruct[n];
+        const a = k.byConstruct[n];
+        const b = alt?.byConstruct[n];
         return [c(k.criterion), c(n), { ...c(a), bold: a < b }, { ...c(b), bold: b < a }];
       });
     });
@@ -139,6 +139,15 @@ function CompareView({ r }: { r: CompareResult }) {
       />
     </div>
   );
+}
+
+/** The note under a multigroup test's table (none for the parametric tests). */
+function mgaNote(approach: string) {
+  if (approach === 'Henseler')
+    return 'Henseler et al. (2009), bootstrap-based. Chin & Dibbern: permutation of group membership; Keil / Nitzl: parametric t tests. The path differences are in the table of path coefficients by group.';
+  if (approach === 'Chin')
+    return 'Statistic: the difference between the groups’ paths; p from permuting group membership.';
+  return undefined;
 }
 
 function GroupsView({ r }: { r: GroupsResult }) {
@@ -203,13 +212,7 @@ function GroupsView({ r }: { r: GroupsResult }) {
                   ? [c(`${p.from} → ${p.to}`), pCell(p.p)]
                   : [c(`${p.from} → ${p.to}`), c(p.statistic), pCell(p.p)],
               )}
-              note={
-                a.approach === 'Henseler'
-                  ? 'Henseler et al. (2009), bootstrap-based. Chin & Dibbern: permutation of group membership; Keil / Nitzl: parametric t tests. The path differences are in the table of path coefficients by group.'
-                  : a.approach === 'Chin'
-                    ? 'Statistic: the difference between the groups’ paths; p from permuting group membership.'
-                    : undefined
-              }
+              note={mgaNote(a.approach)}
             />
           ))
         ),
@@ -265,6 +268,14 @@ function CtaView({ r }: { r: CtaResult }) {
   );
 }
 
+/** Hair et al.'s (2019) sizes of Q²: above 0, .25 and .5. */
+function q2Size(q2: number) {
+  if (q2 > 0.5) return 'large';
+  if (q2 > 0.25) return 'medium';
+  if (q2 > 0) return 'small';
+  return 'none';
+}
+
 function BlindfoldView({ r }: { r: BlindfoldResult }) {
   return (
     <div className="tables">
@@ -277,7 +288,7 @@ function BlindfoldView({ r }: { r: BlindfoldResult }) {
           c(k.sso, undefined, 2),
           c(k.sse, undefined, 2),
           { ...c(k.q2), bold: k.q2 > 0 },
-          c(k.q2 > 0.5 ? 'large' : k.q2 > 0.25 ? 'medium' : k.q2 > 0 ? 'small' : 'none'),
+          c(q2Size(k.q2)),
         ])}
         note={`Omission distance D = ${r.distance}, n = ${r.n}. Every D-th data point of a construct's (standardised) indicators is omitted in turn, replaced by the mean, and predicted from the predecessor constructs (Stone 1974; Geisser 1974; Chin 1998). Q² > 0: predictive relevance; 0.02 / 0.15 / 0.35 are sometimes used for q² effect sizes, 0 / 0.25 / 0.5 for small / medium / large Q² (Hair et al. 2019).${r.divisible ? ` n is a multiple of D; Hair et al. advise a D that does not divide n.` : ''}`}
       />
@@ -475,6 +486,13 @@ function CcaDiagramView({ r }: { r: CcaResult }) {
     </div>
   );
 }
+/** The bootstrap test of fit: is the discrepancy beyond its 95% (or also its 99%) quantile? */
+function fitDecision(f: { statistic: number; q95: number; q99: number }) {
+  if (f.statistic > f.q99) return 'reject (also at 1%)';
+  if (f.statistic > f.q95) return 'reject';
+  return 'do not reject';
+}
+
 function CcaView({ r }: { r: CcaResult }) {
   const conf = `${Math.round((1 - r.alpha) * 100)}%`;
   const rejected = r.fit
@@ -523,13 +541,7 @@ function CcaView({ r }: { r: CcaResult }) {
               { ...c(f.statistic), bold: f.statistic > f.q95 },
               c(f.q95),
               c(f.q99),
-              c(
-                f.statistic > f.q99
-                  ? 'reject (also at 1%)'
-                  : f.statistic > f.q95
-                    ? 'reject'
-                    : 'do not reject',
-              ),
+              c(fitDecision(f)),
             ])}
             note={`Bootstrap test of the saturated composite model (Beran & Srivastava 1985; ${r.admissible} of ${r.samples} samples admissible): the model fits when each discrepancy stays below its bootstrap quantile (Henseler 2021 reports SRMR, dULS and dG). H0: the model-implied indicator covariances equal the population's. dG uses the natural logarithm (cSEM's testOMF prints it with base-10 logarithms, ln(10)² ≈ 5.30 times smaller).`}
           />
@@ -651,9 +663,9 @@ export function plsModelBlocked(ctx: AnalysisCtx): string | null {
   const ord = (m.ordered ?? []).filter((i) =>
     m.constructs.some((c) => !c.categorical && c.indicators.includes(i)),
   );
-  return ord.length
-    ? `This assessment is for continuous indicators; ${ord.join(', ')} ${ord.length === 1 ? 'is' : 'are'} ordinal (OrdPLS: the estimation and bootstrap on the Model tab). Treat ${ord.length === 1 ? 'it' : 'them'} as continuous (right-click) to run it.`
-    : null;
+  if (!ord.length) return null;
+  const one = ord.length === 1;
+  return `This assessment is for continuous indicators; ${ord.join(', ')} ${one ? 'is' : 'are'} ordinal (OrdPLS: the estimation and bootstrap on the Model tab). Treat ${one ? 'it' : 'them'} as continuous (right-click) to run it.`;
 }
 
 /** Fingerprint of the model, its PLS options and indicator columns, plus what else an assessment reads. */
@@ -680,8 +692,16 @@ const APPROACH_NAME: Record<string, string> = {
   PCA: 'PCA weights',
   unit: 'sum scores',
 };
-const modelNote = (ctx: AnalysisCtx) =>
-  `The PLS-SEM model on the canvas, ${ctx.settings.plsApproach !== 'PLS-PM' ? `${APPROACH_NAME[ctx.settings.plsApproach]} for every construct` : `${ctx.settings.scheme} weighting`}${ctx.settings.consistent ? ', PLSc' : ''}${ctx.settings.missing === 'mean' ? ', mean replacement' : ', casewise deletion'} (Model settings).`;
+const modelNote = (ctx: AnalysisCtx) => {
+  const s = ctx.settings;
+  const weighting =
+    s.plsApproach !== 'PLS-PM'
+      ? `${APPROACH_NAME[s.plsApproach]} for every construct`
+      : `${s.scheme} weighting`;
+  const consistent = s.consistent ? ', PLSc' : '';
+  const missing = s.missing === 'mean' ? ', mean replacement' : ', casewise deletion';
+  return `The PLS-SEM model on the canvas, ${weighting}${consistent}${missing} (Model settings).`;
+};
 const PLS_GROUP = 'PLS-SEM model' as const;
 
 // ---------- PLSpredict ----------
@@ -1076,15 +1096,15 @@ export const groupsAnalysis: AnalysisType<GroupsOptions, GroupsResult> = {
     </fieldset>
   ),
   View: ({ result }) => <GroupsView r={result} />,
-  blocked: (o, ctx) =>
-    plsModelBlocked(ctx) ??
-    (!o.group
-      ? 'Choose the grouping column.'
-      : !groupColumns(ctx).includes(o.group)
-        ? `${o.group} is not a grouping column here (in the model, missing, or more than 10 values).`
-        : !o.approaches.length
-          ? 'Choose at least one multigroup test.'
-          : null),
+  blocked: (o, ctx) => {
+    const modelProblem = plsModelBlocked(ctx);
+    if (modelProblem !== null) return modelProblem;
+    if (!o.group) return 'Choose the grouping column.';
+    if (!groupColumns(ctx).includes(o.group))
+      return `${o.group} is not a grouping column here (in the model, missing, or more than 10 values).`;
+    if (!o.approaches.length) return 'Choose at least one multigroup test.';
+    return null;
+  },
   fingerprint: (o, ctx) =>
     modelFingerprint(ctx, [o.group], [samplesOf(ctx.settings, 20, 5000), ctx.settings.seed]),
   run: async (o, ctx) =>

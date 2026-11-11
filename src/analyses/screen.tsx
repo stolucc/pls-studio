@@ -56,6 +56,13 @@ async function exclude(rows: number[], reason: string) {
   );
 }
 
+/** The colour of a variable's departure from normality. */
+const LEVEL_TONE: Record<ReturnType<typeof normalityLevel>, string> = {
+  ok: '',
+  moderate: 'warn',
+  severe: 'bad',
+};
+
 function Univariate({ r }: { r: ScreenResult }) {
   return (
     <Table
@@ -63,9 +70,9 @@ function Univariate({ r }: { r: ScreenResult }) {
       file="screening-univariate"
       columns={['Variable', 'n', 'Missing', 'Mean', 'SD', 'Min', 'Max', 'Skewness', 'Kurtosis']}
       rows={r.variables.map((v, i) => {
-        const d = r.describe[i],
-          lvl = normalityLevel(d.skew, d.kurtosis);
-        const tone = lvl === 'severe' ? 'bad' : lvl === 'moderate' ? 'warn' : '';
+        const d = r.describe[i];
+        const lvl = normalityLevel(d.skew, d.kurtosis);
+        const tone = LEVEL_TONE[lvl];
         return [
           c(v),
           c(d.n, undefined, 0),
@@ -84,8 +91,8 @@ function Univariate({ r }: { r: ScreenResult }) {
 }
 
 function Normality({ r }: { r: ScreenResult }) {
-  const m = r.mardia,
-    v = mardiaVerdict(m);
+  const m = r.mardia;
+  const v = mardiaVerdict(m);
   return (
     <div className="tables">
       <Table
@@ -116,8 +123,8 @@ function Normality({ r }: { r: ScreenResult }) {
 
 function Outliers({ r, alpha, current }: { r: ScreenResult; alpha: number; current: boolean }) {
   const flagged = flaggedCases(r.cases, alpha);
-  const data = useStore((s) => s.data),
-    info = useStore((s) => s.dataInfo);
+  const data = useStore((s) => s.data);
+  const info = useStore((s) => s.dataInfo);
   const save = async () => {
     if (!data || !info) return;
     const { scoreColumns } = await import('../rengine/lavaan');
@@ -386,8 +393,11 @@ function IndexPlot({ inf }: { inf: InfluenceResult }) {
   const s = influenceSeries(inf, stat);
   if (!s.rows.length) return null;
   const xs: [number, number] = [Math.min(...s.rows), Math.max(...s.rows)];
-  let lo = Math.min(0, ...s.values),
-    hi = Math.max(...s.values, s.fence !== null && Number.isFinite(s.fence) ? s.fence : -Infinity);
+  let lo = Math.min(0, ...s.values);
+  let hi = Math.max(
+    ...s.values,
+    s.fence !== null && Number.isFinite(s.fence) ? s.fence : -Infinity,
+  );
   const m = (hi - lo || 1) * 0.05;
   lo -= stat === 'gcd' || stat === 'md' || stat === 'kurtosis' ? 0 : m;
   hi += m;
@@ -495,6 +505,13 @@ function IndexPlot({ inf }: { inf: InfluenceResult }) {
 }
 
 /** The cases that contribute most to Mardia's multivariate kurtosis of the model's indicators. */
+/** A case's share of the kurtosis against its expected share: orange above 4 times, red above 10. */
+function ratioTone(ratio: number) {
+  if (ratio > 10) return 'bad';
+  if (ratio > 4) return 'warn';
+  return '';
+}
+
 function KurtosisCases({
   k,
   current,
@@ -511,7 +528,7 @@ function KurtosisCases({
         columns={['Row', 'dᵢ⁴ / n', 'Share of b₂,ₚ', '× expected']}
         rows={top.map((x) => [
           c(x.row, undefined, 0),
-          c(x.contribution, x.ratio > 10 ? 'bad' : x.ratio > 4 ? 'warn' : '', 4),
+          c(x.contribution, ratioTone(x.ratio), 4),
           c(`${fmt(100 * x.share, 1)}%`),
           c(x.ratio, undefined, 1),
         ])}

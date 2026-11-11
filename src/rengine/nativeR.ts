@@ -94,9 +94,9 @@ export function helperLibrary(): string {
 
 /** Start `size` R workers on the bridge in `root/src/rengine/R`; one call at a time per worker, calls queued across them. */
 export async function startNativePool(root: string, size: number): Promise<NativePool> {
-  const script = join(root, 'helper', 'r', 'worker.R'),
-    bridgeDir = join(root, 'src', 'rengine', 'R'),
-    library = helperLibrary();
+  const script = join(root, 'helper', 'r', 'worker.R');
+  const bridgeDir = join(root, 'src', 'rengine', 'R');
+  const library = helperLibrary();
   const workers = Array.from({ length: size }, () => new Worker(script, bridgeDir, library));
   const [{ r }] = await Promise.all(workers.map((w) => w.start()));
   const queue: (() => void)[] = [];

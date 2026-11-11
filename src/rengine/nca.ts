@@ -62,8 +62,12 @@ export interface NcaResult {
 }
 
 /** NCA's bottleneck notation: NN (not necessary: X may be at its minimum), NA (not reachable), else the percentage. */
-export const bottleneckText = (v: number | null) =>
-  v === null ? 'NA' : v <= 1e-9 ? 'NN' : v > 100 + 1e-9 ? 'NA' : v.toFixed(1);
+export const bottleneckText = (v: number | null) => {
+  if (v === null) return 'NA';
+  if (v <= 1e-9) return 'NN';
+  if (v > 100 + 1e-9) return 'NA';
+  return v.toFixed(1);
+};
 
 export function ncaRequest(
   data: Dataset,

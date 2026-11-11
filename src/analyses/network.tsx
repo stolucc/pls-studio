@@ -34,12 +34,12 @@ function NetworkPlot({
   layout: number[][];
   groups?: number[];
 }) {
-  const W = 520,
-    H = 420,
-    pad = 36,
-    r = 14;
-  const xs = layout.map((p) => p[0]),
-    ys = layout.map((p) => p[1]);
+  const W = 520;
+  const H = 420;
+  const pad = 36;
+  const r = 14;
+  const xs = layout.map((p) => p[0]);
+  const ys = layout.map((p) => p[1]);
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
   const sx = (v: number) => pad + ((v - x0) / (x1 - x0 || 1)) * (W - 2 * pad);
   const sy = (v: number) => pad + ((y1 - v) / (y1 - y0 || 1)) * (H - 2 * pad);
@@ -142,6 +142,20 @@ function VarsField({
 
 export type NetworkOptions = Omit<NetworkInput, 'boot'> & { stability: number };
 
+/** An edge weight in the lower triangle; a dot for an edge the regularisation set to zero. */
+function edgeCell(w: number, i: number, j: number) {
+  if (j >= i) return c('');
+  if (Math.abs(w) < 1e-12) return c('·', 'dim');
+  return c(w);
+}
+
+/** Epskamp et al.'s reading of a CS coefficient: above .5 stable, from .25 acceptable. */
+function csStability(cs: number) {
+  if (cs >= 0.5) return { cls: 'good', reading: 'stable' };
+  if (cs >= 0.25) return { cls: '', reading: 'acceptable' };
+  return { cls: 'bad', reading: 'not stable: do not interpret' };
+}
+
 function NetworkView({
   r,
   estimator,
@@ -182,23 +196,17 @@ function NetworkView({
         title={`Edge weights (${kind})`}
         file="network-weights"
         columns={['', ...r.names]}
-        rows={r.names.map((n, i) => [
-          c(n),
-          ...r.weights[i].map((w, j) =>
-            j >= i ? c('') : Math.abs(w) < 1e-12 ? c('·', 'dim') : c(w),
-          ),
-        ])}
+        rows={r.names.map((n, i) => [c(n), ...r.weights[i].map((w, j) => edgeCell(w, i, j))])}
       />
       {r.cs && (
         <Table
           title="Centrality stability (case-dropping bootstrap)"
           file="network-stability"
           columns={['Index', 'CS coefficient', 'Interpretation']}
-          rows={Object.entries(r.cs).map(([k, v]) => [
-            c(k),
-            c(v, v >= 0.5 ? 'good' : v >= 0.25 ? '' : 'bad', 2),
-            c(v >= 0.5 ? 'stable' : v >= 0.25 ? 'acceptable' : 'not stable: do not interpret'),
-          ])}
+          rows={Object.entries(r.cs).map(([k, v]) => {
+            const { cls, reading } = csStability(v);
+            return [c(k), c(v, cls, 2), c(reading)];
+          })}
           note={`CS coefficient: the largest share of cases that can be dropped while the centrality correlates at least .7 with the full sample’s (95% probability); at least .25, preferably above .5 (Epskamp, Borsboom & Fried 2018). ${r.samples} bootstrap samples, bootnet.`}
         />
       )}
@@ -520,6 +528,9 @@ export const egaAnalysis: AnalysisType<EgaOptions, EgaResult> = {
   run: async (o, ctx) => (await import('../rengine/network')).egaR(rawData(ctx)!, egaInput(o, ctx)),
   script: async (o, ctx) =>
     (await import('../rengine/network')).egaScriptR(rawData(ctx)!, egaInput(o, ctx)),
-  summary: (o) =>
-    `${o.vars.length} variables · ${o.model === 'glasso' ? 'EBICglasso' : 'TMFG'} + ${o.algorithm}${o.stability ? ` · bootEGA (${o.stability})` : ''}`,
+  summary: (o) => {
+    const model = o.model === 'glasso' ? 'EBICglasso' : 'TMFG';
+    const stability = o.stability ? ` · bootEGA (${o.stability})` : '';
+    return `${o.vars.length} variables · ${model} + ${o.algorithm}${stability}`;
+  },
 };

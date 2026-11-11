@@ -31,14 +31,14 @@ import type { AnalysisType, OptionsProps } from './types';
 
 /** Cluster-specific regression lines of the focal predictor (other predictors at 0). */
 function ClusterLines({ l }: { l: NonNullable<LmmResult['lines']> }) {
-  const W = 460,
-    H = 260,
-    pad = { l: 56, r: 14, t: 12, b: 40 };
+  const W = 460;
+  const H = 260;
+  const pad = { l: 56, r: 14, t: 12, b: 40 };
   const [x0, x1] = l.range;
   const ends = l.intercepts.flatMap((a, i) => [a + l.slopes[i] * x0, a + l.slopes[i] * x1]);
-  const lo = Math.min(...ends),
-    hi = Math.max(...ends),
-    span = hi - lo || 1;
+  const lo = Math.min(...ends);
+  const hi = Math.max(...ends);
+  const span = hi - lo || 1;
   const sx = (x: number) => pad.l + ((x - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((hi + 0.06 * span - v) / (span * 1.12)) * (H - pad.t - pad.b);
   const shown = l.intercepts.slice(0, 200);
@@ -114,14 +114,12 @@ function ClusterLines({ l }: { l: NonNullable<LmmResult['lines']> }) {
 }
 
 export function LmmView({ r }: { r: LmmResult }) {
-  const re = (x: LmmResult['random'][number]) =>
-    x.group === 'Residual'
-      ? x.a
-        ? `Residual (${x.a})`
-        : 'Residual'
-      : x.b
-        ? `${x.a} ↔ ${x.b} (across ${x.group})`
-        : `${x.a} (across ${x.group})`;
+  // A random effect: the residual (of an outcome), a variance across a level's units, or a covariance.
+  const re = (x: LmmResult['random'][number]) => {
+    if (x.group === 'Residual') return x.a ? `Residual (${x.a})` : 'Residual';
+    if (x.b) return `${x.a} ↔ ${x.b} (across ${x.group})`;
+    return `${x.a} (across ${x.group})`;
+  };
   const withSe = r.random.some((x) => x.se !== undefined);
   const units = r.levels?.length
     ? r.levels.map((l) => [`Units: ${l.name}`, l.units, 0] as const)
@@ -138,6 +136,23 @@ export function LmmView({ r }: { r: LmmResult }) {
       : []),
   ];
   const top = r.levels?.length ? r.levels[r.levels.length - 1].name : 'cluster';
+  let fixedNote =
+    'Degrees of freedom and p-values by Satterthwaite’s approximation (lmerTest); 95% Wald intervals. A “(cluster mean)” term is the between-cluster effect; the predictor itself is then the within-cluster effect.';
+  if (r.robust)
+    fixedNote = `Robust standard errors as Mplus’s MLR: the sandwich over the ${top} units with the observed information, for every parameter; z tests and 95% Wald intervals.`;
+  else if (r.engine.package === 'nlme')
+    fixedNote =
+      'Degrees of freedom and p-values by nlme’s rule (the number of units at the level where the term varies); 95% intervals from them.';
+  const hasSlopes = r.random.some((x) => x.a && x.a !== 'Intercept' && x.group !== 'Residual');
+  const r2Note = r.r2
+    ? 'R² after Nakagawa & Schielzeth (2013), with Johnson’s (2014) extension for random slopes: marginal = fixed effects, conditional = fixed and random effects. '
+    : '';
+  const iccNote = r.icc !== null ? 'ICC: share of the outcome’s variance between clusters. ' : '';
+  const bicNote =
+    r.cases !== undefined && r.cases !== r.n
+      ? `BIC with the number of cases (${r.cases}), the rows of the data, as Mplus.`
+      : '';
+  const fitNote = `${r2Note}${iccNote}${bicNote}`;
   return (
     <div className="tables">
       <div className="stat-cards">
@@ -171,13 +186,7 @@ export function LmmView({ r }: { r: LmmResult }) {
           c(f.ciLow),
           c(f.ciHigh),
         ])}
-        note={
-          r.robust
-            ? `Robust standard errors as Mplus’s MLR: the sandwich over the ${top} units with the observed information, for every parameter; z tests and 95% Wald intervals.`
-            : r.engine.package === 'nlme'
-              ? 'Degrees of freedom and p-values by nlme’s rule (the number of units at the level where the term varies); 95% intervals from them.'
-              : 'Degrees of freedom and p-values by Satterthwaite’s approximation (lmerTest); 95% Wald intervals. A “(cluster mean)” term is the between-cluster effect; the predictor itself is then the within-cluster effect.'
-        }
+        note={fixedNote}
       />
       <Table
         title="Random effects"
@@ -194,7 +203,7 @@ export function LmmView({ r }: { r: LmmResult }) {
           c(x.sd),
           ...(withSe ? [c(x.se ?? null)] : []),
         ])}
-        note={`How much clusters differ in their intercepts${r.random.some((x) => x.a && x.a !== 'Intercept' && x.group !== 'Residual') ? ' and slopes' : ''}, and the residual variance within them. ${r.reml ? 'REML estimates.' : 'Maximum likelihood estimates.'}`}
+        note={`How much clusters differ in their intercepts${hasSlopes ? ' and slopes' : ''}, and the residual variance within them. ${r.reml ? 'REML estimates.' : 'Maximum likelihood estimates.'}`}
       />
       {r.slopeTest && (
         <Table
@@ -228,7 +237,7 @@ export function LmmView({ r }: { r: LmmResult }) {
             c(r.bic, undefined, 3),
           ],
         ]}
-        note={`${r.r2 ? 'R² after Nakagawa & Schielzeth (2013), with Johnson’s (2014) extension for random slopes: marginal = fixed effects, conditional = fixed and random effects. ' : ''}${r.icc !== null ? 'ICC: share of the outcome’s variance between clusters. ' : ''}${r.cases !== undefined && r.cases !== r.n ? `BIC with the number of cases (${r.cases}), the rows of the data, as Mplus.` : ''}`}
+        note={fitNote}
       />
       {r.singular && (
         <div className="issue warning">
@@ -250,8 +259,17 @@ export function LmmView({ r }: { r: LmmResult }) {
 /** A group of options (an outcome, a level, a time-varying covariate). */
 const SUB = { borderLeft: '2px solid #e2e8f0', paddingLeft: 8 } as const;
 type Layout = 'long' | 'wide' | 'stacked';
-export const lmmLayout = (o: LmmInput): Layout =>
-  o.repeated ? 'wide' : o.outcomes?.length ? 'stacked' : 'long';
+const LAYOUT_HINT: Record<Layout, string | undefined> = {
+  long: undefined,
+  wide: 'Each row is a person; the measures become one outcome, one row per person and occasion (as Mplus reads wide data).',
+  stacked:
+    'The outcomes are modelled together (stacked): each has its own intercept, effects and residual variance; their random intercepts covary.',
+};
+export const lmmLayout = (o: LmmInput): Layout => {
+  if (o.repeated) return 'wide';
+  if (o.outcomes?.length) return 'stacked';
+  return 'long';
+};
 /** The names the long data create from wide data: the outcome, the time and the time-varying covariates. */
 const createdNames = (o: LmmInput) =>
   o.repeated ? [o.outcome, o.repeated.time, ...o.repeated.varying.map((v) => v.name)] : [];
@@ -411,13 +429,7 @@ function LmmOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<LmmInpu
           ['wide', 'Repeated measures in columns'],
           ['stacked', 'Several outcomes'],
         ]}
-        hint={
-          layout === 'wide'
-            ? 'Each row is a person; the measures become one outcome, one row per person and occasion (as Mplus reads wide data).'
-            : layout === 'stacked'
-              ? 'The outcomes are modelled together (stacked): each has its own intercept, effects and residual variance; their random intercepts covary.'
-              : undefined
-        }
+        hint={LAYOUT_HINT[layout]}
       />
       {rp ? (
         <>
@@ -966,6 +978,8 @@ export const lmmAnalysis: AnalysisType<LmmInput, LmmResult> = {
       (o.levels ?? []).reduce((a, l) => a + l.slopes.length, 0) +
       (o.outcomes ?? []).reduce((a, x) => a + x.slopes.length, 0);
     const ys = [o.outcome, ...(o.outcomes ?? []).map((x) => x.outcome)].join(', ');
-    return `${o.predictors.join(', ') || 'intercept only'} → ${ys} | ${levels}${slopes ? ` (random slope${slopes > 1 ? 's' : ''})` : ''} · ${o.estimation}${o.se === 'robust' ? ', MLR' : ''}`;
+    const randomSlopes = slopes ? ` (random slope${slopes > 1 ? 's' : ''})` : '';
+    const mlr = o.se === 'robust' ? ', MLR' : '';
+    return `${o.predictors.join(', ') || 'intercept only'} → ${ys} | ${levels}${randomSlopes} · ${o.estimation}${mlr}`;
   },
 };

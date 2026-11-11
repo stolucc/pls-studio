@@ -515,8 +515,8 @@ export async function helperBatch(
     }
     if (!r.ok || !r.body) throw new HelperUnavailable(`The helper answered ${r.status}.`);
     const out = new Array<string>(reqs.length);
-    let done = 0,
-      buf = '';
+    let done = 0;
+    let buf = '';
     const reader = r.body.getReader();
     const decoder = new TextDecoder();
     const take = (line: string) => {

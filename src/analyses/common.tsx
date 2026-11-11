@@ -13,12 +13,10 @@ export const rawData = (ctx: AnalysisCtx): Dataset | null =>
   ctx.data && !(ctx.data.moments && ctx.data.cols.length === 0) ? ctx.data : null;
 
 /** Data columns, or the construct scores of the current PLS-SEM results. */
-export const sourceData = (source: 'data' | 'scores', ctx: AnalysisCtx): Dataset | null =>
-  source === 'scores'
-    ? ctx.pls
-      ? { names: ctx.pls.constructs, cols: ctx.pls.scores }
-      : null
-    : rawData(ctx);
+export const sourceData = (source: 'data' | 'scores', ctx: AnalysisCtx): Dataset | null => {
+  if (source !== 'scores') return rawData(ctx);
+  return ctx.pls ? { names: ctx.pls.constructs, cols: ctx.pls.scores } : null;
+};
 
 /** Fingerprint of the columns read from data or construct scores. */
 export function sourceFingerprint(
@@ -57,8 +55,8 @@ export function columnsFingerprint(
 
 /** A data column name not yet in use: base, base_2, base_3, … */
 export function freeColumnName(names: string[], base: string): string {
-  let name = base,
-    i = 2;
+  let name = base;
+  let i = 2;
   while (names.includes(name)) name = `${base}_${i++}`;
   return name;
 }
@@ -96,6 +94,13 @@ export function ColumnSelect({
       </select>
     </div>
   );
+}
+
+/** The colour of an R-hat convergence diagnostic: red from 1.05, amber from 1.01, green below. */
+export function rhatClass(rhat: number): 'bad' | 'warn' | 'good' {
+  if (rhat >= 1.05) return 'bad';
+  if (rhat >= 1.01) return 'warn';
+  return 'good';
 }
 
 /** The explanatory paragraph at the top of a card's options. */

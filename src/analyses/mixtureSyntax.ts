@@ -177,15 +177,15 @@ export class MixtureModel {
     if (parts.length !== 2) fail(`Cannot read the range “${name}”.`);
     const [a, b] = parts;
     const lcCols = this.columns.map(lc);
-    const ia = lcCols.indexOf(lc(a)),
-      ib = lcCols.indexOf(lc(b));
+    const ia = lcCols.indexOf(lc(a));
+    const ib = lcCols.indexOf(lc(b));
     if (ia >= 0 && ib >= 0 && ib >= ia) return this.columns.slice(ia, ib + 1);
-    const la = this.latent.indexOf(lc(a)),
-      lb = this.latent.indexOf(lc(b));
+    const la = this.latent.indexOf(lc(a));
+    const lb = this.latent.indexOf(lc(b));
     if (la >= 0 && lb >= 0 && lb >= la) return this.latent.slice(la, lb + 1);
     const re = /^([A-Za-z_][A-Za-z_]*?)(\d+)([$#]\d+)?$/;
-    const ma = re.exec(a),
-      mb = re.exec(b);
+    const ma = re.exec(a);
+    const mb = re.exec(b);
     if (
       !ma ||
       !mb ||
@@ -211,8 +211,8 @@ export class MixtureModel {
 export function columnStats(data: Dataset, col: string, missing: number[] = []) {
   const i = data.names.indexOf(col);
   const v = Array.from(data.cols[i]).filter((x) => Number.isFinite(x) && !missing.includes(x));
-  const n = v.length,
-    mean = v.reduce((a, b) => a + b, 0) / Math.max(1, n);
+  const n = v.length;
+  const mean = v.reduce((a, b) => a + b, 0) / Math.max(1, n);
   const variance = v.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, n - 1);
   const levels = [...new Set(v)].sort((a, b) => a - b);
   const counts = levels.map((l) => v.filter((x) => x === l).length);
@@ -262,9 +262,9 @@ export function buildMixture(
   const pieces = text.split(
     /(\b(?:MODEL\s+CONSTRAINT|MODEL(?:\s+[A-Za-z_]\w*)?|VARIABLE|ANALYSIS)\s*:|%[^%]*%|;)/i,
   );
-  let section: 'decl' | 'model' | 'constraint' = 'decl',
-    sectionVar: string | null = null,
-    cond: Cond | null = null;
+  let section: 'decl' | 'model' | 'constraint' = 'decl';
+  let sectionVar: string | null = null;
+  let cond: Cond | null = null;
   const decls: { key: string; value: string }[] = [];
   const stmts: {
     text: string;
@@ -275,8 +275,8 @@ export function buildMixture(
   }[] = [];
   let level: 'w' | 'b' | null = null;
   const constraints: string[] = [];
-  let buf = '',
-    order = 0;
+  let buf = '';
+  let order = 0;
   const classNames: string[] = [];
   const flush = () => {
     const s = buf.trim();
@@ -358,27 +358,27 @@ export function buildMixture(
 
   // --- declarations
   const classes: { name: string; k: number; known?: { column: string; values: number[] } }[] = [];
-  const categorical = new Set<string>(),
-    nominal = new Set<string>(),
-    count = new Map<string, boolean>(),
-    censored = new Map<string, 'below' | 'above'>();
-  let weight: string | undefined,
-    param13n: Param13n = 'logit',
-    use: string[] | null = null;
-  let startsInit: number | null = null,
-    startsFinal: number | null = null;
+  const categorical = new Set<string>();
+  const nominal = new Set<string>();
+  const count = new Map<string, boolean>();
+  const censored = new Map<string, 'below' | 'above'>();
+  let weight: string | undefined;
+  let param13n: Param13n = 'logit';
+  let use: string[] | null = null;
+  let startsInit: number | null = null;
+  let startsFinal: number | null = null;
   const missing: { column: string; values: number[] }[] = [];
   const known: Record<string, { column: string; values: number[] }> = {};
   // ALGORITHM = INTEGRATION (and INTEGRATION = …): continuous latent variables integrated numerically; TWOLEVEL: clusters.
-  let rescov = false,
-    integration = false,
-    rule: 'rect' | 'gh' | 'mc' = 'rect',
-    points = 15,
-    twolevel = false,
-    cluster: string | undefined;
-  const negbin = new Set<string>(),
-    withinOnly = new Set<string>(),
-    betweenOnly = new Set<string>();
+  let rescov = false;
+  let integration = false;
+  let rule: 'rect' | 'gh' | 'mc' = 'rect';
+  let points = 15;
+  let twolevel = false;
+  let cluster: string | undefined;
+  const negbin = new Set<string>();
+  const withinOnly = new Set<string>();
+  const betweenOnly = new Set<string>();
   const needCol = (name: string, what: string) =>
     colOf(name) ?? fail(`${what}: ${name} is not a column of the data.`);
   for (const { key, value } of decls) {
@@ -482,9 +482,9 @@ export function buildMixture(
         if (/INTEGRATION/i.test(value)) integration = true;
         break;
       case 'INTEGRATION': {
-        const v = value.trim(),
-          gh = /^GAUSSHERMITE\s*\(\s*(\d+)\s*\)$/i.exec(v),
-          mc = /^MONTECARLO\s*\(\s*(\d+)\s*\)$/i.exec(v);
+        const v = value.trim();
+        const gh = /^GAUSSHERMITE\s*\(\s*(\d+)\s*\)$/i.exec(v);
+        const mc = /^MONTECARLO\s*\(\s*(\d+)\s*\)$/i.exec(v);
         if (gh) {
           rule = 'gh';
           points = Number(gh[1]);
@@ -605,13 +605,13 @@ export function buildMixture(
   if (!twolevel && (cluster || stmts.some((x) => x.level)))
     fail('CLUSTER and %WITHIN% / %BETWEEN% belong to TYPE = TWOLEVEL MIXTURE.');
   mm.latent = [...factors.keys()];
-  let labelList: string[] | null = null,
-    first = 0;
+  let labelList: string[] | null = null;
+  let first = 0;
   // (a list of labels, (1-4) or (lam2-lam4), names the statement's last parameters in turn)
   const spreadLabels = () => {
     if (!labelList) return;
-    const n = items.length - first,
-      off = n - labelList.length;
+    const n = items.length - first;
+    const off = n - labelList.length;
     if (off < 0) fail(`${labelList.length} labels for ${n} parameters.`);
     for (let j = 0; j < n; j++) items[first + j].label = j >= off ? labelList[j - off] : undefined;
   };
@@ -619,8 +619,8 @@ export function buildMixture(
     spreadLabels();
     labelList = null;
     first = items.length;
-    let body = s.text,
-      label: string | undefined;
+    let body = s.text;
+    let label: string | undefined;
     const lm = /\(\s*([A-Za-z_0-9]+(?:\s*-\s*[A-Za-z_0-9]+)?)\s*\)\s*$/.exec(body);
     if (lm) {
       body = body.slice(0, lm.index).trim();
@@ -646,13 +646,13 @@ export function buildMixture(
     const rs = /^(\S+)\s*\|\s*(.+?)\s+ON\s+(.+)$/i.exec(body);
     if (rs) {
       // (s | y ON x: the slope is the latent variable s, whose mean and variance are between-level parameters)
-      const sl = lc(rs[1]),
-        ys = mm.list(rs[2]),
-        xs = mm.list(rs[3]);
+      const sl = lc(rs[1]);
+      const ys = mm.list(rs[2]);
+      const xs = mm.list(rs[3]);
       if (ys.length !== 1 || xs.length !== 1)
         fail(`${body}: one outcome and one predictor per random slope.`);
-      const y = ref(ys[0].name) ?? fail(`${body}: ${ys[0].name} is not a column or factor.`),
-        x = ref(xs[0].name) ?? fail(`${body}: ${xs[0].name} is not a column or factor.`);
+      const y = ref(ys[0].name) ?? fail(`${body}: ${ys[0].name} is not a column or factor.`);
+      const x = ref(xs[0].name) ?? fail(`${body}: ${xs[0].name} is not a column or factor.`);
       slopeAlias.set(`~|${y}|${x}`, `~1|${sl}`);
       newFactor(sl, 'b');
       onPairs.push({ lhs: y, rhs: x });
@@ -671,11 +671,11 @@ export function buildMixture(
             const ci = lc(e.name);
             fac.classInd ??= [];
             if (!fac.classInd.includes(ci)) fac.classInd.push(ci);
-            const mod = Object.keys(e.mod).length
-              ? e.mod
-              : fac.classInd[0] === ci && j === 0 && !Object.keys(cond).length
-                ? { fixed: 1 }
-                : {};
+            // Without modifiers, the factor's first indicator in an overall statement has its loading fixed at 1.
+            const fixesScale = fac.classInd[0] === ci && j === 0 && !Object.keys(cond).length;
+            let mod: typeof e.mod = {};
+            if (Object.keys(e.mod).length) mod = e.mod;
+            else if (fixesScale) mod = { fixed: 1 };
             add(`=~|${lc(f.name)}|${ci}`, cond, mod, label, s.order);
             return;
           }
@@ -683,11 +683,10 @@ export function buildMixture(
             colOf(e.name) ?? fail(`${f.name} BY ${e.name}: ${e.name} is not a column of the data.`);
           if (!fac.indicators.includes(y)) fac.indicators.push(y);
           const first = fac.indicators[0] === y;
-          const mod = Object.keys(e.mod).length
-            ? e.mod
-            : first && j === 0 && !Object.keys(cond).length
-              ? { fixed: 1 }
-              : {};
+          const fixesScale = first && j === 0 && !Object.keys(cond).length;
+          let mod: typeof e.mod = {};
+          if (Object.keys(e.mod).length) mod = e.mod;
+          else if (fixesScale) mod = { fixed: 1 };
           if (/\*/.test(by[2].split(/\s+/)[j] ?? '') && first) mod.fixed = undefined;
           add(`=~|${lc(f.name)}|${y}`, cond, mod, label, s.order);
         });
@@ -715,8 +714,8 @@ export function buildMixture(
         factors.get(f)!.indicators = outcomes;
       });
     } else if (on) {
-      const lhs = mm.list(on[1]),
-        rhs = mm.list(on[2]);
+      const lhs = mm.list(on[1]);
+      const rhs = mm.list(on[2]);
       for (const l of lhs)
         for (const r of rhs) {
           let ln =
@@ -730,8 +729,8 @@ export function buildMixture(
             ln = ln.replace(/@b$/, '');
           // (c#1 ON cb: the within classes' logits differ between the between classes)
           if (between && isClass(rn) && !/#/.test(rn) && /@b$/.test(ln)) {
-            const c0 = ln.replace(/@b$/, ''),
-              w = cIdx(rn);
+            const c0 = ln.replace(/@b$/, '');
+            const w = cIdx(rn);
             for (let j = 1; j < classes[w].k; j++)
               add(`~|${c0}|${rn}#${j}`, cond, r.mod, label, s.order);
             continue;
@@ -740,8 +739,8 @@ export function buildMixture(
           add(`~|${ln}|${rn}`, cond, r.mod, label, s.order);
         }
     } else if (wth) {
-      const lhs = mm.list(wth[1]),
-        rhs = mm.list(wth[2]);
+      const lhs = mm.list(wth[1]);
+      const rhs = mm.list(wth[2]);
       for (const l of lhs)
         for (const r of rhs) {
           const a =
@@ -760,8 +759,8 @@ export function buildMixture(
         }
     } else if (/^\[.*\]$/.test(body)) {
       for (const e of mm.list(body.slice(1, -1))) {
-        const th = /^(.+)\$(\d+)$/.exec(e.name),
-          hash = /^(.+)#(\d+)$/.exec(e.name);
+        const th = /^(.+)\$(\d+)$/.exec(e.name);
+        const hash = /^(.+)#(\d+)$/.exec(e.name);
         if (th)
           add(
             `$${th[2]}|${colOf(th[1]) ?? fail(`${e.name}: ${th[1]} is not a column of the data.`)}`,
@@ -865,20 +864,19 @@ export function buildMixture(
   for (const p of onPairs)
     if (!isFactor(p.rhs) && !isClass(p.rhs) && !dv.has(p.rhs)) covariates.add(p.rhs);
   if (!dv.size) fail('No outcome (latent class indicator) in the model.');
-  const typeOf = (y: string): 'cat' | 'nominal' | 'count' | 'zip' | 'nb' | 'censored' | 'normal' =>
-    categorical.has(y)
-      ? 'cat'
-      : nominal.has(y)
-        ? 'nominal'
-        : count.has(y)
-          ? negbin.has(y)
-            ? 'nb'
-            : count.get(y)
-              ? 'zip'
-              : 'count'
-          : censored.has(y)
-            ? 'censored'
-            : 'normal';
+  const typeOf = (
+    y: string,
+  ): 'cat' | 'nominal' | 'count' | 'zip' | 'nb' | 'censored' | 'normal' => {
+    if (categorical.has(y)) return 'cat';
+    if (nominal.has(y)) return 'nominal';
+    if (count.has(y)) {
+      if (negbin.has(y)) return 'nb';
+      // (the count map's value says whether the outcome is zero-inflated)
+      return count.get(y) ? 'zip' : 'count';
+    }
+    if (censored.has(y)) return 'censored';
+    return 'normal';
+  };
   const isSlope = (f: string) => [...slopeAlias.values()].includes(`~1|${f}`);
   if (twolevel) {
     for (const y of dv)
@@ -921,9 +919,9 @@ export function buildMixture(
             items.splice(i, 1);
             continue;
           }
-          fail(
-            `${base}: its cluster-level part (variance fixed at 0) cannot be ${kind === '~' ? 'regressed on' : 'related to'} ${a === nm ? b : a}.`,
-          );
+          const verb = kind === '~' ? 'regressed on' : 'related to';
+          const other = a === nm ? b : a;
+          fail(`${base}: its cluster-level part (variance fixed at 0) cannot be ${verb} ${other}.`);
         }
       }
       factors.delete(nm);
@@ -1040,8 +1038,8 @@ export function buildMixture(
     if (kind === '~1' && isClass(a))
       return { varying: false, start: () => 0, scale: 0, free: true };
     if (kind === '~1' && isFactor(a)) {
-      const f = factors.get(a)!,
-        g = f.growth;
+      const f = factors.get(a)!;
+      const g = f.growth;
       // (two-level: within-level factors and cluster-level random intercepts have mean 0; a random slope's mean is free)
       if (twolevel && isSlope(a)) return { varying: false, start: () => 0, scale: 0.5, free: true };
       if (twolevel && (/@b$/.test(a) || f.level === 'w'))
@@ -1064,8 +1062,8 @@ export function buildMixture(
           scale: S(f.indicators[0]).sd,
           free: true,
         };
-      const gi = g.factors.indexOf(a),
-        y0 = g.outcomes[0];
+      const gi = g.factors.indexOf(a);
+      const y0 = g.outcomes[0];
       if (g.inflation)
         return gi === 0
           ? { varying: false, fixed: 0, start: () => 0, scale: 0, free: false }
@@ -1087,16 +1085,17 @@ export function buildMixture(
           scale: gi === 0 ? 0.5 : 0.2,
           free: true,
         };
-      const yl = g.outcomes[g.outcomes.length - 1],
-        dt = g.times[g.times.length - 1] - g.times[0] || 1;
+      const yl = g.outcomes[g.outcomes.length - 1];
+      const dt = g.times[g.times.length - 1] - g.times[0] || 1;
       return {
         varying: true,
-        start: (z, of) =>
-          gi === 0
-            ? S(y0).mean + spread(z, of) * S(y0).sd
-            : gi === 1
-              ? (S(yl).mean - S(y0).mean) / dt + (spread(z, of) * 0.5 * S(y0).sd) / dt
-              : 0,
+        // Intercept factor: around the first outcome's mean; slope: around the mean change per time unit.
+        start: (z, of) => {
+          if (gi === 0) return S(y0).mean + spread(z, of) * S(y0).sd;
+          if (gi === 1)
+            return (S(yl).mean - S(y0).mean) / dt + (spread(z, of) * 0.5 * S(y0).sd) / dt;
+          return 0;
+        },
         scale: gi === 0 ? S(y0).sd : S(y0).sd / dt,
         free: true,
       };
@@ -1105,8 +1104,8 @@ export function buildMixture(
       if (!dv.has(base)) return null;
       if (/#\d+$/.test(a)) {
         if (nominal.has(base)) {
-          const s = S(base),
-            j = Number(a.split('#')[1]);
+          const s = S(base);
+          const j = Number(a.split('#')[1]);
           return {
             varying: single,
             start: (z, of) =>
@@ -1153,8 +1152,8 @@ export function buildMixture(
       };
     }
     if (kind.startsWith('$')) {
-      const j = Number(kind.slice(1)),
-        s = S(a);
+      const j = Number(kind.slice(1));
+      const s = S(a);
       if (!categorical.has(a)) return null;
       if (j < 1 || j >= s.levels.length) return null;
       const cum = s.counts.slice(0, j).reduce((x, y) => x + y, 0) / s.n;
@@ -1208,16 +1207,19 @@ export function buildMixture(
           return { varying: false, fixed: 0, start: () => 0, scale: 0, free: false };
         // (integrated: factors of categorical, count or censored outcomes, or without indicators)
         if (!f.indicators.length || f.indicators.some((y) => typeOf(y) !== 'normal')) {
-          const gi = f.growth ? f.growth.factors.indexOf(a) : 0,
-            t = f.growth ? growthType(f.growth) : 'cat';
-          const v0 = t === 'censored' ? S(f.indicators[0]).variance * 0.5 : t === 'cat' ? 1 : 0.3;
+          const gi = f.growth ? f.growth.factors.indexOf(a) : 0;
+          const t = f.growth ? growthType(f.growth) : 'cat';
+          let v0 = 0.3;
+          if (t === 'censored') v0 = S(f.indicators[0]).variance * 0.5;
+          else if (t === 'cat') v0 = 1;
           return { varying: false, start: () => (gi === 0 ? v0 : v0 * 0.1), scale: 0, free: true };
         }
+        // A growth slope starts with a tenth of the first indicator's variance, other factors with half.
+        const isGrowthSlope = !!f.growth && f.growth.factors.indexOf(a) !== 0;
+        const share = isGrowthSlope ? 0.1 : 0.5;
         return {
           varying: false,
-          start: () =>
-            (f.growth ? (f.growth.factors.indexOf(a) === 0 ? 0.5 : 0.1) : 0.5) *
-            S(f.indicators[0]).variance,
+          start: () => share * S(f.indicators[0]).variance,
           scale: 0,
           free: true,
         };
@@ -1271,9 +1273,13 @@ export function buildMixture(
       if (g) {
         const t = g.times[g.outcomes.indexOf(b)];
         const gi = g.factors.indexOf(a);
+        // Growth loadings: 1 on the intercept, the time score on the slope, its square on the quadratic.
+        let loading = t * t;
+        if (gi === 0) loading = 1;
+        else if (gi === 1) loading = t;
         return {
           varying: false,
-          fixed: gi === 0 ? 1 : gi === 1 ? t : t * t,
+          fixed: loading,
           start: () => 0,
           scale: 0,
           free: false,
@@ -1323,8 +1329,8 @@ export function buildMixture(
     return r;
   };
   const valCache = new Map<string, Combo>();
-  const increments = new Map<string, Combo>(),
-    overallOf = new Map<string, Combo>();
+  const increments = new Map<string, Combo>();
+  const overallOf = new Map<string, Combo>();
   const fixedRows = new Map<string, boolean>();
   /** The value of a parameter in a (partial) assignment of classes covering the variables it varies over. */
   const val = (key: string, z: Cond): Combo => {
@@ -1375,8 +1381,9 @@ export function buildMixture(
       } else {
         // One parameter per class-specific statement; an overall statement (or the default) is shared by the classes
         // it applies to, unless the parameter is class-specific by default.
-        const own =
-          it && Object.keys(it.cond).length ? `${key}#${it.order}` : d?.varying ? ck : key;
+        let own = key;
+        if (it && Object.keys(it.cond).length) own = `${key}#${it.order}`;
+        else if (d?.varying) own = ck;
         const tk = `__${own}`;
         if (!labelTheta.has(tk))
           labelTheta.set(
@@ -1415,8 +1422,8 @@ export function buildMixture(
   // MODEL CONSTRAINT: label = linear expression of labels and numbers; with NEW parameters or a non-linear expression,
   // the label is derived from the other parameters (R evaluates the expression).
   const constrained = new Map<string, string>();
-  const nonlinear = new Map<string, Expr>(),
-    newParams = new Map<string, number>();
+  const nonlinear = new Map<string, Expr>();
+  const newParams = new Map<string, number>();
   for (const c of constraints) {
     const nw = /^NEW\s*\(([^)]*)\)$/i.exec(c.trim());
     if (nw) {
@@ -1496,8 +1503,8 @@ export function buildMixture(
         } else copy(it, `~|${a}#${m}|${b}`);
       }
     } else if (kind === '~~' && !/#/.test(a)) {
-      const va = cIdx(a),
-        vb = cIdx(b);
+      const va = cIdx(a);
+      const vb = cIdx(b);
       for (let j = 1; j < classes[va].k; j++)
         for (let m = 1; m < classes[vb].k; m++) copy(it, `~~|${a}#${j}|${b}#${m}`);
     }
@@ -1566,9 +1573,9 @@ export function buildMixture(
             !isClass(b)
           )
             continue;
-          const m = Number(a.split('#')[1]),
-            w = b.split('#')[0],
-            j = Number(b.split('#')[1]);
+          const m = Number(a.split('#')[1]);
+          const w = b.split('#')[0];
+          const j = Number(b.split('#')[1]);
           if (pc[w] !== j || !Object.entries(it.cond).every(([cv, k]) => pc[cv] === k)) continue;
           if (it.mod.fixed === undefined)
             fail(
@@ -1584,8 +1591,8 @@ export function buildMixture(
             fail(`${c.name}: fixed probabilities lie between 0 and 1 and sum to at most 1.`);
           pr.forEach((x, m) => out.push(slotOf(K0(m < c.k - 1 ? x : 0))));
           if (ps.length) {
-            const last = classes[ps[ps.length - 1]].name,
-              rest: Cond = { ...pc };
+            const last = classes[ps[ps.length - 1]].name;
+            const rest: Cond = { ...pc };
             delete rest[last];
             pr.slice(0, -1).forEach((x, m) =>
               reportRows.push({
@@ -1625,8 +1632,8 @@ export function buildMixture(
                 fixed: false,
               });
             else {
-              const last = classes[ps[ps.length - 1]].name,
-                rest: Cond = { ...pc };
+              const last = classes[ps[ps.length - 1]].name;
+              const rest: Cond = { ...pc };
               delete rest[last];
               reportRows.push({
                 lhs: `${c.name}#${m + 1}`,
@@ -1650,11 +1657,11 @@ export function buildMixture(
         }
         let icpt = V(`~1|${c.name}#${m}`, pc);
         for (const w of ps) {
-          const wn = classes[w].name,
-            j = pc[wn];
+          const wn = classes[w].name;
+          const j = pc[wn];
           if (j >= classes[w].k) continue;
-          const kOn = `~|${c.name}#${m}|${wn}#${j}`,
-            kWith = `~~|${wn}#${j}|${c.name}#${m}`;
+          const kOn = `~|${c.name}#${m}|${wn}#${j}`;
+          const kWith = `~~|${wn}#${j}|${c.name}#${m}`;
           if (byKey.has(kOn)) icpt = plus(icpt, V(kOn, pc));
           if (byKey.has(kWith)) icpt = plus(icpt, V(kWith, pc));
         }
@@ -1719,8 +1726,8 @@ export function buildMixture(
     return x;
   };
   const unite = (a: string, b: string) => {
-    const ra = find(a),
-      rb = find(b);
+    const ra = find(a);
+    const rb = find(b);
     if (ra !== rb) parent.set(ra, rb);
   };
   continuous.forEach((y) => parent.set(y, y));
@@ -1768,22 +1775,22 @@ export function buildMixture(
     if (!groups.has(r)) groups.set(r, { ys: [], fs: [] });
     (isFactor(x) ? groups.get(r)!.fs : groups.get(r)!.ys).push(x);
   }
-  const covKey = (a: string, b: string) =>
-    byKey.has(`~~|${a}|${b}`)
-      ? `~~|${a}|${b}`
-      : byKey.has(`~~|${b}|${a}`)
-        ? `~~|${b}|${a}`
-        : a < b
-          ? `~~|${a}|${b}`
-          : `~~|${b}|${a}`;
+  // The key of a covariance as the model has it (either order), else in alphabetical order.
+  const covKey = (a: string, b: string) => {
+    const ab = `~~|${a}|${b}`;
+    const ba = `~~|${b}|${a}`;
+    if (byKey.has(ab)) return ab;
+    if (byKey.has(ba)) return ba;
+    return a < b ? ab : ba;
+  };
   for (const { ys, fs } of groups.values()) {
     const ordered = [...dv].filter((y) => ys.includes(y));
     if (!ordered.length) fail(`${fs.join(', ')}: a factor without continuous indicators.`);
     const mvn = fs.length > 0 || ordered.length > 1;
     if (!mvn) {
-      const y = ordered[0],
-        xs = xOf(y),
-        t = typeOf(y);
+      const y = ordered[0];
+      const xs = xOf(y);
+      const t = typeOf(y);
       const keys = [`~1|${y}`, ...xs.map((x) => `~|${y}|${x}`), `~~|${y}|${y}`];
       const lk = latKeys(y);
       const by = blockVary([...keys, ...lk]);
@@ -1811,8 +1818,8 @@ export function buildMixture(
         `${ordered.join(', ')}: an indicator of an integrated factor with residual covariances is not fitted.`,
       );
     const lkm = ordered.flatMap(latKeys);
-    const p = ordered.length,
-      m = fs.length;
+    const p = ordered.length;
+    const m = fs.length;
     const xs = [...new Set([...ordered, ...fs].flatMap(xOf))];
     const q = xs.length;
     const keys: (string | null)[] = [];
@@ -1835,15 +1842,15 @@ export function buildMixture(
     for (let j = 0; j < m; j++)
       for (let i = 0; i < m; i++)
         keys.push(i === j ? `~~|${fs[i]}|${fs[i]}` : covKey(fs[i], fs[j]));
+    // The (co)variances of the block, column-major; null where a covariance is not in the model.
     for (let j = 0; j < p; j++)
-      for (let i = 0; i < p; i++)
-        keys.push(
-          i === j
-            ? `~~|${ordered[i]}|${ordered[i]}`
-            : byKey.has(covKey(ordered[i], ordered[j]))
-              ? covKey(ordered[i], ordered[j])
-              : null,
-        );
+      for (let i = 0; i < p; i++) {
+        if (i === j) keys.push(`~~|${ordered[i]}|${ordered[i]}`);
+        else {
+          const k = covKey(ordered[i], ordered[j]);
+          keys.push(byKey.has(k) ? k : null);
+        }
+      }
     const real = keys.filter((k): k is string => !!k);
     const by = blockVary([...real, ...lkm]);
     const sl: number[] = [];
@@ -1998,8 +2005,8 @@ export function buildMixture(
   // each other and on covariates, and the (residual) covariance matrix, column-major (R/mixture.R, mixq_lat_parts).
   let lat: MixtureLatSpec | undefined;
   if (intList.length) {
-    const d = intList.length,
-      lx = [...new Set(intList.flatMap(xOf))];
+    const d = intList.length;
+    const lx = [...new Set(intList.flatMap(xOf))];
     const keys: (string | null)[] = [];
     intList.forEach((f) => keys.push(`~1|${f}`));
     for (let j = 0; j < d; j++)
@@ -2011,17 +2018,19 @@ export function buildMixture(
       for (let i = 0; i < d; i++)
         keys.push(byKey.has(`~|${intList[i]}|${lx[j]}`) ? `~|${intList[i]}|${lx[j]}` : null);
     for (let j = 0; j < d; j++)
-      for (let i = 0; i < d; i++)
-        keys.push(
-          i === j
-            ? `~~|${intList[i]}|${intList[i]}`
-            : has(covKey(intList[i], intList[j]))
-              ? covKey(intList[i], intList[j])
-              : null,
-        );
-    const levels = new Set(
-      intList.map((f) => (twolevel ? (factors.get(f)!.level ?? 'w') : classPred.size ? 'b' : 'w')),
-    );
+      for (let i = 0; i < d; i++) {
+        if (i === j) keys.push(`~~|${intList[i]}|${intList[i]}`);
+        else {
+          const k = covKey(intList[i], intList[j]);
+          keys.push(has(k) ? k : null);
+        }
+      }
+    // Single-level models: integrated variables are between-level when the class is predicted.
+    const levelOf = (f: string) => {
+      if (twolevel) return factors.get(f)!.level ?? 'w';
+      return classPred.size ? 'b' : 'w';
+    };
+    const levels = new Set(intList.map(levelOf));
     if (levels.size > 1)
       fail(`${intList.join(', ')}: integrated latent variables at both levels are not fitted.`);
     const between = levels.has('b');
@@ -2080,7 +2089,7 @@ export function buildMixture(
         );
       if (!(kind === '~~' && isFactor(a)))
         fail(
-          `${key.split('|').slice(1).join(' ').trim()} (${kind === '~' ? 'ON' : kind === '~1' ? 'mean' : kind === '~~' ? 'WITH' : 'BY'}) is not part of the model.`,
+          `${key.split('|').slice(1).join(' ').trim()} (${mplusWord(kind)}) is not part of the model.`,
         );
     }
   }
@@ -2099,8 +2108,8 @@ export function buildMixture(
   };
   const nameOf = (key: string): { lhs: string; op: string; rhs: string } => {
     const [kind, a0, b0] = key.split('|');
-    const a = a0?.replace(/@b$/, ''),
-      b = b0?.replace(/@b$/, '');
+    const a = a0?.replace(/@b$/, '');
+    const b = b0?.replace(/@b$/, '');
     if (kind.startsWith('$')) return { lhs: a, op: '|', rhs: `t${kind.slice(1)}` };
     if (kind === '~1') return { lhs: a, op: '~1', rhs: '' };
     if (kind === '=~') return { lhs: a, op: '=~', rhs: b };
@@ -2176,8 +2185,8 @@ export function buildMixture(
       for (const tk of toks) {
         const m = /^([+-]?)(?:(\d*\.?\d+)\*)?([A-Za-z_]\w*|\d*\.?\d+)$/.exec(tk);
         if (!m) fail(`MODEL CONSTRAINT: ${expr} is not a linear expression of labels.`);
-        const sign = m![1] === '-' ? -1 : 1,
-          coef = m![2] ? Number(m![2]) : 1;
+        const sign = m![1] === '-' ? -1 : 1;
+        const coef = m![2] ? Number(m![2]) : 1;
         if (/^[A-Za-z_]/.test(m![3])) {
           const j =
             labelTheta.get(lc(m![3])) ??
@@ -2307,8 +2316,8 @@ export function parseExpr(text: string): Expr {
   const toks = text.match(/\*\*|\d*\.?\d+(?:[eE][-+]?\d+)?|[A-Za-z_]\w*|[-+*/()^]/g) ?? [];
   if (toks.join('') !== text.replace(/\s+/g, '')) fail(`MODEL CONSTRAINT: cannot read ${text}.`);
   let i = 0;
-  const peek = () => toks[i],
-    next = () => toks[i++];
+  const peek = () => toks[i];
+  const next = () => toks[i++];
   const primary = (): Expr => {
     const t = next();
     if (t === undefined) fail(`MODEL CONSTRAINT: ${text} ends early.`);
@@ -2329,12 +2338,17 @@ export function parseExpr(text: string): Expr {
     }
     return fail(`MODEL CONSTRAINT: unexpected “${t}” in ${text}.`);
   };
-  const unary = (): Expr =>
-    peek() === '-'
-      ? (next(), { op: 'neg', args: [unary()] })
-      : peek() === '+'
-        ? (next(), unary())
-        : power();
+  const unary = (): Expr => {
+    if (peek() === '-') {
+      next();
+      return { op: 'neg', args: [unary()] };
+    }
+    if (peek() === '+') {
+      next();
+      return unary();
+    }
+    return power();
+  };
   const power = (): Expr => {
     const b = primary();
     if (peek() === '**' || peek() === '^') {
@@ -2363,28 +2377,38 @@ export function parseExpr(text: string): Expr {
   if (i < toks.length) fail(`MODEL CONSTRAINT: cannot read ${text}.`);
   return e;
 }
-const exprNames = (e: Expr): string[] =>
-  'name' in e ? [e.name] : 'op' in e ? e.args.flatMap(exprNames) : [];
+/** The Mplus word for a kind of statement, for messages. */
+function mplusWord(kind: string): string {
+  if (kind === '~') return 'ON';
+  if (kind === '~1') return 'mean';
+  if (kind === '~~') return 'WITH';
+  return 'BY';
+}
+const exprNames = (e: Expr): string[] => {
+  if ('name' in e) return [e.name];
+  if ('op' in e) return e.args.flatMap(exprNames);
+  return [];
+};
 /** Linear in the names: sums of numbers times names (no products of names, divisions by names, powers or functions). */
 function isLinear(e: Expr): boolean {
-  const deg = (x: Expr): number =>
-    'num' in x || 'th' in x
-      ? 0
-      : 'name' in x
-        ? 1
-        : x.op === '+' || x.op === '-'
-          ? Math.max(...x.args.map(deg))
-          : x.op === 'neg'
-            ? deg(x.args[0])
-            : x.op === '*'
-              ? deg(x.args[0]) + deg(x.args[1])
-              : x.op === '/'
-                ? deg(x.args[1])
-                  ? 9
-                  : deg(x.args[0])
-                : x.args.some(deg)
-                  ? 9
-                  : 0;
+  // The degree of an expression in the names; 9 stands for "not a polynomial" (a division by a name, a function of one).
+  const deg = (x: Expr): number => {
+    if ('num' in x || 'th' in x) return 0;
+    if ('name' in x) return 1;
+    switch (x.op) {
+      case '+':
+      case '-':
+        return Math.max(...x.args.map(deg));
+      case 'neg':
+        return deg(x.args[0]);
+      case '*':
+        return deg(x.args[0]) + deg(x.args[1]);
+      case '/':
+        return deg(x.args[1]) ? 9 : deg(x.args[0]);
+      default:
+        return x.args.some(deg) ? 9 : 0;
+    }
+  };
   return deg(e) <= 1;
 }
 
@@ -2480,15 +2504,15 @@ export function mixtureColumns(syntax: string, names?: string[]): string[] {
       // (Mplus: a range runs over the variables between its ends in the NAMES order, u11-u23 over u11 u12 u13 u21 u22 u23;
       //  with the data's names that order is known, without them the numeric suffixes stand in)
       if (names) {
-        const i = names.findIndex((n) => lc(n) === lc(parts[0])),
-          j = names.findIndex((n) => lc(n) === lc(parts[1]));
+        const i = names.findIndex((n) => lc(n) === lc(parts[0]));
+        const j = names.findIndex((n) => lc(n) === lc(parts[1]));
         if (i >= 0 && j >= i) {
           out.push(...names.slice(i, j + 1));
           continue;
         }
       }
-      const a = /^(.*?)(\d+)$/.exec(parts[0]),
-        b = /^(.*?)(\d+)$/.exec(parts[1]);
+      const a = /^(.*?)(\d+)$/.exec(parts[0]);
+      const b = /^(.*?)(\d+)$/.exec(parts[1]);
       if (a && b && a[1] === b[1]) {
         for (let i = Number(a[2]); i <= Number(b[2]); i++) out.push(`${a[1]}${i}`);
         continue;

@@ -192,9 +192,9 @@ function LcsOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<LcsOpti
 
 /** Observed (dots) and model-implied (lines) means of each variable at each occasion. */
 function LcsTrajectory({ r }: { r: LcsResult }) {
-  const W = 460,
-    H = 240,
-    pad = { l: 56, r: 14, t: 12, b: 40 };
+  const W = 460;
+  const H = 240;
+  const pad = { l: 56, r: 14, t: 12, b: 40 };
   const series = [
     { name: lcsName(r.x, 'X'), imp: r.impliedMeans.x, obs: r.observedMeans.x },
     ...(r.bivariate
@@ -203,9 +203,9 @@ function LcsTrajectory({ r }: { r: LcsResult }) {
   ];
   const all = series.flatMap((s) => [...s.imp, ...s.obs]).filter(Number.isFinite);
   if (!all.length) return null;
-  const lo = Math.min(...all),
-    hi = Math.max(...all),
-    span = hi - lo || 1;
+  const lo = Math.min(...all);
+  const hi = Math.max(...all);
+  const span = hi - lo || 1;
   const T = r.occasions;
   const sx = (i: number) => pad.l + (i / (T - 1 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((hi + 0.08 * span - v) / (span * 1.16)) * (H - pad.t - pad.b);
