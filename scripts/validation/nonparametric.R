@@ -61,6 +61,49 @@ out$bowker <- list(
   empty = bowker(empty)
 )
 
+# ---- Cochran's Q: 15 subjects, three tasks solved (1) or not (0); DescTools::CochranQTest,
+# then every pair by mcnemar.test (continuity correction) and binom.test, Holm and BH.
+tasks <- data.frame(
+  task1 = c(1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1),
+  task2 = c(1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0),
+  task3 = c(0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0)
+)
+out$tasks <- list(names = names(tasks), cols = unname(as.list(tasks)), categories = list())
+# The same answers coded as categories "no" (1) and "yes" (2).
+out$tasksLabelled <- list(
+  names = names(tasks),
+  cols = unname(lapply(tasks, function(x) x + 1)),
+  categories = list(task1 = c("no", "yes"), task2 = c("no", "yes"), task3 = c("no", "yes"))
+)
+q <- DescTools::CochranQTest(as.matrix(tasks))
+pairs <- combn(3, 2, simplify = FALSE)
+pair_test <- function(pair) {
+  tab <- table(factor(tasks[[pair[1]]], levels = 0:1), factor(tasks[[pair[2]]], levels = 0:1))
+  m <- mcnemar.test(tab)
+  c(
+    b = tab[2, 1],
+    c = tab[1, 2],
+    chisq = unname(m$statistic),
+    p = m$p.value,
+    pExact = binom.test(tab[2, 1], tab[2, 1] + tab[1, 2])$p.value
+  )
+}
+ph <- as.data.frame(do.call(rbind, lapply(pairs, pair_test)))
+out$cochran <- list(
+  q = unname(q$statistic),
+  df = unname(q$parameter),
+  p = q$p.value,
+  proportions = unname(colMeans(tasks)),
+  b = ph$b,
+  c = ph$c,
+  chisq = ph$chisq,
+  pPairs = ph$p,
+  pHolm = p.adjust(ph$p, "holm"),
+  pBH = p.adjust(ph$p, "BH"),
+  pExact = ph$pExact,
+  pExactHolm = p.adjust(ph$pExact, "holm")
+)
+
 writeLines(
   toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null", na = "null"),
   "src/engine/__fixtures__/nonparametric/reference.json"

@@ -298,13 +298,29 @@ export interface ContingencyResult {
   engine: REngineInfo;
 }
 
+/** The p-value adjustments of post hoc comparisons (R's p.adjust). */
+export type PAdjust = 'holm' | 'bonferroni' | 'BH';
+/** `cochran`: Cochran's Q of the binary measures `vars`, pairwise McNemar tests adjusted by `adjust` (absent: Holm). */
 export interface FreqTestInput {
-  type: 'binomial' | 'multinomial';
+  type: 'binomial' | 'multinomial' | 'cochran';
   variable: string;
   testValue: number;
   proportions: number[];
   alternative: Alternative;
   confidence: number;
+  vars?: string[];
+  adjust?: PAdjust;
+}
+/** A pair of measures after Cochran's Q: McNemar's test (continuity-corrected) and the exact test, adjusted. */
+export interface CochranPair {
+  comparison: string;
+  b: number;
+  c: number;
+  chisq: number;
+  p: number;
+  pAdjusted: number;
+  pExact: number;
+  pExactAdjusted: number;
 }
 export interface FreqTestResult {
   type: FreqTestInput['type'];
@@ -317,6 +333,13 @@ export interface FreqTestResult {
   binomial: (HTest & { proportion: number })[] | null;
   testValue: number | null;
   multinomial: (HTest & { expected: number[] }) | null;
+  /** Cochran's Q: the measures, the value counted as 1, each measure's share of it, the test and the pairs. */
+  vars?: string[];
+  success?: string;
+  proportions?: number[];
+  cochran?: { stat: number; df: number; p: number };
+  posthoc?: CochranPair[];
+  adjust?: PAdjust;
   warnings: string[];
   engine: REngineInfo;
 }
@@ -495,7 +518,7 @@ export const contingencyScriptR = (d: Dataset, i: ContingencyInput) =>
   rScript('ps_contingency', contingencyRequest(d, i), 'stats');
 
 export const freqTestRequest = (d: Dataset, i: FreqTestInput) =>
-  testRequest(d, 'freqtest', [i.variable], i);
+  testRequest(d, 'freqtest', i.type === 'cochran' ? (i.vars ?? []) : [i.variable], i);
 export async function freqTestR(d: Dataset, i: FreqTestInput): Promise<FreqTestResult> {
   const r = await rCall<Record<string, any>>('ps_freqtest', freqTestRequest(d, i), 'stats');
   const mult = obj<Record<string, unknown>>(r.multinomial);
@@ -506,6 +529,13 @@ export async function freqTestR(d: Dataset, i: FreqTestInput): Promise<FreqTestR
     binomial: r.binomial ? rList(r.binomial) : null,
     testValue: r.testValue ?? null,
     multinomial: mult ? { ...mult, expected: rList<number>(mult.expected) } : null,
+    ...(r.cochran
+      ? {
+          vars: rList<string>(r.vars),
+          proportions: rList<number>(r.proportions),
+          posthoc: rList<CochranPair>(r.posthoc),
+        }
+      : {}),
     warnings: rStrings(r.warnings),
   } as FreqTestResult;
 }

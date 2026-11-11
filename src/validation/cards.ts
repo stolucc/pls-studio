@@ -136,6 +136,11 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     examples: ['stats-multinomial'],
     features: ['rengine/tests::binomial and multinomial'],
   },
+  'freqtest:cochran': {
+    title: 'Cochran’s Q with pairwise McNemar tests',
+    features: ['rengine/nonparametric::Cochran'],
+    note: 'Q against DescTools::CochranQTest; the pairs against mcnemar.test and binom.test (scripts/validation/nonparametric.R).',
+  },
   reliability: {},
   'reliability:scale': {
     title: 'Scale reliability (alpha, omega, glb)',

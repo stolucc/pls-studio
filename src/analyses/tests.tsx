@@ -24,6 +24,7 @@ import type {
   GwetWeights,
   KrippLevel,
   ManovaInput,
+  PAdjust,
   ManovaResult,
   ReliabilityInput,
   ReliabilityResult,
@@ -60,7 +61,7 @@ import {
 /** The modes of the t-test, correlation, binomial and reliability cards (validation/cards.ts lists the evidence of each). */
 export const TTEST_TYPES = ['one', 'paired', 'independent'] as const;
 export const CORRELATION_METHODS = ['pearson', 'spearman', 'kendall', 'polychoric'] as const;
-export const FREQTEST_TYPES = ['binomial', 'multinomial'] as const;
+export const FREQTEST_TYPES = ['binomial', 'multinomial', 'cochran'] as const;
 export const RELIABILITY_TYPES = [
   'scale',
   'icc',
@@ -77,6 +78,41 @@ const ALTS: readonly (readonly [Alternative, string])[] = [
   ['less', 'Less'],
 ];
 const ALT_IDS = ALTS.map(([id]) => id);
+/** The p-value adjustments of post hoc comparisons (R's p.adjust names). */
+const ADJUSTS: readonly (readonly [PAdjust, string])[] = [
+  ['holm', 'Holm'],
+  ['bonferroni', 'Bonferroni'],
+  ['BH', 'Benjamini–Hochberg'],
+];
+const ADJUST_IDS = ADJUSTS.map(([id]) => id);
+const ADJUST_NAME: Record<PAdjust, string> = {
+  holm: 'Holm',
+  bonferroni: 'Bonferroni',
+  BH: 'Benjamini–Hochberg (false discovery rate)',
+};
+/** The adjustment choice of a post hoc table: Holm is the default, so it leaves no option behind. */
+function AdjustChoice<O extends { adjust?: PAdjust }>({
+  o,
+  set,
+  label = 'Post hoc p-value adjustment',
+}: {
+  o: O;
+  set: (o: O) => void;
+  label?: string;
+}) {
+  return (
+    <Choice
+      label={label}
+      value={o.adjust ?? 'holm'}
+      options={ADJUSTS}
+      onChange={(adjust) => {
+        const { adjust: _a, ...rest } = o;
+        set((adjust === 'holm' ? rest : { ...rest, adjust }) as O);
+      }}
+      hint="Holm and Bonferroni control the chance of any false positive; Benjamini–Hochberg the expected share of false positives."
+    />
+  );
+}
 const engine = () => import('../rengine/tests');
 const NoData = () => <div className="empty-results">Import raw data first.</div>;
 /** The degrees of freedom of a test: blank when absent, a list when there are several, integers without decimals. */
@@ -1540,16 +1576,34 @@ function FreqForm({ options: o, set, ctx, disabled }: OptionsProps<FreqTestOptio
         options={[
           ['binomial', 'Binomial test'],
           ['multinomial', 'Multinomial (goodness of fit)'],
+          ['cochran', 'Cochran’s Q'],
         ]}
       />
-      <ColumnSelect
-        id="fq-x"
-        label="Variable"
-        value={o.variable}
-        columns={d.names}
-        onChange={(variable) => set({ ...o, variable })}
-      />
-      {o.type === 'binomial' ? (
+      {o.type === 'cochran' ? (
+        <>
+          <OrderedPicker
+            label="Binary measures"
+            columns={d.names}
+            value={o.vars ?? []}
+            onChange={(vars) => set({ ...o, vars })}
+          />
+          <div className="hint">
+            One column per measure (occasion, condition, item), one row per subject, two values in
+            all (yes / no, 1 / 0): whether the share of the second value differs between the
+            measures.
+          </div>
+          <AdjustChoice o={o} set={set} />
+        </>
+      ) : (
+        <ColumnSelect
+          id="fq-x"
+          label="Variable"
+          value={o.variable}
+          columns={d.names}
+          onChange={(variable) => set({ ...o, variable })}
+        />
+      )}
+      {o.type === 'cochran' ? null : o.type === 'binomial' ? (
         <>
           <div className="field">
             <label htmlFor="fq-p">Test proportion</label>
@@ -1603,7 +1657,61 @@ function FreqForm({ options: o, set, ctx, disabled }: OptionsProps<FreqTestOptio
   );
 }
 
+/** Cochran's Q and the pairwise McNemar tests. */
+function CochranTables({ r }: { r: FreqTestResult }) {
+  const vars = r.vars ?? [];
+  const q = r.cochran!;
+  const adjust = ADJUST_NAME[r.adjust ?? 'holm'];
+  return (
+    <>
+      <Table
+        title={`Cochran’s Q: ${vars.length} measures, ${r.n} subjects`}
+        file="cochran"
+        columns={['Measure', `Share of “${r.success}”`]}
+        rows={vars.map((v, i): Row => [c(v), c(r.proportions?.[i] ?? null)])}
+      />
+      <Table
+        title="Cochran’s Q test"
+        file="cochran-test"
+        columns={['Q', 'df', 'p']}
+        rows={[[c(q.stat), c(q.df, undefined, 0), pCell(q.p)]]}
+        note="Whether the share of the second value is the same on all the measures (χ² approximation). Subjects with a missing value are left out."
+      />
+      <Table
+        title="Post hoc: pairs of measures (McNemar)"
+        file="cochran-posthoc"
+        columns={['Pair', 'b', 'c', 'χ²', 'p', 'p adjusted', 'Exact p', 'Exact p adjusted']}
+        rows={(r.posthoc ?? []).map(
+          (x): Row => [
+            c(x.comparison),
+            c(x.b, undefined, 0),
+            c(x.c, undefined, 0),
+            c(x.chisq),
+            pCell(x.p),
+            pCell(x.pAdjusted),
+            pCell(x.pExact),
+            pCell(x.pExactAdjusted),
+          ],
+        )}
+        note={
+          'b: subjects with the second value on the first measure of the pair and the first value on the ' +
+          'other; c: the reverse. χ²: McNemar’s test with the continuity correction (R’s default); exact: ' +
+          `the binomial test of b against c. p adjusted over the pairs by ${adjust}.`
+        }
+      />
+    </>
+  );
+}
+
 function FreqView({ r }: { r: FreqTestResult }) {
+  if (r.cochran) {
+    return (
+      <div className="tables">
+        <Engine e={r.engine} />
+        <CochranTables r={r} />
+      </div>
+    );
+  }
   return (
     <div className="tables">
       <Engine e={r.engine} />
@@ -1646,10 +1754,29 @@ function FreqView({ r }: { r: FreqTestResult }) {
   );
 }
 
+function freqCardTitle(o: FreqTestOptions): string {
+  if (o.type === 'cochran') {
+    const vars = o.vars ?? [];
+    return `Cochran’s Q${vars.length ? `: ${vars.join(', ')}` : ''}`;
+  }
+  const test = o.type === 'binomial' ? 'Binomial' : 'Multinomial';
+  return `${test} test${o.variable ? `: ${o.variable}` : ''}`;
+}
+/** The columns of a frequency test: the variable, or Cochran's measures. */
+const freqCols = (o: FreqTestOptions) => (o.type === 'cochran' ? (o.vars ?? []) : [o.variable]);
+/** Cochran's options from a project file (only when set: earlier options are unchanged). */
+function parseCochranOptions(raw: Record<string, unknown>): Partial<FreqTestOptions> {
+  const out: Partial<FreqTestOptions> = {};
+  if (raw.vars !== undefined) out.vars = names(raw.vars);
+  const adjust = oneOf(raw.adjust, ADJUST_IDS, 'holm');
+  if (adjust !== 'holm') out.adjust = adjust;
+  return out;
+}
+
 export const freqTestAnalysis: AnalysisType<FreqTestOptions, FreqTestResult> = {
   id: 'freqtest',
   title: 'Binomial and multinomial tests',
-  sub: 'a proportion against a value; counts against expected proportions',
+  sub: 'a proportion against a value; counts against expected proportions; Cochran’s Q of related binary measures',
   group: 'Basic statistics',
   entries: [
     {
@@ -1662,9 +1789,13 @@ export const freqTestAnalysis: AnalysisType<FreqTestOptions, FreqTestResult> = {
       sub: 'counts against equal or given proportions (χ²)',
       options: (o) => ({ ...o, type: 'multinomial' }),
     },
+    {
+      title: 'Cochran’s Q',
+      sub: 'k related binary measures (the same subjects), with pairwise McNemar tests',
+      options: (o) => ({ ...o, type: 'cochran' }),
+    },
   ],
-  cardTitle: (o) =>
-    `${o.type === 'binomial' ? 'Binomial' : 'Multinomial'} test${o.variable ? `: ${o.variable}` : ''}`,
+  cardTitle: freqCardTitle,
   defaults: () => ({
     type: 'binomial',
     variable: '',
@@ -1685,11 +1816,16 @@ export const freqTestAnalysis: AnalysisType<FreqTestOptions, FreqTestResult> = {
             (x): x is number => typeof x === 'number' && Number.isFinite(x) && x > 0,
           ),
           alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'),
+          ...parseCochranOptions(raw),
         }
       : null,
   Options: FreqForm,
   View: ({ result }) => <FreqView r={result} />,
   blocked: (o, ctx) => {
+    if (o.type === 'cochran') {
+      if ((o.vars ?? []).length < 2) return 'Choose at least two binary measures.';
+      return missingColumns(ctx, freqCols(o), 'Cochran’s Q');
+    }
     if (!o.variable) return 'Choose the variable.';
     if (o.type === 'binomial' && !(o.testValue > 0 && o.testValue < 1))
       return 'The test proportion must be between 0 and 1.';
@@ -1698,17 +1834,23 @@ export const freqTestAnalysis: AnalysisType<FreqTestOptions, FreqTestResult> = {
     return missingColumns(ctx, [o.variable], 'Frequency test');
   },
   fingerprint: (o, ctx) =>
-    columnsFingerprint(
-      ctx,
-      [o.variable],
-      [o.type, o.testValue, o.alternative, o.proportions.join(','), ctx.settings.confidence],
-    ),
+    columnsFingerprint(ctx, freqCols(o), [
+      o.type,
+      o.testValue,
+      o.alternative,
+      o.proportions.join(','),
+      ctx.settings.confidence,
+      // (Cochran only: earlier fingerprints are unchanged)
+      ...(o.type === 'cochran' ? [(o.vars ?? []).join(','), o.adjust ?? 'holm'] : []),
+    ]),
   run: async (o, ctx) =>
     (await engine()).freqTestR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
   script: async (o, ctx) =>
     (await engine()).freqTestScriptR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
-  summary: (o) =>
-    `${o.type} · ${o.variable || '…'}${o.type === 'binomial' ? ` vs ${o.testValue}` : ''}`,
+  summary: (o) => {
+    if (o.type === 'cochran') return `Cochran’s Q · ${(o.vars ?? []).join(', ') || '…'}`;
+    return `${o.type} · ${o.variable || '…'}${o.type === 'binomial' ? ` vs ${o.testValue}` : ''}`;
+  },
 };
 
 // ---------------------------------------------------------------- reliability and agreement

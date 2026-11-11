@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, it } from 'vitest';
 import type { Dataset } from '../engine/types';
 import { near } from '../validation/record';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
-import { contingencyR } from './tests';
+import { contingencyR, freqTestR, type FreqTestInput } from './tests';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -68,5 +68,48 @@ describe('paired contingency tables', () => {
     close('Bowker χ², an empty pair', empty.stat, ref.bowker.empty.stat);
     near('Bowker df, an empty pair', empty.df, ref.bowker.empty.df, 0);
     close('Bowker p, an empty pair', empty.p, ref.bowker.empty.p);
+  }, 600_000);
+});
+
+describe('Cochran’s Q', () => {
+  const input = (vars: string[], more: Partial<FreqTestInput> = {}): FreqTestInput => ({
+    type: 'cochran',
+    variable: '',
+    testValue: 0.5,
+    proportions: [],
+    alternative: 'two.sided',
+    confidence: 0.95,
+    vars,
+    ...more,
+  });
+  const tasks = ['task1', 'task2', 'task3'];
+
+  it('three tasks: Q as DescTools::CochranQTest, pairwise McNemar tests adjusted by Holm', async () => {
+    const r = await freqTestR(data(ref.tasks), input(tasks));
+    const q = ref.cochran;
+    close('Q', r.cochran!.stat, q.q);
+    near('df', r.cochran!.df, q.df, 0);
+    close('p', r.cochran!.p, q.p);
+    (q.proportions as number[]).forEach((x, i) =>
+      close(`share solved, ${tasks[i]}`, r.proportions![i], x),
+    );
+    r.posthoc!.forEach((x, i) => {
+      near(`b, ${x.comparison}`, x.b, q.b[i], 0);
+      near(`c, ${x.comparison}`, x.c, q.c[i], 0);
+      close(`McNemar χ², ${x.comparison}`, x.chisq, q.chisq[i]);
+      close(`McNemar p, ${x.comparison}`, x.p, q.pPairs[i]);
+      close(`McNemar p (Holm), ${x.comparison}`, x.pAdjusted, q.pHolm[i]);
+      close(`exact p, ${x.comparison}`, x.pExact, q.pExact[i]);
+      close(`exact p (Holm), ${x.comparison}`, x.pExactAdjusted, q.pExactHolm[i]);
+    });
+  }, 600_000);
+
+  it('the same answers as categories “no” / “yes”, Benjamini–Hochberg', async () => {
+    const r = await freqTestR(data(ref.tasksLabelled), input(tasks, { adjust: 'BH' }));
+    close('Q (labelled)', r.cochran!.stat, ref.cochran.q);
+    near('the value counted', r.success === 'yes' ? 1 : 0, 1, 0);
+    r.posthoc!.forEach((x, i) => {
+      close(`McNemar p (BH), ${x.comparison}`, x.pAdjusted, ref.cochran.pBH[i]);
+    });
   }, 600_000);
 });

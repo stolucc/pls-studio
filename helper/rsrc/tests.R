@@ -1108,6 +1108,9 @@ ps_contingency <- function(req_json, export = FALSE) {
 #' and the multinomial goodness-of-fit chi-square (equal or given proportions).
 ps_freqtest <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
+  if (identical(req$type, "cochran")) {
+    return(ps_cochran(req, export))
+  }
   x <- req$variable %||% ""
   if (!nzchar(x)) stop("Choose the variable.")
   type <- req$type %||% "binomial"

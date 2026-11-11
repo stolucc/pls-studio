@@ -1,6 +1,7 @@
 # Nonparametric tests added to the basic-statistics cards (tests.R calls these):
 # - McNemar's test of a paired 2 x 2 table (asymptotic, with and without the continuity
-#   correction, and exact) and Bowker's test of symmetry of a paired k x k table.
+#   correction, and exact) and Bowker's test of symmetry of a paired k x k table;
+# - Cochran's Q test of k related binary measures, with pairwise McNemar tests.
 
 #' Script lines of the paired tests of a contingency table: the rows and the columns
 #' are the same subjects' two measurements on the same categories (already factors
@@ -56,4 +57,95 @@ ps_mcnemar_result <- function(env) {
       list(stat = env$bowkerStat, df = env$bowkerDf, p = env$bowkerP)
     }
   )
+}
+
+# ---- Multiple comparisons
+
+PS_P_ADJUST <- c("holm", "bonferroni", "BH")
+
+#' The request's p-value adjustment of the post hoc comparisons (absent: Holm).
+ps_p_adjust <- function(req) {
+  method <- req$adjust %||% "holm"
+  if (!is.character(method) || length(method) != 1 || !method %in% PS_P_ADJUST) {
+    stop("Invalid p-value adjustment in the request.")
+  }
+  method
+}
+
+# ---- Cochran's Q: k related binary measures (the freqtest card's type "cochran")
+
+#' Cochran's Q test of k related binary measures (one column per measure, one row per
+#' subject), with every pair of measures compared by McNemar's test (continuity-corrected,
+#' as mcnemar.test, and exact), the p-values adjusted.
+ps_cochran <- function(req, export) {
+  vars <- unlist(req$vars)
+  if (length(vars) < 2) stop("Choose at least two binary measures.")
+  adjust <- ps_p_adjust(req)
+  fr <- ps_long_frame(req, vars)
+  v <- unname(unlist(fr$v[vars]))
+  body <- c(
+    sprintf("X <- data[complete.cases(data[, %s]), %s, drop = FALSE]", ps_q(v), ps_q(v)),
+    ps_agreement_ratings(req, fr, vars),
+    "values <- sort(unique(c(ratings)))",
+    "if (length(values) != 2) stop(\"Cochran's Q needs binary measures: two values in all the columns.\")",
+    "Y <- (ratings == values[2]) * 1  # 1: the second value (category), 0: the first",
+    "# Cochran's Q from the measures' and the subjects' totals.",
+    "k <- ncol(Y)",
+    "measureTotals <- colSums(Y)",
+    "subjectTotals <- rowSums(Y)",
+    "total <- sum(Y)",
+    "denominator <- k * total - sum(subjectTotals^2)",
+    "if (denominator == 0) stop(\"Every subject has the same value on all the measures: Cochran's Q is undefined.\")",
+    "Q <- (k - 1) * (k * sum(measureTotals^2) - total^2) / denominator",
+    "pQ <- pchisq(Q, k - 1, lower.tail = FALSE)",
+    sprintf("# Post hoc: every pair of measures by McNemar's test, p adjusted (%s).", adjust),
+    "pairs <- combn(k, 2, simplify = FALSE)",
+    "mcnemarPair <- function(pair) {",
+    "  tab <- table(factor(Y[, pair[1]], levels = 0:1), factor(Y[, pair[2]], levels = 0:1))",
+    "  b <- tab[2, 1]  # 1 on the first measure, 0 on the second",
+    "  c <- tab[1, 2]",
+    "  if (b + c == 0) {",
+    "    return(c(b = b, c = c, chisq = 0, p = 1, pExact = 1))",
+    "  }",
+    "  test <- mcnemar.test(tab)  # with the continuity correction, R's default",
+    "  exact <- binom.test(b, b + c, p = 0.5)",
+    "  c(b = b, c = c, chisq = unname(test$statistic), p = test$p.value, pExact = exact$p.value)",
+    "}",
+    "posthoc <- as.data.frame(do.call(rbind, lapply(pairs, mcnemarPair)))",
+    sprintf("posthoc$pAdjusted <- p.adjust(posthoc$p, method = \"%s\")", adjust),
+    sprintf("posthoc$pExactAdjusted <- p.adjust(posthoc$pExact, method = \"%s\")", adjust)
+  )
+  inputs <- list(data = fr$data)
+  if (export) {
+    report <- c("c(Q = Q, df = k - 1, p = pQ)", "colMeans(Y)", "posthoc")
+    return(ps_script("Cochran's Q test", character(0), inputs, body, report))
+  }
+  env <- ps_run(body, inputs)
+  ph <- env$posthoc
+  ps_json(list(
+    type = "cochran",
+    variable = "",
+    vars = vars,
+    n = nrow(env$Y),
+    success = ps_agreement_labels(env, env$values[2]),
+    proportions = unname(colMeans(env$Y)),
+    cochran = list(stat = env$Q, df = env$k - 1, p = env$pQ),
+    posthoc = lapply(seq_along(env$pairs), function(i) {
+      pair <- env$pairs[[i]]
+      list(
+        comparison = paste(vars[pair[1]], "-", vars[pair[2]]),
+        b = ph$b[i],
+        c = ph$c[i],
+        chisq = ph$chisq[i],
+        p = ph$p[i],
+        pAdjusted = ph$pAdjusted[i],
+        pExact = ph$pExact[i],
+        pExactAdjusted = ph$pExactAdjusted[i]
+      )
+    }),
+    adjust = adjust,
+    confidence = ps_bt_conf(req),
+    warnings = env$.warnings,
+    engine = list(package = "stats", version = as.character(getRversion()))
+  ))
 }

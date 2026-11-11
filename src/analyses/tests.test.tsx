@@ -18,7 +18,7 @@ import {
   ttestAnalysis,
 } from './tests';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { ContingencyResult, ReliabilityResult } from '../rengine/tests';
+import type { ContingencyResult, FreqTestResult, ReliabilityResult } from '../rengine/tests';
 import type { AnalysisCtx } from './types';
 
 const data = {
@@ -445,5 +445,57 @@ describe('paired contingency tables (McNemar, Bowker)', () => {
     });
     expect(three).toContain('Bowker’s test of symmetry');
     expect(three).not.toContain('McNemar');
+  });
+});
+
+describe('Cochran’s Q', () => {
+  const t = freqTestAnalysis;
+  const o = { ...t.defaults(ctx), type: 'cochran' as const, vars: ['y', 'x', 'h'] };
+
+  it('keeps the measures and the adjustment from a project file, and needs two measures', () => {
+    expect(t.parseOptions({ ...o, adjust: 'BH' })).toMatchObject({ vars: o.vars, adjust: 'BH' });
+    expect('adjust' in t.parseOptions({ ...o, adjust: 'sidak' })!).toBe(false);
+    expect(t.blocked({ ...o, vars: ['y'] }, ctx)).toMatch(/at least two binary measures/);
+    expect(t.blocked(o, ctx)).toBeNull();
+    expect(t.fingerprint({ ...o, adjust: 'bonferroni' }, ctx)).not.toBe(t.fingerprint(o, ctx));
+    expect(t.cardTitle!(o)).toBe('Cochran’s Q: y, x, h');
+  });
+
+  it('shows the shares, Q and the pairs with the adjustment named', () => {
+    const result = {
+      type: 'cochran',
+      variable: '',
+      levels: [],
+      counts: [],
+      n: 15,
+      alternative: 'two.sided',
+      confidence: 0.95,
+      binomial: null,
+      testValue: null,
+      multinomial: null,
+      vars: ['y', 'x'],
+      success: 'yes',
+      proportions: [0.8, 0.4],
+      cochran: { stat: 8.6, df: 1, p: 0.01 },
+      posthoc: [
+        {
+          comparison: 'y - x',
+          b: 6,
+          c: 0,
+          chisq: 4.17,
+          p: 0.04,
+          pAdjusted: 0.04,
+          pExact: 0.03,
+          pExactAdjusted: 0.03,
+        },
+      ],
+      adjust: 'BH',
+      warnings: [],
+      engine: { package: 'stats', version: '4.6.2' },
+    } as unknown as FreqTestResult;
+    const html = renderToStaticMarkup(<t.View result={result} options={o} current />);
+    expect(html).toContain('Share of “yes”');
+    expect(html).toContain('Cochran’s Q test');
+    expect(html).toContain('Benjamini–Hochberg');
   });
 });
