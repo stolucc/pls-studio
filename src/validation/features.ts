@@ -292,6 +292,12 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     ['semfindr'],
     script('screen.R', 'desktop semfindr'),
   ),
+  'rengine/explore': native(
+    'Descriptives: statistics by group, frequency tables, normality tests',
+    'Basic statistics',
+    ['stats', 'nortest'],
+    script('explore.R', 'desktop R: psych::describe(type = 2), quantile, nortest'),
+  ),
   'rengine/analyses': native(
     'MIIV-2SLS, IPMA, model fit test',
     'CB-SEM',
@@ -683,10 +689,10 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     ),
   ),
   'analyses/charts': native(
-    'Chart statistics (quartiles, whiskers, counts)',
+    'Chart statistics (quartiles, whiskers, counts, density, Q-Q plot)',
     'Analyses',
     [],
-    script('charts.R', 'R’s quantile(type = 7), boxplot.stats and table'),
+    script('charts.R', 'R’s quantile(type = 7), boxplot.stats, table, bw.nrd0, qqnorm and qqline'),
   ),
   'analyses/methodCompare': 'examples',
   'examples/mplus/bsem': 'examples',

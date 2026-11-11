@@ -20,6 +20,7 @@ const PANEL_TAGS: Record<string, string[]> = {
   qca: ['Set-theoretic methods', 'fsQCA'],
   efa: ['Measurement', 'Factor analysis'],
   screen: ['Data screening'],
+  explore: ['Basic statistics', 'Descriptives'],
   network: ['Networks', 'Partial correlations'],
   ega: ['Networks', 'EGA'],
   bcorrelation: ['Bayesian', 'Correlation'],

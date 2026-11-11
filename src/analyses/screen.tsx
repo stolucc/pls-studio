@@ -85,7 +85,7 @@ function Univariate({ r }: { r: ScreenResult }) {
           c(d.kurtosis, tone),
         ];
       })}
-      note="Skewness and excess kurtosis as psych::describe (type 3). |skew| > 2 or |kurtosis| > 7 is severe (red), above 1 or 3 moderate (West, Finch & Curran 1995; Kline 2016)."
+      note="Skewness and excess kurtosis as psych::describe (type 3). |skew| > 2 or |kurtosis| > 7 is severe (red), above 1 or 3 moderate (West, Finch & Curran 1995; Kline 2016). By group, with percentiles, SPSS’s type 2 skewness and kurtosis, normality tests and plots: the Descriptives card."
     />
   );
 }

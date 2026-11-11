@@ -3,7 +3,7 @@
 // dataset's columns; missing values are left out.
 
 import type { Dataset } from '../engine/types';
-import { mean, quantileSorted, sd } from '../engine/stats';
+import { mean, qnorm, quantileSorted, sd } from '../engine/stats';
 
 export interface HistogramBin {
   from: number;
@@ -148,4 +148,74 @@ export function counts(
     label: g.label,
     count: Array.from(col).filter((v) => v === g.value).length,
   }));
+}
+
+/** R's bw.nrd0: Silverman's rule of thumb, 0.9 min(SD, IQR / 1.34) n^(-1/5), with R's fallbacks. */
+export function bandwidthNrd0(col: ArrayLike<number>): number {
+  const v = finite(col).sort((a, b) => a - b);
+  const n = v.length;
+  if (n < 2) return NaN;
+  const iqr = quantileSorted(v, 0.75) - quantileSorted(v, 0.25);
+  let lo = Math.min(sd(v), iqr / 1.34);
+  // (R: a zero spread falls back to the SD, then |x[1]|, then 1)
+  if (!(lo > 0)) lo = sd(v);
+  if (!(lo > 0)) lo = Math.abs(v[0]);
+  if (!(lo > 0)) lo = 1;
+  return 0.9 * lo * n ** -0.2;
+}
+
+/**
+ * A Gaussian kernel density estimate with R's default bandwidth (bw.nrd0), evaluated exactly at `points` points
+ * from 3 bandwidths below the minimum to 3 above the maximum (R's density() range; R bins the data first, so its
+ * curve differs from this exact one in the third decimal or so).
+ */
+export function kernelDensity(col: ArrayLike<number>, points = 128): { x: number; y: number }[] {
+  const v = finite(col);
+  const n = v.length;
+  const bw = bandwidthNrd0(v);
+  if (!(bw > 0)) return [];
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const x of v) {
+    if (x < lo) lo = x;
+    if (x > hi) hi = x;
+  }
+  const from = lo - 3 * bw;
+  const to = hi + 3 * bw;
+  const norm = 1 / (n * bw * Math.sqrt(2 * Math.PI));
+  return Array.from({ length: points }, (_, i) => {
+    const x = from + ((to - from) * i) / (points - 1);
+    let s = 0;
+    for (const xi of v) {
+      const z = (x - xi) / bw;
+      s += Math.exp(-0.5 * z * z);
+    }
+    return { x, y: s * norm };
+  });
+}
+
+/** A normal Q-Q plot as R's qqnorm and qqline draw it. */
+export interface QQPlot {
+  /** Theoretical normal quantiles, qnorm(ppoints(n)), with the sorted sample. */
+  points: { theoretical: number; sample: number }[];
+  /** qqline: the line through the first and third quartiles (type 7). */
+  intercept: number;
+  slope: number;
+}
+
+/** The normal Q-Q plot of a column (missing values left out); null with fewer than 3 values. */
+export function qqPlot(col: ArrayLike<number>): QQPlot | null {
+  const v = finite(col).sort((a, b) => a - b);
+  const n = v.length;
+  if (n < 3) return null;
+  // ppoints: (i - a) / (n + 1 - 2a), a = 3/8 up to 10 values, 1/2 beyond
+  const a = n <= 10 ? 3 / 8 : 1 / 2;
+  const points = v.map((sample, i) => ({
+    theoretical: qnorm((i + 1 - a) / (n + 1 - 2 * a)),
+    sample,
+  }));
+  const z1 = qnorm(0.25);
+  const z3 = qnorm(0.75);
+  const slope = (quantileSorted(v, 0.75) - quantileSorted(v, 0.25)) / (z3 - z1);
+  return { points, intercept: quantileSorted(v, 0.25) - slope * z1, slope };
 }

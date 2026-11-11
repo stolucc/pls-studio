@@ -13,6 +13,7 @@ import type { Dataset } from '../../engine/types';
 import { categoriesOf } from '../../io';
 import { DEFAULT_SETTINGS } from '../../model/project';
 import { rCall, type RPackage } from '../../rengine/bridge';
+import type { ExploreCardResult } from '../../analyses/explore';
 import type {
   AnovaResult,
   ContingencyResult,
@@ -73,7 +74,7 @@ async function runCard<R>(
   const kind = e.panel!.kind,
     preset = panelPreset(e.panel!);
   const pkg =
-    e.package === 'psych' || e.package === 'Bayesrel'
+    e.package === 'psych' || e.package === 'Bayesrel' || e.package === 'nortest'
       ? e.package
       : (e.panel as { moreBetween?: string[] }).moreBetween?.length
         ? 'car'
@@ -113,6 +114,29 @@ const helpPrinted = (page: string, url: string): EvidenceSource & { level: 'nati
 });
 
 describe('basic-statistics card examples in webR', () => {
+  it('nortest-toothgrowth: shapiro.test, lillie.test and ad.test of len by supp', async () => {
+    const r = await runCard<ExploreCardResult>(
+      'nortest-toothgrowth',
+      helpRun('nortest, ?lillie.test and ?ad.test'),
+    );
+    same('groups', r.groups.join(', '), 'OJ, VC');
+    const oj = r.normality.find((t) => t.group === 'OJ')!;
+    const vc = r.normality.find((t) => t.group === 'VC')!;
+    // (desktop R 4.6.2, nortest 1.0-4, scripts/validation/explore.R)
+    near('OJ: Shapiro–Wilk W', oj.shapiro!.stat, 0.917843379389229, 1e-9);
+    near('OJ: Shapiro–Wilk p', oj.shapiro!.p, 0.0235877289994793, 1e-9);
+    near('OJ: Lilliefors D', oj.lilliefors!.stat, 0.138234008079919, 1e-9);
+    near('OJ: Lilliefors p', oj.lilliefors!.p, 0.151673554581771, 1e-9);
+    near('OJ: Anderson–Darling A', oj.anderson!.stat, 0.923361769732473, 1e-9);
+    near('OJ: Anderson–Darling p', oj.anderson!.p, 0.0164736139950087, 1e-9);
+    near('VC: Shapiro–Wilk p', vc.shapiro!.p, 0.428446463009781, 1e-9);
+    near('VC: Lilliefors p', vc.lilliefors!.p, 0.853656586886321, 1e-9);
+    const ojStats = r.stats.find((s) => s.group === 'OJ')!;
+    near('OJ: mean', ojStats.mean!, 20.6633333333333, 1e-9);
+    near('OJ: skewness (type 2)', ojStats.skewness!, -0.579907561825505, 1e-9);
+    same('dose levels', r.frequencies[0].levels.join(', '), '0.5, 1.0, 2.0');
+    same('plots: one per group', r.plots.length, 2);
+  }, 600_000);
   it('stats-ttest-mtcars: t.test(mpg ~ am, data = mtcars), Welch and Student', async () => {
     const r = await runCard<TTestResult>('stats-ttest-mtcars', helpRun('stats, ?t.test'));
     const row = r.rows[0];

@@ -49,6 +49,11 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     note: 'Fit against plain lavaan on the parcels, the spread over allocations against semTools::parcelAllocation (scripts/validation/parcels.R).',
   },
   screen: ft('rengine/screen::distributions', 'analyses/cards'),
+  explore: {
+    examples: ['nortest-toothgrowth'],
+    features: ['rengine/explore', 'analyses/charts::density and Q-Q'],
+    note: 'Descriptives against psych::describe(type = 2), quantile(type = 7 and 6), shapiro.test, nortest and table() (scripts/validation/explore.R); the density and Q-Q plots against bw.nrd0, the exact Gaussian kernel estimate, qqnorm and qqline (scripts/validation/charts.R).',
+  },
   missingdata: { examples: ['mplus-ex11.2', 'misty-airquality-mcar'] },
   chart: {},
   'chart:histogram': {

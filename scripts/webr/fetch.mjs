@@ -146,6 +146,7 @@ const ROOTS = [
   'bain',
   'piecewiseSEM',
   'Bayesrel',
+  'nortest',
 ];
 /**
  * Binaries kept in this repository (scripts/webr/vendor, with their PACKAGES

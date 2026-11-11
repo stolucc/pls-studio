@@ -1,4 +1,4 @@
-// Examples that open a card: basic statistics: t-tests, ANOVA, MANOVA, correlation, contingency tables, frequency tests, reliability. Each follows an R package's help page or a textbook, with
+// Examples that open a card: basic statistics: descriptives, t-tests, ANOVA, MANOVA, correlation, contingency tables, frequency tests, reliability. Each follows an R package's help page or a textbook, with
 // the numbers it prints checked in cards/basic.webr.test.ts.
 //
 // Data written inline on a help page (sleep in wide form, RoundingTimes, the plastic film, Agresti's tables, Mendel's
@@ -33,6 +33,32 @@ const COHEN_LINKS = [
 ];
 
 export const CARD_BASIC: PackageExample[] = [
+  {
+    id: 'nortest-toothgrowth',
+    package: 'nortest',
+    title: 'Descriptives and normality tests: tooth growth by supplement',
+    source: 'nortest, ?lillie.test and ?ad.test (ToothGrowth)',
+    links: [
+      { label: 'nortest, ?lillie.test', url: 'https://rdrr.io/cran/nortest/man/lillie.test.html' },
+      { label: 'nortest, ?ad.test', url: 'https://rdrr.io/cran/nortest/man/ad.test.html' },
+      DATA('ToothGrowth'),
+    ],
+    description:
+      'Odontoblast length of 60 guinea pigs given vitamin C as orange juice (OJ) or ascorbic acid (VC). nortest’s help pages run lillie.test and ad.test on simulated values; this example runs them, with shapiro.test, on R’s ToothGrowth, split by supplement: the descriptives (mean, SD, CI, quartiles, skewness and kurtosis as SPSS defines them), a frequency table of the dose and the plots. Opens its card on the Analyses tab.',
+    shows:
+      'For orange juice the tests disagree: Shapiro–Wilk W = 0.918 (p = 0.024) and Anderson–Darling A = 0.923 (p = 0.016) reject normality, Lilliefors D = 0.138 (p = 0.15) does not; the Q-Q plot shows the left skew (skewness −0.58). For ascorbic acid none rejects (p = 0.43, 0.85, 0.67). Means: 20.66 (OJ) and 16.96 (VC).',
+    data: { package: 'datasets', name: 'ToothGrowth' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'explore',
+      vars: ['len'],
+      frequencies: ['dose'],
+      group: 'supp',
+      normality: true,
+    },
+    settings: CB('ML'),
+  },
   {
     id: 'stats-ttest-mtcars',
     package: 'datasets',

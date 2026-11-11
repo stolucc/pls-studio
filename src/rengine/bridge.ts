@@ -22,6 +22,7 @@ import regressionR from './R/regression.R?raw';
 import plsxR from './R/plsx.R?raw';
 import rsaR from './R/rsa.R?raw';
 import screenR from './R/screen.R?raw';
+import exploreR from './R/explore.R?raw';
 import networkR from './R/network.R?raw';
 import segmentR from './R/segment.R?raw';
 import testsR from './R/tests.R?raw';
@@ -81,6 +82,7 @@ export const SOURCES = {
   nca: ncaR,
   efa: efaR,
   screen: screenR,
+  explore: exploreR,
   network: networkR,
   tests: testsR,
   bayes: bayesR,
@@ -186,6 +188,8 @@ export const R_PACKAGES = {
   carData: ['jsonlite', 'carData'],
   faraway: ['jsonlite', 'faraway'],
   stats: ['jsonlite'],
+  // Normality tests of the descriptives card: Lilliefors (Kolmogorov-Smirnov) and Anderson-Darling (nortest).
+  nortest: ['jsonlite', 'nortest'],
   // Repeated measures with several between-subjects factors: car::Anova's type II tests (car's ?Anova, OBrienKaiser).
   car: ['jsonlite', 'car'],
   EGAnet: ['jsonlite', 'EGAnet'],
