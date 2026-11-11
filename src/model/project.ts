@@ -534,6 +534,12 @@ export function impliedMainEffects(model: ModelState): { from: string; to: strin
  * Observed covariates have no indicator boxes (their intercept is the sample
  * mean unless an arrow is drawn).
  */
+/** Whether the constant (triangle) is drawn: only with an arrow on show — a drawn mean, or its implied intercepts while they are shown. */
+export function constantDrawn(model: ModelState, showIntercepts: boolean): boolean {
+  if (!model.constant) return false;
+  return (model.means ?? []).some((t) => model.constructs.some((c) => c.id === t.target)) || (showIntercepts && impliedIntercepts(model).length > 0);
+}
+
 export function impliedIntercepts(model: ModelState): { construct: string; indicator: string }[] {
   if (!model.constant) return [];
   const out: { construct: string; indicator: string }[] = [];

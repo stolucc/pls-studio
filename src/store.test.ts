@@ -345,3 +345,12 @@ describe('held and labelled parameters in the store', () => {
     expect(s().model.parameterization).toBeUndefined();
   });
 });
+
+describe('adding the constant', () => {
+  it('shows its intercepts, so that the new triangle is drawn', () => {
+    useStore.setState({ model: { constructs: [{ id: 'a', name: 'A', type: 'factor', mode: 'A', indicators: ['a1', 'a2'], x: 0, y: 0, side: 'left' }], paths: [], moderations: [] }, showIntercepts: false } as never);
+    useStore.getState().addConstant();
+    expect(useStore.getState().model.constant).toBeTruthy();
+    expect(useStore.getState().showIntercepts).toBe(true);
+  });
+});

@@ -134,5 +134,5 @@ export function buildFigureInput(m: PlacedModel, method: Method, values: FigureV
       return { x1: t.x1, y1: t.y1, x2: t.x2, y2: t.y2, label: label(l?.beta, l?.p ?? null) };
     }),
   }));
-  return { method, ...(m.notes?.length ? { notes: m.notes.map((k) => ({ x: k.x, y: k.y, text: k.text })) } : {}), constructs, paths, moderations, higherOrder, errors, correlations, ...(copulas.length ? { copulas } : {}), ...(constant ? { constant, means, intercepts } : {}) };
+  return { method, ...(m.notes?.length ? { notes: m.notes.map((k) => ({ x: k.x, y: k.y, text: k.text })) } : {}), constructs, paths, moderations, higherOrder, errors, correlations, ...(copulas.length ? { copulas } : {}), ...(constant && (means.length || intercepts.length) ? { constant, means, intercepts } : {}) };
 }

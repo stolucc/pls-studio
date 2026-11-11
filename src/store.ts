@@ -382,6 +382,8 @@ export function constructSlice(set: SetState, get: GetState) {
       if (model.constant) return;
       const left = Math.min(0, ...selectPlacedModel(get()).constructs.map((c) => c.x - constructGeometry(c).rx)), top = model.constructs.length ? model.constructs.reduce((a, c) => a + c.y, 0) / model.constructs.length : 0;
       get().commit((m) => ({ ...m, constant: { x: left - 160, y: top } }));
+      // (the triangle is drawn only with an arrow on show: a new one has none but its intercepts)
+      set({ showIntercepts: true });
     },
     moveConstant: (x, y) => readOnly(get()) ? undefined : set((s) => (s.model.constant ? { dirty: true, model: { ...s.model, constant: { x, y } } } : {})),
     addMean: (constructId) => {

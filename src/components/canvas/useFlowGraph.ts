@@ -8,7 +8,7 @@ import type { FigureInput } from '../../figure/render';
 import { buildFigureInput } from '../../figure/build';
 import { canvasLabelSize, placeFigureLabels } from '../../figure/labels';
 import { setFigureSource } from '../../figure/source';
-import { impliedIntercepts, validateModel, type ModelState } from '../../model/project';
+import { constantDrawn, impliedIntercepts, validateModel, type ModelState } from '../../model/project';
 import type { PlacedModel } from '../../placement';
 import { useStore, type Results, type Selection, type Tool } from '../../store';
 import { indicatorLabels } from '../../diagramLabels';
@@ -47,7 +47,8 @@ export function useFlowGraph({ model, placed, selection, tool, picked, implied, 
     [model, data, settings],
   );
 
-  const nodes: FlowNode[] = useMemo(() => [...(model.constant ? [{
+  const constantShown = constantDrawn(model, showIntercepts);
+  const nodes: FlowNode[] = useMemo(() => [...(model.constant && constantShown ? [{
     id: 'constant', type: 'constant' as const,
     position: { x: model.constant.x - CONSTANT_R - 4, y: model.constant.y - CONSTANT_R - 2 },
     width: CONSTANT_R * 2 + 8, height: CONSTANT_R * 2 + 4, measured: { width: CONSTANT_R * 2 + 8, height: CONSTANT_R * 2 + 4 },
@@ -70,7 +71,7 @@ export function useFlowGraph({ model, placed, selection, tool, picked, implied, 
         picked: picked?.kind === 'construct' && picked.via !== 'disturbance' && picked.id === c.id ? true : picked?.kind === 'indicator' && c.indicators.includes(picked.id) ? picked.id : false,
       },
     };
-  })], [placed.constructs, model.constant, model.esem?.blocks, model.notes, selection.nodes, display, errorIds, tool, method, picked, settings.figure]);
+  })], [constantShown, placed.constructs, model.constant, model.esem?.blocks, model.notes, selection.nodes, display, errorIds, tool, method, picked, settings.figure]);
 
   const figureInput = useCallback((): FigureInput => buildFigureInput(placed, method, {
     indicator: display ? (name, construct) => display.indicator(name, construct) : undefined,

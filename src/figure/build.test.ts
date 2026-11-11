@@ -44,3 +44,17 @@ describe('the figure of a model', () => {
     expect(buildFigureInput(model, 'pls', v, { showErrors: false }).errors).toEqual([]);
   });
 });
+
+describe('the constant', () => {
+  const withConstant = placeModel({ ...raw, moderations: [], constant: { x: -200, y: 0 } }, false);
+  it('is drawn only with an arrow on show: a drawn mean, or its intercepts while they are shown', async () => {
+    const { constantDrawn } = await import('../model/project');
+    expect(constantDrawn(withConstant, false)).toBe(false);
+    expect(constantDrawn(withConstant, true)).toBe(true);
+    expect(constantDrawn({ ...withConstant, means: [{ id: 'mn', target: 'A' }] }, false)).toBe(true);
+    expect(constantDrawn({ ...withConstant, means: [{ id: 'mn', target: 'gone' }] }, false)).toBe(false);
+    expect(constantDrawn(raw, true)).toBe(false);
+    expect(buildFigureInput(withConstant, 'cbsem', {}, { showErrors: false }).constant).toBeUndefined();
+    expect(buildFigureInput(withConstant, 'cbsem', {}, { showErrors: false, showIntercepts: true }).constant).toEqual({ x: -200, y: 0 });
+  });
+});
