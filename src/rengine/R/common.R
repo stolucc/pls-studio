@@ -56,7 +56,8 @@ ps_irrelevant <- function(m) grepl("^package .* was built under R version", m)
 
 #' Code that set options(warn = 2) (e.g. SEMsens's sa.aco, which drops every evaluation whose fit warns) gets its
 #' warnings as errors where they are raised, as in plain R: the bridge's handlers then let a warning through to R's
-#' own conversion instead of keeping and muffling it.
+#' own conversion instead of keeping and muffling it. (In webR the bridge is evaluated without webR's condition
+#' capture, runtime.ts callJson, since that muffles warnings before R could convert them.)
 ps_warn_is_error <- function() isTRUE(getOption("warn", 0) >= 2)
 
 #' An optional computation (a statistic that is reported when available): if it

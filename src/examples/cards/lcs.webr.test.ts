@@ -32,7 +32,8 @@ const ALL = { constant: true, proportional: true, autoregressive: true }, NONE =
 const NO = { deltaXY: false, deltaYX: false, xiXY: false, xiYX: false };
 
 /** Every labelled estimate, its standard error and the fit measures equal lcsm's (`record`: as example evidence). */
-function compare(r: LcsResult, ref: Ref, record: boolean, digits = 6) {
+// (5 digits: webR's floating point moves lavaan's estimates by ~1e-6 from desktop R's)
+function compare(r: LcsResult, ref: Ref, record: boolean, digits = 5) {
   const close = (what: string, got: number | null, want: number) => (record ? near(what, got ?? NaN, want, 10 ** -digits) : expect(got ?? NaN, what).toBeCloseTo(want, digits));
   expect(r.n).toBe(ref.n);
   expect(r.estimates.map((e) => e.label).sort()).toEqual(Object.keys(ref.estimates).sort());
@@ -59,8 +60,15 @@ describe('latent change score models (lcsm’s specification, lavaan)', () => {
       'x: constant change ↔ initial true score', 'x: proportional change (β), change on the previous true score', 'x: autoregression of the changes (φ), change on the previous change', 'x: residual variance (each occasion)']);
     const b = await lcsR(bi, { x: ['x1', 'x2', 'x3'], y: ['y1', 'y2', 'y3'], modelX: { constant: true, proportional: true, autoregressive: false }, modelY: { constant: true, proportional: true, autoregressive: true },
       coupling: { deltaXY: true, deltaYX: false, xiXY: false, xiYX: true }, estimator: 'MLR', missing: 'fiml' });
-    compare(b, REF.results.biHelp, false);
-    b.impliedMeans.y.forEach((v, i) => expect(v).toBeCloseTo(REF.results.biHelp.implied.y[i], 6));
+    // (this help model is not identified at three occasions — lavaan says its vcov is not positive definite — so its
+    //  individual estimates are not determined and drift between desktop R and webR; what is identified is compared)
+    const bh = REF.results.biHelp;
+    expect(b.estimates.map((e) => e.label).sort()).toEqual(Object.keys(bh.estimates).sort());
+    expect(b.fit.chisq ?? NaN).toBeCloseTo(bh.fit.chisq, 4);
+    if (bh.fit.df !== undefined) expect(b.fit.df).toBe(bh.fit.df);
+    expect(b.fit.logl ?? NaN).toBeCloseTo(bh.fit.logl, 4);
+    b.impliedMeans.x.forEach((v, i) => expect(v).toBeCloseTo(bh.implied.x[i], 4));
+    b.impliedMeans.y.forEach((v, i) => expect(v).toBeCloseTo(bh.implied.y[i], 4));
     // (lcsm's own help example: its vcov is not positive definite at three occasions, as lavaan says in lcsm too)
     expect(b.warnings.join(' ')).toMatch(/positive definite/);
     expect(lcsRows(b).map((t) => t.title)).toEqual(['Change components', 'Coupling between the variables', 'Covariances between the variables']);

@@ -20,7 +20,7 @@ class Worker {
   private ready: Promise<{ r: string }>;
   busy = false;
   constructor(script: string, bridgeDir: string, library: string) {
-    this.proc = spawn('Rscript', ['--vanilla', script, bridgeDir], { env: { ...process.env, PS_HELPER_LIBRARY: library, R_LIBS_USER: library }, stdio: ['pipe', 'pipe', 'pipe'] });
+    this.proc = spawn('Rscript', ['--vanilla', script, bridgeDir], { env: { ...process.env, PS_HELPER_LIBRARY: library, R_LIBS_USER: library, R_MAX_NUM_DLLS: '150' /* as the helper's workers (rpool.go) */ }, stdio: ['pipe', 'pipe', 'pipe'] });
     let err = '';
     this.proc.stderr!.on('data', (d: Buffer) => { err = (err + d.toString()).slice(-4000); });  // (R's messages, kept for errors)
     this.ready = new Promise((resolve, reject) => {

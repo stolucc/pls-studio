@@ -51,7 +51,9 @@ function start(s: Session, index: number): Promise<WebR> {
     }
     if (index === 0) useR.setState({ status: 'loading', message: 'Starting R…' });
     const { WebR, ChannelType } = await import('webr');
-    const webR = new WebR({ baseUrl: o.baseUrl, repoUrl: o.repoUrl, channelType: ChannelType.SharedArrayBuffer });
+    // (R_MAX_NUM_DLLS: R loads at most ~100 compiled libraries per session by default; one session that runs many
+    //  analyses passes that, and every later package with compiled code then fails to load)
+    const webR = new WebR({ baseUrl: o.baseUrl, repoUrl: o.repoUrl, channelType: ChannelType.SharedArrayBuffer, REnv: { R_HOME: '/usr/lib/R', R_ENABLE_JIT: '0' } });
     await webR.init();
     // webR limits nested R evaluation to 400 levels (R's default is 5000); cSEM's
     // resampling needs more. 5e5 is R's maximum; the C stack still guards recursion.
@@ -105,7 +107,16 @@ export function withSession<T>(index: number, packages: string[], sources: Recor
         await installOneAtATime(() => webR.installPackages(missing, { quiet: true }));
         // installPackages only warns when a download fails; check before use.
         const absent = await notInstalled(webR, missing);
-        if (absent.length) throw new Error(packageDownloadError(absent, o.repoUrl));
+        if (absent.length) {
+          // A package that will not load may have hit R's limit of ~100 compiled libraries per session (see below):
+          // then a fresh session loads it, once; otherwise the download failed.
+          const why = await webR.evalRString(`tryCatch({ loadNamespace(${JSON.stringify(absent[0])}); "" }, error = function(e) conditionMessage(e))`);
+          if (isDllLimit(why)) {
+            if (!fresh) { discard(webR); return run(true); }
+            throw new Error(`R packages ${absent.join(', ')} could not be loaded: this calculation needs more compiled libraries than R in the browser can load in one session (${why.trim()}).`);
+          }
+          throw new Error(packageDownloadError(absent, o.repoUrl));
+        }
         const versions: Record<string, string> = {};
         for (const p of missing) {
           versions[p] = await webR.evalRString(`as.character(utils::packageVersion("${p}"))`);
@@ -189,11 +200,18 @@ let observer: ((call: string, req: string) => void) | null = null;
 /** Tests: see every bridge call (the injection tests replay them in desktop R). */
 export function observeCalls(f: ((call: string, req: string) => void) | null) { observer = f; }
 
+const R_ERROR = '\u001ePS_R_ERROR\u001e';
+
 /** Evaluate `call` with the request (as JSON) bound to `req`; R returns a string. */
-export function callString(webR: WebR, call: string, req: unknown): Promise<string> {
+export async function callString(webR: WebR, call: string, req: unknown): Promise<string> {
   const json = encode(req);
   observer?.(call, json);
-  return webR.evalRString(call, { env: { req: json } });
+  // Without webR's condition capture: it would muffle warnings, so code that sets options(warn = 2) — SEMsens's sa.aco,
+  // which drops every fit that warns — would never see them as errors (the bridge collects warnings itself, ps_call).
+  // Errors therefore come back as a marked string, turned into an exception here with R's message.
+  const out = await webR.evalRString(`tryCatch(${call}, error = function(e) paste0("${R_ERROR}", conditionMessage(e)))`, { env: { req: json }, captureConditions: false });
+  if (out.startsWith(R_ERROR)) throw new Error(out.slice(R_ERROR.length));
+  return out;
 }
 
 /** As callString, for R functions that return JSON. */

@@ -51,7 +51,8 @@ it('misty-airquality-mcar: Little’s MCAR test with each pattern’s share, and
   same('cases', l.n, REF.little.n);
   same('incomplete cases', l.incomplete, REF.little.incomplete);
   same('patterns', l.patterns, REF.little.patterns);
-  near('Little’s χ²', l.chisq, REF.little.chisq, 1e-6);
+  // (webR: misty 0.8.3 and the WebAssembly build; desktop: 0.8.4 — agreement to ~4e-6, so 1e-5)
+  near('Little’s χ²', l.chisq, REF.little.chisq, 1e-5);
   same('df', l.df, REF.little.df);
   near('p', l.p, REF.little.p, 1e-8);
   same('patterns with a share', l.byPattern.length, REF.little.byPattern.length);
@@ -60,9 +61,9 @@ it('misty-airquality-mcar: Little’s MCAR test with each pattern’s share, and
     same(`pattern ${w.key}: observed`, g.observed.map((o) => (o ? '0' : '1')).join(''), w.key);
     same(`pattern ${w.key}: cases`, g.n, w.n);
     same(`pattern ${w.key}: observed variables`, g.k, w.k);
-    near(`pattern ${w.key}: share of χ²`, g.d2, w.d2, 1e-6);
+    near(`pattern ${w.key}: share of χ²`, g.d2, w.d2, 1e-4);  // (each share from mvnmle's optimiser: ~3e-5 between builds)
   });
-  near('the shares sum to χ²', l.byPattern.reduce((s, x) => s + x.d2, 0), l.chisq, 1e-6);
+  near('the shares sum to χ²', l.byPattern.reduce((s, x) => s + x.d2, 0), l.chisq, 1e-4);
   // Every pattern with a share is one of the card's patterns.
   for (const g of l.byPattern) expect(r.patterns.some((p) => p.observed.join() === g.observed.join())).toBe(true);
 
@@ -72,10 +73,10 @@ it('misty-airquality-mcar: Little’s MCAR test with each pattern’s share, and
   same('cases in patterns of at least 6', j.n, REF.jamjal.n);
   same('patterns used', j.patterns, REF.jamjal.patterns);
   same('their sizes', j.patternN.join(', '), REF.jamjal.patternN.join(', '));
-  near('Hawkins statistic', j.hawkins.stat, REF.jamjal.hawkins.stat, 1e-6);
+  near('Hawkins statistic', j.hawkins.stat, REF.jamjal.hawkins.stat, 1e-5);
   same('Hawkins df', j.hawkins.df, REF.jamjal.hawkins.df);
   near('Hawkins p', j.hawkins.p, REF.jamjal.hawkins.p, 1e-8);
-  near('Anderson-Darling statistic', j.anderson.stat, REF.jamjal.anderson.stat, 1e-6);
+  near('Anderson-Darling statistic', j.anderson.stat, REF.jamjal.anderson.stat, 1e-5);
   near('Anderson-Darling p', j.anderson.p, REF.jamjal.anderson.p, 1e-8);
   near('MissMech agrees: Hawkins p', REF.MissMech.hawkinsP, REF.jamjal.hawkins.p, 1e-10);
   near('MissMech agrees: Anderson-Darling p', REF.MissMech.andersonP, REF.jamjal.anderson.p, 1e-10);

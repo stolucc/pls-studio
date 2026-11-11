@@ -130,7 +130,8 @@ const PSCL: [string, Partial<RegressionInput>][] = [
 ];
 const bioInput = (p: Partial<RegressionInput>): RegressionInput => ({ outcome: 'art', predictors: BIO, categorical: [], interactions: [], family: 'poisson', link: 'logit', trials: '', weights: '', se: 'model', cluster: '', confidence: 0.95, ...p });
 
-it.each(PSCL)('pscl %s: the zero-inflated and hurdle models reproduce pscl natively (coefficients, SEs, theta, fit, Vuong, zeros; 1e-6)', async (key, p) => {
+// (pscl stops ~3e-6 short of the maximum at its default tolerance, and webR's floating point differs slightly: 1e-5)
+it.each(PSCL)('pscl %s: the zero-inflated and hurdle models reproduce pscl natively (coefficients, SEs, theta, fit, Vuong, zeros; 1e-5)', async (key, p) => {
   const ex = PACKAGE_EXAMPLES.find((e) => e.id === 'pscl-zinb')!;
   if (key === 'zinb2' || key === 'hnb1') {
     const id = key === 'zinb2' ? 'pscl-zinb' : 'pscl-hurdle', e = PACKAGE_EXAMPLES.find((x) => x.id === id)!;
@@ -146,20 +147,20 @@ it.each(PSCL)('pscl %s: the zero-inflated and hurdle models reproduce pscl nativ
     const { part, term } = psclTerm(w.term);
     const mine = r.coefficients.find((e) => (e.part ?? null) === part && term === e.term);
     expect(mine, `${key}: ${w.term} (have ${r.coefficients.map((e) => `${e.part ?? ''}:${e.term}`).join(', ')})`).toBeTruthy();
-    near(w.term, mine!.est, w.est, 1e-6);
-    near(`SE of ${w.term}`, mine!.se, w.se, 1e-6);
+    near(w.term, mine!.est, w.est, 1e-5);
+    near(`SE of ${w.term}`, mine!.se, w.se, 1e-5);
     if (term !== '(Intercept)') expect(mine!.ratio).toBeCloseTo(Math.exp(w.est), 6);
   }
-  for (const k of ['logLik', 'aic', 'bic'] as const) near(k, r.fit[k], want[k], 1e-6);
+  for (const k of ['logLik', 'aic', 'bic'] as const) near(k, r.fit[k], want[k], 1e-5);
   expect(r.fit.npar).toBe(want.npar);
-  if (want.theta !== undefined) near('θ', r.fit.theta!, want.theta, 1e-6);
-  if (want.thetaSe !== undefined) near('SE of θ', r.fit.thetaSe!, want.thetaSe, 1e-6);
+  if (want.theta !== undefined) near('θ', r.fit.theta!, want.theta, 1e-5);
+  if (want.thetaSe !== undefined) near('SE of θ', r.fit.thetaSe!, want.thetaSe, 1e-5);
   else expect(r.fit.thetaSe ?? null).toBeNull();
   for (const k of ['raw', 'aic', 'bic'] as const) expect(Math.abs(r.vuong![k].z - want.vuong[k]) / Math.max(1, Math.abs(want.vuong[k])), `Vuong ${k}`).toBeLessThan(1e-6);
   const v = r.vuong!.raw; expect(v.p).toBeCloseTo(v.z > 0 ? 1 - pnorm(v.z) : pnorm(v.z), 6);
   expect(r.fit.zeros).toBe(want.zeros);
-  near('predicted zeros', r.fit.zerosPredicted!, want.zerosPredicted, 1e-6);
-  near('zeros predicted by the standard model', r.fit.zerosStandard!, want.zerosStandard, 1e-6);
+  near('predicted zeros', r.fit.zerosPredicted!, want.zerosPredicted, 1e-5);
+  near('zeros predicted by the standard model', r.fit.zerosStandard!, want.zerosStandard, 1e-5);
   expect(r.zeroModel).toBe(p.zeroModel);
   expect(r.engine.package).toBe('pscl');
   expect(r.lrt).toBeNull();

@@ -98,3 +98,16 @@ ps_zz_warns <- function(req_json, export = FALSE) { warning("only a warning"); p
   expect(r.warn).toBeLessThan(2);
   expect(r.warnings).toEqual(['only a warning']);
 }, 300_000);
+
+// Under options(warn = 2) a warning is an error where it is raised, as in plain R (SEMsens's sa.aco relies on it to
+// drop fits that warn) — also in webR, whose own evaluation muffles warnings before R could convert them.
+it('turns warnings into errors under warn = 2, in webR as in R', async () => {
+  const strict = `
+ps_zz_strict <- function(req_json, export = FALSE) {
+  env <- ps_run(c("old <- options(warn = 2)", "r <- try(warning('negative variance'), silent = TRUE)", "options(old)"), list())
+  ps_json(list(failed = inherits(env$r, "try-error"), message = if (inherits(env$r, "try-error")) trimws(as.character(env$r)) else ""))
+}`;
+  const r = await withR(['jsonlite'], { common: commonR, strict }, (webR) => callJson(webR, 'ps_call("ps_zz_strict", req)', {})) as { failed: boolean; message: string };
+  expect(r.failed).toBe(true);
+  expect(r.message).toContain('(converted from warning) negative variance');
+}, 300_000);

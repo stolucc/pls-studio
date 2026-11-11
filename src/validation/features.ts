@@ -117,6 +117,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'data/readFile': native('Reading SPSS, Stata and Excel files', 'Data', ['haven', 'readxl'], { label: 'R’s own iris and mtcars' }),
 
   'rengine/fixedValues': native('Parameters fixed at values', 'CB-SEM', ['lavaan'], { label: 'lavaan 0.6-16 in desktop R (the values in the test)' }),
+  'rengine/dllLimit': 'none',
   'rengine/zeroCovariance': native('Covariances fixed at zero', 'CB-SEM', ['lavaan'], { label: 'lavaan 0.6-16 in desktop R (the values in the test)' }),
   'rengine/glmm': native('Generalised linear mixed models: negative binomial and zero-inflated negative binomial', 'Longitudinal', ['GLMMadaptive'], script('glmm.R', 'desktop GLMMadaptive on its help page’s and vignette’s simulated data')),
 

@@ -208,12 +208,17 @@ func newRPool(cfg *config, logger *log.Logger) (*rPool, error) {
 	return p, nil
 }
 
+// rMaxDLLs is the R_MAX_NUM_DLLS given to every R worker (see spawn).
+const rMaxDLLs = "150"
+
 // spawn starts one R worker and waits for its ready line.
 func (p *rPool) spawn() (*rWorker, error) {
 	// The worker script is not named *.R so it is not sourced as part of the bridge.
 	cmd := exec.Command(p.rscript, "--vanilla", filepath.Join(p.dir, "worker.R.txt"), p.dir)
 	cmd.Dir = p.dir
-	cmd.Env = append(os.Environ(), "PS_HELPER_LIBRARY="+p.library)
+	// R_MAX_NUM_DLLS: a worker that runs many analyses passes R's default of ~100 loaded DLLs, after which packages
+	// with compiled code fail to load. 150 stays under the 60% of a 256 open-file limit that R allows (macOS apps).
+	cmd.Env = append(os.Environ(), "PS_HELPER_LIBRARY="+p.library, "R_MAX_NUM_DLLS="+rMaxDLLs)
 	setProcessGroup(cmd)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

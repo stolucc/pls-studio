@@ -56,11 +56,19 @@ async function run(ex: PackageExample): Promise<{ result: DfiResult; call: strin
   return { result, call };
 }
 
-/** Every cell of a printed table equals the native one (the package prints its cutoffs rounded, so text equality is the comparison). */
+/** Every cell of a printed table equals the native one (printed rounded: numbers to one unit in their last decimal). */
 function sameTable(what: string, got: DfiTable | null, want: DfiTable | null) {
   same(`${what}: rows`, got?.rows.join(' | ') ?? '', want?.rows.join(' | ') ?? '');
   same(`${what}: columns`, got?.columns.join(' | ') ?? '', want?.columns.join(' | ') ?? '');
-  want?.rows.forEach((row, i) => want.columns.forEach((col, j) => { if (want.cells[i][j] !== '') same(`${what}: ${row || 'value'} ${col}`.trim(), got?.cells[i]?.[j] ?? '', want.cells[i][j]); }));
+  want?.rows.forEach((row, i) => want.columns.forEach((col, j) => {
+    const w = want.cells[i][j], g = got?.cells[i]?.[j] ?? '', label = `${what}: ${row || 'value'} ${col}`.trim();
+    if (w === '') return;
+    // (the cutoffs come from simulations, which webR's floating point can move across a rounding boundary: a printed
+    //  number may differ by one unit in its last decimal; text cells must be equal)
+    const dec = /^-?\d+\.(\d+)$/.exec(w)?.[1].length;
+    if (dec !== undefined && /^-?\d+\.\d+$/.test(g)) near(label, Number(g), Number(w), 10 ** -dec * 1.0001);
+    else same(label, g, w);
+  }));
 }
 
 async function check(id: string) {

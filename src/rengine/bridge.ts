@@ -155,7 +155,7 @@ export const R_PACKAGES = {
   // Two-level PLS-SEM (MC-PLSc, random slopes): plssem 0.2.0, desktop R only (DESKTOP_ONLY; the browser's repository has 0.1.5).
   plssem: ['jsonlite', 'plssem'],
   // Score-based invariance tests along a covariate (Merkle & Zeileis): strucchange's fluctuation tests on the lavaan fit.
-  strucchange: ['jsonlite', 'lavaan', 'semTools', 'strucchange'],
+  strucchange: ['jsonlite', 'lavaan', 'semTools', 'strucchange', 'mvtnorm'],  // (mvtnorm: WDMo's p-value; a Suggests of strucchange, so not loaded with it)
   // Datasets of psychotools (YouthGratitude: the strucchange example of Merkle, Fan & Zeileis 2014).
   psychotools: ['jsonlite', 'psychotools'],
   // Comparing two CB-SEM models: Vuong's tests and AIC / BIC difference intervals (nonnest2) beside lavaan's NET and LRT.
