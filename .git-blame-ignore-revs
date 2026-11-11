@@ -9,3 +9,5 @@ bd9096f7910fd8179fcbe8b8be20f5db6da92ccc
 f2e87b4f374dab698a64bf0e4f7d2374938cc092
 # One declaration per statement (AST pass, layout only)
 521f5936e5dc8a2f017d04534227062557651f24
+# One declaration per statement in the cards (AST pass, layout only)
+12864a5a0c4643f0c87e9527286af07737de6d85
