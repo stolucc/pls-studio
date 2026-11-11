@@ -3,3 +3,7 @@
 bd9096f7910fd8179fcbe8b8be20f5db6da92ccc
 # styler, R bridge
 60e4a29dc3cc43d8f4c62911b67956db47865dec
+# R layout passes (readability): one argument per line; styler on scripts/validation
+1dc6964dea364ba7d5eeec906301b41ffa14ef02
+4757fd0edb4259253188006c93b960f84841824f
+f2e87b4f374dab698a64bf0e4f7d2374938cc092
