@@ -20,6 +20,7 @@ import type {
   BayesReliabilityResult,
   HTest,
   KappaTable,
+  GwetWeights,
   KrippLevel,
   ManovaInput,
   ManovaResult,
@@ -67,6 +68,7 @@ export const RELIABILITY_TYPES = [
   'fleiss',
   'kripp',
   'kendallw',
+  'gwet',
 ] as const;
 const ALTS: readonly (readonly [Alternative, string])[] = [
   ['two.sided', 'Two-sided'],
@@ -1642,9 +1644,18 @@ const REL_NAME = {
   fleiss: 'Fleiss’ kappa',
   kripp: 'Krippendorff’s alpha',
   kendallw: 'Kendall’s W',
+  gwet: 'Gwet’s AC1 / AC2',
 } as const;
 /** Krippendorff's levels of measurement (as rengine/tests, which is loaded on demand). */
 const KRIPP_LEVELS: readonly KrippLevel[] = ['nominal', 'ordinal', 'interval', 'ratio'];
+/** Gwet's weights (irrCAC): unweighted is AC1, the others AC2. */
+const GWET_WEIGHT_OPTIONS: readonly (readonly [GwetWeights, string])[] = [
+  ['unweighted', 'Unweighted (AC1)'],
+  ['linear', 'Linear'],
+  ['quadratic', 'Quadratic'],
+  ['ordinal', 'Ordinal'],
+];
+const GWET_WEIGHTS = GWET_WEIGHT_OPTIONS.map(([id]) => id);
 /** Krippendorff's alpha: bootstrap samples by default. */
 export const KRIPP_BOOTSTRAP = 1000;
 const REL_HINT = {
@@ -1658,6 +1669,7 @@ const REL_HINT = {
     'One column per rater, one row per subject; missing ratings are allowed (a subject needs two ratings to count).',
   kendallw:
     'One column per rater, one row per subject: each rater’s score or rank of the subjects.',
+  gwet: 'One column per rater, one row per subject: each rater’s category; missing ratings are allowed.',
 } as const;
 
 /** A weight matrix typed as rows of numbers (one line per row); kept as typed while it is edited. */
@@ -1820,7 +1832,8 @@ function raterColumns(
   o: ReliabilityOptions,
   d: { names: string[]; categories?: object },
 ): string[] {
-  const categorical = o.type === 'kappa' || o.type === 'fleiss' || o.type === 'kripp';
+  const categorical =
+    o.type === 'kappa' || o.type === 'fleiss' || o.type === 'kripp' || o.type === 'gwet';
   if (categorical) return d.names;
   const cats = (d.categories ?? {}) as Record<string, unknown>;
   return d.names.filter((n) => !cats[n]);
@@ -1893,6 +1906,7 @@ function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<Reliab
           ['fleiss', 'Fleiss’ κ'],
           ['kripp', 'Krippendorff’s α'],
           ['kendallw', 'Kendall’s W'],
+          ['gwet', 'Gwet’s AC'],
         ]}
         hint={REL_HINT[o.type]}
       />
@@ -2009,6 +2023,19 @@ function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<Reliab
       )}
       {o.type === 'scale' && <BayesReliabilityFields o={o} set={set} />}
       {o.type === 'kripp' && <KrippFields o={o} set={set} />}
+      {o.type === 'gwet' && (
+        <Choice
+          label="Weights"
+          value={o.gwetWeights ?? 'unweighted'}
+          options={GWET_WEIGHT_OPTIONS}
+          onChange={(w) => {
+            const { gwetWeights: _w, ...rest } = o;
+            // Unweighted (AC1) is the default, so it leaves no option behind.
+            set(w === 'unweighted' ? rest : { ...rest, gwetWeights: w });
+          }}
+          hint="Unweighted: Gwet’s AC1, categories without order. Weighted: AC2, ordered categories where a near miss counts as partial agreement (irrCAC’s weights)."
+        />
+      )}
     </fieldset>
   );
 }
@@ -2324,11 +2351,35 @@ function KendallTable({ r }: { r: ReliabilityResult }) {
   );
 }
 
+/** Gwet's AC1 or AC2 with irrCAC's standard error. */
+function GwetTable({ r }: { r: ReliabilityResult }) {
+  const g = r.gwet!;
+  return (
+    <Table
+      title={`Gwet’s ${g.name} (${g.weights}): ${r.raters} raters, ${r.n} subjects`}
+      file="reliability-gwet"
+      columns={['Coefficient', 'Estimate', 'SE', `${pct(r.confidence)} CI`, 'p (one-sided)']}
+      rows={[
+        [c(`Gwet’s ${g.name}`), c(g.value), c(g.se), c(ci(g.ciLow, g.ciHigh)), pCell(g.p)],
+        [c('Percent agreement'), c(g.pa), c(null), c(null), c(null)],
+        [c('Chance agreement'), c(g.pe), c(null), c(null), c(null)],
+      ]}
+      note={
+        'Gwet’s coefficient corrects the agreement for chance like κ, but its chance agreement stays small ' +
+        'when one category dominates (κ’s paradox). SE: irrCAC’s, to five decimals; the interval is the ' +
+        'coefficient ± t(n − 1) SE, at most 1; p tests AC > 0 (one-sided), as irrCAC does. ' +
+        `${fmt(g.ratings, 0)} ratings; missing ratings are allowed. irrCAC::gwet.ac1.raw (Gwet 2014).`
+      }
+    />
+  );
+}
+
 /** The tables of the several-rater agreement analyses. */
 function AgreementTables({ r }: { r: ReliabilityResult }) {
   if (r.type === 'fleiss' && r.fleiss) return <FleissTables r={r} />;
   if (r.type === 'kripp' && r.kripp) return <KrippTable r={r} />;
   if (r.type === 'kendallw' && r.kendall) return <KendallTable r={r} />;
+  if (r.type === 'gwet' && r.gwet) return <GwetTable r={r} />;
   return null;
 }
 
@@ -2368,7 +2419,7 @@ export const relInput = (
   ctx: Pick<AnalysisCtx, 'settings'>,
 ): ReliabilityInput => {
   const { kappaTable, kappaWeights, weightMatrix, ...rest } = o;
-  const { bayes, bayesGlb, iterations, krippLevel, bootstrap, ...plain } = rest;
+  const { bayes, bayesGlb, iterations, krippLevel, bootstrap, gwetWeights, ...plain } = rest;
   const kripp =
     o.type === 'kripp'
       ? {
@@ -2390,6 +2441,7 @@ export const relInput = (
     ...plain,
     ...bayesian,
     ...kripp,
+    ...(o.type === 'gwet' && gwetWeights ? { gwetWeights } : {}),
     confidence: ctx.settings.confidence,
     ...(o.type === 'kappa'
       ? {
@@ -2405,6 +2457,8 @@ function parseKrippOptions(raw: Record<string, unknown>): Partial<ReliabilityOpt
   const level = oneOf(raw.krippLevel, KRIPP_LEVELS, 'nominal');
   const out: Partial<ReliabilityOptions> = {};
   if (level !== 'nominal') out.krippLevel = level;
+  const weights = oneOf(raw.gwetWeights, GWET_WEIGHTS, 'unweighted');
+  if (weights !== 'unweighted') out.gwetWeights = weights;
   if (raw.bootstrap !== undefined) {
     out.bootstrap = clampStrict(raw.bootstrap, 0, 20000, KRIPP_BOOTSTRAP, true);
   }
@@ -2415,8 +2469,8 @@ export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityRe
   id: 'reliability',
   title: 'Reliability and agreement',
   sub:
-    'α, ω, glb (also Bayesian); ICC; Cohen’s and Fleiss’ kappa; Krippendorff’s α; Kendall’s W; ' +
-    'Bland–Altman (psych, Bayesrel, irr)',
+    'α, ω, glb (also Bayesian); ICC; Cohen’s and Fleiss’ kappa; Krippendorff’s α; Gwet’s AC1/AC2; ' +
+    'Kendall’s W; Bland–Altman (psych, Bayesrel, irr, irrCAC)',
   group: 'Basic statistics',
   entries: [
     {
@@ -2448,6 +2502,11 @@ export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityRe
       title: 'Krippendorff’s alpha',
       sub: 'agreement of several raters, nominal to ratio, missing ratings allowed; bootstrap interval (irr)',
       options: (o) => ({ ...o, type: 'kripp' }),
+    },
+    {
+      title: 'Gwet’s AC1 / AC2',
+      sub: 'chance-corrected agreement of several raters, robust to a dominant category; weighted for ordered categories (irrCAC)',
+      options: (o) => ({ ...o, type: 'gwet' }),
     },
     {
       title: 'Kendall’s W',
@@ -2524,6 +2583,7 @@ export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityRe
       ...(o.type === 'kappa' ? kappaParts(o) : []),
       ...(o.type === 'scale' && o.bayes ? bayesParts(o, ctx.settings.seed) : []),
       ...(o.type === 'kripp' ? krippParts(o, ctx.settings.seed) : []),
+      ...(o.type === 'gwet' ? [o.gwetWeights ?? 'unweighted'] : []),
     ]),
   run: async (o, ctx) => (await engine()).reliabilityR(rawData(ctx)!, relInput(o, ctx)),
   script: async (o, ctx) => (await engine()).reliabilityScriptR(rawData(ctx)!, relInput(o, ctx)),

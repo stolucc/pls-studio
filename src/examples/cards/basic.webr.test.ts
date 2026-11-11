@@ -73,7 +73,10 @@ async function runCard<R>(
   const kind = e.panel!.kind,
     preset = panelPreset(e.panel!);
   const pkg =
-    e.package === 'psych' || e.package === 'Bayesrel' || e.package === 'irr'
+    e.package === 'psych' ||
+    e.package === 'Bayesrel' ||
+    e.package === 'irr' ||
+    e.package === 'irrCAC'
       ? e.package
       : (e.panel as { moreBetween?: string[] }).moreBetween?.length
         ? 'car'
@@ -567,6 +570,23 @@ describe('basic-statistics card examples in webR', () => {
     near('Wt', tied.w, 0.539656876, 1e-9);
     near('W', plain.w, 0.5019214703, 1e-9);
     same('df', tied.df, 19);
+  }, 600_000);
+
+  it('irrcac-gwet-raw4raters: gwet.ac1.raw(cac.raw4raters)$est', async () => {
+    const r = await runCard<ReliabilityResult>(
+      'irrcac-gwet-raw4raters',
+      helpPrinted('irrCAC, ?gwet.ac1.raw', 'https://rdrr.io/cran/irrCAC/man/gwet.ac1.raw.html'),
+    );
+    const g = r.gwet!;
+    near('AC1 (printed: 0.77544)', g.value, 0.77544, 5e-6);
+    near('SE (printed: 0.14295)', g.se, 0.14295, 1e-9);
+    near('CI lower (printed: 0.461)', g.ciLow, 0.461, 5e-4);
+    same('CI upper (printed: 1)', g.ciHigh, 1);
+    against(helpRun('irrCAC, ?gwet.ac1.raw (irrCAC 1.4)'));
+    same('coefficient', g.name, 'AC1');
+    same('ratings', g.ratings, 41);
+    near('AC1', g.value, 0.7754440681, 1e-9);
+    near('p', g.p, 0.000104360492, 1e-12);
   }, 600_000);
 
   it('psych-icc-shroutfleiss: the six intraclass correlations of Shrout & Fleiss', async () => {

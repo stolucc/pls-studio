@@ -147,6 +147,7 @@ const ROOTS = [
   'piecewiseSEM',
   'Bayesrel',
   'irr',
+  'irrCAC',
 ];
 /**
  * Binaries kept in this repository (scripts/webr/vendor, with their PACKAGES

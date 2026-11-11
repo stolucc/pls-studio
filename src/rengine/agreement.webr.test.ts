@@ -132,3 +132,31 @@ describe('agreement of several raters (irr)', () => {
     near('df', plain.df, 19, 0);
   }, 600_000);
 });
+
+describe('Gwet’s AC1 and AC2 (irrCAC)', () => {
+  it('cac.raw4raters: AC1 unweighted and AC2 with quadratic weights, missing ratings kept', async () => {
+    const d = data(ref.cacRaw4raters);
+    for (const weights of ['unweighted', 'quadratic'] as const) {
+      const g = ref.gwet[weights];
+      const r = await reliabilityR(d, {
+        type: 'gwet',
+        vars: ['Rater1', 'Rater2', 'Rater3', 'Rater4'],
+        confidence: 0.95,
+        ...(weights === 'quadratic' ? { gwetWeights: weights } : {}),
+      });
+      const x = r.gwet!;
+      if (x.name !== g.name) throw new Error(`${weights}: ${x.name}`);
+      near(`subjects (${weights})`, r.n, 12, 0);
+      near(`ratings (${weights})`, x.ratings, g.ratings, 0);
+      close(`agreement (${weights})`, x.pa, g.pa);
+      close(`chance agreement (${weights})`, x.pe, g.pe);
+      close(`${g.name}`, x.value, g.value);
+      // irrCAC rounds the coefficient and its standard error to 5 decimals, the interval to 3.
+      near(`${g.name} (irrCAC, 5 decimals)`, x.value, g.value5, 5e-6);
+      close(`${g.name} SE`, x.se, g.se);
+      close(`${g.name} p`, x.p, g.p);
+      near(`${g.name} CI lower (irrCAC, 3 decimals)`, x.ciLow, g.ci3[0], 5e-4);
+      near(`${g.name} CI upper (irrCAC, 3 decimals)`, x.ciHigh, g.ci3[1], 5e-4);
+    }
+  }, 600_000);
+});

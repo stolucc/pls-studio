@@ -540,8 +540,8 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'rengine/agreement': native(
     'Reliability and agreement: standard errors of measurement, multi-rater agreement',
     'Basic statistics',
-    ['psych', 'irr'],
-    script('agreement.R', 'desktop psych and irr'),
+    ['psych', 'irr', 'irrCAC'],
+    script('agreement.R', 'desktop psych, irr and irrCAC'),
   ),
   'rengine/correlationPolychoric': native(
     'Polychoric correlations',

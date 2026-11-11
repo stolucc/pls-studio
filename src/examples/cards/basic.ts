@@ -499,6 +499,41 @@ export const CARD_BASIC: PackageExample[] = [
     settings: CB('ML'),
   },
   {
+    id: 'irrcac-gwet-raw4raters',
+    package: 'irrCAC',
+    title: 'Gwet’s AC1: four raters with missing ratings',
+    source: 'irrCAC, ?gwet.ac1.raw, ?cac.raw4raters (Gwet 2014)',
+    links: [
+      { label: 'irrCAC, ?gwet.ac1.raw', url: 'https://rdrr.io/cran/irrCAC/man/gwet.ac1.raw.html' },
+      {
+        label: 'irrCAC, ?cac.raw4raters',
+        url: 'https://rdrr.io/cran/irrCAC/man/cac.raw4raters.html',
+      },
+      {
+        label: 'Gwet (2008), British Journal of Mathematical and Statistical Psychology 61',
+        url: 'https://doi.org/10.1348/000711006X126600',
+      },
+    ],
+    description:
+      'irrCAC’s cac.raw4raters, from Gwet’s Handbook of Inter-Rater Reliability (2014, p. 120): four raters put 12 ' +
+      'subjects into five categories, and none of them rated every subject. The help page’s ' +
+      'gwet.ac1.raw(cac.raw4raters)$est gives AC1 = 0.77544 (SE 0.14295, interval 0.461 to 1); with ' +
+      'weights = "quadratic" AC2 = 0.914. Opens its card on the Analyses tab.',
+    shows:
+      'AC1 = 0.775 with a standard error of 0.143 from 41 ratings: the raters agree on 82% of their pairs of ' +
+      'ratings, against 19% expected by chance. Choose quadratic weights to treat the categories as ordered: ' +
+      'AC2 = 0.914, as the help page shows.',
+    data: { package: 'irrCAC', name: 'cac.raw4raters' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'reliability',
+      type: 'gwet',
+      vars: ['Rater1', 'Rater2', 'Rater3', 'Rater4'],
+    },
+    settings: CB('ML'),
+  },
+  {
     id: 'bayesrel-asrm',
     package: 'Bayesrel',
     title: 'Bayesian scale reliability: the Altman Self-Rating Mania scale',

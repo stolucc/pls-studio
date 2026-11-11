@@ -5,11 +5,13 @@
 # - kripp: Krippendorff's alpha for nominal, ordinal, interval or ratio data
 #   (irr::kripp.alpha), with a bootstrap interval over the units (subjects);
 # - kendallw: Kendall's coefficient of concordance W, without and with the
-#   correction for ties (irr::kendall).
+#   correction for ties (irr::kendall);
+# - gwet: Gwet's AC1 (unweighted) or AC2 (weighted) with its standard error (irrCAC).
 # The data: one column per rater, one row per subject rated.
 
-PS_AGREEMENT_TYPES <- c("fleiss", "kripp", "kendallw")
+PS_AGREEMENT_TYPES <- c("fleiss", "kripp", "kendallw", "gwet")
 PS_KRIPP_LEVELS <- c("nominal", "ordinal", "interval", "ratio")
+PS_GWET_WEIGHTS <- c("unweighted", "linear", "quadratic", "ordinal")
 
 #' The script lines that turn the raters' columns `X` into the matrix `ratings`.
 #' Category columns are compared by their labels, not their codes (two raters'
@@ -102,7 +104,23 @@ ps_agreement_lines <- function(req, type, conf) {
       "# Kendall's W: each rater's ranking of the subjects (rows: subjects; columns: raters).",
       "w <- kendall(ratings, correct = FALSE)",
       "wt <- kendall(ratings, correct = TRUE)  # corrected for tied ranks"
-    )
+    ),
+    gwet = {
+      weights <- req$gwetWeights %||% "unweighted"
+      if (!weights %in% PS_GWET_WEIGHTS) stop("Invalid weights in the request.")
+      c(
+        "suppressPackageStartupMessages(library(irrCAC))",
+        sprintf(
+          "ac <- gwet.ac1.raw(ratings, weights = \"%s\", conflev = %s)$est",
+          weights,
+          format(conf)
+        ),
+        "# The coefficient from irrCAC's unrounded agreement and chance agreement (coeff.val is rounded to 5 decimals).",
+        "acValue <- (ac$pa - ac$pe) / (1 - ac$pe)",
+        "# irrCAC's interval: the coefficient +- t(n - 1) standard errors, at most 1 (its standard error has 5 decimals).",
+        sprintf("tq <- qt(1 - (1 - %s) / 2, nrow(ratings) - 1)", format(conf))
+      )
+    }
   )
 }
 
@@ -130,14 +148,16 @@ ps_agreement <- function(req, type, export) {
   title <- c(
     fleiss = "Fleiss' kappa (irr)",
     kripp = "Krippendorff's alpha (irr)",
-    kendallw = "Kendall's W (irr)"
+    kendallw = "Kendall's W (irr)",
+    gwet = "Gwet's AC1 / AC2 (irrCAC)"
   )[[type]]
-  packages <- c("irr", "lpSolve")
+  packages <- if (type == "gwet") "irrCAC" else c("irr", "lpSolve")
   if (export) {
     report <- switch(type,
       fleiss = c("fleiss", "conger", "data.frame(kappa = kappaJ, z = zJ, p = pJ)"),
       kripp = c("alpha", if (ps_kripp_boot(req) > 0) c("alphaCI", "below")),
-      kendallw = c("w", "wt")
+      kendallw = c("w", "wt"),
+      gwet = c("ac", "acValue")
     )
     return(ps_script(title, packages, inputs, body, report))
   }
@@ -145,14 +165,15 @@ ps_agreement <- function(req, type, export) {
   out <- switch(type,
     fleiss = ps_fleiss_result(env),
     kripp = ps_kripp_result(env, req),
-    kendallw = ps_kendall_result(env)
+    kendallw = ps_kendall_result(env),
+    gwet = ps_gwet_result(env)
   )
   ps_json(c(
     list(type = type, vars = vars, n = nrow(env$ratings), raters = ncol(env$ratings), confidence = conf),
     out,
     list(
       warnings = env$.warnings,
-      engine = ps_engine("irr")
+      engine = ps_engine(if (type == "gwet") "irrCAC" else "irr")
     )
   ))
 }
@@ -211,4 +232,23 @@ ps_kendall_result <- function(env) {
     )
   }
   list(kendall = list(row(env$w, FALSE), row(env$wt, TRUE)))
+}
+
+ps_gwet_result <- function(env) {
+  ac <- env$ac
+  value <- env$acValue
+  list(
+    gwet = list(
+      name = ac$coeff.name,
+      weights = ac$w.name,
+      value = value,
+      pa = ac$pa,
+      pe = ac$pe,
+      se = ac$coeff.se,
+      ciLow = value - env$tq * ac$coeff.se,
+      ciHigh = min(1, value + env$tq * ac$coeff.se),
+      p = ac$p.value,
+      ratings = ac$tot.obs
+    )
+  )
 }

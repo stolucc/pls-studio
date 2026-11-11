@@ -294,7 +294,11 @@ describe('agreement of several raters (irr)', () => {
     const engine = { package: 'irr', version: '0.85' };
     const view = (r: object) =>
       renderToStaticMarkup(
-        <t.View result={{ ...base, engine, ...r } as ReliabilityResult} options={o} current />,
+        <t.View
+          result={{ ...base, engine, ...r } as unknown as ReliabilityResult}
+          options={o}
+          current
+        />,
       );
     const fleiss = view({
       type: 'fleiss',
@@ -328,5 +332,51 @@ describe('agreement of several raters (irr)', () => {
       ],
     });
     expect(kendall).toContain('W, corrected for ties');
+  });
+});
+
+describe('Gwet’s AC1 / AC2 (irrCAC)', () => {
+  const t = reliabilityAnalysis;
+  const o = { type: 'gwet' as const, vars: ['y', 'x', 'g'] };
+
+  it('keeps the weights only when valid and not unweighted, and sends them with Gwet only', () => {
+    expect(t.parseOptions({ ...o, gwetWeights: 'quadratic' })).toEqual({
+      ...o,
+      gwetWeights: 'quadratic',
+    });
+    expect(t.parseOptions({ ...o, gwetWeights: 'unweighted' })).toEqual(o);
+    expect(t.parseOptions({ ...o, gwetWeights: 'cubic' })).toEqual(o);
+    expect(relInput({ ...o, gwetWeights: 'linear' }, ctx)).toMatchObject({ gwetWeights: 'linear' });
+    const kripp = relInput({ ...o, type: 'kripp', gwetWeights: 'linear' }, ctx);
+    expect('gwetWeights' in kripp).toBe(false);
+    expect(t.fingerprint({ ...o, gwetWeights: 'linear' }, ctx)).not.toBe(t.fingerprint(o, ctx));
+  });
+
+  it('shows the coefficient, its standard error and the agreement', () => {
+    const result = {
+      type: 'gwet',
+      vars: ['y', 'x'],
+      n: 12,
+      raters: 4,
+      confidence: 0.95,
+      gwet: {
+        name: 'AC2',
+        weights: 'quadratic',
+        value: 0.914,
+        pa: 0.975,
+        pe: 0.714,
+        se: 0.10396,
+        ciLow: 0.685,
+        ciHigh: 1,
+        p: 1e-6,
+        ratings: 41,
+      },
+      warnings: [],
+      engine: { package: 'irrCAC', version: '1.4' },
+    } as unknown as ReliabilityResult;
+    const html = renderToStaticMarkup(<t.View result={result} options={o} current />);
+    expect(html).toContain('Gwet’s AC2 (quadratic): 4 raters, 12 subjects');
+    expect(html).toContain('Chance agreement');
+    expect(html).toContain('p (one-sided)');
   });
 });

@@ -497,7 +497,7 @@ export interface KappaTable {
  * diagonal: disagreement weights).
  */
 export interface ReliabilityInput {
-  type: 'scale' | 'icc' | 'kappa' | 'blandaltman' | 'fleiss' | 'kripp' | 'kendallw';
+  type: 'scale' | 'icc' | 'kappa' | 'blandaltman' | 'fleiss' | 'kripp' | 'kendallw' | 'gwet';
   vars: string[];
   confidence: number;
   kappaTable?: KappaTable;
@@ -514,6 +514,26 @@ export interface ReliabilityInput {
   krippLevel?: KrippLevel;
   /** Krippendorff's alpha: bootstrap samples over the subjects (absent: 1000; 0: no interval), seeded by `seed`. */
   bootstrap?: number;
+  /** Gwet's coefficient: unweighted (AC1) or weighted (AC2; irrCAC's weights). Absent: unweighted. */
+  gwetWeights?: GwetWeights;
+}
+/** irrCAC's weights for Gwet's AC2 (unweighted: AC1). */
+export type GwetWeights = 'unweighted' | 'linear' | 'quadratic' | 'ordinal';
+/**
+ * Gwet's AC1 / AC2 (irrCAC): the coefficient from the agreement `pa` and chance agreement `pe`, irrCAC's standard
+ * error (5 decimals), the interval (coefficient ± t(n − 1) SE, at most 1) and the one-sided p of AC > 0.
+ */
+export interface GwetResult {
+  name: string;
+  weights: string;
+  value: number;
+  pa: number;
+  pe: number;
+  se: number;
+  ciLow: number;
+  ciHigh: number;
+  p: number;
+  ratings: number;
 }
 /** The levels of measurement of Krippendorff's alpha. */
 export const KRIPP_LEVELS = ['nominal', 'ordinal', 'interval', 'ratio'] as const;
@@ -624,14 +644,18 @@ export interface ReliabilityResult {
   fleissCategories?: { category: string; kappa: number; z: number; p: number }[];
   kripp?: KrippResult;
   kendall?: KendallRow[];
+  gwet?: GwetResult;
   warnings: string[];
   engine: REngineInfo;
 }
 export const reliabilityRequest = (d: Dataset, i: ReliabilityInput) =>
   testRequest(d, 'reliability', reliabilityColumns(i), i);
 /** The R packages of a reliability analysis: base R (Bland–Altman), psych, or psych with Bayesrel. */
-function reliabilityPackage(i: ReliabilityInput): 'stats' | 'psych' | 'Bayesrel' | 'irr' {
+function reliabilityPackage(
+  i: ReliabilityInput,
+): 'stats' | 'psych' | 'Bayesrel' | 'irr' | 'irrCAC' {
   if (i.type === 'blandaltman') return 'stats';
+  if (i.type === 'gwet') return 'irrCAC';
   if (i.type === 'fleiss' || i.type === 'kripp' || i.type === 'kendallw') return 'irr';
   if (i.type === 'scale' && i.bayes) return 'Bayesrel';
   return 'psych';

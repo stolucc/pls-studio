@@ -13,6 +13,7 @@ suppressPackageStartupMessages({
   library(jsonlite)
   library(psych)
   library(irr)
+  library(irrCAC)
 })
 
 frame <- function(df) {
@@ -132,6 +133,26 @@ out$kendall <- list(
   chisqT = unname(kwt$statistic),
   pT = kwt$p.value
 )
+
+# ---- Gwet's AC1 and AC2: irrCAC's cac.raw4raters (Gwet 2014), 12 units, 4 raters, missing ratings
+out$cacRaw4raters <- frame(cac.raw4raters)
+gwet <- function(weights) {
+  est <- gwet.ac1.raw(cac.raw4raters, weights = weights)$est
+  bounds <- as.numeric(strsplit(gsub("[()]", "", est$conf.int), ",")[[1]])
+  list(
+    name = est$coeff.name,
+    pa = est$pa,
+    pe = est$pe,
+    value = (est$pa - est$pe) / (1 - est$pe),
+    value5 = est$coeff.val,
+    se = est$coeff.se,
+    p = est$p.value,
+    # (irrCAC prints the interval to 3 decimals)
+    ci3 = bounds,
+    ratings = est$tot.obs
+  )
+}
+out$gwet <- list(unweighted = gwet("unweighted"), quadratic = gwet("quadratic"))
 
 writeLines(
   toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null", na = "null"),

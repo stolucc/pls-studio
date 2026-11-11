@@ -109,7 +109,8 @@ export type ExamplePackage =
   | 'bain'
   | 'piecewiseSEM'
   | 'Bayesrel'
-  | 'irr';
+  | 'irr'
+  | 'irrCAC';
 export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'lavaan',
   'did',
@@ -174,6 +175,7 @@ export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'piecewiseSEM',
   'Bayesrel',
   'irr',
+  'irrCAC',
 ];
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */

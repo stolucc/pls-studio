@@ -160,6 +160,8 @@ export const R_PACKAGES = {
   Bayesrel: ['jsonlite', 'psych', 'GPArotation', 'Bayesrel'],
   // Agreement of several raters: Fleiss' kappa, Krippendorff's alpha, Kendall's W (irr, on lpSolve).
   irr: ['jsonlite', 'irr'],
+  // Gwet's AC1 / AC2 with its standard error (irrCAC, on dplyr, tidyr, stringr and tibble).
+  irrCAC: ['jsonlite', 'irrCAC'],
   // Exploratory factor analysis with lavaan's efa() (standard errors, the fit by number of factors).
   psychLavaan: ['jsonlite', 'psych', 'GPArotation', 'lavaan'],
   semfindr: ['jsonlite', 'lavaan', 'semTools', 'semfindr'],

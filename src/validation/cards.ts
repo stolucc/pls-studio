@@ -166,6 +166,11 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     features: ['rengine/agreement::Krippendorff'],
     note: 'The bootstrap over the units against a loop written in desktop R with the same seed.',
   },
+  'reliability:gwet': {
+    title: 'Gwet’s AC1 / AC2 (irrCAC)',
+    examples: ['irrcac-gwet-raw4raters'],
+    features: ['rengine/agreement::Gwet'],
+  },
   'reliability:kendallw': {
     title: 'Kendall’s W, with the correction for ties (irr)',
     examples: ['irr-kendall-anxiety'],
