@@ -138,6 +138,22 @@
         "File": "backports_1.5.1.tgz"
       }
     },
+    "bain": {
+      "version": "0.2.12",
+      "md5": "c7ac578696a63f786d1c50606d526170",
+      "license": "GPL (>= 3)",
+      "stanza": {
+        "Package": "bain",
+        "Version": "0.2.12",
+        "Depends": "R (>= 3.0.0), stats",
+        "Imports": "lavaan",
+        "Suggests": "MASS, testthat, knitr, rmarkdown",
+        "License": "GPL (>= 3)",
+        "MD5sum": "c7ac578696a63f786d1c50606d526170",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 13:13:11 UTC; unix",
+        "File": "bain_0.2.12.tgz"
+      }
+    },
     "base64enc": {
       "version": "0.1-6",
       "md5": "d5093b50096872598e6acc3c5d56b184",
@@ -185,6 +201,22 @@
         "MD5sum": "cffdc31f1976c73ca9650e05ae9dab0b",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 13:35:59 UTC; unix",
         "File": "Bayesrel_0.8.0.tgz"
+      }
+    },
+    "bayestestR": {
+      "version": "0.19.0",
+      "md5": "7e5865458663c8467329d97725a8ac64",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "bayestestR",
+        "Version": "0.19.0",
+        "Depends": "R (>= 3.6)",
+        "Imports": "insight (>= 1.5.3), datawizard (>= 1.3.1), graphics, methods, stats, utils",
+        "Suggests": "BayesFactor (>= 0.9.12-4.4), bayesQR, bayesplot, betareg, BH, blavaan, boot, bridgesampling (>= 1.2-1), brms, collapse, curl, effectsize, emmeans, gamm4, ggdist, ggplot2, glmmTMB, httr2, KernSmooth, knitr, lavaan, lme4, lmerTest, logspline (>= 2.1.21), marginaleffects (>= 0.29.0), MASS, mclust, mediation, modelbased, ordbetareg, parameters, patchwork, performance, posterior, quadprog, RcppEigen, rmarkdown, rstan, rstanarm, see (>= 0.8.5), testthat, tinytable, tweedie, withr",
+        "License": "GPL-3",
+        "MD5sum": "7e5865458663c8467329d97725a8ac64",
+        "Built": "R 4.6.0; ; 2026-10-09 13:37:49 UTC; unix",
+        "File": "bayestestR_0.19.0.tgz"
       }
     },
     "bbmle": {
@@ -901,6 +933,22 @@
         "File": "data.table_1.18.6.1.tgz"
       }
     },
+    "datawizard": {
+      "version": "1.4.0",
+      "md5": "893b19ec1f30263400d1ace6f46e2297",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "datawizard",
+        "Version": "1.4.0",
+        "Depends": "R (>= 4.0)",
+        "Imports": "insight (>= 1.5.3), stats, utils",
+        "Suggests": "bayestestR, boot, BH, brms, curl, data.table, discovr, dplyr (>= 1.1), effectsize, emmeans, fixest, gamm4, ggplot2 (>= 3.5.0), gt, haven, httr, knitr, lme4, mediation, modelbased, nanoparquet, openssl, parameters (>= 0.21.7), performance (>= 0.14.0), poorman (>= 0.2.7), psych, readxl, readr, rio, rmarkdown, rstanarm, see, testthat (>= 3.2.1), tibble, tidyr, tinytable (>= 0.13.0), withr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "893b19ec1f30263400d1ace6f46e2297",
+        "Built": "R 4.6.0; ; 2026-10-09 16:04:42 UTC; unix",
+        "File": "datawizard_1.4.0.tgz"
+      }
+    },
     "DBI": {
       "version": "1.3.0",
       "md5": "0e519767931f48ef000f2b4967750aec",
@@ -1280,6 +1328,38 @@
         "MD5sum": "7e4f469b003a918d055fe481aabd3bab",
         "Built": "R 4.6.0; ; 2026-05-13 01:16:33 UTC; unix",
         "File": "elliptic_1.5-1.tgz"
+      }
+    },
+    "emmeans": {
+      "version": "2.0.4",
+      "md5": "64e7c1cee02eac2b17c9a02ecebf653d",
+      "license": "GPL-2 | GPL-3",
+      "stanza": {
+        "Package": "emmeans",
+        "Version": "2.0.4",
+        "Depends": "R (>= 4.1.0)",
+        "Imports": "estimability (>= 1.4.1), graphics, methods, mvtnorm, numDeriv, rlang, stats, utils",
+        "Suggests": "bayesplot, bayestestR, biglm, brms, car, coda (>= 0.17), compositions, ggplot2 (>= 4.0.0), knitr, lattice, lme4, lmerTest (>= 2.0.32), logspline, MASS, mediation, mgcv, multcomp, multcompView, MuMIn, nlme, ordinal (>= 2014.11-12), pbkrtest (>= 0.4-1), rmarkdown, robmixglm, rsm, sandwich, scales, splines, testthat, tibble, xtable (>= 1.8-2)",
+        "Enhances": "CARBayes, coxme, gee, geepack, MCMCglmm, MCMCpack, mice, nnet, pscl, rstanarm, sommer, survival",
+        "License": "GPL-2 | GPL-3",
+        "MD5sum": "64e7c1cee02eac2b17c9a02ecebf653d",
+        "Built": "R 4.6.0; ; 2026-10-09 19:07:20 UTC; unix",
+        "File": "emmeans_2.0.4.tgz"
+      }
+    },
+    "estimability": {
+      "version": "2.0.0",
+      "md5": "6a6a7795f7e8d7e04839fd3296c7af11",
+      "license": "GPL (>= 3)",
+      "stanza": {
+        "Package": "estimability",
+        "Version": "2.0.0",
+        "Depends": "stats, R(>= 4.1.0)",
+        "Suggests": "knitr, rmarkdown",
+        "License": "GPL (>= 3)",
+        "MD5sum": "6a6a7795f7e8d7e04839fd3296c7af11",
+        "Built": "R 4.6.0; ; 2026-10-09 20:04:33 UTC; unix",
+        "File": "estimability_2.0.0.tgz"
       }
     },
     "evaluate": {
@@ -1882,6 +1962,22 @@
         "MD5sum": "4e61fadc9bdd09c8b66fe9b1f8532127",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 06:00:42 UTC; unix",
         "File": "glue_1.8.1.tgz"
+      }
+    },
+    "gmm": {
+      "version": "1.9-1",
+      "md5": "973d09bd5d58c9045c606f85b097204e",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "gmm",
+        "Version": "1.9-1",
+        "Depends": "R (>= 2.10.0), sandwich",
+        "Imports": "stats, methods, grDevices, graphics",
+        "Suggests": "knitr, mvtnorm, car, stabledist, MASS, timeDate, timeSeries",
+        "License": "GPL (>= 2)",
+        "MD5sum": "973d09bd5d58c9045c606f85b097204e",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 06:02:51 UTC; unix",
+        "File": "gmm_1.9-1.tgz"
       }
     },
     "gmp": {
@@ -3129,6 +3225,22 @@
         "File": "msm_1.8.2.tgz"
       }
     },
+    "multcomp": {
+      "version": "1.4-32",
+      "md5": "ab934a2e6de371a055a218971cf7bd41",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "multcomp",
+        "Version": "1.4-32",
+        "Depends": "stats, graphics, mvtnorm (>= 1.0-10), survival (>= 2.39-4), TH.data (>= 1.0-2)",
+        "Imports": "sandwich (>= 2.3-0), codetools",
+        "Suggests": "lme4 (>= 0.999375-16), nlme, robustbase, coin, MASS, foreign, xtable, lmtest, coxme (>= 2.2-1), SimComp, ISwR, tram (>= 0.2-5), fixest (>= 0.10), glmmTMB, DoseFinding, HH, asd, gsDesign, lattice, bibtex",
+        "License": "GPL-2",
+        "MD5sum": "ab934a2e6de371a055a218971cf7bd41",
+        "Built": "R 4.6.0; ; 2026-10-10 13:45:15 UTC; unix",
+        "File": "multcomp_1.4-32.tgz"
+      }
+    },
     "multipol": {
       "version": "1.0-9",
       "md5": "b8989372b214aac8c146290591190cb5",
@@ -3142,6 +3254,23 @@
         "MD5sum": "b8989372b214aac8c146290591190cb5",
         "Built": "R 4.6.0; ; 2026-05-13 15:39:57 UTC; unix",
         "File": "multipol_1.0-9.tgz"
+      }
+    },
+    "MuMIn": {
+      "version": "1.48.19",
+      "md5": "9310f1bfd1a144681814c60add7b5d2e",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "MuMIn",
+        "Version": "1.48.19",
+        "Depends": "R (>= 4.4.0)",
+        "Imports": "graphics, methods, Matrix, stats, stats4, nlme, insight",
+        "Suggests": "lme4 (>= 1.1.0), mgcv (>= 1.7.5), gamm4, MASS, nnet, survival (>= 3.1.0), geepack, performance",
+        "Enhances": "aod, betareg, caper, coxme (>= 2.2.4), cplm, gee, glmmML, logistf, MCMCglmm, ordinal, pscl, spatialreg, splm, unmarked (>= 1.5.1), geeM (>= 0.7.5), gamlss, RMark, glmmTMB, brglm, quantreg, maxlike",
+        "License": "GPL-2",
+        "MD5sum": "9310f1bfd1a144681814c60add7b5d2e",
+        "Built": "R 4.6.0; ; 2026-05-13 15:45:38 UTC; unix",
+        "File": "MuMIn_1.48.19.tgz"
       }
     },
     "mvnfast": {
@@ -3361,6 +3490,20 @@
         "File": "nonnest2_0.5-9.tgz"
       }
     },
+    "norm": {
+      "version": "1.0-11.1",
+      "md5": "22561c489213990aec1841fbb89c193b",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "norm",
+        "Version": "1.0-11.1",
+        "Imports": "stats",
+        "License": "GPL (>= 2)",
+        "MD5sum": "22561c489213990aec1841fbb89c193b",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 16:57:08 UTC; unix",
+        "File": "norm_1.0-11.1.tgz"
+      }
+    },
     "numDeriv": {
       "version": "2016.8-1.1",
       "md5": "4cedc70ba377c654e2d1a3c863ba0006",
@@ -3576,6 +3719,22 @@
         "File": "pbkrtest_0.5.5.tgz"
       }
     },
+    "performance": {
+      "version": "0.18.2",
+      "md5": "740a8bbf7a956ccde8bb60aa761b9c77",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "performance",
+        "Version": "0.18.2",
+        "Depends": "R (>= 4.0)",
+        "Imports": "bayestestR (>= 0.18.1), insight (>= 1.5.3), datawizard (>= 1.3.1), stats, methods, utils",
+        "Suggests": "AER, afex, BayesFactor, bayesplot, betareg, bigutilsr, blavaan, boot, brms, car, carData, CompQuadForm, correlation (>= 0.8.8), cplm, curl, dagitty, dbscan, DHARMa (>= 0.4.7), discovr, effectsize, estimatr, fixest, flextable, forecast, ftExtra, gamm4, ggdag, glmmTMB (>= 1.1.12), GPArotation, graphics, Hmisc, httr2, ICS, ICSOutlier, ISLR, ivreg, lavaan, lme4, lmtest, loo, MASS, Matrix, mclogit, mclust, metadat, metafor, mgcv, mlogit, modelbased (>= 0.12.0), multimode, nestedLogit, nlme, nnet, nonnest2, ordinal, parallel, parameters (>= 0.28.0), patchwork, pscl, psych, psychTools, quantreg, qqplotr (>= 0.0.6), randomForest, RcppEigen, reformulas, rempsyc, rmarkdown, rstanarm, rstantools, sandwich, see (>= 0.13.0), survey, survival, testthat (>= 3.2.1), tweedie, VGAM, withr (>= 3.0.0)",
+        "License": "GPL-3",
+        "MD5sum": "740a8bbf7a956ccde8bb60aa761b9c77",
+        "Built": "R 4.6.0; ; 2026-10-11 01:12:51 UTC; unix",
+        "File": "performance_0.18.2.tgz"
+      }
+    },
     "permute": {
       "version": "0.9-10",
       "md5": "0c3f2aa36a662de89f9dd1f3edd9a4a1",
@@ -3590,6 +3749,22 @@
         "MD5sum": "0c3f2aa36a662de89f9dd1f3edd9a4a1",
         "Built": "R 4.6.0; ; 2026-05-13 19:03:39 UTC; unix",
         "File": "permute_0.9-10.tgz"
+      }
+    },
+    "piecewiseSEM": {
+      "version": "2.3.1",
+      "md5": "1970534de19a0861f0dd4fd23d39192c",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "piecewiseSEM",
+        "Version": "2.3.1",
+        "Depends": "R (>= 4.5.0)",
+        "Imports": "car, DiagrammeR, emmeans, igraph, lme4, multcomp, MuMIn, MASS, methods, nlme, performance",
+        "Suggests": "knitr, rmarkdown",
+        "License": "GPL-3",
+        "MD5sum": "1970534de19a0861f0dd4fd23d39192c",
+        "Built": "R 4.6.0; ; 2026-05-13 19:26:54 UTC; unix",
+        "File": "piecewiseSEM_2.3.1.tgz"
       }
     },
     "pillar": {
@@ -4363,6 +4538,22 @@
         "File": "reshape2_1.4.5.tgz"
       }
     },
+    "restriktor": {
+      "version": "0.6-50",
+      "md5": "0dca17d90b1b372b8d149c989bee5d2a",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "restriktor",
+        "Version": "0.6-50",
+        "Depends": "R(>= 4.0.0)",
+        "Imports": "boot, lavaan(>= 0.6-10), MASS, mvtnorm, tmvtnorm, quadprog, norm, ggplot2, future, future.apply, progressr, scales, gridExtra",
+        "Suggests": "knitr, rmarkdown, bain, testthat (>= 3.0.0), metadat",
+        "License": "GPL (>= 2)",
+        "MD5sum": "0dca17d90b1b372b8d149c989bee5d2a",
+        "Built": "R 4.6.0; ; 2026-10-11 04:05:20 UTC; unix",
+        "File": "restriktor_0.6-50.tgz"
+      }
+    },
     "RhpcBLASctl": {
       "version": "0.23-42",
       "md5": "092f363e70d0d16dd50e445e8f0b4eb7",
@@ -5089,6 +5280,21 @@
         "File": "testthat_3.3.2.tgz"
       }
     },
+    "TH.data": {
+      "version": "1.1-5",
+      "md5": "4977b48b6a054a3d2d4bd9e1e4ecd7e6",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "TH.data",
+        "Version": "1.1-5",
+        "Depends": "R (>= 3.5.0), survival, MASS",
+        "Suggests": "trtf, tram, rms, coin, ATR, multcomp, gridExtra, vcd, colorspace, lattice, knitr, dplyr, openxlsx, plyr",
+        "License": "GPL-3",
+        "MD5sum": "4977b48b6a054a3d2d4bd9e1e4ecd7e6",
+        "Built": "R 4.6.0; ; 2026-05-14 08:41:11 UTC; unix",
+        "File": "TH.data_1.1-5.tgz"
+      }
+    },
     "tibble": {
       "version": "3.3.1",
       "md5": "2158baadd4be00f1e9b7daafd1f46ee3",
@@ -5167,6 +5373,22 @@
         "MD5sum": "1cb09dc0bade36e38d0a38cc92ba5661",
         "Built": "R 4.6.0; ; 2026-10-12 02:30:58 UTC; unix",
         "File": "tinytex_0.61.tgz"
+      }
+    },
+    "tmvtnorm": {
+      "version": "1.7",
+      "md5": "9c38157e92c596674762737118a5be7e",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "tmvtnorm",
+        "Version": "1.7",
+        "Depends": "R (>= 1.9.0), mvtnorm, utils, Matrix, stats4, gmm",
+        "Imports": "stats, methods",
+        "Suggests": "lattice, rgl",
+        "License": "GPL (>= 2)",
+        "MD5sum": "9c38157e92c596674762737118a5be7e",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 09:20:43 UTC; unix",
+        "File": "tmvtnorm_1.7.tgz"
       }
     },
     "TruncatedNormal": {

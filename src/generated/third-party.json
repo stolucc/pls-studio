@@ -232,6 +232,12 @@
    "url": "https://cran.r-project.org/package=backports"
   },
   {
+   "name": "bain",
+   "version": "0.2.12",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=bain"
+  },
+  {
    "name": "base64enc",
    "version": "0.1-6",
    "license": "GPL-2 | GPL-3",
@@ -248,6 +254,12 @@
    "version": "0.8.0",
    "license": "GPL-3",
    "url": "https://cran.r-project.org/package=Bayesrel"
+  },
+  {
+   "name": "bayestestR",
+   "version": "0.19.0",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=bayestestR"
   },
   {
    "name": "bbmle",
@@ -526,6 +538,12 @@
    "url": "https://cran.r-project.org/package=data.table"
   },
   {
+   "name": "datawizard",
+   "version": "1.4.0",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=datawizard"
+  },
+  {
    "name": "DBI",
    "version": "1.3.0",
    "license": "LGPL (>= 2.1)",
@@ -669,6 +687,18 @@
    "version": "1.5-1",
    "license": "GPL-2",
    "url": "https://cran.r-project.org/package=elliptic"
+  },
+  {
+   "name": "emmeans",
+   "version": "2.0.4",
+   "license": "GPL-2 | GPL-3",
+   "url": "https://cran.r-project.org/package=emmeans"
+  },
+  {
+   "name": "estimability",
+   "version": "2.0.0",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=estimability"
   },
   {
    "name": "evaluate",
@@ -897,6 +927,12 @@
    "version": "1.8.1",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=glue"
+  },
+  {
+   "name": "gmm",
+   "version": "1.9-1",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=gmm"
   },
   {
    "name": "gmp",
@@ -1373,10 +1409,22 @@
    "url": "https://cran.r-project.org/package=msm"
   },
   {
+   "name": "multcomp",
+   "version": "1.4-32",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=multcomp"
+  },
+  {
    "name": "multipol",
    "version": "1.0-9",
    "license": "GPL",
    "url": "https://cran.r-project.org/package=multipol"
+  },
+  {
+   "name": "MuMIn",
+   "version": "1.48.19",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=MuMIn"
   },
   {
    "name": "mvnfast",
@@ -1463,6 +1511,12 @@
    "url": "https://cran.r-project.org/package=nonnest2"
   },
   {
+   "name": "norm",
+   "version": "1.0-11.1",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=norm"
+  },
+  {
    "name": "numDeriv",
    "version": "2016.8-1.1",
    "license": "GPL-2",
@@ -1547,10 +1601,22 @@
    "url": "https://cran.r-project.org/package=pbkrtest"
   },
   {
+   "name": "performance",
+   "version": "0.18.2",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=performance"
+  },
+  {
    "name": "permute",
    "version": "0.9-10",
    "license": "GPL-2",
    "url": "https://cran.r-project.org/package=permute"
+  },
+  {
+   "name": "piecewiseSEM",
+   "version": "2.3.1",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=piecewiseSEM"
   },
   {
    "name": "pillar",
@@ -1847,6 +1913,12 @@
    "url": "https://cran.r-project.org/package=reshape2"
   },
   {
+   "name": "restriktor",
+   "version": "0.6-50",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=restriktor"
+  },
+  {
    "name": "RhpcBLASctl",
    "version": "0.23-42",
    "license": "AGPL-3",
@@ -2123,6 +2195,12 @@
    "url": "https://cran.r-project.org/package=testthat"
   },
   {
+   "name": "TH.data",
+   "version": "1.1-5",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=TH.data"
+  },
+  {
    "name": "tibble",
    "version": "3.3.1",
    "license": "MIT + file LICENSE",
@@ -2151,6 +2229,12 @@
    "version": "0.61",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=tinytex"
+  },
+  {
+   "name": "tmvtnorm",
+   "version": "1.7",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=tmvtnorm"
   },
   {
    "name": "TruncatedNormal",
