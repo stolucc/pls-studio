@@ -179,7 +179,43 @@ export interface KappaTable { rows: string; columns: string; counts: string; nOb
  * squared distances (psych's default), linear, or `weightMatrix` (one row per category of the first rater; a zero
  * diagonal: disagreement weights).
  */
-export interface ReliabilityInput { type: 'scale' | 'icc' | 'kappa' | 'blandaltman'; vars: string[]; confidence: number; kappaTable?: KappaTable; kappaWeights?: 'squared' | 'linear' | 'custom'; weightMatrix?: number[][] }
+export interface ReliabilityInput {
+  type: 'scale' | 'icc' | 'kappa' | 'blandaltman';
+  vars: string[];
+  confidence: number;
+  kappaTable?: KappaTable;
+  kappaWeights?: 'squared' | 'linear' | 'custom';
+  weightMatrix?: number[][];
+  /** Scale: Bayesian reliability with credible intervals (Bayesrel::strel), seeded. */
+  bayes?: true;
+  /** Scale, Bayesian: also the greatest lower bound (slow: one glb per posterior draw). */
+  bayesGlb?: true;
+  /** Scale, Bayesian: iterations per chain (absent: Bayesrel's 1000) and the seed. */
+  iterations?: number;
+  seed?: number;
+}
+
+/** A Bayesian reliability coefficient: posterior mean, credible interval, R-hat and effective sample size. */
+export interface BayesReliability {
+  estimate: 'alpha' | 'lambda2' | 'glb' | 'omega';
+  mean: number;
+  low: number;
+  high: number;
+  rhat: number;
+  ess: number;
+}
+
+/** Bayesrel's posterior summaries and how they were sampled. */
+export interface BayesReliabilityResult {
+  estimates: BayesReliability[];
+  interval: number;
+  iterations: number;
+  burnin: number;
+  chains: number;
+  seed: number;
+  /** Bayesrel's version. */
+  version: string;
+}
 export const reliabilityColumns = (i: Pick<ReliabilityInput, 'type' | 'vars' | 'kappaTable'>) => (i.type === 'kappa' && i.kappaTable ? [i.kappaTable.rows, i.kappaTable.columns, i.kappaTable.counts].filter(Boolean) : i.vars);
 export interface ReliabilityResult {
   type: ReliabilityInput['type']; vars: string[]; n: number; confidence: number;
@@ -190,17 +226,44 @@ export interface ReliabilityResult {
   bias?: number; lower?: number; upper?: number; biasCiLow?: number; biasCiHigh?: number; points?: { mean: number[]; diff: number[] };
   /** Kappa of an agreement table: the categories and the table (scaled to the number of subjects), the weights. */
   table?: boolean; levels?: string[]; counts?: number[][]; weights?: ReliabilityInput['kappaWeights'];
+  /** Scale: Bayesian reliability (Bayesrel), when asked for. */
+  bayes?: BayesReliabilityResult;
   warnings: string[]; engine: REngineInfo;
 }
 export const reliabilityRequest = (d: Dataset, i: ReliabilityInput) => testRequest(d, 'reliability', reliabilityColumns(i), i);
+/** The R packages of a reliability analysis: base R (Bland–Altman), psych, or psych with Bayesrel. */
+function reliabilityPackage(i: ReliabilityInput): 'stats' | 'psych' | 'Bayesrel' {
+  if (i.type === 'blandaltman') return 'stats';
+  if (i.type === 'scale' && i.bayes) return 'Bayesrel';
+  return 'psych';
+}
+
+/** Bayesrel's summaries from R's JSON. */
+function parseBayesReliability(raw: unknown): BayesReliabilityResult | undefined {
+  const b = obj<Record<string, unknown>>(raw);
+  if (!b) return undefined;
+  return {
+    estimates: rList<BayesReliability>(b.estimates),
+    interval: Number(b.interval),
+    iterations: Number(b.iterations),
+    burnin: Number(b.burnin),
+    chains: Number(b.chains),
+    seed: Number(b.seed),
+    version: String(b.version ?? ''),
+  };
+}
+
 export async function reliabilityR(d: Dataset, i: ReliabilityInput): Promise<ReliabilityResult> {
-  const r = await rCall<Record<string, any>>('ps_reliability', reliabilityRequest(d, i), i.type === 'blandaltman' ? 'stats' : 'psych');
+  const r = await rCall<Record<string, any>>('ps_reliability', reliabilityRequest(d, i), reliabilityPackage(i));
+  const bayes = parseBayesReliability(r.bayes);
   const pts = obj<{ mean: unknown; diff: unknown }>(r.points);
   return { ...r, vars: rList<string>(r.vars), ...(r.items ? { items: rList(r.items) } : {}), ...(r.icc ? { icc: rList(r.icc) } : {}),
     ...(pts ? { points: { mean: rList<number>(pts.mean), diff: rList<number>(pts.diff) } } : {}),
-    ...(r.table ? { levels: rList<string>(r.levels), counts: rList<unknown>(r.counts).map((x) => rList<number>(x)) } : {}), warnings: rStrings(r.warnings) } as ReliabilityResult;
+    ...(r.table ? { levels: rList<string>(r.levels), counts: rList<unknown>(r.counts).map((x) => rList<number>(x)) } : {}),
+    ...(bayes ? { bayes } : {}),
+    warnings: rStrings(r.warnings) } as ReliabilityResult;
 }
-export const reliabilityScriptR = (d: Dataset, i: ReliabilityInput) => rScript('ps_reliability', reliabilityRequest(d, i), i.type === 'blandaltman' ? 'stats' : 'psych');
+export const reliabilityScriptR = (d: Dataset, i: ReliabilityInput) => rScript('ps_reliability', reliabilityRequest(d, i), reliabilityPackage(i));
 
 // ---- Bayesian tests (R/bayes.R): JASP's default priors
 

@@ -10,6 +10,7 @@ import type { PackageExample } from '../packages';
 const RD = (page: string) => ({ label: `?${page}`, url: `https://rdrr.io/r/stats/${page}.html` });
 const DATA = (name: string) => ({ label: `?${name}`, url: `https://rdrr.io/r/datasets/${name}.html` });
 const PSYCH = (page: string) => ({ label: `psych, ?${page}`, url: `https://rdrr.io/cran/psych/man/${page}.html` });
+const BAYESREL = (page: string) => ({ label: `Bayesrel, ?${page}`, url: `https://rdrr.io/cran/Bayesrel/man/${page}.html` });
 const OK_CELLS = ['pre', 'post', 'fup'].flatMap((p) => [1, 2, 3, 4, 5].map((h) => `${p}.${h}`));
 /** Cohen's (1968) table of proportions (?cohen.kappa), one row per cell. */
 const COHEN = { package: 'psych' as const, name: 'Cohen’s table (?cohen.kappa)', file: 'examples/tests/cohen.csv' };
@@ -138,6 +139,29 @@ export const CARD_BASIC: PackageExample[] = [
     shows: 'α = 0.813 (standardised 0.814) for the five neuroticism items on 2694 complete cases, close to ?bfi’s 0.81 from pairwise correlations; ω total 0.818 and the greatest lower bound 0.848 sit above it. In the item table no item would raise α if dropped: every “α if dropped” is below 0.813.',
     data: { package: 'psych', name: 'bfi' }, constructs: [], paths: [],
     panel: { kind: 'reliability', type: 'scale', vars: ['N1', 'N2', 'N3', 'N4', 'N5'] }, settings: CB('ML'),
+  },
+  {
+    id: 'bayesrel-asrm',
+    package: 'Bayesrel',
+    title: 'Bayesian scale reliability: the Altman Self-Rating Mania scale',
+    source: 'Bayesrel, ?strel, ?asrm (Nicolai & Moshagen 2018)',
+    links: [
+      BAYESREL('strel'),
+      BAYESREL('asrm'),
+      { label: 'Pfadt et al. (2022), Multivariate Behavioral Research 57(4)', url: 'https://doi.org/10.1080/00273171.2021.1891855' },
+    ],
+    description: 'The five items of the Altman Self-Rating Mania scale answered by 78 people (Bayesrel’s asrm, from Nicolai & '
+      + 'Moshagen 2018). The help page runs strel(asrm, …) for the Bayesian reliability coefficients; the card does the same with '
+      + 'Bayesrel’s defaults (3 chains of 1000 iterations, burn-in 50), seed 1, beside psych’s point estimates: posterior means '
+      + 'α = 0.786 [0.714, 0.857], λ2 = 0.795 [0.723, 0.857] and ω = 0.774 [0.696, 0.852] (95% credible intervals). '
+      + 'Opens its card on the Analyses tab.',
+    shows: 'Posterior means α = 0.786, λ2 = 0.795 and ω = 0.774 with 95% credible intervals about ±0.07 wide: with 78 people the '
+      + 'reliability is known only to within about .15. λ2 sits a little above α, as it must (λ2 ≥ α).',
+    data: { package: 'Bayesrel', name: 'asrm' },
+    constructs: [],
+    paths: [],
+    panel: { kind: 'reliability', type: 'scale', vars: ['asrm_1', 'asrm_2', 'asrm_3', 'asrm_4', 'asrm_5'], bayes: true },
+    settings: { ...CB('ML'), seed: 1 },
   },
   {
     id: 'psych-kappa-cohen', package: 'psych', title: 'Cohen’s kappa of an agreement table: Cohen’s weighted κ', source: 'psych, ?cohen.kappa (Cohen 1968)',

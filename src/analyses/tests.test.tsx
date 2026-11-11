@@ -5,7 +5,9 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../model/project';
 import { ANALYSIS_TYPES } from './registry';
-import { anovaAnalysis, contingencyAnalysis, correlationAnalysis, freqTestAnalysis, manovaAnalysis, reliabilityAnalysis, rmAnovaAnalysis, ttestAnalysis } from './tests';
+import { anovaAnalysis, BAYESREL_ITERATIONS, contingencyAnalysis, correlationAnalysis, freqTestAnalysis, manovaAnalysis, relInput, reliabilityAnalysis, rmAnovaAnalysis, ttestAnalysis } from './tests';
+import { renderToStaticMarkup } from 'react-dom/server';
+import type { ReliabilityResult } from '../rengine/tests';
 import type { AnalysisCtx } from './types';
 
 const data = { names: ['y', 'x', 'g', 'h'], cols: [new Float64Array([1, 2, 3, 4]), new Float64Array([2, 3, 4, 6]), new Float64Array([1, 1, 2, 2]), new Float64Array([1, 2, 1, 2])], categories: { g: ['a', 'b'] } };
@@ -56,5 +58,59 @@ describe('basic-statistics cards', () => {
     const o = { ...correlationAnalysis.defaults(ctx), vars: ['y', 'x'] };
     expect(correlationAnalysis.fingerprint(o, ctx)).not.toBe(correlationAnalysis.fingerprint({ ...o, method: 'kendall' }, ctx));
     expect(correlationAnalysis.fingerprint(o, ctx)).not.toBe(correlationAnalysis.fingerprint(o, { ...ctx, settings: { ...DEFAULT_SETTINGS, confidence: 0.9 } }));
+  });
+});
+
+describe('Bayesian scale reliability (Bayesrel)', () => {
+  const t = reliabilityAnalysis;
+  const o = { type: 'scale' as const, vars: ['y', 'x', 'h'], bayes: true as const };
+
+  it('keeps the options from a project file only when valid', () => {
+    expect(t.parseOptions({ ...o, bayesGlb: true, iterations: 2000 })).toEqual({ ...o, bayesGlb: true, iterations: 2000 });
+    expect(t.parseOptions({ ...o, iterations: 5 })!.iterations).toBe(100);
+    expect(t.parseOptions({ ...o, iterations: '2000' })!.iterations).toBe(BAYESREL_ITERATIONS);
+    const plain = t.parseOptions({ type: 'scale', vars: ['y', 'x'], bayes: 'yes', bayesGlb: 1 })!;
+    expect(['bayes', 'bayesGlb', 'iterations'].filter((k) => k in plain)).toEqual([]);
+  });
+
+  it('sends the seed of the settings and the iterations with the scale analysis only', () => {
+    expect(relInput(o, { settings: { ...DEFAULT_SETTINGS, seed: 7 } })).toMatchObject({ bayes: true, iterations: 1000, seed: 7 });
+    expect('bayesGlb' in relInput(o, ctx)).toBe(false);
+    expect(relInput({ ...o, bayesGlb: true }, ctx)).toMatchObject({ bayesGlb: true });
+    const icc = relInput({ ...o, type: 'icc' }, ctx);
+    expect(['bayes', 'seed', 'iterations'].filter((k) => k in icc)).toEqual([]);
+  });
+
+  it('needs three items, and a new seed or more iterations make the result stale', () => {
+    expect(t.blocked({ ...o, vars: ['y', 'x'] }, ctx)).toMatch(/at least three items/);
+    expect(t.blocked(o, ctx)).toBeNull();
+    const f = t.fingerprint(o, ctx);
+    expect(t.fingerprint(o, { ...ctx, settings: { ...DEFAULT_SETTINGS, seed: 99 } })).not.toBe(f);
+    expect(t.fingerprint({ ...o, iterations: 2000 }, ctx)).not.toBe(f);
+    expect(t.fingerprint({ ...o, bayesGlb: true }, ctx)).not.toBe(f);
+    // Without the Bayesian estimates the seed does not matter.
+    const plain = { type: 'scale' as const, vars: ['y', 'x', 'h'] };
+    expect(t.fingerprint(plain, { ...ctx, settings: { ...DEFAULT_SETTINGS, seed: 99 } })).toBe(t.fingerprint(plain, ctx));
+  });
+
+  it('shows the posterior means, credible intervals and convergence with the source', () => {
+    const result = {
+      type: 'scale', vars: ['y', 'x', 'h'], n: 78, confidence: 0.95, alpha: 0.8, items: [],
+      bayes: {
+        estimates: [
+          { estimate: 'alpha', mean: 0.786, low: 0.714, high: 0.857, rhat: 1.0001, ess: 2800 },
+          { estimate: 'omega', mean: 0.774, low: 0.696, high: 0.852, rhat: 1.05, ess: 300 },
+        ],
+        interval: 0.95, iterations: 1000, burnin: 50, chains: 3, seed: 1, version: '0.8.0',
+      },
+      warnings: [], engine: { package: 'psych', version: '2.6.9' },
+    } as unknown as ReliabilityResult;
+    const html = renderToStaticMarkup(<t.View result={result} options={o} current />);
+    expect(html).toContain('Bayesian reliability (posterior)');
+    expect(html).toContain('95% credible interval');
+    expect(html).toContain('McDonald’s ω (one factor)');
+    expect(html).toContain('Bayesrel 0.8.0 (strel): 3 chains of 1,000 iterations');
+    expect(html).toContain('Multivariate Behavioral Research, 57(4)');
+    expect(html).toMatch(/class="num bad"[^>]*>1\.050/);
   });
 });

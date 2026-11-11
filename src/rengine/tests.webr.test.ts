@@ -7,6 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Dataset } from '../engine/types';
 import { near } from '../validation/record';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
+import { slowIt } from './webrSlow';
+import { rCall } from './bridge';
 import { anovaR, contingencyR, correlationR, freqTestR, manovaR, reliabilityR, rmAnovaR, ttestR, type TTestInput } from './tests';
 
 beforeAll(startTestRuntime);
@@ -133,6 +135,29 @@ describe('post hoc tests and reliability', () => {
     (ref.scale.alphaDrop as number[]).forEach((x, i) => { close(r.items![i].alphaIfDropped, x, 'alpha if dropped'); close(r.items![i].itemRest, ref.scale.itemRest[i], 'item-rest'); });
     expect(r.warnings).toEqual([]);
   }, 600_000);
+  // (slow: one glb per posterior draw, ~20 s in desktop R and minutes in webR; run with WEBR_SLOW)
+  slowIt('scale reliability, Bayesian with the glb: strel(asrm) with seed 1 equals desktop Bayesrel', async () => {
+    const want = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'bayesrel', 'asrm.json'), 'utf8'));
+    const raw = await rCall<{ names: string[]; cols: number[][] }>('ps_dataset', { package: 'Bayesrel', name: 'asrm', na: [] }, 'Bayesrel');
+    const asrm: Dataset = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c)) };
+    const r = await reliabilityR(asrm, {
+      type: 'scale', vars: raw.names, confidence: 0.95, bayes: true, bayesGlb: true, iterations: 1000, seed: 1,
+    });
+    const b = r.bayes!;
+    expect(b.estimates.map((x) => x.estimate)).toEqual(['alpha', 'lambda2', 'glb', 'omega']);
+    // Same seed, same draws: exact in desktop R; 1e-6 for webR's floating point.
+    for (const x of b.estimates) {
+      const w = want.withGlb[x.estimate];
+      near(`${x.estimate} posterior mean`, x.mean, w.mean, 1e-6);
+      near(`${x.estimate} credible interval lower`, x.low, w.low, 1e-6);
+      near(`${x.estimate} credible interval upper`, x.high, w.high, 1e-6);
+    }
+    // Validated in R: too few iterations and fewer than three items are refused.
+    await expect(reliabilityR(asrm, { type: 'scale', vars: raw.names, confidence: 0.95, bayes: true, iterations: 10, seed: 1 }))
+      .rejects.toThrow(/between 100 and 20000/);
+    await expect(reliabilityR(asrm, { type: 'scale', vars: raw.names.slice(0, 2), confidence: 0.95, bayes: true, seed: 1 }))
+      .rejects.toThrow(/at least three items/);
+  }, 1_800_000);
   it('intraclass correlations, Cohen’s kappa and Bland–Altman', async () => {
     const i = await reliabilityR(data(ref.shroutFleiss), { type: 'icc', vars: ['j1', 'j2', 'j3', 'j4'], confidence: 0.95 });
     (ref.icc.icc as number[]).forEach((x, k) => { close(i.icc![k].icc, x, 'ICC'); close(i.icc![k].ciLow, ref.icc.lower[k], 'ICC lower'); });

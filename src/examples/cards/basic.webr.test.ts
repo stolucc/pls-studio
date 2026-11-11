@@ -4,6 +4,8 @@
 // R prints them (options(digits = 10)), unless a comment says the help page or the publication prints them.
 // Run with WEBR_TESTS=1 npx vitest run src/examples/cards/basic.
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { analysisType } from '../../analyses/registry';
 import type { AnalysisCtx } from '../../analyses/types';
@@ -41,7 +43,8 @@ async function load(e: PackageExample): Promise<Dataset> {
 async function runCard<R>(id: string, source: EvidenceSource & { level: EvidenceLevel }): Promise<R> {
   const e = ex(id);
   const kind = e.panel!.kind, preset = panelPreset(e.panel!);
-  example(e.id, { title: e.title, method: 'Basic statistics', packages: [e.package === 'psych' ? 'psych' : (e.panel as { moreBetween?: string[] }).moreBetween?.length ? 'car' : 'stats'], definition: e });
+  const pkg = e.package === 'psych' || e.package === 'Bayesrel' ? e.package : (e.panel as { moreBetween?: string[] }).moreBetween?.length ? 'car' : 'stats';
+  example(e.id, { title: e.title, method: 'Basic statistics', packages: [pkg], definition: e });
   const data = await load(e);
   const ctx: AnalysisCtx = { data, info: null, settings: { ...DEFAULT_SETTINGS, ...e.settings }, pls: null, projectName: e.title };
   const t = analysisType(kind)!;
@@ -228,6 +231,28 @@ describe('basic-statistics card examples in webR', () => {
     near('ω total', r.omegaTotal!, 0.8184506994, 1e-6); near('glb', r.glb!, 0.848100313, 1e-4);
     const drop = [0.7573075145, 0.7626780980, 0.7548653524, 0.7945587221, 0.8116136344];
     r.items!.forEach((it, i) => near(`α if ${it.item} dropped`, it.alphaIfDropped, drop[i], 1e-8));
+  }, 600_000);
+
+  it('bayesrel-asrm: strel(asrm) posterior means and credible intervals, same seed as desktop Bayesrel', async () => {
+    const ref = JSON.parse(readFileSync(join(__dirname, '..', '..', 'engine', '__fixtures__', 'bayesrel', 'asrm.json'), 'utf8'));
+    const r = await runCard<ReliabilityResult>('bayesrel-asrm', {
+      label: 'Bayesrel 0.8.0 in desktop R: strel(asrm), 3 chains of 1000, burn-in 50, set.seed(1) (scripts/validation/bayesrel.R)',
+      level: 'native',
+    });
+    same('cases', r.n, ref.n);
+    const b = r.bayes!;
+    same('estimates', b.estimates.map((x) => x.estimate).join(', '), 'alpha, lambda2, omega');
+    same('chains', b.chains, 3);
+    same('iterations', b.iterations, 1000);
+    // The same seed gives the same draws: equal in desktop R; in webR the WebAssembly arithmetic can move the draws
+    // by ~1e-6 (relative), hence 1e-6.
+    for (const x of b.estimates) {
+      const want = ref.withoutGlb[x.estimate];
+      near(`${x.estimate} posterior mean`, x.mean, want.mean, 1e-6);
+      near(`${x.estimate} credible interval lower`, x.low, want.low, 1e-6);
+      near(`${x.estimate} credible interval upper`, x.high, want.high, 1e-6);
+      expect(x.rhat, `${x.estimate} R-hat`).toBeLessThan(1.01);
+    }
   }, 600_000);
 
   it('psych-kappa-cohen: cohen.kappa(cohen, cohen.weights, n.obs = 200) on Cohen’s table', async () => {

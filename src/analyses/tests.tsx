@@ -9,9 +9,10 @@ import { c, pCell, Table, type Row } from '../components/results/Table';
 import { fmt, stars } from '../format';
 import type {
   Alternative, AnovaInput, AnovaResult, ContingencyInput, ContingencyResult, CorrelationInput, CorrelationResult, FreqTestInput, FreqTestResult,
-  HTest, KappaTable, ManovaInput, ManovaResult, ReliabilityInput, ReliabilityResult, RmAnovaInput, RmAnovaResult, TTestInput, TTestResult,
+  BayesReliabilityResult, HTest, KappaTable, ManovaInput, ManovaResult, ReliabilityInput, ReliabilityResult, RmAnovaInput, RmAnovaResult, TTestInput, TTestResult,
 } from '../rengine/tests';
-import { Choice, ColumnSelect, columnsFingerprint, flag, isObj, missingColumns, name, names, oneOf, rawData } from './common';
+import { Choice, ColumnSelect, columnsFingerprint, flag, isObj, missingColumns, name, names, NumField, oneOf, rawData } from './common';
+import { clampStrict } from '../parse';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 import { designColumns, isMulti, parseWithinDesign, withinDesignBlocked, WithinDesignForm, withinFingerprint } from './withinDesign';
 
@@ -549,7 +550,7 @@ export const freqTestAnalysis: AnalysisType<FreqTestOptions, FreqTestResult> = {
 
 // ---------------------------------------------------------------- reliability and agreement
 
-export type ReliabilityOptions = Omit<ReliabilityInput, 'confidence'>;
+export type ReliabilityOptions = Omit<ReliabilityInput, 'confidence' | 'seed'>;
 const REL_NAME = { scale: 'Scale reliability', icc: 'Intraclass correlation', kappa: 'Cohen’s kappa', blandaltman: 'Bland–Altman agreement' } as const;
 const REL_HINT = {
   scale: 'The items of one scale, scored in the same direction (reverse-code items first, in the data panel).',
@@ -571,6 +572,74 @@ function WeightMatrixInput({ value, onChange }: { value: number[][]; onChange: (
 export const parseWeightMatrix = (text: string): number[][] => text.split(/[\n;]+/).map((r) => r.trim()).filter(Boolean).map((r) => r.split(/[\s,]+/).map(Number));
 const squareMatrix = (m: number[][]) => m.length >= 2 && m.length <= 20 && m.every((r) => r.length === m.length && r.every((x) => Number.isFinite(x)));
 const WEIGHT_NAME = { squared: 'squared distances', linear: 'linear distances', custom: 'the given weights' } as const;
+
+/** Bayesrel's iterations per chain by default (strel's n.iter). */
+export const BAYESREL_ITERATIONS = 1000;
+
+/** The Bayesian reliability options of the scale analysis (Bayesrel). */
+function BayesReliabilityFields({ o, set }: { o: ReliabilityOptions; set: (o: ReliabilityOptions) => void }) {
+  const toggle = (on: boolean) => {
+    const { bayes: _b, bayesGlb: _g, iterations: _i, ...rest } = o;
+    set(on ? { ...rest, bayes: true } : rest);
+  };
+  return (
+    <>
+      <label className="check">
+        <input type="checkbox" checked={!!o.bayes} onChange={(e) => toggle(e.target.checked)} />
+        <span>Bayesian reliability with credible intervals<br />
+          <span className="hint">Posterior means and credible intervals of α, Guttman’s λ2 and McDonald’s ω (Bayesrel,
+            Pfadt et al. 2022), at the confidence level of the settings, seeded by the settings’ seed.</span></span>
+      </label>
+      {o.bayes && (
+        <div className="row2">
+          <NumField id="rel-iter" label="Iterations per chain" value={o.iterations ?? BAYESREL_ITERATIONS}
+            lo={100} hi={20000} step={100} int onChange={(iterations) => set({ ...o, iterations })} />
+          <label className="check">
+            <input type="checkbox" checked={!!o.bayesGlb} onChange={(e) => {
+              const { bayesGlb: _g, ...rest } = o;
+              set(e.target.checked ? { ...rest, bayesGlb: true } : rest);
+            }} />
+            <span>Also the greatest lower bound<br />
+              <span className="hint">Slow: one glb per posterior draw (about 20 s for five items in desktop R, several
+                times longer in the browser).</span></span>
+          </label>
+        </div>
+      )}
+    </>
+  );
+}
+
+const BAYES_NAME = {
+  alpha: 'Cronbach’s α',
+  lambda2: 'Guttman’s λ2',
+  glb: 'Greatest lower bound (glb)',
+  omega: 'McDonald’s ω (one factor)',
+} as const;
+
+const BAYESREL_SOURCE = 'Pfadt, J. M., van den Bergh, D., Sijtsma, K., Moshagen, M., & Wagenmakers, E.-J. (2022). '
+  + 'Bayesian estimation of single-test reliability coefficients. Multivariate Behavioral Research, 57(4), 620–641. '
+  + 'https://doi.org/10.1080/00273171.2021.1891855';
+
+/** Bayesrel's posterior summaries, with the chains' convergence. */
+function BayesReliabilityTable({ b }: { b: BayesReliabilityResult }) {
+  const level = pct(b.interval);
+  const rows: Row[] = b.estimates.map((e) => [
+    c(BAYES_NAME[e.estimate] ?? e.estimate),
+    c(e.mean),
+    c(ci(e.low, e.high)),
+    { ...c(e.rhat, undefined, 3), cls: e.rhat > 1.01 ? 'bad' : undefined },
+    c(e.ess, undefined, 0),
+  ]);
+  return (
+    <Table title="Bayesian reliability (posterior)" file="reliability-bayes"
+      columns={['Coefficient', 'Posterior mean', `${level} credible interval`, 'R-hat', 'Effective draws']}
+      rows={rows}
+      note={`Bayesrel ${b.version} (strel): ${b.chains} chains of ${b.iterations.toLocaleString('en')} `
+        + `iterations, the first ${b.burnin} discarded, seed ${b.seed}. α, λ2 and the glb from the posterior of the `
+        + 'covariance matrix (inverse Wishart), ω from a Bayesian one-factor model. An R-hat above 1.01 (red) means the '
+        + `chains have not mixed: raise the iterations. Source: ${BAYESREL_SOURCE}.`} />
+  );
+}
 
 function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<ReliabilityOptions>) {
   const d = rawData(ctx);
@@ -607,6 +676,7 @@ function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<Reliab
           hint="Categories in their order: a near miss counts as partial agreement. Squared distances are psych’s default." />
         {o.kappaWeights === 'custom' && <WeightMatrixInput value={o.weightMatrix ?? []} onChange={(weightMatrix) => set({ ...o, weightMatrix })} />}
       </>}
+      {o.type === 'scale' && <BayesReliabilityFields o={o} set={set} />}
     </fieldset>
   );
 }
@@ -656,6 +726,7 @@ function ReliabilityView({ r }: { r: ReliabilityResult }) {
         ]} note="α assumes equal loadings (tau-equivalence); ω total uses a one-factor model’s loadings; the glb is the largest reliability consistent with the inter-item correlations (psych’s factor-analytic estimate, glb.fa). psych::alpha, omega and glb.fa." />
         <Table title="Items" file="reliability-items" columns={['Item', 'Mean', 'SD', 'Item–rest correlation', 'α if dropped']}
           rows={(r.items ?? []).map((x): Row => [c(x.item), c(x.mean), c(x.sd), c(x.itemRest), c(x.alphaIfDropped)])} note="A negative item–rest correlation usually means the item needs reverse coding." />
+        {r.bayes && <BayesReliabilityTable b={r.bayes} />}
       </>}
       {r.type === 'icc' && <Table title="Intraclass correlations (Shrout & Fleiss)" file="reliability-icc" columns={['Type', 'ICC', 'F', 'df1', 'df2', 'p', `${conf} CI`]}
         rows={(r.icc ?? []).map((x): Row => [c(ICC_NAME[x.type] ?? x.type), c(x.icc), c(x.f), c(x.df1, undefined, 0), c(x.df2, undefined, 0), pCell(x.p), c(ci(x.ciLow, x.ciHigh))])}
@@ -677,20 +748,31 @@ function ReliabilityView({ r }: { r: ReliabilityResult }) {
   );
 }
 
+/** The Bayesian options' part of the fingerprint (the seed too: the draws depend on it). */
+const bayesParts = (o: ReliabilityOptions, seed: number): (string | number)[] => [
+  'bayes',
+  o.bayesGlb ? 'glb' : '',
+  o.iterations ?? BAYESREL_ITERATIONS,
+  seed,
+];
 /** The kappa options apply to kappa only (they stay in the options when the analysis changes, unused). */
 const relCols = (o: ReliabilityOptions) => (o.type === 'kappa' && o.kappaTable ? [o.kappaTable.rows, o.kappaTable.columns, o.kappaTable.counts].filter(Boolean) : o.vars);
 const kappaParts = (o: ReliabilityOptions): (string | number)[] => [
   ...(o.kappaTable ? ['table', o.kappaTable.rows, o.kappaTable.columns, o.kappaTable.counts, o.kappaTable.nObs ?? ''] : []),
   ...(o.kappaWeights && o.kappaWeights !== 'squared' ? [o.kappaWeights, JSON.stringify(o.weightMatrix ?? [])] : []),
 ];
-const relInput = (o: ReliabilityOptions, ctx: Pick<AnalysisCtx, 'settings'>): ReliabilityInput => {
+export const relInput = (o: ReliabilityOptions, ctx: Pick<AnalysisCtx, 'settings'>): ReliabilityInput => {
   const { kappaTable, kappaWeights, weightMatrix, ...rest } = o;
-  return { ...rest, confidence: ctx.settings.confidence, ...(o.type === 'kappa' ? { ...(kappaTable ? { kappaTable } : {}), ...(kappaWeights && kappaWeights !== 'squared' ? { kappaWeights } : {}), ...(kappaWeights === 'custom' ? { weightMatrix } : {}) } : {}) };
+  const { bayes, bayesGlb, iterations, ...plain } = rest;
+  const bayesian = o.type === 'scale' && bayes
+    ? { bayes, ...(bayesGlb ? { bayesGlb } : {}), iterations: iterations ?? BAYESREL_ITERATIONS, seed: ctx.settings.seed }
+    : {};
+  return { ...plain, ...bayesian, confidence: ctx.settings.confidence, ...(o.type === 'kappa' ? { ...(kappaTable ? { kappaTable } : {}), ...(kappaWeights && kappaWeights !== 'squared' ? { kappaWeights } : {}), ...(kappaWeights === 'custom' ? { weightMatrix } : {}) } : {}) };
 };
 export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityResult> = {
-  id: 'reliability', title: 'Reliability and agreement', sub: 'α, ω, glb; ICC; Cohen’s kappa; Bland–Altman (psych)', group: 'Basic statistics',
+  id: 'reliability', title: 'Reliability and agreement', sub: 'α, ω, glb (also Bayesian); ICC; Cohen’s kappa; Bland–Altman (psych, Bayesrel)', group: 'Basic statistics',
   entries: [
-    { title: 'Scale reliability', sub: 'Cronbach’s α, McDonald’s ω, greatest lower bound, item statistics', options: (o) => ({ ...o, type: 'scale' }) },
+    { title: 'Scale reliability', sub: 'Cronbach’s α, McDonald’s ω, greatest lower bound, item statistics; Bayesian credible intervals (Bayesrel)', options: (o) => ({ ...o, type: 'scale' }) },
     { title: 'Intraclass correlation', sub: 'agreement of raters on a continuous rating (Shrout & Fleiss)', options: (o) => ({ ...o, type: 'icc' }) },
     { title: 'Cohen’s kappa', sub: 'agreement of two raters on categories', options: (o) => ({ ...o, type: 'kappa' }) },
     { title: 'Bland–Altman', sub: 'agreement of two measurement methods', options: (o) => ({ ...o, type: 'blandaltman' }) },
@@ -708,6 +790,9 @@ export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityRe
       type: oneOf(raw.type, RELIABILITY_TYPES, 'scale'), vars: names(raw.vars),
       ...(kt ? { kappaTable: { rows: name(kt.rows), columns: name(kt.columns), counts: name(kt.counts), ...(n !== null ? { nObs: n } : {}) } } : {}),
       ...(w !== 'squared' ? { kappaWeights: w } : {}), ...(w === 'custom' ? { weightMatrix: m } : {}),
+      ...(raw.bayes === true ? { bayes: true as const } : {}),
+      ...(raw.bayesGlb === true ? { bayesGlb: true as const } : {}),
+      ...(raw.iterations !== undefined ? { iterations: clampStrict(raw.iterations, 100, 20000, BAYESREL_ITERATIONS, true) } : {}),
     };
   },
   Options: ReliabilityForm,
@@ -722,9 +807,15 @@ export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityRe
     }
     if ((o.type === 'kappa' || o.type === 'blandaltman') && o.vars.length !== 2) return 'Choose exactly two variables.';
     if (o.vars.length < 2) return 'Choose at least two variables.';
+    if (o.type === 'scale' && o.bayes && o.vars.length < 3) return 'Bayesian reliability needs at least three items.';
     return missingColumns(ctx, o.vars, REL_NAME[o.type]);
   },
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, relCols(o), [o.type, ctx.settings.confidence, ...(o.type === 'kappa' ? kappaParts(o) : [])]),
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, relCols(o), [
+    o.type,
+    ctx.settings.confidence,
+    ...(o.type === 'kappa' ? kappaParts(o) : []),
+    ...(o.type === 'scale' && o.bayes ? bayesParts(o, ctx.settings.seed) : []),
+  ]),
   run: async (o, ctx) => (await engine()).reliabilityR(rawData(ctx)!, relInput(o, ctx)),
   script: async (o, ctx) => (await engine()).reliabilityScriptR(rawData(ctx)!, relInput(o, ctx)),
   summary: (o) => `${REL_NAME[o.type].toLowerCase()} · ${o.type === 'kappa' && o.kappaTable ? `table ${o.kappaTable.rows || '…'} × ${o.kappaTable.columns || '…'}` : o.vars.join(', ') || '…'}`,

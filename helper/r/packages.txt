@@ -1,5 +1,6 @@
 Amelia
 BayesFactor
+Bayesrel
 EGAnet
 GLMMadaptive
 GPArotation

@@ -70,6 +70,12 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   'reliability:scale': { title: 'Scale reliability (alpha, omega, glb)', examples: ['psych-alpha-neuroticism'], features: ['rengine/tests::scale reliability'] },
   'reliability:icc': { title: 'Intraclass correlations', examples: ['psych-icc-shroutfleiss'], features: ['rengine/tests::intraclass'] },
   'reliability:kappa': { title: 'Cohen’s kappa', examples: ['psych-kappa-cohen', 'psych-kappa-cohen-nonsymmetric'], features: ['rengine/tests::intraclass'] },
+  'reliability:scale:bayes': {
+    title: 'Bayesian scale reliability: α, λ2, ω, glb with credible intervals (Bayesrel)',
+    examples: ['bayesrel-asrm'],
+    features: ['rengine/tests::Bayesian with the glb'],
+    note: 'Bayesrel::strel with the same seed (scripts/validation/bayesrel.R).',
+  },
   'reliability:blandaltman': { title: 'Bland–Altman limits of agreement', features: ['rengine/tests::Bland'] },
   bttest: {},
   'bttest:independent': { title: 'Bayesian independent-samples t-test', examples: ['bayesfactor-chickwts'], features: ['rengine/bayes::independent samples'] },

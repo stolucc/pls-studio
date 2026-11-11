@@ -101,6 +101,8 @@ export const R_PACKAGES = {
   genpathmox: ['jsonlite', 'cSEM', 'genpathmox'],
   flexmix: ['jsonlite', 'cSEM', 'flexmix'],
   psych: ['jsonlite', 'psych', 'GPArotation'],
+  // Bayesian scale reliability (Bayesrel, Pfadt et al.): alpha, lambda-2, omega and the glb with credible intervals.
+  Bayesrel: ['jsonlite', 'psych', 'GPArotation', 'Bayesrel'],
   // Exploratory factor analysis with lavaan's efa() (standard errors, the fit by number of factors).
   psychLavaan: ['jsonlite', 'psych', 'GPArotation', 'lavaan'],
   semfindr: ['jsonlite', 'lavaan', 'semTools', 'semfindr'],

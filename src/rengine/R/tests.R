@@ -656,6 +656,7 @@ ps_reliability <- function(req_json, export = FALSE) {
   if (length(vars) < need) stop(sprintf("Choose at least %d variables.", need))
   if (type %in% c("kappa", "blandaltman") && length(vars) != 2) stop("Choose exactly two variables (the two raters or methods).")
   conf <- ps_bt_conf(req)
+  bayes <- if (type == "scale" && isTRUE(req$bayes)) ps_bayesrel_options(req, length(vars)) else NULL
   fr <- ps_long_frame(req, vars)
   v <- unname(unlist(fr$v[vars]))
   body <- c(sprintf("X <- data[complete.cases(data[, %s]), %s, drop = FALSE]", ps_q(v), ps_q(v)))
@@ -664,7 +665,8 @@ ps_reliability <- function(req_json, export = FALSE) {
       "a <- alpha(X, check.keys = FALSE)  # Cronbach's alpha, item statistics, alpha if an item is dropped",
       "# Omega total of one factor (omega hierarchical is not reported: its one-factor warnings do not concern omega total).",
       "o <- suppressWarnings(suppressMessages(omega(X, nfactors = 1, plot = FALSE)))",
-      "g <- glb.fa(cor(X))  # greatest lower bound (psych's factor-analytic estimate)"),
+      "g <- glb.fa(cor(X))  # greatest lower bound (psych's factor-analytic estimate)",
+      if (!is.null(bayes)) ps_bayesrel_lines(bayes, conf)),
     icc = c("suppressPackageStartupMessages(library(psych))", sprintf("icc <- ICC(X, lmer = FALSE, alpha = %s)  # rows: subjects; columns: raters", format(1 - conf))),
     kappa = c("suppressPackageStartupMessages(library(psych))", ps_kappa_weights(req, NULL),
       sprintf("k <- cohen.kappa(X%s, alpha = %s)%s", ps_kappa_args(req), format(1 - conf), if (identical(req$kappaWeights %||% "squared", "squared")) "  # weighted: squared distances between categories" else "")),
@@ -674,14 +676,17 @@ ps_reliability <- function(req_json, export = FALSE) {
       sprintf("biasCI <- bias + c(-1, 1) * qt(1 - (1 - %s) / 2, n - 1) * s / sqrt(n)", format(conf)))))
   inputs <- list(data = fr$data)
   title <- c(scale = "Scale reliability (psych)", icc = "Intraclass correlation (psych)", kappa = "Cohen's kappa (psych)", blandaltman = "Bland-Altman agreement")[[type]]
-  if (export) return(ps_script(title, if (type == "blandaltman") character(0) else c("psych", "GPArotation")[seq_len(if (type == "scale") 2 else 1)], inputs, body,
-    switch(type, scale = c("a", "o$omega.tot", "g$glb"), icc = "icc", kappa = "k", blandaltman = c("c(bias = bias, sd = s, lower = loa[1], upper = loa[2])", "biasCI"))))
+  packages <- if (type == "blandaltman") character(0) else c("psych", "GPArotation")[seq_len(if (type == "scale") 2 else 1)]
+  if (!is.null(bayes)) packages <- c(packages, "Bayesrel", "coda")
+  if (export) return(ps_script(title, packages, inputs, body,
+    switch(type, scale = c("a", "o$omega.tot", "g$glb", if (!is.null(bayes)) c("summary(br)", "rhat", "ess")), icc = "icc", kappa = "k", blandaltman = c("c(bias = bias, sd = s, lower = loa[1], upper = loa[2])", "biasCI"))))
   env <- ps_run(body, inputs)
   n <- nrow(env$X)
   out <- switch(type,
     scale = { a <- env$a; tot <- a$total; dr <- a$alpha.drop; is <- a$item.stats
       list(alpha = tot$raw_alpha, stdAlpha = tot$std.alpha, averageR = tot$average_r, omegaTotal = env$o$omega.tot, glb = env$g$glb, mean = tot$mean, sd = tot$sd,
-        items = lapply(seq_len(nrow(dr)), function(i) list(item = vars[i], alphaIfDropped = dr$raw_alpha[i], itemRest = is$r.drop[i], mean = is$mean[i], sd = is$sd[i]))) },
+        items = lapply(seq_len(nrow(dr)), function(i) list(item = vars[i], alphaIfDropped = dr$raw_alpha[i], itemRest = is$r.drop[i], mean = is$mean[i], sd = is$sd[i])),
+        bayes = if (is.null(bayes)) NULL else ps_bayesrel_result(env, bayes, conf)) },
     icc = { r <- env$icc$results
       list(icc = lapply(seq_len(nrow(r)), function(i) list(type = as.character(r$type[i]), icc = r$ICC[i], f = r$F[i], df1 = r$df1[i], df2 = r$df2[i], p = r$p[i], ciLow = r[i, "lower bound"], ciHigh = r[i, "upper bound"]))) },
     kappa = { cf <- env$k$confid
@@ -691,4 +696,60 @@ ps_reliability <- function(req_json, export = FALSE) {
   if (type == "kappa") out$agreement <- NULL
   ps_json(c(list(type = type, vars = vars, n = n, confidence = conf), out, list(warnings = env$.warnings,
     engine = if (type == "blandaltman") list(package = "stats", version = as.character(getRversion())) else ps_engine("psych"))))
+}
+
+# ---- Bayesian scale reliability (Bayesrel; Pfadt, van den Bergh, Sijtsma, Moshagen & Wagenmakers 2022)
+# Coefficient alpha, Guttman's lambda-2, McDonald's omega (and optionally the greatest lower bound, which is slow:
+# a glb per posterior draw) with posterior means and credible intervals from Bayesrel::strel: an inverse-Wishart
+# posterior of the covariance matrix (alpha, lambda-2, glb) and a Bayesian one-factor model (omega), sampled in
+# chains after a burn-in, seeded. R-hat and effective sample sizes from coda.
+
+PS_BAYESREL_CHAINS <- 3L
+PS_BAYESREL_BURNIN <- 50L
+
+#' The request's Bayesian options, validated: the seed, the iterations per chain, the estimates.
+ps_bayesrel_options <- function(req, items) {
+  if (items < 3) stop("Bayesian reliability needs at least three items.")
+  seed <- as.integer(ps_number(req$seed %||% 1, "seed"))
+  iter <- as.integer(ps_number(req$iterations %||% 1000, "number of iterations"))
+  if (iter < 100 || iter > 20000) stop("The number of iterations must be between 100 and 20000.")
+  estimates <- c("alpha", "lambda2", if (isTRUE(req$bayesGlb)) "glb", "omega")
+  list(seed = seed, iter = iter, estimates = estimates)
+}
+
+#' The script lines: strel with a seed, then the convergence diagnostics of each estimate's chains.
+ps_bayesrel_lines <- function(b, conf) {
+  c("# Bayesian reliability (Bayesrel::strel): posterior means and credible intervals.",
+    "suppressPackageStartupMessages(library(Bayesrel))",
+    sprintf("set.seed(%d)", b$seed),
+    sprintf("br <- strel(X, estimates = %s, interval = %s, n.iter = %d, n.burnin = %d, n.chains = %d, freq = FALSE)",
+      ps_q(b$estimates), format(conf, digits = 15), b$iter, PS_BAYESREL_BURNIN, PS_BAYESREL_CHAINS),
+    "# Convergence: the chains of each estimate (Bayesrel keeps them as chains x draws, or draws x chains).",
+    sprintf("chains <- function(s) { s <- unclass(s); if (nrow(s) != %dL) s <- t(s);", PS_BAYESREL_CHAINS),
+    "  coda::mcmc.list(lapply(seq_len(nrow(s)), function(i) coda::mcmc(s[i, ]))) }",
+    "rhat <- vapply(br$Bayes$samp, function(s) unname(coda::gelman.diag(chains(s), autoburnin = FALSE)$psrf[1, 1]), 0)",
+    "ess <- vapply(br$Bayes$samp, function(s) unname(coda::effectiveSize(chains(s))), 0)")
+}
+
+#' The posterior summaries from the run: per estimate, its mean, credible interval, R-hat and effective sample size.
+ps_bayesrel_result <- function(env, b, conf) {
+  br <- env$br
+  rows <- lapply(b$estimates, function(e) {
+    key <- paste0("Bayes_", e)
+    list(
+      estimate = e,
+      mean = br$Bayes$est[[key]],
+      low = br$Bayes$cred$low[[key]],
+      high = br$Bayes$cred$up[[key]],
+      rhat = unname(env$rhat[[key]]),
+      ess = unname(env$ess[[key]]))
+  })
+  list(
+    estimates = rows,
+    interval = conf,
+    iterations = b$iter,
+    burnin = PS_BAYESREL_BURNIN,
+    chains = PS_BAYESREL_CHAINS,
+    seed = b$seed,
+    version = as.character(utils::packageVersion("Bayesrel")))
 }
