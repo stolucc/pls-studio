@@ -808,6 +808,7 @@ function Tech10({ rows }: { rows: NonNullable<CbResult['tech10']> }) {
     if (p < 0.05) return 'warn';
     return '';
   };
+  const bonferroniText = bonferroni < 0.001 ? bonferroni.toExponential(1) : bonferroni.toFixed(4);
   return (
     <Table
       title="Bivariate fit of the ordinal indicators (TECH10)"
@@ -821,7 +822,13 @@ function Tech10({ rows }: { rows: NonNullable<CbResult['tech10']> }) {
         c(r.g2p, flag(r.g2p), 3),
         c(r.df, '', 0),
       ])}
-      note={`For each pair of ordinal indicators, the observed two-way table of their categories against the table the model implies (lavaan::lavTables; Mplus TECH10). A large X² or G² points to a pair the model does not reproduce: a local dependency, a missing cross-loading or error correlation, or answers that do not follow the bivariate normal distribution the polychoric correlation assumes. With ${rows.length} pairs some will reach p < .05 by chance: amber below .05, red below the Bonferroni level ${bonferroni < 0.001 ? bonferroni.toExponential(1) : bonferroni.toFixed(4)}. In large samples every pair tends to reject; compare the pairs with each other.`}
+      note={
+        'For each pair of ordinal indicators, the observed two-way table of their categories against the table the model implies (lavaan::lavTables; Mplus TECH10). ' +
+        'A large X² or G² points to a pair the model does not reproduce: a local dependency, a missing cross-loading or error correlation, ' +
+        'or answers that do not follow the bivariate normal distribution the polychoric correlation assumes. ' +
+        `With ${rows.length} pairs some will reach p < .05 by chance: amber below .05, red below the Bonferroni level ${bonferroniText}. ` +
+        'In large samples every pair tends to reject; compare the pairs with each other.'
+      }
     />
   );
 }
@@ -878,7 +885,12 @@ export function jnNote(
   const effect = jn.quadratic
     ? `Slope of ${mo.from} at x: θ(x) = ${fmt(jn.bx)} + 2·${fmt(jn.bint)}·x`
     : `Conditional effect θ(m) = ${fmt(jn.bx)} + ${fmt(jn.bint)}·m`;
-  return `${how} ${effect} with delta-method SEs from the ${lms ? `${cb.interaction!.toUpperCase()} (modsem)` : cb.estimator} parameter covariance; boundaries solve |θ(m)|/SE(m) = ${jn.crit.toFixed(3)}.${lms ? '' : ' Validated against lavaan.'}`;
+  const covarianceFrom = lms ? `${cb.interaction!.toUpperCase()} (modsem)` : cb.estimator;
+  const validated = lms ? '' : ' Validated against lavaan.';
+  return (
+    `${how} ${effect} with delta-method SEs from the ${covarianceFrom} parameter covariance; ` +
+    `boundaries solve |θ(m)|/SE(m) = ${jn.crit.toFixed(3)}.${validated}`
+  );
 }
 
 function Moderation({ cb }: { cb: CbResult }) {

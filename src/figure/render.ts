@@ -499,8 +499,12 @@ function drawErrors(
     if (!inCircle) text = `${e.kind === 'indicator' ? 'e' : 'd'}${amos ? numbered[e.kind] : ''}`;
     else if (plsStyle) text = formatEstimate(style, e.value!);
     else text = noLeadingZero(e.value!.toFixed(Math.min(style.decimals, 2)));
+    const fontSize = small * (plsStyle ? 0.7 : 0.85);
+    const fill = plsStyle ? '#ffffff' : style.pathColor;
+    // A name (no estimate yet) is set in italics, except in Amos's own style.
+    const italic = e.value === null && !amos ? ' font-style="italic"' : '';
     out.push(
-      `<text x="${n(t.cx)}" y="${n(t.cy + small * 0.35)}" font-size="${n(small * (plsStyle ? 0.7 : 0.85))}" text-anchor="middle" fill="${plsStyle ? '#ffffff' : style.pathColor}"${e.value === null && !amos ? ' font-style="italic"' : ''}>${esc(text)}</text>`,
+      `<text x="${n(t.cx)}" y="${n(t.cy + small * 0.35)}" font-size="${n(fontSize)}" text-anchor="middle" fill="${fill}"${italic}>${esc(text)}</text>`,
     );
     if (amos && e.value === null) {
       // Every error term's weight is fixed at 1; the diagram states it until there are estimates.

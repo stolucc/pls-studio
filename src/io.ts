@@ -184,7 +184,10 @@ async function importMatrix(
   const s = useStore.getState();
   const n = await numberDialog({
     title: 'Covariance matrix detected',
-    body: `${fileName} is a ${m.names.length} × ${m.names.length} covariance matrix${m.means ? ' with the variables’ means' : ''}. CB-SEM can be estimated from it (ML, GLS, ULS; MLM/MLMV with a NACOV file${m.means ? '; means and intercepts too' : ''}). PLS and bootstrapping need raw data.`,
+    body:
+      `${fileName} is a ${m.names.length} × ${m.names.length} covariance matrix${m.means ? ' with the variables’ means' : ''}. ` +
+      `CB-SEM can be estimated from it (ML, GLS, ULS; MLM/MLMV with a NACOV file${m.means ? '; means and intercepts too' : ''}). ` +
+      'PLS and bootstrapping need raw data.',
     confirmLabel: 'Use matrix',
     field: { label: 'Sample size N', min: 3, max: 1e8, integer: true },
   });
