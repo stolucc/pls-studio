@@ -254,6 +254,7 @@ ps_anova <- function(req_json, export = FALSE) {
   )
   fml <- sprintf("%s ~ %s", v[[y]], rhs)
   oneway <- length(fac) == 1 && !length(cov)
+  adjust <- ps_p_adjust(req)
   body <- c(
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(y, fac, cov)])))),
     "# Factors (their levels as the groups).",
@@ -279,13 +280,14 @@ ps_anova <- function(req_json, export = FALSE) {
           "pwRank <- pairwise.wilcox.test(data$%s, data$%s, p.adjust.method = \"holm\", exact = FALSE)",
           v[[y]],
           v[[fac[1]]]
-        )
+        ),
+        ps_dunn_lines(v[[y]], v[[fac[1]]], adjust)
       )
     }
   )
   inputs <- list(data = fr$data)
   if (export) {
-    return(ps_script(if (length(cov)) "ANCOVA" else "ANOVA", character(0), inputs, body, c("tab", "shapiro", "levene", if (oneway) c("welch", "kruskal", "tukey", "pwRank"))))
+    return(ps_script(if (length(cov)) "ANCOVA" else "ANOVA", character(0), inputs, body, c("tab", "shapiro", "levene", if (oneway) c("welch", "kruskal", "tukey", "pwRank", "dunn"))))
   }
   env <- ps_run(body, inputs)
   fit <- env$fit
@@ -351,6 +353,8 @@ ps_anova <- function(req_json, export = FALSE) {
     } else {
       NULL
     },
+    dunn = if (oneway) ps_dunn_result(env),
+    adjust = if (oneway) adjust,
     cells = lapply(names(cells), function(k) c(list(cell = k), ps_desc(cells[[k]]))),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
   ))

@@ -91,7 +91,13 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   },
   anova: {
     examples: ['stats-anova-plantgrowth', 'stats-anova-warpbreaks'],
-    features: ['rengine/tests::two-way', 'rengine/tests::one-way', 'rengine/tests::ANCOVA'],
+    features: [
+      'rengine/tests::two-way',
+      'rengine/tests::one-way',
+      'rengine/tests::ANCOVA',
+      'rengine/nonparametric::Dunn',
+    ],
+    note: 'Dunn’s test after Kruskal–Wallis against dunn.test (scripts/validation/nonparametric.R).',
   },
   rmanova: {
     examples: ['stats-rmanova-rounding', 'cardata-rmanova-obrienkaiser'],

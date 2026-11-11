@@ -18,7 +18,12 @@ import {
   ttestAnalysis,
 } from './tests';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { ContingencyResult, FreqTestResult, ReliabilityResult } from '../rengine/tests';
+import type {
+  AnovaResult,
+  ContingencyResult,
+  FreqTestResult,
+  ReliabilityResult,
+} from '../rengine/tests';
 import type { AnalysisCtx } from './types';
 
 const data = {
@@ -497,5 +502,43 @@ describe('Cochran’s Q', () => {
     expect(html).toContain('Share of “yes”');
     expect(html).toContain('Cochran’s Q test');
     expect(html).toContain('Benjamini–Hochberg');
+  });
+});
+
+describe('Dunn’s test after Kruskal–Wallis', () => {
+  const t = anovaAnalysis;
+  const o = { ...t.defaults(ctx), dependent: 'y', factors: ['g'] };
+
+  it('keeps the adjustment only when it is not Holm, and it makes the result stale', () => {
+    expect(t.parseOptions({ ...o, adjust: 'bonferroni' })).toMatchObject({ adjust: 'bonferroni' });
+    expect('adjust' in t.parseOptions({ ...o, adjust: 'holm' })!).toBe(false);
+    expect('adjust' in t.parseOptions({ ...o, adjust: 'none' })!).toBe(false);
+    expect(t.fingerprint({ ...o, adjust: 'BH' }, ctx)).not.toBe(t.fingerprint(o, ctx));
+  });
+
+  it('shows Dunn’s comparisons with the adjustment named', () => {
+    const result = {
+      dependent: 'y',
+      factors: ['g'],
+      covariates: [],
+      ssType: 'III',
+      formula: 'y ~ g',
+      table: [],
+      residual: { ss: 1, df: 2, ms: 0.5 },
+      n: 4,
+      levene: { stat: 1, df1: 1, df2: 2, p: 0.4 },
+      shapiro: null,
+      welch: null,
+      kruskal: null,
+      tukey: null,
+      dunn: [{ comparison: 'a - b', z: -1.2, p: 0.23, pAdjusted: 0.46 }],
+      adjust: 'bonferroni',
+      cells: [],
+      warnings: [],
+      engine: { package: 'stats', version: '4.6.2' },
+    } as unknown as AnovaResult;
+    const html = renderToStaticMarkup(<t.View result={result} options={o} current />);
+    expect(html).toContain('Post hoc after Kruskal–Wallis (Dunn’s test)');
+    expect(html).toContain('adjusted by Bonferroni');
   });
 });

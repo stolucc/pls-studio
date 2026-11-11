@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, it } from 'vitest';
 import type { Dataset } from '../engine/types';
 import { near } from '../validation/record';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
-import { contingencyR, freqTestR, type FreqTestInput } from './tests';
+import { anovaR, contingencyR, freqTestR, type FreqTestInput, type PAdjust } from './tests';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -112,4 +112,46 @@ describe('Cochran’s Q', () => {
       close(`McNemar p (BH), ${x.comparison}`, x.pAdjusted, ref.cochran.pBH[i]);
     });
   }, 600_000);
+});
+
+/** A comparison's groups, numeric labels as numbers ("1.0 - 2.0" and "1 - 2" are the same pair). */
+const sameGroups = (comparison: string) =>
+  comparison
+    .split(' - ')
+    .map((g) => (Number.isFinite(Number(g)) ? String(Number(g)) : g))
+    .join(' - ');
+
+describe('Dunn’s test after Kruskal–Wallis', () => {
+  const cases = [
+    ['PlantGrowth (no ties)', 'plantGrowth', 'dunnPlantGrowth', 'weight', 'group'],
+    ['ToothGrowth by dose (ties)', 'toothGrowth', 'dunnToothGrowth', 'len', 'dose'],
+  ] as const;
+  const adjusted: [PAdjust, string][] = [
+    ['holm', 'pHolm'],
+    ['bonferroni', 'pBonferroni'],
+    ['BH', 'pBH'],
+  ];
+  for (const [label, frame, key, y, g] of cases) {
+    it(`${label}: z and p as dunn.test, adjusted by Holm, Bonferroni and Benjamini–Hochberg`, async () => {
+      const want = ref[key];
+      for (const [adjust, field] of adjusted) {
+        const r = await anovaR(data(ref[frame]), {
+          dependent: y,
+          factors: [g],
+          covariates: [],
+          ssType: 'III',
+          interactions: true,
+          confidence: 0.95,
+          adjust,
+        });
+        r.dunn!.forEach((x, i) => {
+          if (sameGroups(x.comparison) !== sameGroups(want.comparisons[i]))
+            throw new Error(`${x.comparison} ≠ ${want.comparisons[i]}`);
+          close(`z, ${x.comparison}`, x.z, want.z[i]);
+          close(`p, ${x.comparison}`, x.p, want.p[i]);
+          close(`p (${adjust}), ${x.comparison}`, x.pAdjusted, want[field][i]);
+        });
+      }
+    }, 600_000);
+  }
 });

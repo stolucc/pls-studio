@@ -1,7 +1,8 @@
 # Nonparametric tests added to the basic-statistics cards (tests.R calls these):
 # - McNemar's test of a paired 2 x 2 table (asymptotic, with and without the continuity
 #   correction, and exact) and Bowker's test of symmetry of a paired k x k table;
-# - Cochran's Q test of k related binary measures, with pairwise McNemar tests.
+# - Cochran's Q test of k related binary measures, with pairwise McNemar tests;
+# - Dunn's test after Kruskal-Wallis.
 
 #' Script lines of the paired tests of a contingency table: the rows and the columns
 #' are the same subjects' two measurements on the same categories (already factors
@@ -148,4 +149,41 @@ ps_cochran <- function(req, export) {
     warnings = env$.warnings,
     engine = list(package = "stats", version = as.character(getRversion()))
   ))
+}
+
+# ---- Dunn's test after Kruskal-Wallis (the ANOVA card with one factor)
+
+#' Script lines of Dunn's (1964) test of every pair of groups: the difference of the
+#' groups' mean ranks over its standard error, with the correction for ties, two-sided
+#' normal p-values, adjusted (`adjust`). `y` and `g` name the dependent variable and the
+#' factor (a factor) in `data`.
+ps_dunn_lines <- function(y, g, adjust) {
+  c(
+    sprintf("# After Kruskal-Wallis: Dunn's test of every pair of groups, p adjusted (%s).", adjust),
+    sprintf("ranks <- rank(data$%s)", y),
+    "N <- length(ranks)",
+    "tied <- table(ranks)",
+    "tieCorrection <- sum(tied^3 - tied) / (12 * (N - 1))",
+    sprintf("meanRank <- tapply(ranks, data$%s, mean)", g),
+    sprintf("groupSize <- tapply(ranks, data$%s, length)", g),
+    "dunnPairs <- combn(length(meanRank), 2, simplify = FALSE)",
+    "dunnPair <- function(pair) {",
+    "  i <- pair[1]",
+    "  j <- pair[2]",
+    "  se <- sqrt((N * (N + 1) / 12 - tieCorrection) * (1 / groupSize[[i]] + 1 / groupSize[[j]]))",
+    "  z <- (meanRank[[i]] - meanRank[[j]]) / se",
+    "  c(z = z, p = 2 * pnorm(-abs(z)))",
+    "}",
+    "dunn <- as.data.frame(do.call(rbind, lapply(dunnPairs, dunnPair)))",
+    "dunn$comparison <- vapply(dunnPairs, function(pair) paste(names(meanRank)[pair], collapse = \" - \"), \"\")",
+    sprintf("dunn$pAdjusted <- p.adjust(dunn$p, method = \"%s\")", adjust)
+  )
+}
+
+#' Dunn's comparisons from the run.
+ps_dunn_result <- function(env) {
+  d <- env$dunn
+  lapply(seq_len(nrow(d)), function(i) {
+    list(comparison = d$comparison[i], z = d$z[i], p = d$p[i], pAdjusted = d$pAdjusted[i])
+  })
 }

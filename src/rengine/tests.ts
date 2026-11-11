@@ -67,6 +67,8 @@ export interface AnovaInput {
   ssType: 'I' | 'III';
   interactions: boolean;
   confidence: number;
+  /** One factor: the adjustment of Dunn's comparisons (absent: Holm). */
+  adjust?: PAdjust;
 }
 export interface AnovaRow {
   term: string;
@@ -95,6 +97,9 @@ export interface AnovaResult {
   tukey: { comparison: string; diff: number; ciLow: number; ciHigh: number; p: number }[] | null;
   /** One factor: pairwise Wilcoxon rank-sum tests after Kruskal-Wallis, p adjusted by Holm (absent in results from before they were added). */
   pairwiseRank?: { comparison: string; pHolm: number }[] | null;
+  /** One factor: Dunn's test of every pair of groups (mean ranks, tie-corrected), p adjusted by `adjust`. */
+  dunn?: { comparison: string; z: number; p: number; pAdjusted: number }[] | null;
+  adjust?: PAdjust;
   cells: (Desc & { cell: string })[];
   warnings: string[];
   engine: REngineInfo;
@@ -403,6 +408,7 @@ export async function anovaR(d: Dataset, i: AnovaInput): Promise<AnovaResult> {
     kruskal: obj<HTest>(r.kruskal),
     tukey: r.tukey ? rList(r.tukey) : null,
     pairwiseRank: r.pairwiseRank ? rList(r.pairwiseRank) : null,
+    dunn: r.dunn ? rList(r.dunn) : null,
     cells: rList(r.cells),
     warnings: rStrings(r.warnings),
   } as AnovaResult;

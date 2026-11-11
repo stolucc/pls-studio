@@ -567,6 +567,13 @@ function AnovaForm({ options: o, set, ctx, disabled }: OptionsProps<AnovaOptions
         for unbalanced designs. With one factor and no covariates the card adds Welch’s ANOVA,
         Kruskal–Wallis and Tukey’s comparisons.
       </div>
+      {o.factors.length === 1 && !o.covariates.length && (
+        <AdjustChoice
+          o={o}
+          set={set}
+          label="Dunn’s test after Kruskal–Wallis: p-value adjustment"
+        />
+      )}
     </fieldset>
   );
 }
@@ -661,6 +668,19 @@ function AnovaView({ r, conf }: { r: AnovaResult; conf: number }) {
           note="Normal approximation; p-values adjusted for the number of comparisons by Holm’s method."
         />
       )}
+      {r.dunn && r.dunn.length > 0 && (
+        <Table
+          title="Post hoc after Kruskal–Wallis (Dunn’s test)"
+          file="anova-dunn"
+          columns={['Comparison', 'z', 'p', 'p adjusted']}
+          rows={r.dunn.map((t): Row => [c(t.comparison), c(t.z), pCell(t.p), pCell(t.pAdjusted)])}
+          note={
+            'z: the difference of the two groups’ mean ranks (all groups ranked together, as ' +
+            'Kruskal–Wallis ranks them) over its standard error, corrected for ties (Dunn 1964). ' +
+            `p two-sided, adjusted by ${ADJUST_NAME[r.adjust ?? 'holm']}.`
+          }
+        />
+      )}
       <Table
         title="Descriptives by cell"
         file="anova-cells"
@@ -694,11 +714,16 @@ function AnovaView({ r, conf }: { r: AnovaResult; conf: number }) {
   );
 }
 
+/** The post hoc adjustment from a project file: only when it is not Holm (the default). */
+function parseAdjust(raw: Record<string, unknown>): { adjust?: PAdjust } {
+  const adjust = oneOf(raw.adjust, ADJUST_IDS, 'holm');
+  return adjust === 'holm' ? {} : { adjust };
+}
 const anovaCols = (o: AnovaOptions) => [o.dependent, ...o.factors, ...o.covariates].filter(Boolean);
 export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidence?: number }> = {
   id: 'anova',
   title: 'ANOVA',
-  sub: 'between-subjects factors, ANCOVA with covariates; type III or I',
+  sub: 'between-subjects factors, ANCOVA with covariates; type III or I; Kruskal–Wallis with Dunn’s test',
   group: 'Basic statistics',
   entries: [
     {
@@ -725,6 +750,7 @@ export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidenc
           covariates: names(raw.covariates),
           ssType: oneOf(raw.ssType, ['III', 'I'] as const, 'III'),
           interactions: raw.interactions !== false,
+          ...parseAdjust(raw),
         }
       : null,
   Options: AnovaForm,
@@ -744,6 +770,8 @@ export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidenc
       '|',
       ...o.covariates,
       ctx.settings.confidence,
+      // (only when set: earlier fingerprints are unchanged)
+      ...(o.adjust ? [o.adjust] : []),
     ]),
   run: async (o, ctx) => ({
     ...(await (

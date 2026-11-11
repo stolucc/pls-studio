@@ -104,6 +104,36 @@ out$cochran <- list(
   pExactHolm = p.adjust(ph$pExact, "holm")
 )
 
+# ---- Dunn's test after Kruskal-Wallis: dunn.test (altp = TRUE: two-sided p) on PlantGrowth
+# (no ties) and ToothGrowth's length by dose (ties), Holm, Bonferroni and Benjamini-Hochberg.
+dunn_ref <- function(y, g) {
+  run <- function(method) {
+    invisible(capture.output(suppressMessages(
+      d <- dunn.test::dunn.test(y, g, method = method, altp = TRUE, kw = FALSE, table = FALSE)
+    ), type = "output"))
+    d
+  }
+  holm <- run("holm")
+  list(
+    comparisons = holm$comparisons,
+    z = holm$Z,
+    p = holm$altP,
+    pHolm = holm$altP.adjusted,
+    pBonferroni = run("bonferroni")$altP.adjusted,
+    pBH = run("bh")$altP.adjusted
+  )
+}
+pg <- datasets::PlantGrowth
+out$plantGrowth <- list(
+  names = c("weight", "group"),
+  cols = list(pg$weight, as.integer(pg$group)),
+  categories = list(group = levels(pg$group))
+)
+out$dunnPlantGrowth <- dunn_ref(pg$weight, pg$group)
+tg <- datasets::ToothGrowth
+out$toothGrowth <- list(names = c("len", "dose"), cols = list(tg$len, tg$dose), categories = list())
+out$dunnToothGrowth <- dunn_ref(tg$len, factor(tg$dose))
+
 writeLines(
   toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null", na = "null"),
   "src/engine/__fixtures__/nonparametric/reference.json"
