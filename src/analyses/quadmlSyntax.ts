@@ -103,6 +103,19 @@ const fail = (m: string): never => {
   throw new QuadSyntaxError(m);
 };
 const lc = (s: string) => s.toLowerCase();
+/** A growth factor's loading at time t: 1 on the intercept, t on the slope, t² on the quadratic. */
+const growthLoading = (factorIndex: number, t: number) => {
+  if (factorIndex === 0) return 1;
+  if (factorIndex === 1) return t;
+  return t * t;
+};
+/** The Mplus word for a kind of statement, for messages. */
+const mplusWord = (kind: string) => {
+  if (kind === '~') return 'ON';
+  if (kind === '~1') return '(mean)';
+  if (kind === '~~') return 'WITH';
+  return 'BY';
+};
 const num = (s: string) => {
   const v = Number(s);
   if (s === '' || !Number.isFinite(v)) fail(`“${s}” is not a number.`);
@@ -352,7 +365,9 @@ export function buildQuad(
           fail(
             `INTEGRATION = ${value}: a number of points, STANDARD (n), GAUSSHERMITE (n) or MONTECARLO (n).`,
           );
-        integ.type = r![1] === 'GAUSSHERMITE' ? 'gh' : r![1] === 'MONTECARLO' ? 'mc' : 'rect';
+        if (r![1] === 'GAUSSHERMITE') integ.type = 'gh';
+        else if (r![1] === 'MONTECARLO') integ.type = 'mc';
+        else integ.type = 'rect';
         if (r![2]) {
           integ.points = Number(r![2]);
           pointsGiven = true;
@@ -599,7 +614,9 @@ export function buildQuad(
     }
   const outType = (y: string): QuadOutcomeType | null => {
     const t = typeOf(y);
-    return t === 'cont' ? (nonlinear.has(y) ? 'normal' : null) : t;
+    if (t !== 'cont') return t;
+    // A continuous outcome is integrated (normal) only when it enters nonlinearly; otherwise it stays Gaussian.
+    return nonlinear.has(y) ? 'normal' : null;
   };
   const gaussVars = [...factors.keys(), ...cols.filter((c) => dv.has(c) && outType(c) === null)];
   const gIdx = (v: string) => gaussVars.indexOf(v);
@@ -739,7 +756,13 @@ export function buildQuad(
       if (g.inflation || t0 === 'cat') def = gi === 0 ? { fixed: 0, start: 0 } : { start: 0 };
       else if (t0 === 'count' || t0 === 'zip' || t0 === 'nb' || t0 === 'zinb')
         def = { start: gi === 0 ? Math.log(Math.max(S(y0).mean, 0.1)) : 0 };
-      else def = { start: gi === 0 ? S(y0).mean : gi === 1 ? (S(yl).mean - S(y0).mean) / dt : 0 };
+      else {
+        // Intercept: the first outcome's mean; slope: the mean change per time unit; quadratic: 0.
+        let start = 0;
+        if (gi === 0) start = S(y0).mean;
+        else if (gi === 1) start = (S(yl).mean - S(y0).mean) / dt;
+        def = { start };
+      }
     } else if (lat) def = { fixed: 0, start: 0 };
     else def = growthOf(v) ? { fixed: 0, start: 0 } : { start: S(v).mean };
     alpha.push(param({ lhs: v, op: '~1', rhs: '' }, find('~1', v), def));
@@ -750,9 +773,8 @@ export function buildQuad(
       if (fac.indicators.includes(v)) {
         const g = growthFactor(f);
         if (g) {
-          const t = g.times[g.outcomes.indexOf(v)],
-            gi = g.factors.indexOf(f);
-          const val = gi === 0 ? 1 : gi === 1 ? t : t * t;
+          const t = g.times[g.outcomes.indexOf(v)];
+          const val = growthLoading(g.factors.indexOf(f), t);
           Bm.push([
             i,
             gIdx(f),
@@ -828,9 +850,8 @@ export function buildQuad(
       const g = growthFactor(f);
       if (g) {
         if (g.inflation !== isInfl || !g.outcomes.includes(y)) continue;
-        const t = g.times[g.outcomes.indexOf(y)],
-          gi = g.factors.indexOf(f),
-          val = gi === 0 ? 1 : gi === 1 ? t : t * t;
+        const t = g.times[g.outcomes.indexOf(y)];
+        const val = growthLoading(g.factors.indexOf(f), t);
         loads.push([
           gIdx(f),
           param({ lhs: f, op: '=~', rhs: own }, null, { fixed: val, start: val }),
@@ -912,11 +933,11 @@ export function buildQuad(
       Object.assign(o, linFor(y, y, false, null));
       o.icpt = -1;
     } else {
-      const defI = g
-        ? { fixed: 0, start: 0 }
-        : t === 'count' || t === 'zip' || t === 'nb' || t === 'zinb'
-          ? { start: Math.log(Math.max(s.mean, 0.1)) }
-          : { start: s.mean };
+      // The intercept: fixed at 0 under a growth model, else started at the (log) mean.
+      let defI: { fixed?: number; start: number } = { start: s.mean };
+      if (g) defI = { fixed: 0, start: 0 };
+      else if (t === 'count' || t === 'zip' || t === 'nb' || t === 'zinb')
+        defI = { start: Math.log(Math.max(s.mean, 0.1)) };
       Object.assign(o, linFor(y, y, false, defI));
       if (t === 'censored' || t === 'cinfl' || t === 'normal') {
         o.side = censored.get(y)?.side ?? 'below';
@@ -948,9 +969,7 @@ export function buildQuad(
         fail(`[${it.a}]: ${it.a} is a covariate (conditioned on, not modelled).`);
       if (it.kind === '~~' && covariates.has(it.a))
         fail(`${it.a}: ${it.a} is a covariate (conditioned on, not modelled).`);
-      fail(
-        `${it.a} ${it.kind === '~' ? 'ON' : it.kind === '~1' ? '(mean)' : it.kind === '~~' ? 'WITH' : 'BY'} ${it.b}: not a parameter of this model.`,
-      );
+      fail(`${it.a} ${mplusWord(it.kind)} ${it.b}: not a parameter of this model.`);
     }
   // MODEL PRIORS: label ~ N(mean, variance) for the parameters labelled in MODEL.
   const priors: { slot: number; mean: number; variance: number }[] = [];
@@ -996,7 +1015,9 @@ export function buildQuad(
       if (Number.isFinite(o.col[r]))
         for (const v of o.refs) if (!gcol[v] || !Number.isFinite(gcol[v]![r])) d.add(v);
     dims = Math.max(dims, d.size);
-    work += integ.type === 'mc' ? (d.size ? integ.points : 1) : integ.points ** d.size;
+    // Monte Carlo draws the same points whatever the dimension; quadrature grows as points^dimensions.
+    if (integ.type === 'mc') work += d.size ? integ.points : 1;
+    else work += integ.points ** d.size;
   }
   if (integ.type !== 'mc' && work > 3e7)
     fail(

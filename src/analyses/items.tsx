@@ -150,6 +150,18 @@ const PARAM: Record<string, string> = {
 const paramName = (k: string) =>
   PARAM[k] ?? k.replace(/^Extrmt(\d+)$/, 'Threshold $1').replace(/^Catgr\.(\d+)$/, 'Step $1');
 
+/** The note under the logit-metric table: Mplus's parameterisation, asymptotes, and where the standard errors come from. */
+function logitNote(r: IrtResult): string {
+  const asymptotes = r.coefficients?.some((k) => k.parameter.includes('asymptote'))
+    ? '; with asymptotes, P(u = 1) = g + (u − g) / (1 + exp(threshold − loading × θ)), where threshold 2 is −logit(g) and threshold 3 −logit(u) (Mplus’s u$2 and u$3)'
+    : '';
+  let errors = 'Standard errors from the inverse Hessian.';
+  if (r.classes) errors = 'Mixture: no standard errors.';
+  else if (r.robust) errors = 'Robust (sandwich) standard errors, as Mplus’s MLR.';
+  const quadrature = r.quadrature ? ` ${r.quadrature} quadrature points.` : '';
+  return `The same model as Mplus prints it (factor variance 1): a loading is the discrimination, a threshold (a partial credit model’s step) is minus the package’s intercept, P(u = 1) = 1 / (1 + exp(threshold − loading × θ))${asymptotes}. ${errors}${quadrature}`;
+}
+
 function IrtView({ r }: { r: IrtResult }) {
   const keys = [...new Set(r.params.flatMap((p) => Object.keys(p.values)))];
   const total = r.theta.map((_, i) => r.information.reduce((s, a) => s + (a[i] ?? 0), 0));
@@ -224,7 +236,7 @@ function IrtView({ r }: { r: IrtResult }) {
             c(k.est),
             c(k.se),
           ])}
-          note={`The same model as Mplus prints it (factor variance 1): a loading is the discrimination, a threshold (a partial credit model’s step) is minus the package’s intercept, P(u = 1) = 1 / (1 + exp(threshold − loading × θ))${r.coefficients.some((k) => k.parameter.includes('asymptote')) ? '; with asymptotes, P(u = 1) = g + (u − g) / (1 + exp(threshold − loading × θ)), where threshold 2 is −logit(g) and threshold 3 −logit(u) (Mplus’s u$2 and u$3)' : ''}. ${r.classes ? 'Mixture: no standard errors.' : r.robust ? 'Robust (sandwich) standard errors, as Mplus’s MLR.' : 'Standard errors from the inverse Hessian.'}${r.quadrature ? ` ${r.quadrature} quadrature points.` : ''}`}
+          note={logitNote(r)}
         />
       ) : null}
       {r.itemFit.length > 0 && (
@@ -328,6 +340,13 @@ function LpaTables({ m, items }: { m: LcaModel; items: string[] }) {
 function AuxTables({ a }: { a: LcaAuxResult }) {
   const cls = a.D.map((_, i) => `Class ${i + 1}`);
   const cv = a.covariates;
+  let covariateMethod = '';
+  if (cv)
+    covariateMethod =
+      a.method === 'ml'
+        ? ', maximum likelihood with the errors as known (Vermunt, 2010; Mplus’s R3STEP) for the covariates'
+        : ' and the covariates';
+  const classCounts = a.counts.map((n, i) => `class ${i + 1}: ${n}`).join(', ');
   return (
     <>
       <Table
@@ -335,7 +354,7 @@ function AuxTables({ a }: { a: LcaAuxResult }) {
         file="lca-aux-errors"
         columns={['Class', ...cls.map((x) => `Assigned to ${x.toLowerCase()}`)]}
         rows={a.D.map((row, i) => [c(cls[i]), ...row.map((v, j) => c(v, i === j ? 'good' : ''))])}
-        note={`Step 2 assigns each of the ${a.n} cases to its most likely class (${a.counts.map((n, i) => `class ${i + 1}: ${n}`).join(', ')}); row c gives P(assigned class | class c) from the posterior probabilities (Vermunt, 2010). Step 3 corrects for these errors: BCH weights (Bolck, Croon & Hagenaars, 2004; Bakk & Vermunt, 2016) for the distal outcomes${cv ? (a.method === 'ml' ? ', maximum likelihood with the errors as known (Vermunt, 2010; Mplus’s R3STEP) for the covariates' : ' and the covariates') : ''}. Standard errors are robust (sandwich) and take the classes as estimated in step 1 as known.`}
+        note={`Step 2 assigns each of the ${a.n} cases to its most likely class (${classCounts}); row c gives P(assigned class | class c) from the posterior probabilities (Vermunt, 2010). Step 3 corrects for these errors: BCH weights (Bolck, Croon & Hagenaars, 2004; Bakk & Vermunt, 2016) for the distal outcomes${covariateMethod}. Standard errors are robust (sandwich) and take the classes as estimated in step 1 as known.`}
       />
       {a.distal && a.distal.length > 0 && (
         <>
@@ -987,13 +1006,12 @@ export const lcaSpec = (
     o.model !== 'mlca' && o.aux && (o.aux.distal.length || o.aux.covariates.length)
       ? { aux: o.aux }
       : {};
-  return o.model === 'lpa'
-    ? { model: 'lpa' as const, structure: o.structure ?? 'EEI', ...aux }
-    : o.model === 'lcga'
-      ? { model: 'lcga' as const, times: o.times?.length ? o.times : undefined, ...aux }
-      : o.model === 'mlca'
-        ? { model: 'mlca' as const, cluster: o.cluster, clusterClasses: o.clusterClasses ?? 2 }
-        : aux;
+  if (o.model === 'lpa') return { model: 'lpa' as const, structure: o.structure ?? 'EEI', ...aux };
+  if (o.model === 'lcga')
+    return { model: 'lcga' as const, times: o.times?.length ? o.times : undefined, ...aux };
+  if (o.model === 'mlca')
+    return { model: 'mlca' as const, cluster: o.cluster, clusterClasses: o.clusterClasses ?? 2 };
+  return aux;
 };
 /** The auxiliary variables in use (none for multilevel classes). */
 const auxCols = (o: LcaOptions) =>
@@ -1066,14 +1084,16 @@ export const irtAnalysis: AnalysisType<IrtOptions, IrtResult> = {
     );
   },
   // (the mixture's random starts depend on the seed)
-  fingerprint: (o, ctx) =>
-    isMirt(o.model)
-      ? columnsFingerprint(
-          ctx,
-          o.freq ? [...o.items, o.freq] : o.items,
-          o.model === 'mixture' ? [ctx.settings.seed] : o.integration ? [o.integration] : [],
-        )
-      : columnsFingerprint(ctx, o.items, o.integration ? [o.integration] : []),
+  fingerprint: (o, ctx) => {
+    const integration = o.integration ? [o.integration] : [];
+    if (!isMirt(o.model)) return columnsFingerprint(ctx, o.items, integration);
+    const columns = o.freq ? [...o.items, o.freq] : o.items;
+    return columnsFingerprint(
+      ctx,
+      columns,
+      o.model === 'mixture' ? [ctx.settings.seed] : integration,
+    );
+  },
   run: async (o, ctx) =>
     o.integration === 'mplus'
       ? (await import('../rengine/irtMplus')).irtMplusR(
@@ -1102,8 +1122,12 @@ export const irtAnalysis: AnalysisType<IrtOptions, IrtResult> = {
           o.model,
           irtFit(o, ctx.settings.seed),
         ),
-  summary: (o) =>
-    `${o.items.length} items · ${MODELS.find((m) => m.id === o.model)!.label}${o.model === 'mixture' ? ` · ${o.classes ?? 2} classes` : ''}${o.priorG || o.priorU ? ' · priors' : ''}`,
+  summary: (o) => {
+    const model = MODELS.find((m) => m.id === o.model)!.label;
+    const classes = o.model === 'mixture' ? ` · ${o.classes ?? 2} classes` : '';
+    const priors = o.priorG || o.priorU ? ' · priors' : '';
+    return `${o.items.length} items · ${model}${classes}${priors}`;
+  },
 };
 
 export const lcaAnalysis: AnalysisType<LcaOptions, LcaResult> = {
@@ -1199,6 +1223,15 @@ export const lcaAnalysis: AnalysisType<LcaOptions, LcaResult> = {
       ctx.settings.seed,
       lcaSpec(o),
     ),
-  summary: (o) =>
-    `${o.items.length} ${o.model === 'lcga' ? 'occasions' : 'items'}${o.model === 'lpa' ? ` · profiles (${o.structure ?? 'EEI'})` : o.model === 'lcga' ? ' · growth' : o.model === 'mlca' ? ` · in ${o.clusterClasses ?? 2} classes of ${o.cluster || '…'}` : ''} · ${o.from === o.to ? o.from : `${o.from}–${o.to}`} classes${auxCols(o).length ? ' · three-step' : ''}`,
+  summary: (o) => {
+    let model = '';
+    if (o.model === 'lpa') model = ` · profiles (${o.structure ?? 'EEI'})`;
+    else if (o.model === 'lcga') model = ' · growth';
+    else if (o.model === 'mlca')
+      model = ` · in ${o.clusterClasses ?? 2} classes of ${o.cluster || '…'}`;
+    const columns = o.model === 'lcga' ? 'occasions' : 'items';
+    const classes = o.from === o.to ? o.from : `${o.from}–${o.to}`;
+    const threeStep = auxCols(o).length ? ' · three-step' : '';
+    return `${o.items.length} ${columns}${model} · ${classes} classes${threeStep}`;
+  },
 };
