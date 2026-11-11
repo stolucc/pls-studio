@@ -4,11 +4,11 @@
 import { useState } from 'react';
 import { fmt } from '../format';
 import { irtMplusBlocked } from '../rengine/irtMplus';
-import { isMirt, type IrtFit, type IrtModel, type IrtResult, type LcaKind, type LcaModel, type LcaResult, type LpaStructure } from '../rengine/items';
+import { isMirt, type IrtFit, type IrtModel, type IrtResult, type LcaAux, type LcaAuxMethod, type LcaAuxResult, type LcaKind, type LcaModel, type LcaResult, type LpaStructure } from '../rengine/items';
 import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table } from '../components/results/Table';
-import { clampNum, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, oneOf, rawData } from './common';
+import { Choice, clampNum, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisType, OptionsProps } from './types';
 
 /** Inputs filled in by an example. */
@@ -19,8 +19,14 @@ import type { AnalysisType, OptionsProps } from './types';
  * frequencies (each row stands for that many respondents); classes, the mixture's number of latent classes.
  */
 export interface IrtOptions { items: string[]; model: IrtModel; quadrature?: number; robust?: boolean; priorG?: [number, number]; priorU?: [number, number]; guessItems?: string[]; freq?: string; classes?: number; /** 'mplus': Mplus's integration rule (2PL, 3PL, 4PL; rengine/irtMplus.ts); absent: the package's quadrature. */ integration?: 'mplus' }
-/** model (absent: categorical items, poLCA): see LcaKind; structure: latent profiles; times: growth, one per item (occasion); cluster and clusterClasses: multilevel. */
-export interface LcaOptions { items: string[]; from: number; to: number; model?: LcaKind; structure?: LpaStructure; times?: number[]; cluster?: string; clusterClasses?: number }
+/**
+ * model (absent: categorical items, poLCA): see LcaKind; structure: latent profiles; times: growth, one per item (occasion); cluster and
+ * clusterClasses: multilevel; aux: auxiliary variables by the three-step approach (not for multilevel classes).
+ */
+export interface LcaOptions { items: string[]; from: number; to: number; model?: LcaKind; structure?: LpaStructure; times?: number[]; cluster?: string; clusterClasses?: number; aux?: LcaAux }
+
+/** How step 3 relates covariates to the classes (distal outcomes always use BCH weights). */
+export const LCA_AUX_METHODS: readonly (readonly [LcaAuxMethod, string])[] = [['ml', 'ML (Vermunt)'], ['bch', 'BCH weights']];
 
 export const LCA_KINDS: { id: LcaKind; label: string; hint: string }[] = [
   { id: 'lca', label: 'Categorical items (latent classes)', hint: 'Categorical items (each value a category), poLCA.' },
@@ -111,6 +117,34 @@ function LpaTables({ m, items }: { m: LcaModel; items: string[] }) {
   );
 }
 
+function AuxTables({ a }: { a: LcaAuxResult }) {
+  const cls = a.D.map((_, i) => `Class ${i + 1}`);
+  const cv = a.covariates;
+  return (
+    <>
+      <Table title={`Three-step analysis: classification errors (${a.k} classes)`} file="lca-aux-errors" columns={['Class', ...cls.map((x) => `Assigned to ${x.toLowerCase()}`)]}
+        rows={a.D.map((row, i) => [c(cls[i]), ...row.map((v, j) => c(v, i === j ? 'good' : ''))])}
+        note={`Step 2 assigns each of the ${a.n} cases to its most likely class (${a.counts.map((n, i) => `class ${i + 1}: ${n}`).join(', ')}); row c gives P(assigned class | class c) from the posterior probabilities (Vermunt, 2010). Step 3 corrects for these errors: BCH weights (Bolck, Croon & Hagenaars, 2004; Bakk & Vermunt, 2016) for the distal outcomes${cv ? (a.method === 'ml' ? ', maximum likelihood with the errors as known (Vermunt, 2010; Mplus’s R3STEP) for the covariates' : ' and the covariates') : ''}. Standard errors are robust (sandwich) and take the classes as estimated in step 1 as known.`} />
+      {a.distal && a.distal.length > 0 && <>
+        <Table title="Distal outcomes: class means (BCH)" file="lca-aux-distal" columns={['Outcome', 'Class', 'Mean', 'SE', 'SD within class']}
+          rows={a.distal.flatMap((d) => d.means.map((m, i) => [c(i ? '' : `${d.name} (n = ${d.n})`), c(cls[i]), c(m), c(d.se[i]), c(d.sd[i])]))}
+          note="Each class’s mean with BCH weights: the classification errors of the assigned classes undone, so the means are not pulled towards each other. Cases missing the outcome are left out of its means. A binary outcome coded 0/1 gives the class proportions." />
+        <Table title="Distal outcomes: equality of the class means (Wald)" file="lca-aux-distal-tests" columns={['Outcome', 'Test', 'χ²', 'df', 'p']}
+          rows={a.distal.flatMap((d) => [[c(d.name), c('All classes equal'), c(d.chisq), c(d.df, '', 0), pCell(d.p)],
+            ...d.pairs.map((q) => [c(''), c(`Class ${q.a} = class ${q.b}`), c(q.chisq), c(1, '', 0), pCell(q.p)])])} />
+      </>}
+      {cv && <>
+        <Table title={`Covariates of class membership (multinomial logit, ${a.method === 'ml' ? 'ML three-step' : 'BCH weights'})`} file="lca-aux-covariates" columns={['Class', 'Term', 'Estimate', 'SE', 'p', 'Odds ratio']}
+          rows={cv.coefs.flatMap((k) => cv.terms.map((t, j) => [c(j ? '' : `Class ${k.class} vs ${cv.reference}`), c(t), c(k.est[j]), c(k.se[j]), pCell(k.p[j] ?? null), c(t === 'Intercept' ? null : Math.exp(k.est[j]))]))}
+          note={`Log odds of each class against class ${cv.reference} (the reference); an odds ratio is the factor by which those odds change with one unit of the covariate. ${cv.n} cases with every covariate${a.method === 'ml' ? `; log-likelihood of step 3: ${fmt(cv.logLik, 3)}` : ''}.`} />
+        <Table title="Covariates: Wald tests (all classes)" file="lca-aux-covariates-wald" columns={['Term', 'χ²', 'df', 'p']}
+          rows={cv.terms.map((t, j) => [c(t), c(cv.wald[j].chisq), c(cv.wald[j].df, '', 0), pCell(cv.wald[j].p)])}
+          note="Whether the term’s coefficients are 0 for every class: whether the covariate is related to class membership at all." />
+      </>}
+    </>
+  );
+}
+
 function LcaView({ r }: { r: LcaResult }) {
   const bestBic = Math.min(...r.models.map((m) => m.bic));
   const [k, setK] = useState(r.models.find((m) => m.bic === bestBic)?.k ?? r.models[0]?.k);
@@ -139,6 +173,7 @@ function LcaView({ r }: { r: LcaResult }) {
             note="Probability of each answer within each class (classes numbered by size): what characterises the classes." />}
         </>
       )}
+      {r.aux && <AuxTables a={r.aux} />}
     </div>
   );
 }
@@ -272,7 +307,39 @@ function LcaOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<LcaOpti
         </div>
         <div className="hint">Each solution is estimated from 10 random starts (seed from the Model settings), keeping the best, to avoid local maxima.</div>
       </div>
+      {o.model !== 'mlca' && <AuxFields o={o} set={set} columns={columns} />}
     </fieldset>
+  );
+}
+
+/** The three-step analysis of auxiliary variables: distal outcomes and covariates of the classes. */
+function AuxFields({ o, set, columns }: { o: LcaOptions; set: (o: LcaOptions) => void; columns: string[] }) {
+  const a: LcaAux = o.aux ?? { distal: [], covariates: [], method: 'ml' };
+  const put = (p: Partial<LcaAux>) => { const x = { ...a, ...p }; set({ ...o, aux: x.distal.length || x.covariates.length ? x : undefined }); };
+  const free = columns.filter((n) => !o.items.includes(n));
+  const num = (v: string, hi: number) => { const k = Math.round(Number(v)); return v.trim() === '' || !Number.isFinite(k) ? undefined : Math.max(1, Math.min(hi, k)); };
+  return (
+    <>
+      <h4 style={{ margin: '12px 0 6px' }}>Auxiliary variables (three-step)</h4>
+      <div className="hint">Relate the classes to other variables without letting those variables change the classes: the classes are found first, each case assigned to its most likely class, and the assignments’ classification errors corrected (Vermunt, 2010; Bakk & Vermunt, 2016).</div>
+      <OrderedPicker label="Distal outcomes (class means, BCH)" columns={free.filter((n) => !a.covariates.includes(n))} value={a.distal} onChange={(distal) => put({ distal })} hint="Optional: numeric outcomes to compare between the classes." />
+      <OrderedPicker label="Covariates (predict class membership)" columns={free.filter((n) => !a.distal.includes(n))} value={a.covariates} onChange={(covariates) => put({ covariates })} hint="Optional: numeric predictors of the classes (dummy-code a categorical one)." />
+      {(a.distal.length > 0 || a.covariates.length > 0) && <>
+        {a.covariates.length > 0 && <Choice label="Covariates’ step 3" value={a.method} options={LCA_AUX_METHODS} onChange={(method) => put({ method })}
+          hint={a.method === 'ml' ? 'Maximum likelihood with the classification errors as known (Vermunt, 2010; Mplus’s R3STEP).' : 'A multinomial logit weighted by the BCH weights (Bakk & Vermunt, 2016): robust when the classes are poorly separated.'} />}
+        <div className="row2">
+          <div className="field">
+            <label htmlFor="lca-aux-k">Classes</label>
+            <input id="lca-aux-k" className="input num" type="number" min={2} max={10} placeholder="lowest BIC" value={a.classes ?? ''} onChange={(e) => put({ classes: num(e.target.value, 10) })} />
+          </div>
+          {a.covariates.length > 0 && <div className="field">
+            <label htmlFor="lca-aux-ref">Reference class</label>
+            <input id="lca-aux-ref" className="input num" type="number" min={1} max={10} placeholder="the last" value={a.reference ?? ''} onChange={(e) => put({ reference: num(e.target.value, 10) })} />
+          </div>}
+        </div>
+        <div className="hint">The model whose classes are related (empty: the solution of two or more classes with the lowest BIC); classes are numbered by size.</div>
+      </>}
+    </>
   );
 }
 
@@ -286,9 +353,21 @@ export const irtFit = (o: IrtOptions, seed: number): IrtFit => ({
 });
 const LPA_STRUCTURES = ['EEI', 'VVI', 'EEE', 'VVV'] as const;
 /** What the R side needs beyond the items and classes (absent for categorical items). */
-export const lcaSpec = (o: Pick<LcaOptions, 'model' | 'structure' | 'times' | 'cluster' | 'clusterClasses'>) =>
-  o.model === 'lpa' ? { model: 'lpa' as const, structure: o.structure ?? 'EEI' } : o.model === 'lcga' ? { model: 'lcga' as const, times: o.times?.length ? o.times : undefined }
-  : o.model === 'mlca' ? { model: 'mlca' as const, cluster: o.cluster, clusterClasses: o.clusterClasses ?? 2 } : {};
+export const lcaSpec = (o: Pick<LcaOptions, 'model' | 'structure' | 'times' | 'cluster' | 'clusterClasses' | 'aux'>) => {
+  const aux = o.model !== 'mlca' && o.aux && (o.aux.distal.length || o.aux.covariates.length) ? { aux: o.aux } : {};
+  return o.model === 'lpa' ? { model: 'lpa' as const, structure: o.structure ?? 'EEI', ...aux } : o.model === 'lcga' ? { model: 'lcga' as const, times: o.times?.length ? o.times : undefined, ...aux }
+    : o.model === 'mlca' ? { model: 'mlca' as const, cluster: o.cluster, clusterClasses: o.clusterClasses ?? 2 } : aux;
+};
+/** The auxiliary variables in use (none for multilevel classes). */
+const auxCols = (o: LcaOptions) => (o.model !== 'mlca' && o.aux ? [...o.aux.distal, ...o.aux.covariates] : []);
+/** A saved card's auxiliary variables (untrusted). */
+function parseAux(raw: unknown): LcaAux | undefined {
+  if (!isObj(raw)) return undefined;
+  const distal = names(raw.distal), covariates = names(raw.covariates).filter((n) => !distal.includes(n));
+  if (!distal.length && !covariates.length) return undefined;
+  return { distal, covariates, method: oneOf(raw.method, ['ml', 'bch'] as const, 'ml'),
+    ...(raw.classes !== undefined ? { classes: clampNum(raw.classes, 1, 10, 2, true) } : {}), ...(raw.reference !== undefined ? { reference: clampNum(raw.reference, 1, 10, 1, true) } : {}) };
+}
 const classesOf = (o: LcaOptions) => Array.from({ length: Math.max(0, o.to - o.from + 1) }, (_, i) => o.from + i);
 
 export const irtAnalysis: AnalysisType<IrtOptions, IrtResult> = {
@@ -343,6 +422,8 @@ export const lcaAnalysis: AnalysisType<LcaOptions, LcaResult> = {
     if (raw.clusterClasses !== undefined) o.clusterClasses = clampNum(raw.clusterClasses, 1, 10, 2, true);
     if (raw.structure !== undefined) o.structure = oneOf(raw.structure, LPA_STRUCTURES, 'EEI');
     if (Array.isArray(raw.times)) o.times = raw.times.slice(0, 500).map(Number).filter(Number.isFinite);
+    const aux = parseAux(raw.aux);
+    if (aux) o.aux = aux;
     return o;
   },
   Options: LcaOptionsForm,
@@ -354,11 +435,16 @@ export const lcaAnalysis: AnalysisType<LcaOptions, LcaResult> = {
     if (o.model === 'lcga' && o.times?.length && o.times.length !== o.items.length) return 'Give one time score per occasion.';
     if (o.model === 'mlca' && !o.cluster) return 'Choose the cluster column.';
     if (o.model === 'mlca' && o.items.includes(o.cluster!)) return 'The cluster column cannot be one of the items.';
-    return missingColumns(ctx, o.model === 'mlca' ? [...o.items, o.cluster!] : o.items, 'Latent class analysis');
+    const aux = auxCols(o);
+    if (aux.some((n) => o.items.includes(n))) return 'An auxiliary variable cannot be one of the items.';
+    if (o.aux && aux.length && o.aux.classes !== undefined && (o.aux.classes < Math.max(2, o.from) || o.aux.classes > o.to)) return `The three-step analysis needs one of the fitted numbers of classes (${Math.max(2, o.from)}–${o.to}).`;
+    if (o.aux && aux.length && o.aux.classes === undefined && o.to < 2) return 'The three-step analysis needs solutions with two or more classes.';
+    return missingColumns(ctx, o.model === 'mlca' ? [...o.items, o.cluster!] : [...o.items, ...aux], 'Latent class analysis');
   },
   fingerprint: (o, ctx) => (o.model === 'mlca' ? columnsFingerprint(ctx, [...o.items, o.cluster ?? ''], [ctx.settings.seed, 'mlca', o.cluster ?? '', o.clusterClasses ?? 2])
-    : columnsFingerprint(ctx, o.items, [ctx.settings.seed, o.model ?? 'lca', o.structure ?? '', (o.times ?? []).join()])),
+    : columnsFingerprint(ctx, [...o.items, ...auxCols(o)], [ctx.settings.seed, o.model ?? 'lca', o.structure ?? '', (o.times ?? []).join(),
+      ...(auxCols(o).length ? [`aux:${o.aux!.distal.join(',')}|${o.aux!.covariates.join(',')}|${o.aux!.method}|${o.aux!.classes ?? ''}|${o.aux!.reference ?? ''}`] : [])])),
   run: async (o, ctx) => (await import('../rengine/items')).lcaR(rawData(ctx)!, o.items, classesOf(o), 10, ctx.settings.seed, lcaSpec(o)),
   script: async (o, ctx) => (await import('../rengine/items')).lcaScriptR(rawData(ctx)!, o.items, classesOf(o), 10, ctx.settings.seed, lcaSpec(o)),
-  summary: (o) => `${o.items.length} ${o.model === 'lcga' ? 'occasions' : 'items'}${o.model === 'lpa' ? ` · profiles (${o.structure ?? 'EEI'})` : o.model === 'lcga' ? ' · growth' : o.model === 'mlca' ? ` · in ${o.clusterClasses ?? 2} classes of ${o.cluster || '…'}` : ''} · ${o.from === o.to ? o.from : `${o.from}–${o.to}`} classes`,
+  summary: (o) => `${o.items.length} ${o.model === 'lcga' ? 'occasions' : 'items'}${o.model === 'lpa' ? ` · profiles (${o.structure ?? 'EEI'})` : o.model === 'lcga' ? ' · growth' : o.model === 'mlca' ? ` · in ${o.clusterClasses ?? 2} classes of ${o.cluster || '…'}` : ''} · ${o.from === o.to ? o.from : `${o.from}–${o.to}`} classes${auxCols(o).length ? ' · three-step' : ''}`,
 };

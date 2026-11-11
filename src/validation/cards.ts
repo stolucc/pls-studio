@@ -134,6 +134,8 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   'lca:lpa': { title: 'Latent profiles, continuous items', examples: ['mplus-ex7.9', 'mplus-ex7.10', 'mplus-ex7.22'] },
   'lca:lcga': { title: 'Latent class growth', examples: ['mplus-ex8.9', 'mplus-ex8.10'] },
   'lca:mlca': { title: 'Multilevel latent classes (glca)', examples: ['glca-nyts18-mlca', 'mplus-ex10.7'] },
+  'lca:aux:ml': { title: 'Three-step auxiliary variables: BCH distal means, ML three-step covariates (Vermunt 2010)', features: ['rengine/lcaAux::ML three-step'], note: 'Against StepMix (Python) on poLCA’s election data: D, the BCH class means, the logit; sandwich SEs against numerical derivatives (scripts/validation/lca_aux.py).' },
+  'lca:aux:bch': { title: 'Three-step auxiliary variables: BCH-weighted covariates', features: ['rengine/lcaAux::BCH-weighted'] },
   mixture: { examples: ['mplus-ex7.1', 'mplus-ex7.2', 'mplus-ex7.11', 'mplus-ex7.12', 'mplus-ex7.13', 'mplus-ex7.14', 'mplus-ex7.15', 'mplus-ex7.17', 'mplus-ex7.20', 'mplus-ex7.21', 'mplus-ex7.24', 'mplus-ex7.26'] },
   quadml: {},
   'quadml:syntax': { title: 'Integration ML from Mplus-style syntax', examples: ['ltm-quadml-lsat', 'mplus-ex3.17', 'mplus-ex5.4', 'mplus-ex5.7', 'mplus-ex6.2', 'mplus-ex6.3', 'mplus-ex6.16', 'mplus-ex6.22', 'mplus-ex11.3'] },
