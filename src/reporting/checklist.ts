@@ -665,23 +665,26 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
     out.push(
       bootItem(input, true, 'Path coefficients tested with bootstrap confidence intervals', H),
     );
-    out.push(
-      ran(input, 'plspredict')
-        ? {
-            ...HEAD.predict,
-            status: 'done',
-            evidence: 'A PLSpredict card has run.',
-            sources: ['shmueli2019', ...H],
-            link: card('plspredict', 'Add PLSpredict'),
-          }
-        : {
-            ...HEAD.predict,
-            status: 'issue',
-            evidence: `${ran(input, 'blindfold') ? 'Only blindfolding Q² has run, which mixes in-sample explanation and prediction. ' : ''}Not assessed yet.`,
-            sources: ['shmueli2019', ...H],
-            link: card('plspredict', 'Add PLSpredict'),
-          },
-    );
+    if (ran(input, 'plspredict'))
+      out.push({
+        ...HEAD.predict,
+        status: 'done',
+        evidence: 'A PLSpredict card has run.',
+        sources: ['shmueli2019', ...H],
+        link: card('plspredict', 'Add PLSpredict'),
+      });
+    else {
+      const blindfold = ran(input, 'blindfold')
+        ? 'Only blindfolding Q² has run, which mixes in-sample explanation and prediction. '
+        : '';
+      out.push({
+        ...HEAD.predict,
+        status: 'issue',
+        evidence: `${blindfold}Not assessed yet.`,
+        sources: ['shmueli2019', ...H],
+        link: card('plspredict', 'Add PLSpredict'),
+      });
+    }
   }
   const srmr = pls.fit.estimated.srmr;
   let srmrStatus: CheckStatus = 'na';
@@ -741,25 +744,25 @@ function processChecks(input: ReportInput, issues: Issue[] | undefined): CheckIt
   const JARS = ['appelbaum2018'];
   const out: CheckItem[] = [specItem(issues, HY)];
   const latent = r.latent.length > 0;
-  out.push(
-    latent
-      ? {
-          ...HEAD.hc,
-          status: 'na',
-          evidence: 'Latent-variable model (lavaan::sam): no OLS standard errors.',
-          sources: ['hayes2007'],
-        }
-      : {
-          ...HEAD.hc,
-          sources: ['hayes2007', 'long2000'],
-          status: r.hc === 'none' ? 'author' : 'done',
-          evidence:
-            r.hc === 'none'
-              ? 'OLS standard errors assume homoskedasticity: check the residuals, or choose HC3 / HC4 in the settings.'
-              : `${r.hc} standard errors.`,
-          link: { kind: 'model', label: 'Model tab (settings)' },
-        },
-  );
+  if (latent)
+    out.push({
+      ...HEAD.hc,
+      status: 'na',
+      evidence: 'Latent-variable model (lavaan::sam): no OLS standard errors.',
+      sources: ['hayes2007'],
+    });
+  else {
+    const ols = r.hc === 'none';
+    out.push({
+      ...HEAD.hc,
+      sources: ['hayes2007', 'long2000'],
+      status: ols ? 'author' : 'done',
+      evidence: ols
+        ? 'OLS standard errors assume homoskedasticity: check the residuals, or choose HC3 / HC4 in the settings.'
+        : `${r.hc} standard errors.`,
+      link: { kind: 'model', label: 'Model tab (settings)' },
+    });
+  }
   out.push({
     id: 'assumptions',
     section: 'Data',
