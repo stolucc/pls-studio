@@ -68,11 +68,9 @@ export function buildFigureInput(
       const v = values.indicator?.(name, c.name) ?? null;
       const held = heldLoading(c, method, name, esem);
       const fixed = !!values.fixed?.(name) || held !== undefined;
-      return v === null
-        ? held !== undefined
-          ? { value: held, p: null, fixed: true }
-          : null
-        : { value: v, p: null, fixed };
+      if (v !== null) return { value: v, p: null, fixed };
+      // No estimate: a held loading is still drawn.
+      return held !== undefined ? { value: held, p: null, fixed: true } : null;
     });
     // CPA: observed variables (single items, mean scores) are drawn as rectangles, latent ones as ellipses.
     const observed = method === 'process' && !(c.latent && c.indicators.length > 1);
@@ -136,12 +134,11 @@ export function buildFigureInput(
   const higherOrder = m.constructs.flatMap((parent) =>
     (parent.components ?? []).flatMap((cid) => {
       const child = byId.get(cid);
-      const seg = child
-        ? parent.type === 'composite'
-          ? pathSegment(child, parent)
-          : pathSegment(parent, child)
-        : null;
-      if (!seg || !child) return [];
+      if (!child) return [];
+      // A composite is formed by its components (arrows in); a factor reflected in them (arrows out).
+      const seg =
+        parent.type === 'composite' ? pathSegment(child, parent) : pathSegment(parent, child);
+      if (!seg) return [];
       const l = values.higherOrder?.(parent.name, child.name);
       return [
         {

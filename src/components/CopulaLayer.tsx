@@ -11,6 +11,7 @@ import type { ModelState } from '../model/project';
 import { selectPlacedModel, useStore } from '../store';
 import type { MenuTarget } from './canvasMenu';
 import { EstimateText } from './EstimateLabel';
+import { significanceClass } from '../figure/style';
 
 /** How far along its path the arrow lands; how long an arrow should at least be. */
 const LAND_AT = 0.35;
@@ -195,7 +196,7 @@ export function CopulaLayer({
           return (
             <div
               key={t.pathId}
-              className={`elabel gc-label${l.p === null ? '' : l.p < 0.05 ? ' sig' : ' ns'}`}
+              className={`elabel gc-label${significanceClass(l.p)}`}
               onContextMenu={(e) => menu(e, t.pathId)}
               style={{
                 transform: `translate(-50%, -50%) translate(${(t.x1 + t.x2) / 2}px, ${(t.y1 + t.y2) / 2}px)`,

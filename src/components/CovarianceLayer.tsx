@@ -24,7 +24,7 @@ import {
   type IndicatorPath,
   type ModelState,
 } from '../model/project';
-import { formatEstimate, semplotEdge } from '../figure/style';
+import { formatEstimate, semplotEdge, significanceClass } from '../figure/style';
 import { noLeadingZero } from '../format';
 import { heldLoading } from '../diagramLabels';
 import { selectPlacedModel, useStore } from '../store';
@@ -556,8 +556,7 @@ export function CovarianceLayer({
       {curves.map(({ k, curve }) => {
         const l = active ? labelFor(k) : null;
         if (!l || l.value === null) return null;
-        let cls = '';
-        if (l.p !== null) cls = l.p < 0.05 ? ' sig' : ' ns';
+        const cls = significanceClass(l.p);
         const at =
           figure.notation !== 'standard'
             ? clearPointOnCurve(

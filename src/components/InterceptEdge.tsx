@@ -7,6 +7,7 @@ import { memo, useMemo } from 'react';
 import { constructGeometry, interceptSegment } from '../geometry';
 import { selectPlacedModel, useStore } from '../store';
 import { EstimateText } from './EstimateLabel';
+import { significanceClass } from '../figure/style';
 
 export type InterceptEdgeData = {
   indicator: string;
@@ -35,7 +36,7 @@ function InterceptEdgeImpl({ id, target, data }: EdgeProps<InterceptFlowEdge>) {
   if (!geo) return null;
   const value = data?.value ?? null;
   const p = data?.p ?? null;
-  const cls = p === null ? '' : p < 0.05 ? ' sig' : ' ns';
+  const cls = significanceClass(p);
   return (
     <>
       <BaseEdge

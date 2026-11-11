@@ -2,7 +2,7 @@ import { BaseEdge, EdgeLabelRenderer, type Edge, type EdgeProps } from '@xyflow/
 import { memo, useMemo } from 'react';
 import { besideLine, pathCurve, pathOffset, pathSegment } from '../geometry';
 import { selectPlacedModel, useStore } from '../store';
-import { pathStrokeWidth, semplotEdge } from '../figure/style';
+import { pathStrokeWidth, semplotEdge, significanceClass } from '../figure/style';
 import { fixedText } from '../diagramLabels';
 import { EstimateText } from './EstimateLabel';
 
@@ -55,8 +55,7 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
   const label = data?.label;
   const edge = figure.notation === 'semplot' && !selected ? semplotEdge(beta) : null;
   const width = edge ? edge.width * 1.4 : pathStrokeWidth(figure, beta) * 1.4;
-  let cls = '';
-  if (p !== null) cls = p < 0.05 ? ' sig' : ' ns';
+  const cls = significanceClass(p);
   let labelTitle: string | undefined;
   if (fixed !== undefined) labelTitle = `Fixed at ${fixedText(fixed)}: not estimated`;
   else if (data?.implied)

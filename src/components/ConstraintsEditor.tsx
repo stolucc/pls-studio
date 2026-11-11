@@ -8,7 +8,7 @@ import {
   type ParameterTerm,
   type WaldTest,
 } from '../model/project';
-import { heldText } from '../model/heldValue';
+import { heldState } from './canvasMenu';
 import { useStore } from '../store';
 import { IconX } from './icons';
 
@@ -53,14 +53,14 @@ function Field({
 
 /** What a held or labelled parameter is, in words. */
 function heldWhat(model: ModelState, t: ParameterTerm): string {
-  if (t.indicator)
-    return t.kind === 'variance'
-      ? `Error variance of ${t.target}`
-      : t.kind === 'intercept'
-        ? `Intercept of ${t.target}`
-        : `Threshold ${t.threshold ?? 1} of ${t.target}`;
+  if (t.indicator) {
+    if (t.kind === 'variance') return `Error variance of ${t.target}`;
+    if (t.kind === 'intercept') return `Intercept of ${t.target}`;
+    return `Threshold ${t.threshold ?? 1} of ${t.target}`;
+  }
   const c = model.constructs.find((k) => k.id === t.target);
-  return `${c && endogenousIds(model).has(c.id) ? 'Disturbance variance' : 'Variance'} of ${c?.name ?? '?'}`;
+  const explained = c && endogenousIds(model).has(c.id);
+  return `${explained ? 'Disturbance variance' : 'Variance'} of ${c?.name ?? '?'}`;
 }
 
 /**
@@ -115,13 +115,7 @@ export function ConstraintsEditor() {
           held.map((t) => (
             <div className="label-row" key={t.id}>
               <span>{heldWhat(model, t)}</span>
-              <span className="hint">
-                {t.byGroup?.length
-                  ? `per group: ${heldText(t)}`
-                  : t.fixed !== undefined
-                    ? `held at ${heldText(t)}`
-                    : `label ${heldText(t)}`}
-              </span>
+              <span className="hint">{heldState(t)}</span>
               {!readOnly && (
                 <button
                   className="btn icon ghost sm"

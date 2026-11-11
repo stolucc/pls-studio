@@ -31,11 +31,9 @@ export function ModelVersionBadge() {
   const match = runs.find((c) => c.options.hash === hash);
   const from = openedFromVersion();
   const base = match ?? runs.find((c) => c.options.version === from) ?? latestRun(runs);
-  const text = match
-    ? match.options.label
-    : base
-      ? `${base.options.label}, edited`
-      : 'Not calculated yet';
+  let text = 'Not calculated yet';
+  if (match) text = match.options.label;
+  else if (base) text = `${base.options.label}, edited`;
   const go = () => {
     if (!base) return;
     selectCard(base.id);

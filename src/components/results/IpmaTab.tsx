@@ -201,12 +201,16 @@ export function IpmaTab({ pls }: { pls: PlsResult }) {
   if (endogenous.length === 0)
     return <div className="empty-results">The model has no endogenous construct.</div>;
 
-  const relevant =
-    typeof result === 'object' && result
-      ? level === 'constructs'
-        ? result.constructs.filter((p) => Math.abs(p.importance) > 1e-12)
-        : result.indicators.filter((p) => p.construct !== target && Math.abs(p.importance) > 1e-12)
-      : [];
+  // The points with any importance (the target's own indicators excluded).
+  let relevant: IpmaPoint[] = [];
+  if (typeof result === 'object' && result) {
+    if (level === 'constructs')
+      relevant = result.constructs.filter((p) => Math.abs(p.importance) > 1e-12);
+    else
+      relevant = result.indicators.filter(
+        (p) => p.construct !== target && Math.abs(p.importance) > 1e-12,
+      );
+  }
 
   return (
     <>

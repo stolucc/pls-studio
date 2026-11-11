@@ -11,6 +11,7 @@ import type { Moderation } from '../model/project';
 import { selectPlacedModel, useStore } from '../store';
 import type { MenuTarget } from './canvasMenu';
 import { EstimateText } from './EstimateLabel';
+import { significanceClass } from '../figure/style';
 
 export interface ModerationLabel {
   beta: number | null;
@@ -149,7 +150,7 @@ export function ModeratorLayer({
       {items.map(({ mo, seg, loop }) => {
         const l = labelFor(mo.id);
         if (!l || l.beta === null) return null;
-        const cls = l.p === null ? '' : l.p < 0.05 ? ' sig' : ' ns';
+        const cls = significanceClass(l.p);
         return (
           <div
             key={mo.id}
