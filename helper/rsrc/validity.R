@@ -129,7 +129,10 @@ ps_cvi <- function(req_json, export = FALSE) {
   labels <- if (nzchar(item)) {
     x <- fr$data[[fr$v[[item]]]][kept]
     l <- unlist(req$categories[[item]])
-    if (!is.null(l) && all(is.na(x) | x %in% seq_along(l))) ifelse(is.na(x), sprintf("Item %d", kept), l[x]) else ifelse(is.na(x), sprintf("Item %d", kept), format(x, trim = TRUE))
+    # The item column's category labels when every value has one, else the values themselves
+    has_labels <- !is.null(l) && all(is.na(x) | x %in% seq_along(l))
+    named <- if (has_labels) l[x] else format(x, trim = TRUE)
+    ifelse(is.na(x), sprintf("Item %d", kept), named)
   } else {
     sprintf("Item %d", kept)
   }

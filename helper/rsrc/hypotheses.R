@@ -129,13 +129,19 @@ ps_cb_hypotheses <- function(req_json, export = FALSE) {
   back <- ps_cb_back(ps_esem_align(b, env$fit))
   nm <- function(x) ps_back(x, back)
   e <- env$estimates
-  what <- ifelse(e$op == "~", paste(nm(e$rhs), "→", nm(e$lhs)), ifelse(e$op == "=~", paste(nm(e$lhs), "→", nm(e$rhs)),
-    ifelse(
-      e$op == "~1",
-      paste("Mean of", nm(e$lhs)),
-      ifelse(e$lhs == e$rhs, paste("Variance of", nm(e$lhs)), paste(nm(e$lhs), "↔", nm(e$rhs)))
+  # Each estimate described by its kind: a path, a loading, a mean, a variance or a covariance
+  path_label <- paste(nm(e$rhs), "→", nm(e$lhs))
+  loading_label <- paste(nm(e$lhs), "→", nm(e$rhs))
+  mean_label <- paste("Mean of", nm(e$lhs))
+  variance_label <- paste("Variance of", nm(e$lhs))
+  covariance_label <- paste(nm(e$lhs), "↔", nm(e$rhs))
+  what <- ifelse(e$op == "~", path_label,
+    ifelse(e$op == "=~", loading_label,
+      ifelse(e$op == "~1", mean_label,
+        ifelse(e$lhs == e$rhs, variance_label, covariance_label)
+      )
     )
-  ))
+  )
   est <- if (std) e$est.std else e$est
   num <- function(x) I(unname(as.numeric(x)))
   out_g <- NULL

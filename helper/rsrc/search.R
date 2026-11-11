@@ -266,7 +266,12 @@ ps_cb_lmwald <- function(req_json, export = FALSE) {
   env <- ps_run(body, b$inputs)
   back <- ps_cb_back(b)
   nm <- function(x) ps_back(x, back)
-  label <- function(lhs, op, rhs) ifelse(op == "~", paste(nm(rhs), "\u2192", nm(lhs)), ifelse(op == "=~", paste(nm(lhs), "\u2192", nm(rhs)), paste(nm(lhs), "\u2194", nm(rhs))))
+  label <- function(lhs, op, rhs) {
+    path_label <- paste(nm(rhs), "\u2192", nm(lhs))
+    loading_label <- paste(nm(lhs), "\u2192", nm(rhs))
+    covariance_label <- paste(nm(lhs), "\u2194", nm(rhs))
+    ifelse(op == "~", path_label, ifelse(op == "=~", loading_label, covariance_label))
+  }
   kind <- function(op) unname(c("=~" = "loading", "~" = "path", "~~" = "covariance")[op])
   rows <- function(d, extra) {
     if (is.null(d) || !nrow(d)) {
@@ -430,16 +435,24 @@ ps_cb_regsem <- function(req_json, export = FALSE) {
   nm <- function(x) ps_back(x, back)
   spec <- env$spec
   fitted <- env$fitted
-  kind <- ifelse(spec$right == "1", "intercept", ifelse(grepl("<->", spec$relation, fixed = TRUE), ifelse(spec$left == spec$right, "variance", "covariance"),
-    ifelse(spec$left %in% inds & spec$right %in% facs, "loading", "path")
-  ))
-  label <- ifelse(kind == "intercept", paste("Intercept of", nm(spec$left)), ifelse(kind == "variance", paste("Variance of", nm(spec$left)),
-    ifelse(
-      kind == "covariance",
-      paste(nm(spec$right), "\u2194", nm(spec$left)),
-      paste(nm(spec$right), "\u2192", nm(spec$left))
+  # Each parameter's kind: an intercept, a variance or covariance (a two-headed relation), a loading or a path
+  is_two_headed <- grepl("<->", spec$relation, fixed = TRUE)
+  is_loading <- spec$left %in% inds & spec$right %in% facs
+  kind <- ifelse(spec$right == "1", "intercept",
+    ifelse(is_two_headed,
+      ifelse(spec$left == spec$right, "variance", "covariance"),
+      ifelse(is_loading, "loading", "path")
     )
-  ))
+  )
+  intercept_label <- paste("Intercept of", nm(spec$left))
+  variance_label <- paste("Variance of", nm(spec$left))
+  covariance_label <- paste(nm(spec$right), "\u2194", nm(spec$left))
+  arrow_label <- paste(nm(spec$right), "\u2192", nm(spec$left))
+  label <- ifelse(kind == "intercept", intercept_label,
+    ifelse(kind == "variance", variance_label,
+      ifelse(kind == "covariance", covariance_label, arrow_label)
+    )
+  )
   pen <- which(spec$type == "pen")
   num_of <- function(key) as.numeric(regmatches(key, regexpr("(?<=lambda=c\\()[^,]+", key, perl = TRUE)))
   del_of <- function(key) as.numeric(regmatches(key, regexpr("(?<=delta=c\\()[^,]+", key, perl = TRUE)))
