@@ -17,7 +17,11 @@
 #' The lavaan lines after the fit: scores with equality-constrained copies merged (K, the same reduction as
 #' lavaan's estfun), the information matrix in the same parameters, the parameters tested, the process and the test.
 ps_sc_lines <- function(zv, scale, fn, sets, seed, nrep) {
-  zexpr <- if (scale == "continuous") sprintf("data$%s[rows]", zv) else sprintf("factor(data$%s[rows])", zv)
+  zexpr <- if (scale == "continuous") {
+    sprintf("data$%s[rows]", zv)
+  } else {
+    sprintf("factor(data$%s[rows])", zv)
+  }
   c(
     "# Equality constraints (a == b, from labels or group equalities) merged: lavaan's scores have one column per",
     "# distinct parameter, the first of each set of equal ones (K maps them to the free parameters).",
@@ -93,7 +97,11 @@ ps_sc_series <- function(scus, fun, fn, z) {
     return(list(x = I(seq_along(lev)), y = I(unname(rowSums(inc^2) / (nc / n))), boundary = crit, labels = I(lev)))
   }
   m <- length(lev) - 1L
-  y <- if (fn == "WDMo") apply(abs(P1[ix[1:m], , drop = FALSE]), 1, max) / sqrt(tt[1:m] * (1 - tt[1:m])) else rowSums(P1[ix[1:m], , drop = FALSE]^2) / (tt[1:m] * (1 - tt[1:m]))
+  y <- if (fn == "WDMo") {
+    apply(abs(P1[ix[1:m], , drop = FALSE]), 1, max) / sqrt(tt[1:m] * (1 - tt[1:m]))
+  } else {
+    rowSums(P1[ix[1:m], , drop = FALSE]^2) / (tt[1:m] * (1 - tt[1:m]))
+  }
   list(x = I(seq_len(m)), y = I(unname(y)), boundary = I(unname(crit * fun$boundary(tt[1:m]))), labels = I(lev[1:m]))
 }
 
@@ -102,29 +110,51 @@ ps_scoretest <- function(req_json, export = FALSE) {
   b <- ps_cb_build(req)
   what <- "Score-based invariance tests"
   ps_cb_plain(b, what)
-  if (!grepl("^fit <- sem\\(.*\\)$", b$call)) stop(sprintf("%s are not available for this model.", what))
-  if (!req$estimator %in% c("ML", "MLR")) stop(sprintf("%s use the casewise scores of maximum likelihood: choose ML or MLR.", what))
-  if (length(unlist(req$model$ordered))) stop(sprintf("%s are for continuous indicators (maximum likelihood); the model has ordinal indicators.", what))
-  if (!(req$missing %||% "casewise") %in% c("casewise", "mean", "fiml")) stop(sprintf("%s need casewise deletion, mean replacement or FIML for missing values.", what))
-  if (!is.null(req$model$weights) || !is.null(req$model$cluster)) stop(sprintf("%s are not available with sampling weights or sampling clusters.", what))
+  if (!grepl("^fit <- sem\\(.*\\)$", b$call)) {
+    stop(sprintf("%s are not available for this model.", what))
+  }
+  if (!req$estimator %in% c("ML", "MLR")) {
+    stop(sprintf("%s use the casewise scores of maximum likelihood: choose ML or MLR.", what))
+  }
+  if (length(unlist(req$model$ordered))) {
+    stop(sprintf("%s are for continuous indicators (maximum likelihood); the model has ordinal indicators.", what))
+  }
+  if (!(req$missing %||% "casewise") %in% c("casewise", "mean", "fiml")) {
+    stop(sprintf("%s need casewise deletion, mean replacement or FIML for missing values.", what))
+  }
+  if (!is.null(req$model$weights) || !is.null(req$model$cluster)) {
+    stop(sprintf("%s are not available with sampling weights or sampling clusters.", what))
+  }
   o <- req$scoretest
   scale <- o[["scale", exact = TRUE]]
-  if (!(is.character(scale) && length(scale) == 1 && scale %in% names(.ps_sc_fns))) stop("Invalid kind of covariate in the request.")
+  if (!(is.character(scale) && length(scale) == 1 && scale %in% names(.ps_sc_fns))) {
+    stop("Invalid kind of covariate in the request.")
+  }
   fn <- o[["fn", exact = TRUE]]
-  if (!(is.character(fn) && length(fn) == 1 && fn %in% .ps_sc_fns[[scale]])) stop(sprintf("Invalid test for a %s covariate in the request.", scale))
+  if (!(is.character(fn) && length(fn) == 1 && fn %in% .ps_sc_fns[[scale]])) {
+    stop(sprintf("Invalid test for a %s covariate in the request.", scale))
+  }
   sets <- unique(as.character(unlist(o$sets)))
-  if (!length(sets) || !all(sets %in% .ps_sc_sets)) stop("Invalid parameters to test in the request.")
+  if (!length(sets) || !all(sets %in% .ps_sc_sets)) {
+    stop("Invalid parameters to test in the request.")
+  }
   seed <- as.integer(ps_number(o$seed %||% 1, "seed"))
   nrep <- as.integer(ps_number(o$nrep %||% 50000, "replications"))
-  if (is.na(nrep) || nrep < 1000L || nrep > 200000L) stop("The number of replications must be between 1000 and 200000.")
+  if (is.na(nrep) || nrep < 1000L || nrep > 200000L) {
+    stop("The number of replications must be between 1000 and 200000.")
+  }
   cov <- o[["covariate", exact = TRUE]]
-  if (!(is.character(cov) && length(cov) == 1 && nzchar(cov))) stop("Invalid covariate in the request.")
+  if (!(is.character(cov) && length(cov) == 1 && nzchar(cov))) {
+    stop("Invalid covariate in the request.")
+  }
   z <- suppressWarnings(as.numeric(unlist(lapply(o$values, function(v) if (is.null(v)) NA else v))))
   if (length(z) != nrow(b$inputs$data)) stop("The covariate's values do not match the data's rows.")
   if (sum(!is.na(z)) < 10) stop("The covariate has fewer than 10 values.")
   zlev <- unique(z[!is.na(z)])
   if (scale != "continuous" && length(zlev) < 2) stop("The covariate has a single value.")
-  if (scale != "continuous" && length(zlev) > 50) stop("An ordinal or categorical covariate may have at most 50 values; treat it as continuous.")
+  if (scale != "continuous" && length(zlev) > 50) {
+    stop("An ordinal or categorical covariate may have at most 50 values; treat it as continuous.")
+  }
   # The covariate travels with the data under a name no model variable has; rows without it are left out.
   zv <- ps_ident(c(names(b$inputs$data), cov))[ncol(b$inputs$data) + 1L]
   inputs <- b$inputs
@@ -170,7 +200,13 @@ ps_scoretest <- function(req_json, export = FALSE) {
   series <- ps_sc_series(env$scus, env$fun, fn, z_used)
   # (where the aggregated process peaks: the covariate value, or the category, splitting the observations best)
   top <- which.max(series$y)
-  peak <- if (scale == "continuous") as.numeric(series$x[top]) else if (fn == "LMuo") NULL else as.character(series$labels[top])
+  peak <- if (scale == "continuous") {
+    as.numeric(series$x[top])
+  } else if (fn == "LMuo") {
+    NULL
+  } else {
+    as.character(series$labels[top])
+  }
   ps_json(list(
     fn = fn, scale = scale, covariate = cov, n = length(z_used), nGroups = ng,
     statistic = unname(env$test$statistic), p = unname(env$test$p.value),

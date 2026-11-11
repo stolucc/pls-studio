@@ -42,13 +42,17 @@ ps_endo_pkg <- function(method) {
 ps_endo <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   method <- req$method %||% "iv"
-  if (!method %in% c("iv", "copula", "het", "hm", "liv", "heckman")) stop("Invalid method in the request.")
+  if (!method %in% c("iv", "copula", "het", "hm", "liv", "heckman")) {
+    stop("Invalid method in the request.")
+  }
   f <- ps_endo_frame(req)
   y <- f$y
   x <- f$x
   p <- f$p
   z <- f$z
-  if (method != "heckman" && (!length(y) || !length(p))) stop("Choose the outcome and the endogenous regressor(s).")
+  if (method != "heckman" && (!length(y) || !length(p))) {
+    stop("Choose the outcome and the endogenous regressor(s).")
+  }
   rhs <- function(...) {
     t <- c(...)
     if (length(t)) paste(t, collapse = " + ") else "1"
@@ -57,8 +61,12 @@ ps_endo <- function(req_json, export = FALSE) {
   B <- as.integer(req$boot$samples %||% 1000)
   seed <- as.integer(req$boot$seed %||% 1)
   # (the same ranges as the project settings allow)
-  if (!is.finite(B) || B < 10 || B > 100000) stop(sprintf("Bootstrap samples must be between 10 and 100,000 (got %s).", req$boot$samples %||% "none"))
-  if (!is.finite(conf) || conf < 0.5 || conf >= 1) stop(sprintf("The confidence level must lie between 0.5 and 1 (got %s).", req$boot$confidence %||% "none"))
+  if (!is.finite(B) || B < 10 || B > 100000) {
+    stop(sprintf("Bootstrap samples must be between 10 and 100,000 (got %s).", req$boot$samples %||% "none"))
+  }
+  if (!is.finite(conf) || conf < 0.5 || conf >= 1) {
+    stop(sprintf("The confidence level must lie between 0.5 and 1 (got %s).", req$boot$confidence %||% "none"))
+  }
   ols <- sprintf("ols <- lm(%s ~ %s, data = data)", y, rhs(x, p))
   # Only the instrument methods need packages: the copula correction is base R, so its script runs anywhere.
   needs_ivreg <- method %in% c("iv", "het", "hm")
@@ -69,8 +77,12 @@ ps_endo <- function(req_json, export = FALSE) {
   )
   pkgs <- if (needs_ivreg) "ivreg" else character(0)
   if (method == "iv") {
-    if (!length(z)) stop("Choose at least one instrument (a variable that affects the outcome only through the endogenous regressor).")
-    if (length(z) < length(p)) stop("Two-stage least squares needs at least as many instruments as endogenous regressors.")
+    if (!length(z)) {
+      stop("Choose at least one instrument (a variable that affects the outcome only through the endogenous regressor).")
+    }
+    if (length(z) < length(p)) {
+      stop("Two-stage least squares needs at least as many instruments as endogenous regressors.")
+    }
     body <- c(
       body, "# Two-stage least squares: the endogenous regressors replaced by their prediction from the instruments and the exogenous regressors.",
       sprintf("fit <- ivreg(%s ~ %s | %s, data = data)", y, rhs(x, p), rhs(x, z)),
@@ -100,8 +112,12 @@ ps_endo <- function(req_json, export = FALSE) {
     )
   } else if (method == "het") {
     hx <- f$v(req$hetRegressors %||% req$exogenous)
-    if (!length(hx)) stop("Choose the exogenous regressors whose heteroskedasticity builds the instruments.")
-    if (length(p) != 1) stop("Heteroskedasticity-based instruments need exactly one endogenous regressor.")
+    if (!length(hx)) {
+      stop("Choose the exogenous regressors whose heteroskedasticity builds the instruments.")
+    }
+    if (length(p) != 1) {
+      stop("Heteroskedasticity-based instruments need exactly one endogenous regressor.")
+    }
     body <- c(
       body,
       "# Heteroskedasticity-based instruments (Lewbel 2012), as REndo::hetErrorsIV: (X - mean X) times the",
@@ -116,9 +132,13 @@ ps_endo <- function(req_json, export = FALSE) {
   } else if (method == "hm") {
     if (length(p) != 1) stop("Higher-moment instruments need exactly one endogenous regressor.")
     types <- unlist(req$hmTypes)
-    if (!length(types) || !all(types %in% c("g", "gp", "gy", "yp", "p2", "y2"))) stop("Choose the internal instruments.")
+    if (!length(types) || !all(types %in% c("g", "gp", "gy", "yp", "p2", "y2"))) {
+      stop("Choose the internal instruments.")
+    }
     hx <- f$v(req$hetRegressors %||% req$exogenous)
-    if (any(types %in% c("g", "gp", "gy")) && !length(hx)) stop("These instruments need exogenous regressors.")
+    if (any(types %in% c("g", "gp", "gy")) && !length(hx)) {
+      stop("These instruments need exogenous regressors.")
+    }
     dm <- function(e) sprintf("(%s - mean(%s))", e, e)
     lines <- unlist(lapply(types, function(t) {
       switch(t,
@@ -140,7 +160,9 @@ ps_endo <- function(req_json, export = FALSE) {
       sprintf("ci <- confint(fit, level = %s)", format(conf))
     )
   } else if (method == "liv") {
-    if (length(p) != 1 || length(x)) stop("Latent instrumental variables take one endogenous regressor and no other regressors (y ~ P).")
+    if (length(p) != 1 || length(x)) {
+      stop("Latent instrumental variables take one endogenous regressor and no other regressors (y ~ P).")
+    }
     pkgs <- c("optimx", "mvtnorm", "corpcor")
     body <- c(
       body,
@@ -175,7 +197,9 @@ ps_endo <- function(req_json, export = FALSE) {
   } else {
     s <- f$v(req$selection$outcome)
     w <- f$v(req$selection$regressors)
-    if (!length(s) || !length(w) || !length(y)) stop("Choose the selection indicator, its regressors and the outcome.")
+    if (!length(s) || !length(w) || !length(y)) {
+      stop("Choose the selection indicator, its regressors and the outcome.")
+    }
     hm <- req$heckmanMethod %||% "ml"
     if (!hm %in% c("ml", "2step")) stop("Invalid Heckman estimation method in the request.")
     pkgs <- "sampleSelection"
@@ -224,7 +248,9 @@ ps_endo <- function(req_json, export = FALSE) {
       theta6 = "Outcome error variance (theta6)", theta7 = "Error covariance (theta7)", theta8 = "Regressor error variance (theta8)"
     )
     for (i in seq_along(coefs)) if (coefs[[i]]$term %in% names(names_liv)) coefs[[i]]$term <- names_liv[[coefs[[i]]$term]]
-    if (!isTRUE(env$converged)) env$.warnings <- c(env$.warnings, "The optimiser did not report convergence; check the estimates.")
+    if (!isTRUE(env$converged)) {
+      env$.warnings <- c(env$.warnings, "The optimiser did not report convergence; check the estimates.")
+    }
   }
   ps_json(list(
     method = method, n = if (method %in% c("heckman", "liv")) nrow(env$data) else stats::nobs(env$fit),

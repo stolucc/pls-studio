@@ -16,7 +16,9 @@ ps_efa2_syntax <- function(ys, k, prefix) {
   c(
     vapply(seq_len(k), function(j) sprintf("%s =~ %s", fs[j], paste(c(if (j > 1) sprintf("0*%s", ys[seq_len(j - 1)]), sprintf("NA*%s", ys[j]), if (j < length(ys)) ys[(j + 1):length(ys)]), collapse = " + ")), ""),
     sprintf("%s ~~ 1*%s", fs, fs),
-    if (k > 1) unlist(lapply(seq_len(k - 1), function(i) sprintf("%s ~~ 0*%s", fs[i], fs[(i + 1):k])))
+    if (k > 1) {
+      unlist(lapply(seq_len(k - 1), function(i) sprintf("%s ~~ 0*%s", fs[i], fs[(i + 1):k])))
+    }
   )
 }
 
@@ -71,7 +73,9 @@ ps_efa_twolevel <- function(req_json, export = FALSE) {
   items <- as.character(unlist(req$items))
   cl <- req$cluster
   if (length(items) < 3 || length(items) > 30) stop("Choose 3 to 30 items.")
-  if (!(is.character(cl) && length(cl) == 1 && nzchar(cl)) || cl %in% items) stop("Choose the cluster column (not one of the items).")
+  if (!(is.character(cl) && length(cl) == 1 && nzchar(cl)) || cl %in% items) {
+    stop("Choose the cluster column (not one of the items).")
+  }
   lev_list <- function(v, what) {
     v <- unlist(v)
     if (!length(v)) stop(sprintf("Choose the numbers of %s factors.", what))
@@ -80,11 +84,15 @@ ps_efa_twolevel <- function(req_json, export = FALSE) {
         "U"
       } else {
         k <- suppressWarnings(as.integer(x))
-        if (is.na(k) || k < 1 || k > 6) stop(sprintf("Invalid number of %s factors in the request.", what))
+        if (is.na(k) || k < 1 || k > 6) {
+          stop(sprintf("Invalid number of %s factors in the request.", what))
+        }
         k
       }
     })
-    if (anyDuplicated(vapply(out, as.character, ""))) stop(sprintf("Each number of %s factors once.", what))
+    if (anyDuplicated(vapply(out, as.character, ""))) {
+      stop(sprintf("Each number of %s factors once.", what))
+    }
     out
   }
   within <- lev_list(req$within, "within")
@@ -92,7 +100,9 @@ ps_efa_twolevel <- function(req_json, export = FALSE) {
   p <- length(items)
   for (k in c(within, between)) if (!identical(k, "U") && (p - k)^2 < p + k) stop(sprintf("%d factors are too many for %d items.", k, p))
   combos <- Filter(Negate(is.null), unlist(lapply(within, function(w) lapply(between, function(b) if (identical(w, "U") && identical(b, "U")) NULL else list(w = w, b = b))), recursive = FALSE))
-  if (!length(combos)) stop("Choose factors for at least one level (both unrestricted is the saturated model).")
+  if (!length(combos)) {
+    stop("Choose factors for at least one level (both unrestricted is the saturated model).")
+  }
   if (length(combos) > 12) stop("At most 12 combinations of within and between factors.")
   fr <- ps_long_frame(req, c(items, cl))
   ys <- unname(fr$v[items])

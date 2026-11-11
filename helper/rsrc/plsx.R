@@ -123,7 +123,9 @@ ps_pls_compare <- function(req_json, export = FALSE) {
   alt <- req
   alt$model <- req$alternative
   same <- function(m) vapply(m$constructs, function(c) paste(c$name, paste(sort(unlist(c$indicators)), collapse = ","), sep = ":"), "")
-  if (!setequal(same(req$model), same(alt$model))) stop("The alternative model must have the same constructs and indicators; only the paths may differ.")
+  if (!setequal(same(req$model), same(alt$model))) {
+    stop("The alternative model must have the same constructs and indicators; only the paths may differ.")
+  }
   b <- ps_plsx_build(req)
   b2 <- ps_plsx_build(alt)
   seed <- as.integer(req$seed %||% 1)
@@ -161,7 +163,9 @@ ps_pls_groups <- function(req_json, export = FALSE) {
   seed <- as.integer(req$seed %||% 1)
   if (R < 20 || R > 5000) stop("Invalid number of permutations.")
   approaches <- unlist(req$approaches %||% c("Henseler", "Chin", "Klesel"))
-  if (!all(approaches %in% c("Henseler", "Chin", "Sarstedt", "Keil", "Nitzl", "Klesel"))) stop("Invalid multigroup approach in the request.")
+  if (!all(approaches %in% c("Henseler", "Chin", "Sarstedt", "Keil", "Nitzl", "Klesel"))) {
+    stop("Invalid multigroup approach in the request.")
+  }
   at <- match(req$group, req$data$names)
   if (is.na(at)) stop("The grouping column is not in the dataset.")
   cols <- req$data$cols
@@ -264,7 +268,9 @@ ps_cta <- function(req_json, export = FALSE) {
   B <- as.integer(req$samples %||% 1000)
   seed <- as.integer(req$seed %||% 1)
   alpha <- as.numeric(req$alpha %||% 0.05)
-  if (B < 50 || B > 20000 || !is.finite(alpha) || alpha <= 0 || alpha >= 0.5) stop("Invalid CTA settings.")
+  if (B < 50 || B > 20000 || !is.finite(alpha) || alpha <= 0 || alpha >= 0.5) {
+    stop("Invalid CTA settings.")
+  }
   n <- ps_names(req$model$constructs)
   blocks <- Filter(function(j) length(n$inds[[j]]) >= 4, seq_along(n$inds))
   if (!length(blocks)) stop("CTA-PLS needs constructs with at least four indicators.")
@@ -343,7 +349,9 @@ ps_blindfold <- function(req_json, export = FALSE) {
   cons <- req$model$constructs
   ends <- unique(vapply(req$model$paths, function(p) p$to, ""))
   refl <- vapply(cons, function(c) c$name %in% ends && identical(c$mode %||% "A", "A") && length(unlist(c$indicators)) > 0, TRUE)
-  if (!any(refl)) stop("Blindfolding needs endogenous constructs with reflective (Mode A) indicators.")
+  if (!any(refl)) {
+    stop("Blindfolding needs endogenous constructs with reflective (Mode A) indicators.")
+  }
   fit_line <- grep("^fit <- csem\\(data,", b$body, value = TRUE)[1]
   body <- c(
     b$body,
@@ -377,7 +385,9 @@ ps_cca <- function(req_json, export = FALSE) {
   B <- as.integer(req$samples %||% 499)
   seed <- as.integer(req$seed %||% 1)
   alpha <- as.numeric(req$alpha %||% 0.05)
-  if (B < 20 || B > 5000 || !is.finite(alpha) || alpha <= 0 || alpha >= 0.5) stop("Invalid CCA settings.")
+  if (B < 20 || B > 5000 || !is.finite(alpha) || alpha <= 0 || alpha >= 0.5) {
+    stop("Invalid CCA settings.")
+  }
   req$model$constructs <- lapply(req$model$constructs, function(c) {
     c$type <- "composite"
     c
@@ -385,7 +395,9 @@ ps_cca <- function(req_json, export = FALSE) {
   req$options$consistent <- FALSE
   b <- ps_plsx_build(req)
   fit_line <- grep("^fit <- csem\\(data,", b$body, value = TRUE)[1]
-  if (identical(req$options$approach %||% "PLS-PM", "PLS-PM")) fit_line <- sub("\\)$", ", .PLS_ignore_structural_model = TRUE)", fit_line)
+  if (identical(req$options$approach %||% "PLS-PM", "PLS-PM")) {
+    fit_line <- sub("\\)$", ", .PLS_ignore_structural_model = TRUE)", fit_line)
+  }
   body <- c(
     setdiff(b$body, grep("^fit <- csem\\(data,", b$body, value = TRUE)),
     "# Confirmatory composite analysis: all constructs are composites; the weights ignore the structural model (saturated).",

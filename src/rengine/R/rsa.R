@@ -15,8 +15,12 @@ ps_rsa <- function(req_json, export = FALSE) {
   xn <- req$x
   yn <- req$y
   ctrl <- unlist(req$controls)
-  if (!length(z) || !length(xn) || !length(yn)) stop("Choose the outcome and the two predictors X and Y.")
-  if (length(unique(c(z, xn, yn, ctrl))) != 2 + 1 + length(ctrl)) stop("Outcome, predictors and controls must be different columns.")
+  if (!length(z) || !length(xn) || !length(yn)) {
+    stop("Choose the outcome and the two predictors X and Y.")
+  }
+  if (length(unique(c(z, xn, yn, ctrl))) != 2 + 1 + length(ctrl)) {
+    stop("Outcome, predictors and controls must be different columns.")
+  }
   est <- req$estimation %||% "OLS"
   if (!est %in% c("OLS", "ML", "MLR")) stop("Invalid estimation in the request.")
   center <- req$center %||% "mean"
@@ -31,7 +35,9 @@ ps_rsa <- function(req_json, export = FALSE) {
   Y <- v[[yn]]
   C <- unname(v[ctrl])
   terms <- c("rsaX", "rsaY", "rsaX2", "rsaXY", "rsaY2")
-  if (any(terms %in% v) || "block" %in% v) stop("Rename the columns called rsaX, rsaY, rsaX2, rsaXY, rsaY2 or block: the analysis uses these names.")
+  if (any(terms %in% v) || "block" %in% v) {
+    stop("Rename the columns called rsaX, rsaY, rsaX2, rsaXY, rsaY2 or block: the analysis uses these names.")
+  }
   ctr <- switch(center,
     none = c("# X and Y as measured (no centring)."),
     mean = c(

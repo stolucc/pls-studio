@@ -33,7 +33,9 @@ ps_cb_localfit <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   ps_cb_plain(b, "Local fit", raw = FALSE)
-  if (identical(req$estimator, "2SLS")) stop("Local fit needs a model fitted as a whole; MIIV-2SLS estimates it equation by equation.")
+  if (identical(req$estimator, "2SLS")) {
+    stop("Local fit needs a model fitted as a whole; MIIV-2SLS estimates it equation by equation.")
+  }
   lf <- req$localfit
   tests <- PS_LOCALFIT_TESTS[PS_LOCALFIT_TESTS %in% unlist(lf$tests)]
   base <- if (identical(lf$base, "RLS")) "RLS" else "standard"
@@ -77,7 +79,11 @@ ps_cb_localfit <- function(req_json, export = FALSE) {
     s <- r$summary
     col <- if ("cov" %in% names(s)) "cov" else names(s)[1]
     sm <- function(k) if (k %in% rownames(s)) unname(s[k, col]) else NULL
-    mz <- if (!is.null(r$mean.z) && any(abs(r$mean) > 1e-10)) list(names = I(nm(names(r$mean))), residual = I(unname(as.numeric(r$mean))), se = I(unname(as.numeric(r$mean.se))), z = I(unname(as.numeric(r$mean.z)))) else NULL
+    mz <- if (!is.null(r$mean.z) && any(abs(r$mean) > 1e-10)) {
+      list(names = I(nm(names(r$mean))), residual = I(unname(as.numeric(r$mean))), se = I(unname(as.numeric(r$mean.se))), z = I(unname(as.numeric(r$mean.z))))
+    } else {
+      NULL
+    }
     list(
       label = names(res)[g] %||% "", names = I(nm(v)), residual = ps_rows(r$cov), se = ps_rows(r$cov.se), z = ps_rows(r$cov.z),
       normalized = if (!is.null(rn[[g]]$cov)) ps_rows(rn[[g]]$cov[v, v, drop = FALSE]), means = mz,
@@ -110,12 +116,20 @@ ps_cb_discriminant <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   ps_cb_plain(b, "Discriminant validity", raw = FALSE)
-  if (identical(req$estimator, "2SLS")) stop("Discriminant validity needs a model fitted as a whole; MIIV-2SLS estimates it equation by equation.")
-  if (!is.null(b$group_var) || !is.null(req$data$moments$groups)) stop("Discriminant validity is computed for one group: remove the grouping.")
-  if (length(b$composites)) stop("Discriminant validity (CI-CFA) is for common factors; the model has composites.")
+  if (identical(req$estimator, "2SLS")) {
+    stop("Discriminant validity needs a model fitted as a whole; MIIV-2SLS estimates it equation by equation.")
+  }
+  if (!is.null(b$group_var) || !is.null(req$data$moments$groups)) {
+    stop("Discriminant validity is computed for one group: remove the grouping.")
+  }
+  if (length(b$composites)) {
+    stop("Discriminant validity (CI-CFA) is for common factors; the model has composites.")
+  }
   dv <- req$discriminant
   level <- ps_number(dv$level %||% 0.95, "confidence level")
-  if (!is.finite(level) || level < 0.5 || level >= 1) stop("The confidence level must be between 0.5 and 1.")
+  if (!is.finite(level) || level < 0.5 || level >= 1) {
+    stop("The confidence level must be between 0.5 and 1.")
+  }
   merge <- isTRUE(dv$merge)
   body <- c(
     b$body, "",
@@ -162,11 +176,19 @@ ps_cb_discriminant <- function(req_json, export = FALSE) {
 #' Each test on its own: one that does not apply says why.
 ps_cb_compare_models <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  if (!is.list(req$alternative) || !length(req$alternative$constructs)) stop("Save an alternative model first.")
-  if (!identical(req$estimator, "ML") && !identical(req$estimator, "MLR") && !identical(req$estimator, "MLM")) stop("Comparing models needs a maximum-likelihood estimator (ML, MLR or MLM): Vuong's tests use each case's log-likelihood.")
+  if (!is.list(req$alternative) || !length(req$alternative$constructs)) {
+    stop("Save an alternative model first.")
+  }
+  if (!identical(req$estimator, "ML") && !identical(req$estimator, "MLR") && !identical(req$estimator, "MLM")) {
+    stop("Comparing models needs a maximum-likelihood estimator (ML, MLR or MLM): Vuong's tests use each case's log-likelihood.")
+  }
   for (c in req$alternative$constructs) {
-    if (!is.null(c$mode) && !c$mode %in% c("A", "B", "unit")) stop("Invalid construct mode in the request.")
-    if (!is.null(c$type) && !c$type %in% c("factor", "composite")) stop("Invalid construct type in the request.")
+    if (!is.null(c$mode) && !c$mode %in% c("A", "B", "unit")) {
+      stop("Invalid construct mode in the request.")
+    }
+    if (!is.null(c$type) && !c$type %in% c("factor", "composite")) {
+      stop("Invalid construct type in the request.")
+    }
   }
   b1 <- ps_cb_build(req)
   req2 <- req
@@ -174,12 +196,18 @@ ps_cb_compare_models <- function(req_json, export = FALSE) {
   b2 <- ps_cb_build(req2)
   for (b in list(b1, b2)) {
     ps_cb_plain(b, "Comparing models")
-    if (length(b$call) != 1 || !grepl("^fit <- sem\\(model, data = data", b$call)) stop("Comparing models is not available for this model.")
+    if (length(b$call) != 1 || !grepl("^fit <- sem\\(model, data = data", b$call)) {
+      stop("Comparing models is not available for this model.")
+    }
   }
   # (one data frame: model 2's own columns, such as its grouping column, travel too)
   for (k in setdiff(names(b2$inputs$data), names(b1$inputs$data))) b1$inputs$data[[k]] <- b2$inputs$data[[k]]
-  if (!setequal(b1$n$all_inds, b2$n$all_inds)) stop("The two models must use the same observed variables (Vuong's tests compare the likelihoods of the same data).")
-  if (!identical(unname(b1$n$iv[sort(b1$n$all_inds)]), unname(b2$n$iv[sort(b2$n$all_inds)]))) stop("The two models name their indicators differently: rename a construct that has an indicator's name.")
+  if (!setequal(b1$n$all_inds, b2$n$all_inds)) {
+    stop("The two models must use the same observed variables (Vuong's tests compare the likelihoods of the same data).")
+  }
+  if (!identical(unname(b1$n$iv[sort(b1$n$all_inds)]), unname(b2$n$iv[sort(b2$n$all_inds)]))) {
+    stop("The two models name their indicators differently: rename a construct that has an indicator's name.")
+  }
   nested <- req$compare$nested %||% "auto"
   if (!nested %in% c("auto", "nested", "nonnested")) stop("Invalid nesting choice in the request.")
   at <- match("model <- '", b2$body)
@@ -233,11 +261,23 @@ ps_cb_compare_models <- function(req_json, export = FALSE) {
     NULL
   }
   lrt <- env$lrt
-  lrtOut <- if (is.data.frame(lrt)) list(chisq = ps_num1(lrt[["Chisq diff"]][2]), df = ps_num1(lrt[["Df diff"]][2]), p = ps_num1(lrt[["Pr(>Chisq)"]][2]), method = ps_flat(attr(lrt, "heading")[1] %||% "")) else NULL
+  lrtOut <- if (is.data.frame(lrt)) {
+    list(chisq = ps_num1(lrt[["Chisq diff"]][2]), df = ps_num1(lrt[["Df diff"]][2]), p = ps_num1(lrt[["Pr(>Chisq)"]][2]), method = ps_flat(attr(lrt, "heading")[1] %||% ""))
+  } else {
+    NULL
+  }
   vt <- env$vt
-  vtOut <- if (is.list(vt)) list(nested = isTRUE(vt$nested), omega = ps_num1(vt$omega), pOmega = ps_num1(vt$p_omega), stat = ps_num1(vt$LRTstat), pA = ps_num1(vt$p_LRT$A), pB = ps_num1(vt$p_LRT$B)) else NULL
+  vtOut <- if (is.list(vt)) {
+    list(nested = isTRUE(vt$nested), omega = ps_num1(vt$omega), pOmega = ps_num1(vt$p_omega), stat = ps_num1(vt$LRTstat), pA = ps_num1(vt$p_LRT$A), pB = ps_num1(vt$p_LRT$B))
+  } else {
+    NULL
+  }
   ic <- env$ic
-  icOut <- if (is.list(ic)) list(aic1 = ps_num1(ic$AIC$AIC1), aic2 = ps_num1(ic$AIC$AIC2), aicLow = ps_num1(ic$AICci[1]), aicHigh = ps_num1(ic$AICci[2]), bic1 = ps_num1(ic$BIC$BIC1), bic2 = ps_num1(ic$BIC$BIC2), bicLow = ps_num1(ic$BICci[1]), bicHigh = ps_num1(ic$BICci[2]), level = ps_num1(ic$confLevel)) else NULL
+  icOut <- if (is.list(ic)) {
+    list(aic1 = ps_num1(ic$AIC$AIC1), aic2 = ps_num1(ic$AIC$AIC2), aicLow = ps_num1(ic$AICci[1]), aicHigh = ps_num1(ic$AICci[2]), bic1 = ps_num1(ic$BIC$BIC1), bic2 = ps_num1(ic$BIC$BIC2), bicLow = ps_num1(ic$BICci[1]), bicHigh = ps_num1(ic$BICci[2]), level = ps_num1(ic$confLevel))
+  } else {
+    NULL
+  }
   ps_json(list(
     fit1 = fm(env$fit_1), fit2 = fm(env$fit_2), n = sum(lavInspect(env$fit_1, "nobs")),
     net = c(netOut, why(net, env$note_net)), lrt = c(lrtOut, why(lrt, env$note_lrt)), vuong = c(vtOut, why(vt, env$note_vt)), icci = c(icOut, why(ic, env$note_ic)),
@@ -254,8 +294,12 @@ ps_cb_epcequiv <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   ps_cb_plain(b, "The EPC-based judgement", raw = FALSE)
-  if (identical(req$estimator, "2SLS")) stop("The EPC-based judgement needs a model fitted as a whole; MIIV-2SLS estimates it equation by equation.")
-  if (length(unlist(req$model$ordered))) stop("The EPC-based judgement is for continuous indicators (semTools::epcEquivFit).")
+  if (identical(req$estimator, "2SLS")) {
+    stop("The EPC-based judgement needs a model fitted as a whole; MIIV-2SLS estimates it equation by equation.")
+  }
+  if (length(unlist(req$model$ordered))) {
+    stop("The EPC-based judgement is for continuous indicators (semTools::epcEquivFit).")
+  }
   e <- req$epc
   val <- function(k, lo, hi, def) {
     x <- e[[k, exact = TRUE]] %||% def

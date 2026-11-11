@@ -46,7 +46,11 @@ ps_cmb <- function(req_json, export = FALSE) {
     )
   })
   inputs <- list(data = fr$data)
-  title <- if (type == "harman") "Harman's single-factor test (psych)" else "Full-collinearity VIFs (Kock 2015)"
+  title <- if (type == "harman") {
+    "Harman's single-factor test (psych)"
+  } else {
+    "Full-collinearity VIFs (Kock 2015)"
+  }
   if (export) {
     return(ps_script(
       title, if (type == "harman") "psych" else character(0), inputs, body,

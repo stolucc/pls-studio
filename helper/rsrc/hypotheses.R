@@ -21,7 +21,9 @@ ps_hyp_list <- function(hs) {
   if (!is.list(hs) || !length(hs) || length(hs) > 10) stop("Invalid hypotheses in the request.")
   lapply(hs, function(h) {
     cs <- unlist(h$constraints)
-    if (!is.character(cs) || !length(cs) || length(cs) > 50) stop("Invalid hypothesis in the request.")
+    if (!is.character(cs) || !length(cs) || length(cs) > 50) {
+      stop("Invalid hypothesis in the request.")
+    }
     cs
   })
 }
@@ -32,20 +34,34 @@ ps_cb_hypotheses <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   ps_cb_plain(b, "Informative hypothesis evaluation", raw = FALSE)
-  if (identical(req$estimator, "2SLS")) stop("Informative hypotheses need the covariance matrix of all estimates; MIIV-2SLS estimates the model equation by equation.")
+  if (identical(req$estimator, "2SLS")) {
+    stop("Informative hypotheses need the covariance matrix of all estimates; MIIV-2SLS estimates the model equation by equation.")
+  }
   o <- req$hyp
   hs <- ps_hyp_list(o$hypotheses)
   labels <- unique(unlist(lapply(unlist(hs), ps_hyp_constraint)))
   method <- o[["method", exact = TRUE]]
-  if (!(is.character(method) && length(method) == 1 && method %in% c("gorica", "bain", "both"))) stop("Invalid method in the request.")
+  if (!(is.character(method) && length(method) == 1 && method %in% c("gorica", "bain", "both"))) {
+    stop("Invalid method in the request.")
+  }
   gorica <- method != "bain"
   bf <- method != "gorica"
   comparison <- o[["comparison", exact = TRUE]] %||% "complement"
-  if (!(is.character(comparison) && length(comparison) == 1 && comparison %in% c("complement", "unconstrained", "none"))) stop("Invalid comparison in the request.")
-  if (gorica && comparison == "complement" && length(hs) != 1) stop("The comparison with the complement is for one hypothesis; with several, compare them with the unconstrained hypothesis or with each other.")
-  if (gorica && comparison == "none" && length(hs) < 2) stop("With one hypothesis, compare it with its complement or with the unconstrained hypothesis.")
-  if (bf && any(grepl("abs(", unlist(hs), fixed = TRUE))) stop("bain has no abs(): compare signed parameters, or use the GORICA alone.")
-  if (bf && !is.null(b$group_var)) stop("Bayes factors (bain) are available for one group here; use the GORICA with groups.")
+  if (!(is.character(comparison) && length(comparison) == 1 && comparison %in% c("complement", "unconstrained", "none"))) {
+    stop("Invalid comparison in the request.")
+  }
+  if (gorica && comparison == "complement" && length(hs) != 1) {
+    stop("The comparison with the complement is for one hypothesis; with several, compare them with the unconstrained hypothesis or with each other.")
+  }
+  if (gorica && comparison == "none" && length(hs) < 2) {
+    stop("With one hypothesis, compare it with its complement or with the unconstrained hypothesis.")
+  }
+  if (bf && any(grepl("abs(", unlist(hs), fixed = TRUE))) {
+    stop("bain has no abs(): compare signed parameters, or use the GORICA alone.")
+  }
+  if (bf && !is.null(b$group_var)) {
+    stop("Bayes factors (bain) are available for one group here; use the GORICA with groups.")
+  }
   std <- isTRUE(o$standardized)
   fraction <- as.integer(ps_number(o$fraction %||% 1, "fraction"))
   if (is.na(fraction) || fraction < 1 || fraction > 3) stop("The fraction must be 1, 2 or 3.")

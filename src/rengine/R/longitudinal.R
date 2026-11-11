@@ -19,7 +19,9 @@ ps_long_options <- function(req) {
   if (!est %in% c("ML", "MLR")) stop("Longitudinal models use the ML or MLR estimator.")
   # (fiml: lavaan handles the missing values (FIML, pairwise, two-stage), so no rows are dropped beforehand)
   info <- req$information
-  if (!is.null(info) && !(identical(info, "observed") && est == "ML")) stop("Invalid information in the request: observed information is an option for ML.")
+  if (!is.null(info) && !(identical(info, "observed") && est == "ML")) {
+    stop("Invalid information in the request: observed information is an option for ML.")
+  }
   # (`extra`: the further lavaan arguments of the call: standard errors from the observed information, as Mplus)
   list(est = est, fiml = !is.null(PS_LAVAAN_MISSING[[req$missing %||% ""]]), extra = if (!is.null(info)) ", information = \"observed\"" else "")
 }
@@ -52,11 +54,17 @@ ps_long_estimates <- function(fit, back, lvs, also = NULL) {
 #' modifiers c() and start() only. lavaan turns constraints (==, <, >, :=) into R code, so no other function call
 #' (and no quote, $, @, [ or {) may reach it. Comments are dropped.
 ps_growth_syntax_text <- function(x) {
-  if (!is.character(x) || length(x) != 1 || nchar(x) > 20000) stop("Invalid model syntax in the request.")
+  if (!is.character(x) || length(x) != 1 || nchar(x) > 20000) {
+    stop("Invalid model syntax in the request.")
+  }
   body <- gsub("[#!][^\n]*", "", x)
-  if (!grepl("^[-A-Za-z0-9_ .+*/^()=~|:,;<>\n\r\t]*$", body)) stop("The model syntax may contain only variable names, numbers, lavaan operators and the modifiers c() and start().")
+  if (!grepl("^[-A-Za-z0-9_ .+*/^()=~|:,;<>\n\r\t]*$", body)) {
+    stop("The model syntax may contain only variable names, numbers, lavaan operators and the modifiers c() and start().")
+  }
   calls <- sub("[[:space:]]*\\($", "", regmatches(body, gregexpr("[A-Za-z0-9_.]+[[:space:]]*\\(", body))[[1]])
-  if (length(setdiff(calls, c("c", "start")))) stop("The model syntax may call no function other than the modifiers c() and start().")
+  if (length(setdiff(calls, c("c", "start")))) {
+    stop("The model syntax may call no function other than the modifiers c() and start().")
+  }
   trimws(gsub("\n[[:space:]]*\n+", "\n", body))
 }
 
@@ -68,7 +76,9 @@ ps_growth_syntax <- function(req, export) {
   group <- req$group %||% ""
   cols <- unlist(req$data$names)
   fr <- ps_long_frame(req, cols)
-  if (!identical(unname(fr$v), cols)) stop("The variables of a growth model written as syntax must be column names of letters, digits and _.")
+  if (!identical(unname(fr$v), cols)) {
+    stop("The variables of a growth model written as syntax must be column names of letters, digits and _.")
+  }
   o <- ps_long_options(req)
   if (nzchar(group) && !group %in% cols) stop("The group column is not in the request.")
   measures <- unlist(req$measures)
@@ -125,15 +135,25 @@ ps_growth <- function(req_json, export = FALSE) {
   tvc <- unlist(req$timeVarying)
   times <- as.numeric(unlist(req$times))
   if (length(measures) < 3) stop("A growth model needs at least three measurement occasions.")
-  if (length(tvc) && length(tvc) != length(measures)) stop("Give one time-varying covariate per measurement occasion (or none).")
-  if (length(times) != length(measures) || any(!is.finite(times))) stop("Give one time score per measurement occasion.")
+  if (length(tvc) && length(tvc) != length(measures)) {
+    stop("Give one time-varying covariate per measurement occasion (or none).")
+  }
+  if (length(times) != length(measures) || any(!is.finite(times))) {
+    stop("Give one time score per measurement occasion.")
+  }
   shape <- req$shape %||% "linear"
   if (!shape %in% c("linear", "quadratic", "basis")) stop("Invalid growth shape in the request.")
-  if (shape == "quadratic" && length(measures) < 4) stop("A quadratic growth model needs at least four occasions.")
+  if (shape == "quadratic" && length(measures) < 4) {
+    stop("A quadratic growth model needs at least four occasions.")
+  }
   fr <- ps_long_frame(req, c(measures, covs, tvc))
   o <- ps_long_options(req)
   y <- unname(fr$v[measures])
-  slope <- if (shape == "basis") c(paste0("0*", y[1]), paste0("1*", y[2]), y[-(1:2)]) else paste0(format(times), "*", y)
+  slope <- if (shape == "basis") {
+    c(paste0("0*", y[1]), paste0("1*", y[2]), y[-(1:2)])
+  } else {
+    paste0(format(times), "*", y)
+  }
   lines <- c(
     paste("i =~", paste0("1*", y, collapse = " + ")), paste("s =~", paste(trimws(slope), collapse = " + ")),
     if (shape == "quadratic") paste("q =~", paste0(format(times^2), "*", y, collapse = " + ")),
@@ -174,7 +194,9 @@ ps_riclpm <- function(req_json, export = FALSE) {
   xs <- unlist(req$x)
   ys <- unlist(req$y)
   T <- length(xs)
-  if (T < 3 || length(ys) != T) stop("The RI-CLPM needs both variables at the same three or more waves.")
+  if (T < 3 || length(ys) != T) {
+    stop("The RI-CLPM needs both variables at the same three or more waves.")
+  }
   fr <- ps_long_frame(req, c(xs, ys))
   o <- ps_long_options(req)
   x <- unname(fr$v[xs])
@@ -259,7 +281,9 @@ ps_lcs_uni_lines <- function(T, v, m, g) {
       )
     },
     if (isTRUE(m$proportional)) c("# Proportional change: each change depends on the previous true score", sprintf("%s ~ beta_%s * %s", d(t2), v, lv(t2 - 1))),
-    if (isTRUE(m$autoregressive)) c("# Autoregression of the changes: each change depends on the previous change", sprintf("%s ~ phi_%s * %s", d(t3), v, d(t3 - 1)))
+    if (isTRUE(m$autoregressive)) {
+      c("# Autoregression of the changes: each change depends on the previous change", sprintf("%s ~ phi_%s * %s", d(t3), v, d(t3 - 1)))
+    }
   )
 }
 
@@ -274,7 +298,9 @@ ps_lcs_bi_lines <- function(T, mx, my, cp) {
     if (isTRUE(cp$deltaXY)) c("# Coupling: the change in x depends on the previous true score of y", sprintf("dx%d ~ delta_lag_xy * ly%d", t2, t2 - 1)),
     if (isTRUE(cp$deltaYX)) c("# Coupling: the change in y depends on the previous true score of x", sprintf("dy%d ~ delta_lag_yx * lx%d", t2, t2 - 1)),
     if (isTRUE(cp$xiXY)) c("# Coupling: the change in x depends on the previous change in y", sprintf("dx%d ~ xi_lag_xy * dy%d", t3, t3 - 1)),
-    if (isTRUE(cp$xiYX)) c("# Coupling: the change in y depends on the previous change in x", sprintf("dy%d ~ xi_lag_yx * dx%d", t3, t3 - 1))
+    if (isTRUE(cp$xiYX)) {
+      c("# Coupling: the change in y depends on the previous change in x", sprintf("dy%d ~ xi_lag_yx * dx%d", t3, t3 - 1))
+    }
   )
 }
 

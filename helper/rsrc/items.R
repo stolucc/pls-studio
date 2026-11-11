@@ -27,8 +27,12 @@ ps_aux_columns <- function(aux, items) {
   }
   cols <- c(unlist(aux$distal), unlist(aux$covariates))
   if (!length(cols)) stop("Choose distal outcomes or covariates for the three-step analysis.")
-  if (!is.character(cols) || anyDuplicated(cols) || any(cols %in% items)) stop("The auxiliary variables must be distinct columns that are not items.")
-  if (!is.null(aux$method) && !(length(aux$method) == 1 && aux$method %in% c("ml", "bch"))) stop("Invalid three-step method in the request.")
+  if (!is.character(cols) || anyDuplicated(cols) || any(cols %in% items)) {
+    stop("The auxiliary variables must be distinct columns that are not items.")
+  }
+  if (!is.null(aux$method) && !(length(aux$method) == 1 && aux$method %in% c("ml", "bch"))) {
+    stop("Invalid three-step method in the request.")
+  }
   cols
 }
 PS_LCA_AUX_FUNCTIONS <- c(
@@ -91,9 +95,13 @@ ps_lca_aux_body <- function(aux, fr, ks, post, keep, bic) {
     return(character(0))
   }
   k <- aux$classes
-  if (!is.null(k) && !(length(k) == 1 && is.numeric(k) && k %in% ks)) stop("The three-step analysis needs one of the fitted numbers of classes.")
+  if (!is.null(k) && !(length(k) == 1 && is.numeric(k) && k %in% ks)) {
+    stop("The three-step analysis needs one of the fitted numbers of classes.")
+  }
   ref <- aux$reference
-  if (!is.null(ref) && !(length(ref) == 1 && is.numeric(ref) && ref >= 1 && ref <= 10 && ref == round(ref))) stop("Invalid reference class in the request.")
+  if (!is.null(ref) && !(length(ref) == 1 && is.numeric(ref) && ref >= 1 && ref <= 10 && ref == round(ref))) {
+    stop("Invalid reference class in the request.")
+  }
   distal <- unname(fr$v[unlist(aux$distal)])
   covs <- unname(fr$v[unlist(aux$covariates)])
   method <- aux$method %||% "ml"
@@ -208,9 +216,13 @@ ps_irt <- function(req_json, export = FALSE) {
   # Gauss-Hermite quadrature points (ltm's GHk; its defaults are 15 to 21, too few for long tests: the
   # log-likelihood keeps changing up to some 80 points with 20 items), and robust standard errors (Mplus MLR).
   k <- req$quadrature
-  if (!is.null(k) && !(is.numeric(k) && length(k) == 1 && k == round(k) && k >= 5 && k <= 100)) stop("Choose between 5 and 100 quadrature points.")
+  if (!is.null(k) && !(is.numeric(k) && length(k) == 1 && k == round(k) && k >= 5 && k <= 100)) {
+    stop("Choose between 5 and 100 quadrature points.")
+  }
   robust <- isTRUE(req$robust)
-  if (robust && !model %in% c("twopl", "gpcm")) stop("Robust standard errors are available for the 2PL and partial credit models.")
+  if (robust && !model %in% c("twopl", "gpcm")) {
+    stop("Robust standard errors are available for the 2PL and partial credit models.")
+  }
   ctl <- if (is.null(k)) "" else sprintf(", control = list(GHk = %d)", as.integer(k))
   call <- switch(model,
     rasch = quiet(sprintf("rasch(items%s)", ctl)),
@@ -268,7 +280,11 @@ ps_irt <- function(req_json, export = FALSE) {
   }
   info <- env$info
   # (ltm's item fit is defined for dichotomous models: Rasch and 2PL.)
-  ifit <- if (model %in% c("rasch", "twopl")) ps_try(ltm::item.fit(fit), "Item fit (ltm::item.fit)") else NULL
+  ifit <- if (model %in% c("rasch", "twopl")) {
+    ps_try(ltm::item.fit(fit), "Item fit (ltm::item.fit)")
+  } else {
+    NULL
+  }
   sd <- env$scores
   # Marginal reliability: 1 - mean posterior variance / variance of the EAP scores (+ posterior variance).
   rel <- ps_try(
@@ -421,7 +437,9 @@ ps_lpa <- function(req_json, export = FALSE) {
   seed <- as.integer(req$seed %||% 1)
   if (nrep < 1 || nrep > 100) stop("Invalid number of starts.")
   structure <- req$structure %||% "EEI"
-  if (!structure %in% c("EEI", "VVI", "EEE", "VVV")) stop("Invalid variance structure in the request.")
+  if (!structure %in% c("EEI", "VVI", "EEE", "VVV")) {
+    stop("Invalid variance structure in the request.")
+  }
   body <- c(
     PS_LPA_FUNCTIONS,
     sprintf("Y <- data[, %s]", ps_q(fr$items)),
@@ -508,7 +526,9 @@ ps_lcga <- function(req_json, export = FALSE) {
   seed <- as.integer(req$seed %||% 1)
   if (nrep < 1 || nrep > 100) stop("Invalid number of starts.")
   times <- as.numeric(unlist(req$times))
-  if (length(times) != length(fr$items) || any(!is.finite(times))) stop("Give one time score per occasion.")
+  if (length(times) != length(fr$items) || any(!is.finite(times))) {
+    stop("Give one time score per occasion.")
+  }
   body <- c(
     PS_LCGA_FUNCTIONS,
     sprintf("U <- data[, %s]", ps_q(fr$items)),
@@ -614,19 +634,27 @@ ps_mirt <- function(req_json, export = FALSE) {
   items <- unlist(req$items)
   if (length(items) < 2) stop("Choose at least two items.")
   freq <- req$freq
-  if (!is.null(freq) && (!is.character(freq) || length(freq) != 1 || freq %in% items)) stop("Invalid frequency column in the request.")
+  if (!is.null(freq) && (!is.character(freq) || length(freq) != 1 || freq %in% items)) {
+    stop("Invalid frequency column in the request.")
+  }
   fr <- ps_long_frame(req, c(items, freq))
   vi <- unname(fr$v[items])
   k <- req$quadrature %||% 61
-  if (!(is.numeric(k) && length(k) == 1 && k == round(k) && k >= 5 && k <= 201)) stop("Choose between 5 and 201 quadrature points.")
+  if (!(is.numeric(k) && length(k) == 1 && k == round(k) && k >= 5 && k <= 201)) {
+    stop("Choose between 5 and 201 quadrature points.")
+  }
   robust <- isTRUE(req$robust)
-  if (robust && model == "mixture") stop("Robust standard errors are available for the 3PL and 4PL models.")
+  if (robust && model == "mixture") {
+    stop("Robust standard errors are available for the 3PL and 4PL models.")
+  }
   prior <- function(p, what) {
     if (is.null(p)) {
       return(NULL)
     }
     p <- as.numeric(unlist(p))
-    if (length(p) != 2 || !all(is.finite(p)) || p[2] <= 0) stop(sprintf("Invalid prior for the %s in the request.", what))
+    if (length(p) != 2 || !all(is.finite(p)) || p[2] <= 0) {
+      stop(sprintf("Invalid prior for the %s in the request.", what))
+    }
     p
   }
   pg <- prior(req$priorG, "lower asymptote")
@@ -634,12 +662,22 @@ ps_mirt <- function(req_json, export = FALSE) {
   if (!is.null(pu) && model != "fourpl") stop("A prior on the upper asymptote needs the 4PL model.")
   if (!is.null(pg) && model == "mixture") stop("Priors are available for the 3PL and 4PL models.")
   guess <- unlist(req$guessItems)
-  if (!is.null(guess) && (model != "threepl" || !all(guess %in% items))) stop("Invalid items with a guessing parameter in the request.")
+  if (!is.null(guess) && (model != "threepl" || !all(guess %in% items))) {
+    stop("Invalid items with a guessing parameter in the request.")
+  }
   classes <- as.integer(req$classes %||% 2)
   nrep <- as.integer(req$nrep %||% 10)
   seed <- as.integer(req$seed %||% 1)
-  if (model == "mixture" && (classes < 2 || classes > 5 || nrep < 1 || nrep > 100)) stop("Choose between 2 and 5 classes.")
-  types <- if (model == "fourpl") rep("4PL", length(items)) else if (model == "mixture") rep("2PL", length(items)) else ifelse(items %in% (guess %||% items), "3PL", "2PL")
+  if (model == "mixture" && (classes < 2 || classes > 5 || nrep < 1 || nrep > 100)) {
+    stop("Choose between 2 and 5 classes.")
+  }
+  types <- if (model == "fourpl") {
+    rep("4PL", length(items))
+  } else if (model == "mixture") {
+    rep("2PL", length(items))
+  } else {
+    ifelse(items %in% (guess %||% items), "3PL", "2PL")
+  }
   body <- c(
     "suppressPackageStartupMessages(library(mirt))",
     sprintf("items <- data[, %s]", ps_q(vi)),
@@ -662,7 +700,9 @@ ps_mirt <- function(req_json, export = FALSE) {
   } else {
     pri <- c(
       if (!is.null(pg)) sprintf("sv$parnum[sv$name == \"g\" & sv$est], \"norm\", %s, %s", format(pg[1], digits = 15), format(pg[2], digits = 15)),
-      if (!is.null(pu)) sprintf("sv$parnum[sv$name == \"u\" & sv$est], \"norm\", %s, %s", format(pu[1], digits = 15), format(pu[2], digits = 15))
+      if (!is.null(pu)) {
+        sprintf("sv$parnum[sv$name == \"u\" & sv$est], \"norm\", %s, %s", format(pu[1], digits = 15), format(pu[2], digits = 15))
+      }
     )
     body <- c(
       body,
@@ -704,7 +744,9 @@ ps_mirt <- function(req_json, export = FALSE) {
       c(
         list(one("loading", unname(cf[it, "a1"]), s("a1")), one("threshold 1", -unname(cf[it, "d"]), s("d"))),
         if (types[match(it, vi)] %in% c("3PL", "4PL")) list(one("threshold 2 (lower asymptote)", -logit(cf[it, "g"]), s("g"))),
-        if (model == "fourpl") list(one("threshold 3 (upper asymptote)", -logit(cf[it, "u"]), s("u")))
+        if (model == "fourpl") {
+          list(one("threshold 3 (upper asymptote)", -logit(cf[it, "u"]), s("u")))
+        }
       )
     }), recursive = FALSE)
   }
@@ -760,8 +802,12 @@ ps_mlca <- function(req_json, export = FALSE) {
   items <- unlist(req$items)
   if (length(items) < 2) stop("Choose at least two items.")
   cluster <- req$cluster
-  if (!is.character(cluster) || length(cluster) != 1 || cluster %in% items) stop("Choose the cluster column (not one of the items).")
-  if (!is.null(req$aux)) stop("The three-step analysis of auxiliary variables is not available for multilevel latent classes.")
+  if (!is.character(cluster) || length(cluster) != 1 || cluster %in% items) {
+    stop("Choose the cluster column (not one of the items).")
+  }
+  if (!is.null(req$aux)) {
+    stop("The three-step analysis of auxiliary variables is not available for multilevel latent classes.")
+  }
   ks <- as.integer(unlist(req$classes))
   if (!length(ks) || any(ks < 1 | ks > 10)) stop("Choose between 1 and 10 classes.")
   w <- as.integer(req$clusterClasses %||% 2)

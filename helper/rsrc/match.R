@@ -12,7 +12,9 @@ ps_match <- function(req_json, export = FALSE) {
   outcome <- req$outcome %||% ""
   if (!length(treat) || !length(covs)) stop("Choose the treatment and at least one covariate.")
   method <- req$method %||% "nearest"
-  if (!method %in% c("nearest", "optimal", "full", "exact", "cem", "subclass", "weighting")) stop("Invalid matching method in the request.")
+  if (!method %in% c("nearest", "optimal", "full", "exact", "cem", "subclass", "weighting")) {
+    stop("Invalid matching method in the request.")
+  }
   if (method == "weighting") {
     return(ps_weight(req, export))
   }
@@ -26,11 +28,15 @@ ps_match <- function(req_json, export = FALSE) {
   if (!match_effect %in% c("difference", "dr")) stop("Invalid effect model in the request.")
   estimand <- req$estimand %||% "ATT"
   if (!estimand %in% c("ATT", "ATE", "ATC")) stop("Invalid estimand in the request.")
-  if (method %in% c("nearest", "optimal") && estimand == "ATE") stop("Nearest-neighbour and optimal pair matching estimate the ATT (or ATC); use full matching or subclassification for the ATE.")
+  if (method %in% c("nearest", "optimal") && estimand == "ATE") {
+    stop("Nearest-neighbour and optimal pair matching estimate the ATT (or ATC); use full matching or subclassification for the ATE.")
+  }
   ratio <- as.integer(req$ratio %||% 1)
   caliper <- req$caliper
   if (ratio < 1 || ratio > 10) stop("Invalid matching ratio.")
-  if (!is.null(caliper) && (!is.numeric(caliper) || caliper <= 0 || caliper > 5)) stop("Invalid caliper.")
+  if (!is.null(caliper) && (!is.numeric(caliper) || caliper <= 0 || caliper > 5)) {
+    stop("Invalid caliper.")
+  }
   replace <- isTRUE(req$replace) && method == "nearest"
   seed <- as.integer(req$seed %||% 1)
   conf <- as.numeric(req$confidence %||% 0.95)

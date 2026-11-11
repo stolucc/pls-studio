@@ -7,7 +7,9 @@
 
 ps_bayes_seed <- function(req) {
   s <- req$seed %||% 1234
-  if (!is.numeric(s) || length(s) != 1 || !is.finite(s) || s != round(s) || abs(s) > .Machine$integer.max) stop("Invalid seed in the request.")
+  if (!is.numeric(s) || length(s) != 1 || !is.finite(s) || s != round(s) || abs(s) > .Machine$integer.max) {
+    stop("Invalid seed in the request.")
+  }
   as.integer(s)
 }
 ps_bayes_width <- function(req, default) {
@@ -35,7 +37,9 @@ ps_bttest <- function(req_json, export = FALSE) {
   r <- ps_bayes_width(req, sqrt(2) / 2)
   seed <- ps_bayes_seed(req)
   iter <- as.integer(ps_number(req$iterations %||% 10000, "number of posterior samples"))
-  if (iter < 1000 || iter > 1e6) stop("The number of posterior samples must be between 1,000 and 1,000,000.")
+  if (iter < 1000 || iter > 1e6) {
+    stop("The number of posterior samples must be between 1,000 and 1,000,000.")
+  }
   pairs <- if (type == "paired") {
     p <- req$pairs
     if (is.matrix(p)) lapply(seq_len(nrow(p)), function(i) as.character(p[i, ])) else lapply(p, function(t) as.character(unlist(t)))
@@ -43,7 +47,9 @@ ps_bttest <- function(req_json, export = FALSE) {
     NULL
   }
   vars <- if (type == "paired") unique(unlist(pairs)) else unlist(req$vars)
-  if (!length(vars)) stop(if (type == "paired") "Choose at least one pair of variables." else "Choose at least one variable.")
+  if (!length(vars)) {
+    stop(if (type == "paired") "Choose at least one pair of variables." else "Choose at least one variable.")
+  }
   for (p in pairs) if (length(p) != 2 || p[1] == p[2]) stop("Each pair needs two different variables.")
   group <- req$group %||% ""
   if (type == "independent" && !nzchar(group)) stop("Choose the grouping variable.")
@@ -54,7 +60,9 @@ ps_bttest <- function(req_json, export = FALSE) {
   body <- c("suppressPackageStartupMessages(library(BayesFactor))", sprintf("set.seed(%d)", seed))
   if (type == "independent") {
     body <- c(body, ps_bt_factor_line(req, fr, group), sprintf("g <- data$%s", v[[group]]))
-    if (length(levels(factor(fr$data[[v[[group]]]]))) != 2) stop(sprintf("The grouping variable must have exactly two groups; %s has %d.", group, length(levels(factor(fr$data[[v[[group]]]])))))
+    if (length(levels(factor(fr$data[[v[[group]]]]))) != 2) {
+      stop(sprintf("The grouping variable must have exactly two groups; %s has %d.", group, length(levels(factor(fr$data[[v[[group]]]])))))
+    }
   }
   q <- c((1 - conf) / 2, 0.5, 1 - (1 - conf) / 2)
   items <- if (type == "paired") pairs else as.list(vars)
@@ -71,7 +79,9 @@ ps_bttest <- function(req_json, export = FALSE) {
       )
     )
   }
-  if (robust) body <- c(body, sprintf("widths <- sort(unique(c(seq(0.05, 1.5, by = 0.05), %s)))  # prior widths for the robustness check", format(r, digits = 15)))
+  if (robust) {
+    body <- c(body, sprintf("widths <- sort(unique(c(seq(0.05, 1.5, by = 0.05), %s)))  # prior widths for the robustness check", format(r, digits = 15)))
+  }
   for (k in seq_along(items)) {
     b <- sprintf("b%d", k)
     # x and y: the two samples of this row (y = NULL for one sample), in row order.
@@ -98,7 +108,9 @@ ps_bttest <- function(req_json, export = FALSE) {
       body, sprintf("post%d <- posterior(%s[1], iterations = %d, progress = FALSE)  # the standardised effect delta under H1", k, b, iter),
       sprintf("delta%d <- quantile(as.numeric(post%d[, \"delta\"]), %s)", k, k, paste0("c(", paste(format(q, digits = 15), collapse = ", "), ")"))
     )
-    if (robust) body <- c(body, sprintf("robust%d <- vapply(widths, function(w) bfAt(x, y, w), 0)", k))
+    if (robust) {
+      body <- c(body, sprintf("robust%d <- vapply(widths, function(w) bfAt(x, y, w), 0)", k))
+    }
     if (sequential) {
       body <- c(
         body,
@@ -160,7 +172,9 @@ ps_bcorrelation <- function(req_json, export = FALSE) {
   kappa <- ps_bayes_width(req, 1)
   seed <- ps_bayes_seed(req)
   iter <- as.integer(ps_number(req$iterations %||% 10000, "number of posterior samples"))
-  if (iter < 1000 || iter > 1e6) stop("The number of posterior samples must be between 1,000 and 1,000,000.")
+  if (iter < 1000 || iter > 1e6) {
+    stop("The number of posterior samples must be between 1,000 and 1,000,000.")
+  }
   fr <- ps_long_frame(req, vars)
   v <- unname(unlist(fr$v[vars]))
   q <- c((1 - conf) / 2, 0.5, 1 - (1 - conf) / 2)
@@ -190,7 +204,9 @@ ps_bcorrelation <- function(req_json, export = FALSE) {
       )
     },
     # (the first n cases in row order, from 3; at most 150 steps)
-    if (isTRUE(req$sequential)) sprintf("sequential <- lapply(xy, function(d) { steps <- unique(round(seq(3, length(d$x), length.out = min(150, length(d$x) - 2)))); list(n = steps, bf10 = vapply(steps, function(n) bfAt(d$x[1:n], d$y[1:n], %s), 0)) })", format(kappa, digits = 15))
+    if (isTRUE(req$sequential)) {
+      sprintf("sequential <- lapply(xy, function(d) { steps <- unique(round(seq(3, length(d$x), length.out = min(150, length(d$x) - 2)))); list(n = steps, bf10 = vapply(steps, function(n) bfAt(d$x[1:n], d$y[1:n], %s), 0)) })", format(kappa, digits = 15))
+    }
   )
   inputs <- list(data = fr$data)
   if (export) {
@@ -267,7 +283,9 @@ ps_bbinomial_logistic <- function(req, fr, x, alt, conf, p0, export) {
   if (r <= 0 || r > 100) stop("The prior scale must be positive.")
   seed <- ps_bayes_seed(req)
   iter <- as.integer(ps_number(req$iterations %||% 10000, "number of posterior samples"))
-  if (iter < 1000 || iter > 1e6) stop("The number of posterior samples must be between 1,000 and 1,000,000.")
+  if (iter < 1000 || iter > 1e6) {
+    stop("The number of posterior samples must be between 1,000 and 1,000,000.")
+  }
   ni <- switch(alt,
     two.sided = "NULL",
     greater = "c(p0, 1)",
@@ -350,7 +368,9 @@ ps_banova <- function(req_json, export = FALSE) {
   if (iter < 1000 || iter > 1e6) stop("The number of samples must be between 1,000 and 1,000,000.")
   fr <- ps_long_frame(req, unique(c(y, fac, cov)))
   v <- fr$v
-  if (length(fac) + length(cov) > 6) stop("At most six factors and covariates: the number of models grows quickly.")
+  if (length(fac) + length(cov) > 6) {
+    stop("At most six factors and covariates: the number of models grows quickly.")
+  }
   # covariateInteractions: the covariates enter the factorial too (factor x covariate interactions, slopes differing by group).
   withCov <- full && isTRUE(req$covariateInteractions) && length(cov) > 0
   rhs <- if (withCov) {
@@ -394,9 +414,13 @@ ps_bcontingency <- function(req_json, export = FALSE) {
   rv <- req$rows %||% ""
   cv <- req$columns %||% ""
   wv <- req$counts %||% ""
-  if (!nzchar(rv) || !nzchar(cv) || rv == cv) stop("Choose two different variables for the rows and the columns.")
+  if (!nzchar(rv) || !nzchar(cv) || rv == cv) {
+    stop("Choose two different variables for the rows and the columns.")
+  }
   st <- req$sampling %||% "jointMulti"
-  if (!st %in% c("poisson", "jointMulti", "indepRows", "indepCols", "hypergeom")) stop("Invalid sampling scheme in the request.")
+  if (!st %in% c("poisson", "jointMulti", "indepRows", "indepCols", "hypergeom")) {
+    stop("Invalid sampling scheme in the request.")
+  }
   a <- ps_number(req$priorConcentration %||% 1, "prior concentration")
   if (a <= 0) stop("The prior concentration must be positive.")
   fr <- ps_long_frame(req, unique(c(rv, cv, if (nzchar(wv)) wv)))
@@ -421,7 +445,9 @@ ps_bcontingency <- function(req_json, export = FALSE) {
   }
   env <- ps_run(body, inputs)
   tab <- env$tab
-  if (st == "hypergeom" && !all(dim(tab) == 2)) stop("The hypergeometric scheme (both margins fixed) is for 2 x 2 tables.")
+  if (st == "hypergeom" && !all(dim(tab) == 2)) {
+    stop("The hypergeometric scheme (both margins fixed) is for 2 x 2 tables.")
+  }
   e <- BayesFactor::extractBF(env$bf, logbf = TRUE)
   ps_json(list(
     rows = rv, columns = cv, rowLevels = rownames(tab), colLevels = colnames(tab), counts = lapply(seq_len(nrow(tab)), function(i) unname(as.numeric(tab[i, ]))), n = sum(tab),
@@ -440,9 +466,13 @@ ps_brmanova <- function(req_json, export = FALSE) {
   within <- unlist(req$levels)
   between <- req$between %||% ""
   multi <- !is.null(req$factors) && length(req$factors) >= 2
-  if (!multi && length(within) < 2) stop("Choose at least two columns: one per level of the within-subject factor.")
+  if (!multi && length(within) < 2) {
+    stop("Choose at least two columns: one per level of the within-subject factor.")
+  }
   fname <- req$factorName %||% "condition"
-  if (!multi && (!grepl("^[A-Za-z][A-Za-z0-9_.]{0,30}$", fname) || fname %in% c("subject", "y"))) stop("The factor name must be a letter followed by letters, digits, _ or . (at most 31), and not subject or y.")
+  if (!multi && (!grepl("^[A-Za-z][A-Za-z0-9_.]{0,30}$", fname) || fname %in% c("subject", "y"))) {
+    stop("The factor name must be a letter followed by letters, digits, _ or . (at most 31), and not subject or y.")
+  }
   rf <- ps_number(req$priorFixed %||% 0.5, "prior width of the fixed effects")
   rr <- ps_number(req$priorRandom %||% 1, "prior width of the random effect")
   if (rf <= 0 || rr <= 0) stop("The prior widths must be positive.")
@@ -457,7 +487,9 @@ ps_brmanova <- function(req_json, export = FALSE) {
   fr <- ps_long_frame(req, unique(c(within, if (nzchar(between)) between)))
   v <- fr$v
   bt <- nzchar(between)
-  if (bt && v[[between]] %in% c("subject", "y", "idata", fname, design$names)) stop("Rename the between factor: its name is taken by the model.")
+  if (bt && v[[between]] %in% c("subject", "y", "idata", fname, design$names)) {
+    stop("Rename the between factor: its name is taken by the model.")
+  }
   body <- c(
     "suppressPackageStartupMessages(library(BayesFactor))", sprintf("set.seed(%d)", seed),
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(within, if (bt) between)])))),
@@ -519,7 +551,9 @@ ps_bregression <- function(req_json, export = FALSE) {
   if (!mp %in% c("uniform", "betabinomial")) stop("Invalid model prior in the request.")
   conf <- ps_bt_conf(req)
   iter <- as.integer(ps_number(req$iterations %||% 10000, "number of posterior samples"))
-  if (iter < 1000 || iter > 1e6) stop("The number of posterior samples must be between 1,000 and 1,000,000.")
+  if (iter < 1000 || iter > 1e6) {
+    stop("The number of posterior samples must be between 1,000 and 1,000,000.")
+  }
   fr <- ps_long_frame(req, unique(c(y, preds)))
   v <- fr$v
   fml <- sprintf("%s ~ %s", v[[y]], paste(vapply(preds, function(n) v[[n]], ""), collapse = " + "))
@@ -581,33 +615,45 @@ ps_bregression <- function(req_json, export = FALSE) {
 ps_bsem <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   engine <- req$engine %||% "blavaan"
-  if (!(is.character(engine) && length(engine) == 1 && engine %in% c("blavaan", "inlavaan"))) stop("Invalid engine in the request.")
+  if (!(is.character(engine) && length(engine) == 1 && engine %in% c("blavaan", "inlavaan"))) {
+    stop("Invalid engine in the request.")
+  }
   inla <- engine == "inlavaan"
-  if (!inla && ps_in_browser()) stop("Bayesian SEM (blavaan, Stan) runs in desktop R: choose Desktop R (helper) under R runs in, or the INLAvaan engine.")
+  if (!inla && ps_in_browser()) {
+    stop("Bayesian SEM (blavaan, Stan) runs in desktop R: choose Desktop R (helper) under R runs in, or the INLAvaan engine.")
+  }
   ident <- req$identification %||% "unit"
   if (!ident %in% c("unit", "marker")) stop("Invalid identification in the request.")
   chains <- as.integer(ps_number(req$chains %||% 3, "number of chains"))
   burnin <- as.integer(ps_number(req$burnin %||% 500, "burn-in"))
   sample <- as.integer(ps_number(req$sample %||% 1000, "number of draws per chain"))
-  if (chains < 1 || chains > 8 || burnin < 100 || burnin > 1e5 || sample < 100 || sample > 1e5) stop("Chains 1 to 8; burn-in and draws per chain 100 to 100,000.")
+  if (chains < 1 || chains > 8 || burnin < 100 || burnin > 1e5 || sample < 100 || sample > 1e5) {
+    stop("Chains 1 to 8; burn-in and draws per chain 100 to 100,000.")
+  }
   seed <- ps_bayes_seed(req)
   conf <- ps_bt_conf(req)
   cores <- as.integer(req$cores %||% 1L)
   if (is.na(cores) || cores < 1L || cores > 64L) stop("Invalid number of cores.")
   priors <- req$priors %||% "blavaan"
-  if (!(is.character(priors) && length(priors) == 1 && priors %in% c("blavaan", "mplus"))) stop("Invalid priors in the request.")
+  if (!(is.character(priors) && length(priors) == 1 && priors %in% c("blavaan", "mplus"))) {
+    stop("Invalid priors in the request.")
+  }
   npv <- as.integer(ps_number(req$plausible %||% 0, "number of plausible values"))
   if (npv < 0 || npv > 500) stop("Plausible values: 0 to 500 per case.")
   if (npv > 0 && !is.null(req$model$multigroup)) stop("Plausible values here are for one group.")
   req$model$identification <- ident
   b <- ps_cb_build(req)
   if (b$matrix_input) stop("Bayesian SEM needs raw data; this dataset is a covariance matrix.")
-  if (isTRUE(b$mi) || isTRUE(b$robust)) stop("Bayesian SEM handles missing values itself (FIML-like); choose casewise or FIML, not multiple imputation or robust ML.")
+  if (isTRUE(b$mi) || isTRUE(b$robust)) {
+    stop("Bayesian SEM handles missing values itself (FIML-like); choose casewise or FIML, not multiple imputation or robust ML.")
+  }
   if (!is.null(b$cluster_var)) stop("Bayesian SEM here fits models without clusters.")
   if (length(b$mods)) stop("Bayesian SEM here does not include latent interactions.")
   if (length(b$composites)) stop("Composites are not available in Bayesian SEM.")
   if (length(b$esem_blocks)) stop("ESEM blocks are not available in Bayesian SEM.")
-  if (isTRUE(b$means) && ident == "unit") stop("Means and intercepts in Bayesian SEM need marker identification: choose Marker indicators.")
+  if (isTRUE(b$means) && ident == "unit") {
+    stop("Means and intercepts in Bayesian SEM need marker identification: choose Marker indicators.")
+  }
   span <- ps_model_span(b)
   at <- span[1]
   close <- span[2]
@@ -620,7 +666,11 @@ ps_bsem <- function(req_json, export = FALSE) {
   }
   args <- paste0(vapply(c("group", "group.equal", "group.partial", "ordered", "meanstructure", "auto.cov.y"), carried, ""), collapse = "")
   ordered <- unname(b$n$iv[intersect(unlist(req$model$ordered), b$n$all_inds)])
-  n_groups <- if (!is.null(b$group_var)) length(unique(b$inputs$data[[b$group_var]][is.finite(b$inputs$data[[b$group_var]])])) else 1L
+  n_groups <- if (!is.null(b$group_var)) {
+    length(unique(b$inputs$data[[b$group_var]][is.finite(b$inputs$data[[b$group_var]])]))
+  } else {
+    1L
+  }
   # Normal priors on labelled parameters (Mplus MODEL PRIORS: label ~ N(mean, variance); Stan's normal takes the SD).
   lp <- req$labelPriors
   if (is.data.frame(lp)) lp <- lapply(seq_len(nrow(lp)), function(i) as.list(lp[i, , drop = FALSE]))
@@ -637,10 +687,14 @@ ps_bsem <- function(req_json, export = FALSE) {
   wiggle <- character(0)
   wsd <- NULL
   if (!is.null(wg)) {
-    if (inla) stop("Approximate invariance (blavaan's wiggle) is not available with INLAvaan: choose blavaan.")
+    if (inla) {
+      stop("Approximate invariance (blavaan's wiggle) is not available with INLAvaan: choose blavaan.")
+    }
     if (n_groups < 2) stop("Approximate invariance needs several groups.")
     wiggle <- unique(as.character(unlist(wg$what)))
-    if (!length(wiggle) || !all(wiggle %in% c("loadings", "intercepts", "regressions", "means", "thresholds"))) stop("Invalid approximate invariance in the request.")
+    if (!length(wiggle) || !all(wiggle %in% c("loadings", "intercepts", "regressions", "means", "thresholds"))) {
+      stop("Invalid approximate invariance in the request.")
+    }
     v <- ps_number(wg$variance, "variance of the differences")
     if (v <= 0 || v > 100) stop("The variance of the differences must be positive.")
     # Mplus's DIFF(p1-pG) ~ N(0, v): every pairwise difference between the groups' values has prior variance v,
@@ -656,17 +710,23 @@ ps_bsem <- function(req_json, export = FALSE) {
     from <- ps_number(loop$from, "loop start")
     to <- ps_number(loop$to, "loop end")
     by <- ps_number(loop$by, "loop step")
-    if (by <= 0 || to < from || (to - from) / by > 1000) stop("The loop runs from its start to its end in at most 1,000 positive steps.")
+    if (by <= 0 || to < from || (to - from) / by > 1000) {
+      stop("The loop runs from its start to its end in at most 1,000 positive steps.")
+    }
     lexpr <- ps_expr(loop$expr)
   }
   mplus <- priors == "mplus"
   # Priors are set per parameter in blavaan's parameter table; blavaan cannot take a table together with wiggle,
   # so with approximate invariance Mplus's priors go by type (dpriors) and priors on labels are not available.
-  if (length(wiggle) && length(lp_lines)) stop("Priors on labelled parameters cannot be combined with approximate invariance (blavaan's wiggle) here.")
+  if (length(wiggle) && length(lp_lines)) {
+    stop("Priors on labelled parameters cannot be combined with approximate invariance (blavaan's wiggle) here.")
+  }
   via_pt <- (mplus || length(lp_lines) > 0) && !length(wiggle)
   pre_args <- sprintf("%s%s, std.lv = %s", args, if (isTRUE(b$means) && !grepl("meanstructure", args)) ", meanstructure = TRUE" else "", if (ident == "unit") "TRUE" else "FALSE")
   q <- c((1 - conf) / 2, 1 - (1 - conf) / 2)
-  if (!is.null(req$defaultPriors) && !inla) stop("Default priors by parameter type are set here for INLAvaan only.")
+  if (!is.null(req$defaultPriors) && !inla) {
+    stop("Default priors by parameter type are set here for INLAvaan only.")
+  }
   if (inla) {
     return(ps_bsem_inla(list(
       req = req, b = b, at = at, close = close, args = paste0(args, carried("missing")), pre_args = paste0(pre_args, carried("missing")), ordered = ordered,
@@ -721,7 +781,9 @@ ps_bsem <- function(req_json, export = FALSE) {
             "free <- pt$free > 0",
             "cv <- free & pt$op == \"~~\" & pt$lhs != pt$rhs",
             "for (i in which(free & pt$op == \"~~\" & pt$lhs == pt$rhs)) pt$prior[i] <- sprintf(\"gamma(%s,1e-4)[var]\", 1 + sum(cv & pt$group == pt$group[i] & (pt$lhs == pt$lhs[i] | pt$rhs == pt$lhs[i])) / 2)",
-            if (length(ordered)) sprintf("pt$prior[free & pt$op == \"=~\" & pt$rhs %%in%% %s] <- \"normal(0,2.2360680)\"   # Mplus N(0, 5)", ps_q(ordered))
+            if (length(ordered)) {
+              sprintf("pt$prior[free & pt$op == \"=~\" & pt$rhs %%in%% %s] <- \"normal(0,2.2360680)\"   # Mplus N(0, 5)", ps_q(ordered))
+            }
           )
         },
         lp_lines,
@@ -768,12 +830,18 @@ ps_bsem <- function(req_json, export = FALSE) {
   nm <- function(x) ps_back(x, back, FALSE)
   d <- env$draws
   pt <- env$pt
-  glab <- if (n_groups > 1) as.character(lavaan::lavInspect(env$fit, "group.label")) else character(0)
+  glab <- if (n_groups > 1) {
+    as.character(lavaan::lavInspect(env$fit, "group.label"))
+  } else {
+    character(0)
+  }
   # The draws' columns: one per free parameter of the parameter table (in its order), then the defined ones.
   rows <- pt[pt$free > 0, , drop = FALSE]
   rows <- rows[order(rows$free), , drop = FALSE]
   defs <- pt[pt$op == ":=", , drop = FALSE]
-  if (ncol(d) != nrow(rows) + nrow(defs)) stop("The posterior draws do not match the parameter table.")
+  if (ncol(d) != nrow(rows) + nrow(defs)) {
+    stop("The posterior draws do not match the parameter table.")
+  }
   summ <- function(x) list(median = stats::median(x), mean = mean(x), sd = stats::sd(x), low = unname(stats::quantile(x, q[1])), high = unname(stats::quantile(x, q[2])))
   pars <- lapply(seq_len(nrow(rows)), function(k) {
     r <- rows[k, ]
@@ -815,7 +883,9 @@ ps_bsem_loop_check <- function(b, at, close, lexpr, lvar) {
     sub(" :=.*$", "", trimws(grep(":=", model_lines, value = TRUE, fixed = TRUE)))
   ))
   bad <- setdiff(all.vars(parse(text = lexpr)), c(lvar, labs))
-  if (length(bad)) stop(sprintf("The loop's expression names %s: not a label of the model or the loop variable.", paste(bad, collapse = ", ")))
+  if (length(bad)) {
+    stop(sprintf("The loop's expression names %s: not a label of the model or the loop variable.", paste(bad, collapse = ", ")))
+  }
 }
 #' The loop's grid and the summaries of the quantity at each point (the script's loop_x and loop).
 ps_bsem_loop_out <- function(env, lname, lvar, lexpr) {
@@ -840,11 +910,19 @@ ps_bsem_pv_out <- function(pv, lv_lname, nm) {
 #' variance, with [sd] on the SD or [prec] on the precision, or "beta(a,b)" (correlations); rebuilt from its numbers.
 ps_inla_prior <- function(x, family) {
   num <- "([-+]?[0-9]*\\.?[0-9]+(?:[eE][-+]?[0-9]+)?)"
-  m <- if (is.character(x) && length(x) == 1 && nchar(x) <= 60) regmatches(x, regexec(sprintf("^\\s*(normal|gamma|beta)\\s*\\(\\s*%s\\s*,\\s*%s\\s*\\)\\s*(\\[sd\\]|\\[prec\\])?\\s*$", num, num), x, perl = TRUE))[[1]] else character(0)
-  if (length(m) != 5 || m[2] != family) stop(sprintf("Invalid default prior in the request (a %s prior is expected).", family))
+  m <- if (is.character(x) && length(x) == 1 && nchar(x) <= 60) {
+    regmatches(x, regexec(sprintf("^\\s*(normal|gamma|beta)\\s*\\(\\s*%s\\s*,\\s*%s\\s*\\)\\s*(\\[sd\\]|\\[prec\\])?\\s*$", num, num), x, perl = TRUE))[[1]]
+  } else {
+    character(0)
+  }
+  if (length(m) != 5 || m[2] != family) {
+    stop(sprintf("Invalid default prior in the request (a %s prior is expected).", family))
+  }
   a <- as.numeric(m[3])
   b <- as.numeric(m[4])
-  if (!is.finite(a) || !is.finite(b) || b <= 0 || (family != "normal" && a <= 0) || (nzchar(m[5]) && family != "gamma")) stop("Invalid default prior in the request.")
+  if (!is.finite(a) || !is.finite(b) || b <= 0 || (family != "normal" && a <= 0) || (nzchar(m[5]) && family != "gamma")) {
+    stop("Invalid default prior in the request.")
+  }
   sprintf("%s(%s,%s)%s", family, format(a, digits = 15), format(b, digits = 15), m[5])
 }
 PS_INLA_FAMILY <- c(nu = "normal", alpha = "normal", lambda = "normal", beta = "normal", tau = "normal", theta = "gamma", psi = "gamma", rho = "beta")
@@ -869,12 +947,16 @@ ps_bsem_inla <- function(s, export) {
   ordered <- s$ordered
   mplus <- s$mplus
   miss <- req$missing %||% "casewise"
-  if (!is.null(PS_LAVAAN_MISSING[[miss]]) && miss != "fiml") stop("Bayesian SEM by INLAvaan: choose casewise deletion, mean replacement or FIML for the missing values.")
+  if (!is.null(PS_LAVAAN_MISSING[[miss]]) && miss != "fiml") {
+    stop("Bayesian SEM by INLAvaan: choose casewise deletion, mean replacement or FIML for the missing values.")
+  }
   dp_args <- character(0)
   if (!is.null(req$defaultPriors)) {
     dpr <- req$defaultPriors
     if (mplus) stop("Choose Mplus's priors or default priors by parameter type, not both.")
-    if (!is.list(dpr) || !length(dpr) || is.null(names(dpr)) || !all(names(dpr) %in% names(PS_INLA_FAMILY)) || anyDuplicated(names(dpr))) stop("Invalid default priors in the request.")
+    if (!is.list(dpr) || !length(dpr) || is.null(names(dpr)) || !all(names(dpr) %in% names(PS_INLA_FAMILY)) || anyDuplicated(names(dpr))) {
+      stop("Invalid default priors in the request.")
+    }
     dp_args <- vapply(names(dpr), function(k) ps_inla_prior(dpr[[k]], PS_INLA_FAMILY[[k]]), "")
   }
   via_pt <- mplus || length(s$lp_lines) > 0
@@ -913,7 +995,9 @@ ps_bsem_inla <- function(s, export) {
             "free <- pt$free > 0",
             "cv <- free & pt$op == \"~~\" & pt$lhs != pt$rhs",
             "for (i in which(free & pt$op == \"~~\" & pt$lhs == pt$rhs)) pt$prior[i] <- sprintf(\"gamma(%s,1e-4)\", 1 + sum(cv & pt$group == pt$group[i] & (pt$lhs == pt$lhs[i] | pt$rhs == pt$lhs[i])) / 2)",
-            if (length(ordered)) sprintf("pt$prior[free & pt$op == \"=~\" & pt$rhs %%in%% %s] <- \"normal(0,2.2360680)\"   # Mplus N(0, 5)", ps_q(ordered))
+            if (length(ordered)) {
+              sprintf("pt$prior[free & pt$op == \"=~\" & pt$rhs %%in%% %s] <- \"normal(0,2.2360680)\"   # Mplus N(0, 5)", ps_q(ordered))
+            }
           )
         },
         s$lp_lines,
@@ -967,8 +1051,14 @@ ps_bsem_inla <- function(s, export) {
   d <- env$draws
   nfree <- max(pt$free)
   defs <- pt[pt$op == ":=", , drop = FALSE]
-  if (nrow(sm) != nfree + nrow(defs) || nrow(dgp) != nfree) stop("INLAvaan's summary does not match the parameter table.")
-  glab <- if (s$n_groups > 1) as.character(lavaan::lavInspect(env$fit, "group.label")) else character(0)
+  if (nrow(sm) != nfree + nrow(defs) || nrow(dgp) != nfree) {
+    stop("INLAvaan's summary does not match the parameter table.")
+  }
+  glab <- if (s$n_groups > 1) {
+    as.character(lavaan::lavInspect(env$fit, "group.label"))
+  } else {
+    character(0)
+  }
   fin <- function(x) if (length(x) == 1 && is.finite(x)) unname(as.numeric(x)) else NULL
   # (the central interval: INLAvaan's 95% from the marginals; another level from the posterior draws)
   ci <- function(k, col) if (marg) unname(as.numeric(sm[k, c("2.5%", "97.5%")])) else unname(stats::quantile(d[[col]], q))

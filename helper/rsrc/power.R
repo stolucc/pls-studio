@@ -29,14 +29,22 @@ ps_power <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   o <- req$power
   analysis <- o[["analysis", exact = TRUE]]
-  if (!(is.character(analysis) && length(analysis) == 1 && analysis %in% c("apriori", "posthoc", "compromise", "parameter", "equivalence"))) stop("Invalid power analysis in the request.")
+  if (!(is.character(analysis) && length(analysis) == 1 && analysis %in% c("apriori", "posthoc", "compromise", "parameter", "equivalence"))) {
+    stop("Invalid power analysis in the request.")
+  }
   alpha <- ps_power_num(o$alpha %||% 0.05, "alpha", 1e-6, 0.5)
   inputs <- list()
   packages <- "semPower"
   if (analysis %in% c("apriori", "posthoc", "compromise")) {
     measure <- o[["measure", exact = TRUE]]
-    if (!(is.character(measure) && length(measure) == 1 && measure %in% .ps_power_measures)) stop("Invalid effect measure in the request.")
-    effect <- if (measure == "F0") ps_power_num(o$effect, "effect", 1e-8, 100) else ps_power_num(o$effect, "effect", 1e-8, 0.999999)
+    if (!(is.character(measure) && length(measure) == 1 && measure %in% .ps_power_measures)) {
+      stop("Invalid effect measure in the request.")
+    }
+    effect <- if (measure == "F0") {
+      ps_power_num(o$effect, "effect", 1e-8, 100)
+    } else {
+      ps_power_num(o$effect, "effect", 1e-8, 0.999999)
+    }
     df <- ps_power_num(o$df, "degrees of freedom", 1, 1e6, TRUE)
     args <- c(
       sprintf("effect = %s", effect), sprintf("effect.measure = \"%s\"", measure),
@@ -45,7 +53,9 @@ ps_power <- function(req_json, export = FALSE) {
       if (analysis == "compromise") sprintf("abratio = %s", ps_power_num(o$abratio %||% 1, "alpha/beta ratio", 1e-4, 1e4)),
       if (analysis != "apriori") sprintf("N = %s", ps_power_num(o$n, "N", 2, 1e8, TRUE)),
       sprintf("df = %s", df),
-      if (measure %in% c("GFI", "AGFI")) sprintf("p = %s", ps_power_num(o$p, "number of observed variables", 1, 1e4, TRUE))
+      if (measure %in% c("GFI", "AGFI")) {
+        sprintf("p = %s", ps_power_num(o$p, "number of observed variables", 1, 1e4, TRUE))
+      }
     )
     fn <- c(apriori = "semPower.aPriori", posthoc = "semPower.postHoc", compromise = "semPower.compromise")[[analysis]]
     body <- c(
@@ -63,17 +73,31 @@ ps_power <- function(req_json, export = FALSE) {
   } else if (analysis == "parameter") {
     b <- ps_cb_build(req)
     ps_cb_plain(b, "Power for a parameter", raw = FALSE)
-    if (!grepl("^fit <- sem\\(.*\\)$", b$call)) stop("Power for a parameter is not available for this model.")
-    if (!is.null(b$group_var) || isTRUE(b$matrix_input) && is.list(b$inputs$S) && !is.matrix(b$inputs$S)) stop("Power for a parameter is computed for one group: remove the grouping.")
-    if (length(unlist(req$model$ordered))) stop("Power for a parameter is for continuous indicators (ML); this model has ordinal ones.")
-    if (!identical(req$estimator, "ML")) stop("Power for a parameter uses ML (the likelihood-ratio test semPower computes): set the estimator to ML (Model settings).")
-    if (length(b$composites)) stop("Power for a parameter is for common-factor models; the model has composites (<~).")
+    if (!grepl("^fit <- sem\\(.*\\)$", b$call)) {
+      stop("Power for a parameter is not available for this model.")
+    }
+    if (!is.null(b$group_var) || isTRUE(b$matrix_input) && is.list(b$inputs$S) && !is.matrix(b$inputs$S)) {
+      stop("Power for a parameter is computed for one group: remove the grouping.")
+    }
+    if (length(unlist(req$model$ordered))) {
+      stop("Power for a parameter is for continuous indicators (ML); this model has ordinal ones.")
+    }
+    if (!identical(req$estimator, "ML")) {
+      stop("Power for a parameter uses ML (the likelihood-ratio test semPower computes): set the estimator to ML (Model settings).")
+    }
+    if (length(b$composites)) {
+      stop("Power for a parameter is for common-factor models; the model has composites (<~).")
+    }
     p <- o$param
     op <- p[["op", exact = TRUE]]
-    if (!(is.character(op) && length(op) == 1 && op %in% c("=~", "~", "~~"))) stop("Invalid parameter in the request.")
+    if (!(is.character(op) && length(op) == 1 && op %in% c("=~", "~", "~~"))) {
+      stop("Invalid parameter in the request.")
+    }
     map <- c(b$lname, b$n$iv)
     nm <- function(x) {
-      if (!(is.character(x) && length(x) == 1 && x %in% names(map))) stop("The parameter is not in the model.")
+      if (!(is.character(x) && length(x) == 1 && x %in% names(map))) {
+        stop("The parameter is not in the model.")
+      }
       unname(map[[x]])
     }
     lhs <- nm(p$lhs)
@@ -81,7 +105,11 @@ ps_power <- function(req_json, export = FALSE) {
     value <- ps_power_num(p$value %||% 0, "value under H0", -1e6, 1e6)
     type <- o[["type", exact = TRUE]] %||% "apriori"
     if (!type %in% c("apriori", "posthoc")) stop("Invalid power analysis in the request.")
-    at <- if (type == "apriori") sprintf("power = %s", ps_power_num(o$power, "power", 0.01, 0.9999)) else sprintf("N = %s", ps_power_num(o$n, "N", 2, 1e8, TRUE))
+    at <- if (type == "apriori") {
+      sprintf("power = %s", ps_power_num(o$power, "power", 0.01, 0.9999))
+    } else {
+      sprintf("N = %s", ps_power_num(o$n, "N", 2, 1e8, TRUE))
+    }
     q <- function(x) encodeString(x, quote = '"')
     body <- c(
       b$body,
@@ -116,8 +144,12 @@ ps_power <- function(req_json, export = FALSE) {
     if (src == "model") {
       b <- ps_cb_build(req)
       ps_cb_plain(b, "The RMSEA equivalence test", raw = FALSE)
-      if (!grepl("^fit <- sem\\(.*\\)$", b$call)) stop("The RMSEA equivalence test is not available for this model.")
-      if (!is.null(b$group_var)) stop("The RMSEA equivalence test is for one group: remove the grouping.")
+      if (!grepl("^fit <- sem\\(.*\\)$", b$call)) {
+        stop("The RMSEA equivalence test is not available for this model.")
+      }
+      if (!is.null(b$group_var)) {
+        stop("The RMSEA equivalence test is for one group: remove the grouping.")
+      }
       body <- c(
         b$body,
         "# The model's ML chi-square, degrees of freedom and N",
@@ -174,8 +206,12 @@ ps_power <- function(req_json, export = FALSE) {
       chiCrit = val(pw$chiCrit), fmin = val(pw$fmin), rmsea = val(pw$rmsea), mc = val(pw$mc), gfi = val(pw$gfi), agfi = val(pw$agfi),
       abratio = val(pw$impliedAbratio)
     ))
-    if (!is.null(env$curve_n)) res$curve <- list(n = I(env$curve_n), power = I(unname(env$curve_power)))
-    if (analysis == "parameter") res <- c(res, list(estimate = env$estimate, sampleN = env$n_sample, param = list(lhs = p$lhs, op = op, rhs = p$rhs, value = as.numeric(value))))
+    if (!is.null(env$curve_n)) {
+      res$curve <- list(n = I(env$curve_n), power = I(unname(env$curve_power)))
+    }
+    if (analysis == "parameter") {
+      res <- c(res, list(estimate = env$estimate, sampleN = env$n_sample, param = list(lhs = p$lhs, op = op, rhs = p$rhs, value = as.numeric(value))))
+    }
   }
   res$warnings <- env$.warnings
   res$engine <- ps_engine("semPower")

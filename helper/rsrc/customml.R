@@ -14,7 +14,9 @@ PS_CML_FUNS <- c("exp", "log", "sqrt")
 
 #' One expression from the request, parsed and checked: the R call, or an error. `names`: the names it may use.
 ps_cml_expr <- function(x, names, what) {
-  if (!(is.character(x) && length(x) == 1 && nchar(x) <= 500 && grepl("^[A-Za-z0-9_ .+*/^()-]+$", x))) stop(sprintf("Invalid expression for %s in the request.", what))
+  if (!(is.character(x) && length(x) == 1 && nchar(x) <= 500 && grepl("^[A-Za-z0-9_ .+*/^()-]+$", x))) {
+    stop(sprintf("Invalid expression for %s in the request.", what))
+  }
   e <- tryCatch(str2lang(x), error = function(err) stop(sprintf("The expression for %s cannot be read.", what)))
   ok <- function(z) {
     if (is.numeric(z)) {
@@ -39,14 +41,18 @@ ps_cml_expr <- function(x, names, what) {
     }
     FALSE
   }
-  if (!ok(e)) stop(sprintf("The expression for %s may use the parameters, data columns, numbers, + - * / ^, exp, log, sqrt and parentheses only.", what))
+  if (!ok(e)) {
+    stop(sprintf("The expression for %s may use the parameters, data columns, numbers, + - * / ^, exp, log, sqrt and parentheses only.", what))
+  }
   paste(deparse(e, width.cutoff = 500L), collapse = " ")
 }
 
 ps_customml <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   type <- req$type
-  if (!(is.character(type) && length(type) == 1 && type %in% c("nominal", "normal", "probit"))) stop("Invalid model type in the request.")
+  if (!(is.character(type) && length(type) == 1 && type %in% c("nominal", "normal", "probit"))) {
+    stop("Invalid model type in the request.")
+  }
   ys <- as.character(unlist(req$outcomes))
   if (!length(ys) || anyDuplicated(ys)) stop("Choose the outcome(s).")
   if (type == "nominal" && length(ys) != 1) stop("A nominal model has one outcome.")
@@ -58,7 +64,9 @@ ps_customml <- function(req_json, export = FALSE) {
   if (anyDuplicated(pn)) stop("Each parameter needs its own name.")
   start <- vapply(pars, function(p) ps_number(p$start %||% 0, "start value"), 0)
   se_type <- req$se %||% "model"
-  if (!(is.character(se_type) && length(se_type) == 1 && se_type %in% c("model", "robust", "mplus"))) stop("Invalid standard errors in the request.")
+  if (!(is.character(se_type) && length(se_type) == 1 && se_type %in% c("model", "robust", "mplus"))) {
+    stop("Invalid standard errors in the request.")
+  }
   # Data columns the expressions may use (definition variables): any column with a plain name other than the outcomes.
   cols <- as.character(unlist(req$data$names))
   defcols <- setdiff(cols[grepl("^[A-Za-z][A-Za-z0-9_]{0,30}$", cols)], c(ys, pn))
@@ -74,7 +82,9 @@ ps_customml <- function(req_json, export = FALSE) {
     mu <- as.character(unlist(req$means))
     vv <- as.character(unlist(req$variances))
     cv <- as.character(unlist(req$covariances))
-    if (length(mu) != p || length(vv) != p || length(cv) != nrow(pairs)) stop(sprintf("Give a %s and a variance for each outcome, and a covariance for each pair (empty: 0).", if (type == "probit") "threshold" else "mean"))
+    if (length(mu) != p || length(vv) != p || length(cv) != nrow(pairs)) {
+      stop(sprintf("Give a %s and a variance for each outcome, and a covariance for each pair (empty: 0).", if (type == "probit") "threshold" else "mean"))
+    }
     loc <- if (type == "probit") "threshold" else "mean"
     parts <- c(
       setNames(lapply(seq_len(p), function(j) ex(mu[j], sprintf("the %s of %s", loc, ys[j]))), sprintf("%s %s", if (type == "probit") "Threshold" else "Mean", ys)),
@@ -88,7 +98,9 @@ ps_customml <- function(req_json, export = FALSE) {
   defs <- req$defined %||% list()
   if (length(defs) > 50) stop("At most 50 defined parameters.")
   dn <- vapply(defs, function(d) ps_label(d$name), "")
-  if (any(dn %in% c(pn, defcols)) || anyDuplicated(dn)) stop("A defined parameter needs a name of its own.")
+  if (any(dn %in% c(pn, defcols)) || anyDuplicated(dn)) {
+    stop("A defined parameter needs a name of its own.")
+  }
   dexpr <- vapply(seq_along(defs), function(i) ps_cml_expr(defs[[i]]$expr, c(pn, dn[seq_len(i - 1)]), sprintf("the defined parameter %s", dn[i])), "")
   used <- unique(c(ys, intersect(defcols, unlist(lapply(parts, function(s) all.vars(str2lang(s)))))))
   fr <- ps_long_frame(req, used)
@@ -258,7 +270,9 @@ ps_bmvreg <- function(req_json, export = FALSE) {
   ys <- as.character(unlist(req$outcomes))
   xs <- as.character(unlist(req$predictors))
   if (!length(ys) || length(ys) > 10) stop("Choose 1 to 10 outcomes.")
-  if (length(intersect(ys, xs)) || anyDuplicated(c(ys, xs))) stop("A column cannot be both an outcome and a predictor.")
+  if (length(intersect(ys, xs)) || anyDuplicated(c(ys, xs))) {
+    stop("A column cannot be both an outcome and a predictor.")
+  }
   draws <- as.integer(req$draws %||% 50000)
   if (is.na(draws) || draws < 1000 || draws > 1e6) stop("Invalid number of draws in the request.")
   seed <- as.integer(req$seed %||% 1)

@@ -50,35 +50,49 @@ ps_qca <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   conds <- as.character(unlist(req$conditions))
   yn <- req$outcome
-  if (!length(conds) || !length(yn) || yn %in% conds) stop("Choose the outcome and at least one condition (different columns).")
+  if (!length(conds) || !length(yn) || yn %in% conds) {
+    stop("Choose the outcome and at least one condition (different columns).")
+  }
   if (length(conds) > 12) stop("At most 12 conditions.")
   negate <- isTRUE(req$negate)
   n_cut <- ps_number(req$nCut %||% 1, "frequency cut-off")
   incl_cut <- ps_number(req$inclCut %||% 0.8, "consistency cut-off")
   pri_cut <- ps_number(req$priCut %||% 0, "PRI cut-off")
-  if (n_cut < 1 || incl_cut <= 0 || incl_cut > 1 || pri_cut < 0 || pri_cut > 1) stop("Invalid cut-offs: n.cut >= 1, 0 < incl.cut <= 1, 0 <= pri.cut <= 1.")
+  if (n_cut < 1 || incl_cut <= 0 || incl_cut > 1 || pri_cut < 0 || pri_cut > 1) {
+    stop("Invalid cut-offs: n.cut >= 1, 0 < incl.cut <= 1, 0 <= pri.cut <= 1.")
+  }
   sort_by <- req$sortBy %||% "OUT, incl"
-  if (!(is.character(sort_by) && length(sort_by) == 1 && sort_by %in% c("OUT, incl", "OUT, incl, n", "incl, n", "incl", "OUT", "n"))) stop("Invalid sort order in the request.")
+  if (!(is.character(sort_by) && length(sort_by) == 1 && sort_by %in% c("OUT, incl", "OUT, incl, n", "incl, n", "incl", "OUT", "n"))) {
+    stop("Invalid sort order in the request.")
+  }
   dir_exp <- as.character(unlist(req$dirExp %||% rep("-", length(conds))))
-  if (length(dir_exp) != length(conds) || !all(dir_exp %in% c("1", "0", "-"))) stop("Invalid directional expectations in the request.")
+  if (length(dir_exp) != length(conds) || !all(dir_exp %in% c("1", "0", "-"))) {
+    stop("Invalid directional expectations in the request.")
+  }
   fr <- ps_long_frame(req, c(conds, yn))
   v <- fr$v
   X <- unname(v[conds])
   Y <- v[[yn]]
   labels <- as.character(unlist(req$labels))
-  if (length(labels) && length(labels) != nrow(fr$data)) stop("Case labels must have one entry per row.")
+  if (length(labels) && length(labels) != nrow(fr$data)) {
+    stop("Case labels must have one entry per row.")
+  }
   # Calibration per variable: the direct method with its three anchors, or the column as it is (already fuzzy or crisp).
   cal_lines <- character(0)
   cal_out <- list()
   for (nm in c(conds, yn)) {
     k <- req$calibration[[nm]]
     method <- k$method %||% "none"
-    if (!(is.character(method) && length(method) == 1 && method %in% c("none", "direct"))) stop("Invalid calibration method in the request.")
+    if (!(is.character(method) && length(method) == 1 && method %in% c("none", "direct"))) {
+      stop("Invalid calibration method in the request.")
+    }
     if (method == "direct") {
       e <- ps_number(k$e, "full non-membership anchor")
       cc <- ps_number(k$c, "crossover anchor")
       i <- ps_number(k$i, "full membership anchor")
-      if (!((e < cc && cc < i) || (e > cc && cc > i))) stop(sprintf("The anchors of %s must be in order (full non-membership, crossover, full membership).", nm))
+      if (!((e < cc && cc < i) || (e > cc && cc > i))) {
+        stop(sprintf("The anchors of %s must be in order (full non-membership, crossover, full membership).", nm))
+      }
       cal_lines <- c(cal_lines, sprintf("cal$%s <- calibrate(data$%s, type = \"fuzzy\", thresholds = \"e=%s, c=%s, i=%s\")", v[[nm]], v[[nm]], format(e, digits = 15), format(cc, digits = 15), format(i, digits = 15)))
       cal_out[[nm]] <- list(variable = nm, method = "direct", e = e, c = cc, i = i)
     } else {

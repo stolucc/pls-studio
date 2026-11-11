@@ -118,7 +118,9 @@ ps_nca <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   xs <- unlist(req$x)
   yn <- req$y
-  if (!length(xs) || !length(yn) || yn %in% xs) stop("Choose the outcome Y and at least one condition X (different columns).")
+  if (!length(xs) || !length(yn) || yn %in% xs) {
+    stop("Choose the outcome Y and at least one condition X (different columns).")
+  }
   rep <- as.integer(req$permutations %||% 1000)
   if (rep < 0 || rep > 20000) stop("Invalid number of permutations.")
   outliers <- isTRUE(req$outliers)

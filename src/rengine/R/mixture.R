@@ -38,7 +38,9 @@ mix_model <- function(spec, data) {
       vals <- as.numeric(unlist(v$known$values))
       g <- data[[v$known$column]]
       v$obs <- match(g, vals)
-      if (any(!is.na(g) & is.na(v$obs))) stop(sprintf("KNOWNCLASS %s: values of %s other than those listed.", v$name, v$known$column))
+      if (any(!is.na(g) & is.na(v$obs))) {
+        stop(sprintf("KNOWNCLASS %s: values of %s other than those listed.", v$name, v$known$column))
+      }
     }
     v
   })
@@ -69,7 +71,9 @@ mix_model <- function(spec, data) {
       bk$code <- match(bk$Y[, 1], lev)
       bk$K <- length(lev)
       bk$idx <- lapply(seq_along(lev), function(j) which(bk$code == j))
-      if (any(!is.na(bk$Y[, 1]) & is.na(bk$code))) stop(sprintf("%s has values other than its categories.", bk$y))
+      if (any(!is.na(bk$Y[, 1]) & is.na(bk$code))) {
+        stop(sprintf("%s has values other than its categories.", bk$y))
+      }
     }
     if (bk$type == "censored") bk$cpoint <- if (identical(bk$side, "above")) max(bk$Y[, 1], na.rm = TRUE) else min(bk$Y[, 1], na.rm = TRUE)
     if (bk$type == "mvn") {
@@ -775,7 +779,11 @@ mixq_rule <- function(rule, points, d, seed = 1) {
     return(list(U = matrix(0, 1, 0), base = 0, lphi = matrix(0, 1, 0)))
   }
   if (rule == "mc") {
-    old <- if (exists(".Random.seed", envir = globalenv())) get(".Random.seed", envir = globalenv()) else NULL
+    old <- if (exists(".Random.seed", envir = globalenv())) {
+      get(".Random.seed", envir = globalenv())
+    } else {
+      NULL
+    }
     set.seed(seed + 7919L)
     U <- matrix(stats::rnorm(points * d), points, d)
     if (!is.null(old)) assign(".Random.seed", old, envir = globalenv())
@@ -825,7 +833,9 @@ mixq_ldens <- function(E, Mu, S) {
   out <- numeric(nrow(E))
   if (length(free) < d) {
     fx <- setdiff(seq_len(d), free)
-    if (any(abs(E[, fx, drop = FALSE] - Mu[, fx, drop = FALSE]) > 1e-8)) stop("mixq: a latent variable without variance is integrated.")
+    if (any(abs(E[, fx, drop = FALSE] - Mu[, fx, drop = FALSE]) > 1e-8)) {
+      stop("mixq: a latent variable without variance is integrated.")
+    }
   }
   if (!length(free)) {
     return(out)
@@ -860,7 +870,9 @@ mixq_ld <- function(bk, v, rows, off = NULL) {
       b <- ix$b
       if (length(b)) out[b] <- stats::plogis(tau[K - 1] - e[b], lower.tail = FALSE, log.p = TRUE)
       m <- ix$m
-      if (length(m)) out[m] <- log(pmax(stats::plogis(tau[y[m]] - e[m]) - stats::plogis(tau[y[m] - 1] - e[m]), 1e-300))
+      if (length(m)) {
+        out[m] <- log(pmax(stats::plogis(tau[y[m]] - e[m]) - stats::plogis(tau[y[m] - 1] - e[m]), 1e-300))
+      }
       out
     },
     normal = ,
@@ -905,7 +917,9 @@ mixq_ld <- function(bk, v, rows, off = NULL) {
       out
     },
     nominal = {
-      if (!is.null(off)) stop("mixq: a nominal outcome does not load on an integrated latent variable.")
+      if (!is.null(off)) {
+        stop("mixq: a nominal outcome does not load on an integrated latent variable.")
+      }
       K <- bk$K
       y <- bk$code[rows]
       E <- cbind(vapply(seq_len(K - 1), function(j) rep(v[j], nr) + (if (q) drop(X %*% v[K - 1 + (j - 1) * q + seq_len(q)]) else 0), numeric(nr)), 0)
@@ -1039,7 +1053,13 @@ mixq_dld <- function(bk, v, rows, VV, fr) {
     return(out)
   }
   # positions entering through the linear predictor, with their regressors
-  lin <- if (bk$type == "cat") c(K - 1 + seq_len(q), bk$latcols) else if (bk$type == "nominal") integer(0) else c(1, 1 + seq_len(q), bk$latcols)
+  lin <- if (bk$type == "cat") {
+    c(K - 1 + seq_len(q), bk$latcols)
+  } else if (bk$type == "nominal") {
+    integer(0)
+  } else {
+    c(1, 1 + seq_len(q), bk$latcols)
+  }
   reg <- function(r) if (r %in% bk$latcols) VV[, match(r, bk$latcols)] else if (bk$type == "cat") X[, r - (K - 1)] else if (r == 1) 1 else X[, r - 1]
   off0 <- offOf(v)
   if (is.null(off0)) off0 <- 0
@@ -1111,7 +1131,11 @@ mixq_catidx <- function(bk, rows) {
 mixq_model <- function(spec, data) {
   M <- mix_model(spec, data)
   n <- M$n
-  M$cl <- if (!is.null(spec$cluster)) match(data[[spec$cluster]], unique(data[[spec$cluster]])) else seq_len(n)
+  M$cl <- if (!is.null(spec$cluster)) {
+    match(data[[spec$cluster]], unique(data[[spec$cluster]]))
+  } else {
+    seq_len(n)
+  }
   M$J <- max(M$cl)
   M$first <- match(seq_len(M$J), M$cl)
   L <- spec$lat
@@ -1174,7 +1198,9 @@ mixq_model <- function(spec, data) {
       bk$patkey <- match(key, u)
       bk$patobs <- lapply(u, function(k2) which(!pat[match(k2, key), ]))
     }
-    if (bk$type == "nominal" || bk$type == "cat") bk$code <- match(bk$Y[, 1], as.numeric(unlist(spec$blocks[[k]]$levels)))
+    if (bk$type == "nominal" || bk$type == "cat") {
+      bk$code <- match(bk$Y[, 1], as.numeric(unlist(spec$blocks[[k]]$levels)))
+    }
     if (bk$type == "cat") {
       Qn <- if (is.null(M$lat)) 1L else M$lat$Q
       bk$cidx <- list()
@@ -1190,7 +1216,9 @@ mixq_model <- function(spec, data) {
     bk$uses <- bk$nl > 0 && any(M$A[lat_sl, , drop = FALSE] != 0 | (is.finite(M$b[lat_sl]) & M$b[lat_sl] != 0))
     # the configurations it is evaluated in: its own classes and, using a shifted latent variable, the shift's
     key <- bk$map
-    if (bk$uses && !is.null(M$lat$shiftMap)) key <- (bk$map - 1L) * max(M$lat$shiftMap) + M$lat$shiftMap
+    if (bk$uses && !is.null(M$lat$shiftMap)) {
+      key <- (bk$map - 1L) * max(M$lat$shiftMap) + M$lat$shiftMap
+    }
     bk$key <- match(key, unique(key))
     bk$keyz <- match(unique(key), key)
     M$blocks[[k]] <- bk
@@ -1380,7 +1408,9 @@ mixq_core <- function(M, phi, A) {
     }
     H <- matrix(vapply(seq_len(nz), function(z) mix_lse(matrix(Lw[, z], n, Q)), numeric(n)), n)
     Hz <- H + Pw[seq_len(n), , drop = FALSE]
-    if (Q > 1 && !isTRUE(M$nocheck) && L$rule != "mc" && mixq_collapsed(matrix(vapply(seq_len(nz), function(z) mixq_ess(exp(matrix(Lw[, z], n, Q) - H[, z]), L$dimIdx), numeric(n)), n), Hz)) stop("mixq: the integration points no longer cover the latent distribution")
+    if (Q > 1 && !isTRUE(M$nocheck) && L$rule != "mc" && mixq_collapsed(matrix(vapply(seq_len(nz), function(z) mixq_ess(exp(matrix(Lw[, z], n, Q) - H[, z]), L$dimIdx), numeric(n)), n), Hz)) {
+      stop("mixq: the integration points no longer cover the latent distribution")
+    }
     G <- matrix(mixq_lse_groups(Hz, M$zb), n)
     S <- rowsum(G, cl, reorder = TRUE)
     T <- Pb[, match(seq_len(M$nzb), M$zb), drop = FALSE] + S
@@ -1412,7 +1442,9 @@ mixq_core <- function(M, phi, A) {
       Tz <- matrix(T[, zb, ], J, Q)
       pz <- exp(mix_lse(Tz) - ll)
       Wq <- exp(Tz - mix_lse(Tz))
-      if (L$rule != "mc" && any(pz > 0.05 & mixq_ess(Wq, L$dimIdx) < 2.5)) stop("mixq: the integration points no longer cover the latent distribution")
+      if (L$rule != "mc" && any(pz > 0.05 & mixq_ess(Wq, L$dimIdx) < 2.5)) {
+        stop("mixq: the integration points no longer cover the latent distribution")
+      }
     }
   }
   list(ll = ll, T = T, G = G, Lw = Lw, Pw = Pw, rows = rows, Vs = Vs, Q = Q, nd = nd)
@@ -1494,7 +1526,13 @@ mixq_eval <- function(M, theta, A, grad = FALSE, C = NULL) {
           if (!any(sl %in% M$free)) next
           g <- rowSums(Wt[, inpc & M$Z[, vi] == m, drop = FALSE]) - exp(Wv[[pc]][, m]) * ppc
           for (t in which(sl %in% M$free)) {
-            x <- if (t == 1) 1 else if (t <= 1 + q) v$X[pt$rr, t - 1] else pt$Bn[, t - 1 - q]
+            x <- if (t == 1) {
+              1
+            } else if (t <= 1 + q) {
+              v$X[pt$rr, t - 1]
+            } else {
+              pt$Bn[, t - 1 - q]
+            }
             D[, sl[t]] <- D[, sl[t]] + rowsum(g * x, pt$tocl, reorder = TRUE)[, 1]
           }
         }
@@ -1566,7 +1604,9 @@ mixq_eval <- function(M, theta, A, grad = FALSE, C = NULL) {
             ge[!is.finite(ge)] <- 0
             for (r in seq_along(shs)) {
               s <- shs[r]
-              if (s %in% M$free && lam[r] != 0) D[, s] <- D[, s] + rowsum(wt * ge * lam[r], sc, reorder = TRUE)[, 1]
+              if (s %in% M$free && lam[r] != 0) {
+                D[, s] <- D[, s] + rowsum(wt * ge * lam[r], sc, reorder = TRUE)[, 1]
+              }
             }
           }
         }
@@ -1788,7 +1828,9 @@ mixq_converge <- function(M, e, X, fe, budget = 5000, newton = TRUE) {
     if (is.null(o)) break
     A2 <- mixq_adapt(M, X$to_th(o$par), A, 2)
     f2 <- fe(o$par, A2)
-    if (nzchar(Sys.getenv("MIXQ_DEBUG"))) message(sprintf("round maxit %d: %.4f -> %.4f (fixed points %.4f), counts %s", it, f0, f2, o$value, paste(o$counts, collapse = "/")))
+    if (nzchar(Sys.getenv("MIXQ_DEBUG"))) {
+      message(sprintf("round maxit %d: %.4f -> %.4f (fixed points %.4f), counts %s", it, f0, f2, o$value, paste(o$counts, collapse = "/")))
+    }
     if (f2 <= f0 + 1e-9) {
       # (BFGS crawling between adaptations: Newton steps take over)
       done <- (f0 - f2 < 1e-8 && o$convergence == 0) || (newton && maxit >= 80 && f0 - f2 < 0.05)
@@ -1949,7 +1991,11 @@ ps_mixture <- function(req_json, export = FALSE) {
   names(fr$data) <- cols
   # Cases with a missing covariate are left out (as Mplus does); a missing outcome adds nothing to that case's likelihood.
   xs <- unique(c(unlist(lapply(spec$classes, function(v) v$covariates)), unlist(lapply(spec$blocks, function(bk) bk$x))))
-  keep <- if (length(xs)) stats::complete.cases(fr$data[, xs, drop = FALSE]) else rep(TRUE, nrow(fr$data))
+  keep <- if (length(xs)) {
+    stats::complete.cases(fr$data[, xs, drop = FALSE])
+  } else {
+    rep(TRUE, nrow(fr$data))
+  }
   ys <- unique(unlist(lapply(spec$blocks, function(bk) bk$y)))
   keep <- keep & rowSums(!is.na(fr$data[, ys, drop = FALSE])) > 0
   data <- fr$data[keep, , drop = FALSE]
@@ -1984,10 +2030,14 @@ ps_mixture <- function(req_json, export = FALSE) {
   }
   nobs <- sum(est$M$w)
   k <- est$k
-  if (is.null(est$V)) ps_warning("The information matrix is singular: no standard errors (the model may not be identified).")
+  if (is.null(est$V)) {
+    ps_warning("The information matrix is singular: no standard errors (the model may not be identified).")
+  }
   lls <- est$fit$lls
   rep_best <- sum(abs(lls - max(lls)) < 1e-3)
-  if (length(lls) > 1 && rep_best < 2) ps_warning(sprintf("The best log-likelihood was reached from only one of the %d final starts: increase the starts to make sure it is the maximum.", length(lls)))
+  if (length(lls) > 1 && rep_best < 2) {
+    ps_warning(sprintf("The best log-likelihood was reached from only one of the %d final starts: increase the starts to make sure it is the maximum.", length(lls)))
+  }
   ps_json(list(
     n = nobs, rows = nrow(data), logLik = est$ll, npar = k, aic = -2 * est$ll + 2 * k, bic = -2 * est$ll + k * log(nobs),
     params = env$report, classes = env$shares$classes, patterns = env$shares$patterns, entropy = env$shares$entropy,

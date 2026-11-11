@@ -65,7 +65,11 @@ ps_apim_lines <- function(v, dist) {
     m1 <- v[[paste0(s, "1")]]
     m2 <- v[[paste0(s, "2")]]
     lv <- v$lv[[s]]
-    lines <- if (length(m1) > 1) ps_apim_latent(s, m1, m2, lv, dist) else ps_apim_observed(s, lv, dist)
+    lines <- if (length(m1) > 1) {
+      ps_apim_latent(s, m1, m2, lv, dist)
+    } else {
+      ps_apim_observed(s, lv, dist)
+    }
     out <- c(out, lines)
   }
   x <- v$lv$x
@@ -99,7 +103,9 @@ ps_apim_columns <- function(req) {
   keys <- c(x1 = "x1", x2 = "x2", y1 = "y1", y2 = "y2")
   cols <- lapply(keys, function(k) {
     v <- unlist(req[[k, exact = TRUE]])
-    if (!is.character(v) || !length(v) || length(v) > 20) stop("Choose the columns of X and Y for both members.")
+    if (!is.character(v) || !length(v) || length(v) > 20) {
+      stop("Choose the columns of X and Y for both members.")
+    }
     v
   })
   if (length(cols$x1) != length(cols$x2) || length(cols$y1) != length(cols$y2)) {
@@ -154,7 +160,9 @@ ps_apim <- function(req_json, export = FALSE) {
   level <- 0.95
   if (!is.null(boot)) {
     B <- as.integer(ps_number(boot$samples, "bootstrap samples"))
-    if (is.na(B) || B < 50L || B > 100000L) stop("The number of bootstrap samples must be between 50 and 100000.")
+    if (is.na(B) || B < 50L || B > 100000L) {
+      stop("The number of bootstrap samples must be between 50 and 100000.")
+    }
     level <- ps_number(boot$level, "confidence level")
     if (level <= 0.5 || level >= 1) stop("Invalid confidence level in the request.")
     seed <- as.integer(ps_number(boot$seed, "seed"))

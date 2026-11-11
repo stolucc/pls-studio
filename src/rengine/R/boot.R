@@ -72,7 +72,9 @@ ps_boot_chunked <- function(req) !is.null(req$boot$chunkR)
 ps_boot_draw_lines <- function(req, chunk_fn) {
   R <- as.integer(req$boot$chunkR)
   seeds <- as.integer(req$boot$chunkSeed)
-  if (!length(R) || length(R) != length(seeds) || anyNA(R) || anyNA(seeds) || any(R < 1)) stop("Invalid bootstrap chunks in the request.")
+  if (!length(R) || length(R) != length(seeds) || anyNA(R) || anyNA(seeds) || any(R < 1)) {
+    stop("Invalid bootstrap chunks in the request.")
+  }
   part <- req$boot$part
   if (!is.null(req$boot$draws)) {
     return(c(
@@ -117,7 +119,9 @@ ps_pls_boot <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_pls_build(req, allow_hoc = TRUE, allow_mi = TRUE, allow_ord = TRUE) # (ordinal: cSEM resamples the ordered factors)
   mi <- identical(req$missing, "mi")
-  if (mi && ps_boot_chunked(req)) stop("With multiple imputation the bootstrap runs in one piece per imputed data set.")
+  if (mi && ps_boot_chunked(req)) {
+    stop("With multiple imputation the bootstrap runs in one piece per imputed data set.")
+  }
   B <- as.integer(req$boot$samples)
   seed <- as.integer(req$boot$seed)
   conf <- ps_number(req$boot$confidence, "confidence level")
@@ -128,7 +132,9 @@ ps_pls_boot <- function(req_json, export = FALSE) {
     stop("seminr's bootstrap needs worker processes, which R in the browser cannot start. Bootstrap with cSEM, or export the seminr bootstrap script and run it in R.")
   }
   bca <- ps_boot_bca(req)
-  if (bca && (mi || b$pkg != "cSEM")) stop("BCa intervals need a jackknife, available here with cSEM (not with seminr or multiple imputation); choose percentile intervals.")
+  if (bca && (mi || b$pkg != "cSEM")) {
+    stop("BCa intervals need a jackknife, available here with cSEM (not with seminr or multiple imputation); choose percentile intervals.")
+  }
   if (b$pkg == "cSEM") {
     # Same call with cSEM's resampling; R² per draw via a user function.
     body <- c(ps_cores_csem(req), body)
@@ -189,7 +195,9 @@ ps_pls_boot <- function(req_json, export = FALSE) {
   title <- sprintf("Bootstrap, %d samples (%s)", B, b$pkg)
   if (mi) {
     # Multiple imputation: the bootstrap in every imputed data set (same seed), pooled by Rubin's rules.
-    if (export) stop("The bootstrap with multiple imputation runs per imputed data set and is not exported as one script; export the estimation script.")
+    if (export) {
+      stop("The bootstrap with multiple imputation runs per imputed data set and is not exported as one script; export the estimation script.")
+    }
     imp <- ps_impute(req, b$inputs)
     envs <- lapply(seq_len(imp$m), function(k) ps_run(body, list(data = mice::complete(imp, k))))
     pooled <- ps_rubin(lapply(envs, function(e) e$result), conf)
@@ -286,17 +294,25 @@ ps_cb_draws <- function(req, setup, expr, B, seed) {
 ps_cb_boot <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
-  if (isTRUE(b$robust)) stop("Robust ML (rsem) has its own robust standard errors; the bootstrap resamples the raw data with ML or MLR.")
-  if (isTRUE(b$mi)) stop("With multiple imputation the standard errors are pooled by Rubin's rules; the bootstrap is not combined with it.")
+  if (isTRUE(b$robust)) {
+    stop("Robust ML (rsem) has its own robust standard errors; the bootstrap resamples the raw data with ML or MLR.")
+  }
+  if (isTRUE(b$mi)) {
+    stop("With multiple imputation the standard errors are pooled by Rubin's rules; the bootstrap is not combined with it.")
+  }
   if (b$matrix_input) stop("Bootstrapping needs raw data; this dataset is a covariance matrix.")
   # (lavaan refits a bifactor rotation in each sample without aligning it to the original: the specific
   #  factors swap and flip between samples, and many refits fail, so the intervals would mean nothing)
-  if (isTRUE(b$bifactor)) stop("A bifactor rotation cannot be bootstrapped: lavaan does not align the rotated factors across samples. Use the standard errors of the estimates.")
+  if (isTRUE(b$bifactor)) {
+    stop("A bifactor rotation cannot be bootstrapped: lavaan does not align the rotated factors across samples. Use the standard errors of the estimates.")
+  }
   B <- as.integer(req$boot$samples)
   seed <- as.integer(req$boot$seed)
   conf <- ps_number(req$boot$confidence, "confidence level")
   bca <- ps_boot_bca(req)
-  if (bca && (!is.null(b$modsem) || !is.null(b$cluster_var))) stop("BCa intervals need a jackknife, which is not available here for LMS / QML or two-level models; choose percentile intervals.")
+  if (bca && (!is.null(b$modsem) || !is.null(b$cluster_var))) {
+    stop("BCa intervals need a jackknife, which is not available here for LMS / QML or two-level models; choose percentile intervals.")
+  }
   if (!is.null(b$modsem)) {
     return(ps_cb_boot_modsem(b, B, seed, conf, export, req))
   }
@@ -409,7 +425,11 @@ ps_cb_boot <- function(req_json, export = FALSE) {
     a <- ps_back(parts[1], back, FALSE)
     z <- if (length(parts) > 1) ps_back(parts[2], back, FALSE) else NA
     # (an unstandardised parameter: "estimate: lhs|op|rhs" in lavaan's names, shown in the app's)
-    est <- if (g == "estimate") strsplit(sub("^estimate: ", "", par), "|", fixed = TRUE)[[1]] else NULL
+    est <- if (g == "estimate") {
+      strsplit(sub("^estimate: ", "", par), "|", fixed = TRUE)[[1]]
+    } else {
+      NULL
+    }
     if (length(est) == 2) est <- c(est, "")
     k <- switch(g,
       path = ,

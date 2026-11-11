@@ -9,7 +9,9 @@ ps_inv_factors <- function(req, extra = character(0)) {
   fn <- vapply(facs, function(f) as.character(f$name), "")
   inds <- lapply(facs, function(f) as.character(unlist(f$indicators)))
   if (any(lengths(inds) < 2)) stop("Each factor needs at least two indicators.")
-  if (anyDuplicated(unlist(inds))) stop("An indicator belongs to more than one of the chosen factors: alignment needs each indicator on one factor.")
+  if (anyDuplicated(unlist(inds))) {
+    stop("An indicator belongs to more than one of the chosen factors: alignment needs each indicator on one factor.")
+  }
   fr <- ps_long_frame(req, c(unique(unlist(inds)), extra))
   fv <- ps_ident(fn)
   for (j in seq_along(fv)) while (fv[j] %in% fr$v || fv[j] %in% fv[-j]) fv[j] <- paste0(fv[j], "_lv")
@@ -37,7 +39,9 @@ ps_inv_fit <- function(fit) {
 ps_alignment <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   group <- req$group
-  if (!(is.character(group) && length(group) == 1 && nzchar(group))) stop("Choose a grouping column.")
+  if (!(is.character(group) && length(group) == 1 && nzchar(group))) {
+    stop("Choose a grouping column.")
+  }
   f <- ps_inv_factors(req, group)
   if (group %in% unlist(f$inds)) stop("The grouping column is an indicator of the factor.")
   o <- ps_long_options(req)
@@ -132,7 +136,9 @@ ps_mnlfa <- function(req_json, export = FALSE) {
   if (length(items) < 3) stop("Choose at least three binary items.")
   if (length(intersect(items, covs))) stop("An item cannot also be a covariate.")
   type <- req$itemType %||% "2PL"
-  if (!(is.character(type) && length(type) == 1 && type %in% c("1PL", "2PL"))) stop("Invalid item type in the request.")
+  if (!(is.character(type) && length(type) == 1 && type %in% c("1PL", "2PL"))) {
+    stop("Invalid item type in the request.")
+  }
   role <- function(k) {
     x <- as.character(unlist(req[[k, exact = TRUE]]))
     if (length(setdiff(x, covs))) stop(sprintf("Unknown covariate in the request (%s).", k))
@@ -147,8 +153,12 @@ ps_mnlfa <- function(req_json, export = FALSE) {
   if (length(setdiff(moderated, items))) stop("Unknown moderated item in the request.")
   if (!length(moderated)) moderated <- items
   all_mod <- length(moderated) == length(items)
-  if (all_mod && length(intersect(int, mu))) stop("A covariate moderates the factor mean and the intercepts of every item: not identified. Leave at least one item unmoderated (an anchor).")
-  if (all_mod && length(intersect(slo, sdv))) stop("A covariate moderates the factor SD and the slopes of every item: not identified. Leave at least one item unmoderated (an anchor).")
+  if (all_mod && length(intersect(int, mu))) {
+    stop("A covariate moderates the factor mean and the intercepts of every item: not identified. Leave at least one item unmoderated (an anchor).")
+  }
+  if (all_mod && length(intersect(slo, sdv))) {
+    stop("A covariate moderates the factor SD and the slopes of every item: not identified. Leave at least one item unmoderated (an anchor).")
+  }
   fr <- ps_long_frame(req, c(items, covs))
   iv <- unname(fr$v[items])
   cv <- fr$v[covs]
@@ -242,7 +252,9 @@ ps_long_invariance <- function(req_json, export = FALSE) {
   occ <- if (is.matrix(oc)) lapply(seq_len(nrow(oc)), function(i) as.character(oc[i, ])) else lapply(oc, function(x) as.character(unlist(x)))
   if (length(occ) < 2) stop("Choose the indicators at two or more occasions.")
   k <- unique(lengths(occ))
-  if (length(k) != 1) stop("Every occasion needs the same number of indicators (item k of each occasion is the same item).")
+  if (length(k) != 1) {
+    stop("Every occasion needs the same number of indicators (item k of each occasion is the same item).")
+  }
   if (k < 2) stop("Each occasion needs at least two indicators.")
   if (anyDuplicated(unlist(occ))) stop("A column appears at more than one occasion.")
   fname <- as.character(req$factor %||% "F")
@@ -341,7 +353,9 @@ ps_mimic_dif <- function(req_json, export = FALSE) {
   if (length(f$iv[[1]]) < 3) stop("DIF screening needs a factor with at least three indicators.")
   if (cov %in% unlist(f$inds)) stop("The covariate is an indicator of the factor.")
   adjust <- req$adjust %||% "holm"
-  if (!(is.character(adjust) && length(adjust) == 1 && adjust %in% c("holm", "BH", "bonferroni", "none"))) stop("Invalid p-value correction in the request.")
+  if (!(is.character(adjust) && length(adjust) == 1 && adjust %in% c("holm", "BH", "bonferroni", "none"))) {
+    stop("Invalid p-value correction in the request.")
+  }
   alpha <- ps_number(req$alpha %||% 0.05, "significance level")
   if (alpha <= 0 || alpha >= 1) stop("The significance level must be between 0 and 1.")
   free <- isTRUE(req$free)
@@ -434,24 +448,42 @@ ps_lsem <- function(req_json, export = FALSE) {
   b <- ps_cb_build(req)
   ps_cb_plain(b, "Local SEM")
   if (!grepl("^fit <- sem\\(.*\\)$", b$call)) stop("Local SEM is not available for this model.")
-  if (!is.null(b$group_var)) stop("Local SEM moderates one sample by a continuous variable: remove the grouping (the moderator replaces the groups).")
-  if (!is.null(req$model$weights)) stop("Local SEM here does not take sampling weights: remove them under the model's settings.")
+  if (!is.null(b$group_var)) {
+    stop("Local SEM moderates one sample by a continuous variable: remove the grouping (the moderator replaces the groups).")
+  }
+  if (!is.null(req$model$weights)) {
+    stop("Local SEM here does not take sampling weights: remove them under the model's settings.")
+  }
   if (!is.null(req$model$cluster)) stop("Local SEM here does not take sampling clusters.")
-  if (length(b$composites)) stop("Local SEM is for common-factor models; the model has composites (<~).")
-  if (length(unlist(req$model$ordered))) stop("Local SEM here is for continuous indicators (ML); the model has ordinal indicators.")
-  if (length(b$esem_blocks)) stop("Local SEM is not available for ESEM blocks (the rotation would differ between focal points).")
+  if (length(b$composites)) {
+    stop("Local SEM is for common-factor models; the model has composites (<~).")
+  }
+  if (length(unlist(req$model$ordered))) {
+    stop("Local SEM here is for continuous indicators (ML); the model has ordinal indicators.")
+  }
+  if (length(b$esem_blocks)) {
+    stop("Local SEM is not available for ESEM blocks (the rotation would differ between focal points).")
+  }
   est <- req$estimator %||% "ML"
-  if (!est %in% c("ML", "MLR")) stop("Local SEM fits each focal point by maximum likelihood: choose ML or MLR (Model settings).")
+  if (!est %in% c("ML", "MLR")) {
+    stop("Local SEM fits each focal point by maximum likelihood: choose ML or MLR (Model settings).")
+  }
   miss <- req$missing %||% "casewise"
-  if (miss %in% c("pairwise", "twostage", "robusttwostage", "mi")) stop("Local SEM handles missing values by FIML, casewise deletion or mean replacement (Model settings).")
+  if (miss %in% c("pairwise", "twostage", "robusttwostage", "mi")) {
+    stop("Local SEM handles missing values by FIML, casewise deletion or mean replacement (Model settings).")
+  }
   fiml <- identical(miss, "fiml")
   mo <- req$moderator
   mname <- mo$name
   if (!(is.character(mname) && length(mname) == 1 && nzchar(mname))) stop("Choose a moderator.")
-  if (mname %in% b$n$all_inds) stop("The moderator is a variable of the model; choose another column.")
+  if (mname %in% b$n$all_inds) {
+    stop("The moderator is a variable of the model; choose another column.")
+  }
   mcol <- as.numeric(unlist(lapply(mo$col, function(v) if (is.null(v)) NA_real_ else v)))
   if (length(mcol) != nrow(b$inputs$data)) stop("The moderator does not have one value per case.")
-  if (length(unique(mcol[is.finite(mcol)])) < 3) stop("The moderator needs at least three distinct values.")
+  if (length(unique(mcol[is.finite(mcol)])) < 3) {
+    stop("The moderator needs at least three distinct values.")
+  }
   mv <- ps_ident(c(names(b$inputs$data), mname))[ncol(b$inputs$data) + 1]
   while (mv %in% names(b$inputs$data)) mv <- paste0(mv, "_mod")
   b$inputs$data[[mv]] <- mcol
@@ -467,9 +499,19 @@ ps_lsem <- function(req_json, export = FALSE) {
   if (points != round(points)) stop("The number of focal points must be a whole number.")
   h <- num(o$h %||% 1.1, "bandwidth factor h", 0.05, 20)
   kernel <- o$kernel %||% "gaussian"
-  if (!(is.character(kernel) && length(kernel) == 1 && kernel %in% c("gaussian", "epanechnikov", "uniform"))) stop("Invalid kernel in the request.")
-  R <- if (is.null(o$bootstrap)) 0L else as.integer(num(o$bootstrap, "number of bootstrap samples", 10, 5000))
-  B <- if (is.null(o$permutations)) 0L else as.integer(num(o$permutations, "number of permutations", 10, 5000))
+  if (!(is.character(kernel) && length(kernel) == 1 && kernel %in% c("gaussian", "epanechnikov", "uniform"))) {
+    stop("Invalid kernel in the request.")
+  }
+  R <- if (is.null(o$bootstrap)) {
+    0L
+  } else {
+    as.integer(num(o$bootstrap, "number of bootstrap samples", 10, 5000))
+  }
+  B <- if (is.null(o$permutations)) {
+    0L
+  } else {
+    as.integer(num(o$permutations, "number of permutations", 10, 5000))
+  }
   seed <- as.integer(num(o$seed %||% 1, "seed", -2147483647, 2147483647))
   span <- ps_model_span(b)
   f15 <- function(x) format(x, digits = 15)
@@ -526,11 +568,15 @@ ps_lsem <- function(req_json, export = FALSE) {
       lhs = if (fit) p else ps_back(as.character(r$lhs[1]), back), rhs = if (fit) "" else ps_back(as.character(r$rhs[1]), back),
       est = I(nn(r$est)), se = I(nn(r$se))
     )
-    if (nrow(s)) out$summary <- list(mean = nn(s$M), sd = nn(s$SD), mad = nn(s$MAD), min = nn(s$Min), max = nn(s$Max), linInt = nn(s$lin_int), linSlope = nn(s$lin_slo), sdNonlin = nn(s$SD_nonlin))
+    if (nrow(s)) {
+      out$summary <- list(mean = nn(s$M), sd = nn(s$SD), mad = nn(s$MAD), min = nn(s$Min), max = nn(s$Max), linInt = nn(s$lin_int), linSlope = nn(s$lin_slo), sdNonlin = nn(s$SD_nonlin))
+    }
     if (!is.null(bp)) {
       q <- bp[bp$par == p, , drop = FALSE]
       q <- q[order(q$grid_index), , drop = FALSE]
-      if (nrow(q)) out$boot <- list(se = I(nn(q$se)), lower = I(nn(q$ci.lower)), upper = I(nn(q$ci.upper)))
+      if (nrow(q)) {
+        out$boot <- list(se = I(nn(q$se)), lower = I(nn(q$ci.lower)), upper = I(nn(q$ci.upper)))
+      }
     }
     if (!is.null(ts)) {
       t <- ts[ts$par == p, , drop = FALSE]
@@ -671,7 +717,9 @@ ps_dmacs <- function(req_json, export = FALSE) {
   env <- ps_run(body, inputs)
   e <- env$effects
   s <- env$scales
-  if (is.null(e) || !nrow(e)) stop("No factor with loadings to compare: draw factors with indicators.")
+  if (is.null(e) || !nrow(e)) {
+    stop("No factor with loadings to compare: draw factors with indicators.")
+  }
   back <- ps_cb_back(b)
   nm <- function(x) ps_back(as.character(x), back)
   items <- lapply(seq_len(nrow(e)), function(i) {

@@ -20,15 +20,21 @@ ps_rebus <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   cons <- req$model$constructs
   if (length(req$model$moderations)) stop("REBUS-PLS works on models without interaction terms.")
-  if (any(lengths(lapply(cons, function(c) unlist(c$components))) > 0)) stop("REBUS-PLS works on models without higher-order constructs.")
-  if (any(vapply(cons, function(c) !identical(c$mode %||% "A", "A"), TRUE))) stop("REBUS-PLS needs reflective (Mode A) blocks only.")
+  if (any(lengths(lapply(cons, function(c) unlist(c$components))) > 0)) {
+    stop("REBUS-PLS works on models without higher-order constructs.")
+  }
+  if (any(vapply(cons, function(c) !identical(c$mode %||% "A", "A"), TRUE))) {
+    stop("REBUS-PLS needs reflective (Mode A) blocks only.")
+  }
   if (!length(req$model$paths)) stop("REBUS-PLS needs a structural model (paths).")
   n <- ps_names(cons)
   ks <- as.integer(unlist(req$classes))
   if (!length(ks) || any(ks < 2 | ks > 6)) stop("Choose between 2 and 6 classes.")
   stop_crit <- as.numeric(req$stopCrit %||% 0.005)
   iter_max <- as.integer(req$iterMax %||% 100)
-  if (!is.finite(stop_crit) || stop_crit <= 0 || stop_crit >= 1 || iter_max < 1 || iter_max > 1000) stop("Invalid REBUS settings.")
+  if (!is.finite(stop_crit) || stop_crit <= 0 || stop_crit >= 1 || iter_max < 1 || iter_max > 1000) {
+    stop("Invalid REBUS settings.")
+  }
   seed <- as.integer(req$seed %||% 1)
   scheme <- req$options$scheme %||% "centroid"
   if (!scheme %in% c("path", "centroid", "factor")) stop("Invalid weighting scheme in the request.")
@@ -149,13 +155,17 @@ ps_pathmox <- function(req_json, export = FALSE) {
   cons <- req$model$constructs
   if (length(req$model$moderations)) stop("PATHMOX works on models without interaction terms.")
   if (!length(req$model$paths)) stop("PATHMOX needs a structural model (paths).")
-  if (any(vapply(cons, function(c) identical(c$mode, "unit"), TRUE))) stop("PATHMOX (genpathmox) offers Mode A and Mode B only; set the sum-score constructs to Mode A or Mode B.")
+  if (any(vapply(cons, function(c) identical(c$mode, "unit"), TRUE))) {
+    stop("PATHMOX (genpathmox) offers Mode A and Mode B only; set the sum-score constructs to Mode A or Mode B.")
+  }
   segs <- req$segments
   if (!length(segs)) stop("Choose at least one segmentation variable.")
   alpha <- as.numeric(req$alpha %||% 0.05)
   deep <- as.integer(req$depth %||% 2)
   size <- as.numeric(req$size %||% 0.1)
-  if (!is.finite(alpha) || alpha <= 0 || alpha >= 0.5 || deep < 1 || deep > 6 || !is.finite(size) || size <= 0 || size >= 0.5) stop("Invalid PATHMOX settings.")
+  if (!is.finite(alpha) || alpha <= 0 || alpha >= 0.5 || deep < 1 || deep > 6 || !is.finite(size) || size <= 0 || size >= 0.5) {
+    stop("Invalid PATHMOX settings.")
+  }
   scheme <- req$options$scheme %||% "path"
   if (!scheme %in% c("path", "centroid", "factor")) stop("Invalid weighting scheme in the request.")
   n <- ps_names(cons)
@@ -180,7 +190,9 @@ ps_pathmox <- function(req_json, export = FALSE) {
     ord <- unlist(s[["order"]])
     if (!length(labs)) labs <- as.character(sort(unique(fr$data[[col]])))
     lev <- if (length(ord)) ord else seq_along(labs)
-    if (length(ord) && (!setequal(ord, seq_along(labs)))) stop("Invalid category order in the request.")
+    if (length(ord) && (!setequal(ord, seq_along(labs)))) {
+      stop("Invalid category order in the request.")
+    }
     sprintf(
       "catvar$%s <- factor(data$%s, levels = %s, labels = %s, ordered = %s)", col, col,
       paste(deparse(as.integer(lev)), collapse = ""), ps_q(labs[lev]), if (isTRUE(s[["ordered"]])) "TRUE" else "FALSE"
@@ -363,7 +375,9 @@ ps_pos <- function(req_json, export = FALSE) {
   seed <- as.integer(req$seed %||% 1)
   max_moves <- as.integer(req$maxMoves %||% 1000)
   cands <- as.integer(req$candidates %||% 10)
-  if (K < 2 || K > 6 || nrep < 1 || nrep > 50 || max_moves < 1 || max_moves > 100000 || cands < 1 || cands > 100) stop("Invalid PLS-POS settings.")
+  if (K < 2 || K > 6 || nrep < 1 || nrep > 50 || max_moves < 1 || max_moves > 100000 || cands < 1 || cands > 100) {
+    stop("Invalid PLS-POS settings.")
+  }
   req$package <- "cSEM"
   b <- ps_pls_build(req)
   fit_line <- b$body[length(b$body)]

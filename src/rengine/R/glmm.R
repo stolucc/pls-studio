@@ -37,25 +37,35 @@ ps_glmm <- function(req_json, export = FALSE) {
   zir <- isTRUE(req$ziRandom)
   if (!zi && (length(zif) || zir)) stop("Zero-part effects need a zero-inflated family.")
   k <- req$quadrature %||% 11
-  if (!(is.numeric(k) && length(k) == 1 && k == round(k) && k >= 1 && k <= 51)) stop("Choose between 1 and 51 quadrature points.")
+  if (!(is.numeric(k) && length(k) == 1 && k == round(k) && k >= 1 && k <= 51)) {
+    stop("Choose between 1 and 51 quadrature points.")
+  }
   robust <- isTRUE(req$robust)
   trials <- req$trials
-  if (!is.null(trials) && (family != "binomial" || layout != "long")) stop("Trials apply to a binomial outcome in long data.")
+  if (!is.null(trials) && (family != "binomial" || layout != "long")) {
+    stop("Trials apply to a binomial outcome in long data.")
+  }
   if (layout == "wide") {
     occ <- unlist(req$occasions)
     times <- as.numeric(unlist(req$times))
-    if (length(occ) < 2 || length(times) != length(occ) || any(!is.finite(times))) stop("Give at least two occasions, each with a time score.")
+    if (length(occ) < 2 || length(times) != length(occ) || any(!is.finite(times))) {
+      stop("Give at least two occasions, each with a time score.")
+    }
     if (length(categorical)) stop("Categorical covariates are available with long data.")
     fr <- ps_long_frame(req, c(occ, predictors))
     vo <- unname(fr$v[occ])
     vp <- unname(fr$v[predictors])
-    if (any(vp %in% c("id", "time", "y"))) stop("In wide data a covariate cannot be named id, time or y (the long data's columns).")
+    if (any(vp %in% c("id", "time", "y"))) {
+      stop("In wide data a covariate cannot be named id, time or y (the long data's columns).")
+    }
     # (in wide data the predictors are time and time-invariant covariates; "time" names the time scores)
     nm <- c(time = "time", setNames(vp, predictors))
     fixed <- c("time", vp)
     rs <- unname(nm[slopes])
     zf <- unname(nm[zif])
-    if (anyNA(rs) || anyNA(zf)) stop("Random slopes and zero-part predictors must be among the predictors.")
+    if (anyNA(rs) || anyNA(zf)) {
+      stop("Random slopes and zero-part predictors must be among the predictors.")
+    }
     prep <- c(
       "# Wide data (one column per occasion) to long: one row per person and occasion.",
       sprintf("y_wide <- as.matrix(data[, %s]); times <- %s", ps_q(vo), paste(deparse(times), collapse = "")),
@@ -68,8 +78,12 @@ ps_glmm <- function(req_json, export = FALSE) {
   } else {
     outcome <- req$outcome
     cluster <- req$cluster
-    if (!is.character(outcome) || !is.character(cluster) || outcome == cluster || any(c(outcome, cluster) %in% predictors)) stop("Choose the outcome, the cluster column and different predictors.")
-    if (!all(categorical %in% predictors) || !all(slopes %in% setdiff(predictors, categorical)) || !all(zif %in% predictors)) stop("Invalid predictors in the request.")
+    if (!is.character(outcome) || !is.character(cluster) || outcome == cluster || any(c(outcome, cluster) %in% predictors)) {
+      stop("Choose the outcome, the cluster column and different predictors.")
+    }
+    if (!all(categorical %in% predictors) || !all(slopes %in% setdiff(predictors, categorical)) || !all(zif %in% predictors)) {
+      stop("Invalid predictors in the request.")
+    }
     fr <- ps_long_frame(req, c(outcome, cluster, predictors, trials))
     yv <- unname(fr$v[outcome])
     idv <- unname(fr$v[cluster])
@@ -79,11 +93,17 @@ ps_glmm <- function(req_json, export = FALSE) {
     zf <- unname(fr$v[zif])
     prep <- c(
       sprintf("d <- data[complete.cases(data), , drop = FALSE]  # cases with every variable"),
-      if (length(categorical)) sprintf("for (v in %s) d[[v]] <- factor(d[[v]])  # categorical predictors: dummies against the first category", ps_q(unname(fr$v[categorical])))
+      if (length(categorical)) {
+        sprintf("for (v in %s) d[[v]] <- factor(d[[v]])  # categorical predictors: dummies against the first category", ps_q(unname(fr$v[categorical])))
+      }
     )
   }
-  if (family %in% c("poisson", "negbin", "zip", "zinb")) prep <- c(prep, sprintf("if (any(d[[\"%s\"]] < 0 | d[[\"%s\"]] != round(d[[\"%s\"]]))) stop(\"A count outcome takes the values 0, 1, 2, ...\")", yv, yv, yv))
-  if (family == "binomial" && is.null(trials)) prep <- c(prep, sprintf("u <- sort(unique(d[[\"%s\"]])); if (length(u) != 2) stop(\"A binomial outcome without trials must be binary.\"); d[[\"%s\"]] <- as.integer(d[[\"%s\"]] == u[2])", yv, yv, yv))
+  if (family %in% c("poisson", "negbin", "zip", "zinb")) {
+    prep <- c(prep, sprintf("if (any(d[[\"%s\"]] < 0 | d[[\"%s\"]] != round(d[[\"%s\"]]))) stop(\"A count outcome takes the values 0, 1, 2, ...\")", yv, yv, yv))
+  }
+  if (family == "binomial" && is.null(trials)) {
+    prep <- c(prep, sprintf("u <- sort(unique(d[[\"%s\"]])); if (length(u) != 2) stop(\"A binomial outcome without trials must be binary.\"); d[[\"%s\"]] <- as.integer(d[[\"%s\"]] == u[2])", yv, yv, yv))
+  }
   lhs <- if (!is.null(trials)) sprintf("cbind(%s, %s - %s)", yv, fr$v[[trials]], yv) else yv
   rhs <- function(v) if (length(v)) paste(v, collapse = " + ") else "1"
   call <- sprintf(

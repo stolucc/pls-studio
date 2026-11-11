@@ -60,8 +60,12 @@ ps_influence <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   if (b$matrix_input) stop("Case influence needs raw data; this dataset is a covariance matrix.")
-  if (isTRUE(b$mi)) stop("Case influence is not available with multiple imputation; use FIML or casewise deletion.")
-  if (isTRUE(b$robust)) stop("Case influence refits the model by ML; choose ML or MLR (robust ML already down-weights influential cases).")
+  if (isTRUE(b$mi)) {
+    stop("Case influence is not available with multiple imputation; use FIML or casewise deletion.")
+  }
+  if (isTRUE(b$robust)) {
+    stop("Case influence refits the model by ML; choose ML or MLR (robust ML already down-weights influential cases).")
+  }
   if (!is.null(b$modsem)) stop("Case influence is not available for LMS / QML models.")
   if (!is.null(b$cluster_var)) stop("Case influence is not available for two-level models.")
   cores <- as.integer(req$cores %||% 1L)
@@ -121,16 +125,26 @@ ps_missing <- function(req_json, export = FALSE) {
   vars <- as.character(unlist(req$vars))
   meas <- as.character(unlist(req$measures))
   desc <- as.character(unlist(req$descriptive))
-  if (length(vars) < 1 || length(vars) > 200 || anyDuplicated(vars)) stop("Choose 1 to 200 variables.")
-  if (length(meas) == 1 || length(meas) > 50 || anyDuplicated(meas)) stop("Dropout needs 2 to 50 repeated measures, in time order.")
-  if (length(desc) && length(desc) != length(meas)) stop("The second set of variables needs one entry per occasion (empty for none).")
-  if (length(desc) && !length(meas)) stop("The second set of variables is described by dropout: choose the repeated measures.")
+  if (length(vars) < 1 || length(vars) > 200 || anyDuplicated(vars)) {
+    stop("Choose 1 to 200 variables.")
+  }
+  if (length(meas) == 1 || length(meas) > 50 || anyDuplicated(meas)) {
+    stop("Dropout needs 2 to 50 repeated measures, in time order.")
+  }
+  if (length(desc) && length(desc) != length(meas)) {
+    stop("The second set of variables needs one entry per occasion (empty for none).")
+  }
+  if (length(desc) && !length(meas)) {
+    stop("The second set of variables is described by dropout: choose the repeated measures.")
+  }
   # Little's (1988) MCAR test and Jamshidian & Jalal's (2010) tests (misty::na.test; mvnmle's ML estimates)
   mcar <- isTRUE(req$mcar)
   jamjal <- isTRUE(req$jamjal)
   seed <- as.integer(ps_number(req$seed %||% 42, "seed"))
   if (is.na(seed)) stop("Invalid seed.")
-  if ((mcar || jamjal) && length(vars) > 50) stop("The MCAR tests take at most 50 variables (mvnmle::mlest).")
+  if ((mcar || jamjal) && length(vars) > 50) {
+    stop("The MCAR tests take at most 50 variables (mvnmle::mlest).")
+  }
   if ((mcar || jamjal) && length(vars) < 2) stop("The MCAR tests need at least two variables.")
   used <- unique(c(vars, meas, desc[nzchar(desc)]))
   fr <- ps_long_frame(req, used)

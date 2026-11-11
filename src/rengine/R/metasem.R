@@ -14,7 +14,9 @@
 ps_metasem_studies <- function(meta, vars) {
   p <- length(vars)
   st <- meta$studies
-  if (!is.list(st) || length(st) < 2 || length(st) > 5000) stop("Meta-analytic SEM needs 2 to 5000 studies.")
+  if (!is.list(st) || length(st) < 2 || length(st) > 5000) {
+    stop("Meta-analytic SEM needs 2 to 5000 studies.")
+  }
   pairs <- which(upper.tri(diag(p)), arr.ind = TRUE)
   pairs <- pairs[order(pairs[, 1], pairs[, 2]), , drop = FALSE]
   n <- numeric(length(st))
@@ -22,11 +24,17 @@ ps_metasem_studies <- function(meta, vars) {
   for (k in seq_along(st)) {
     s <- st[[k]]
     nk <- s$n
-    if (!is.numeric(nk) || length(nk) != 1 || !is.finite(nk) || nk != round(nk) || nk < 3 || nk > 1e8) stop(sprintf("Study %d: N must be a whole number of at least 3.", k))
+    if (!is.numeric(nk) || length(nk) != 1 || !is.finite(nk) || nk != round(nk) || nk < 3 || nk > 1e8) {
+      stop(sprintf("Study %d: N must be a whole number of at least 3.", k))
+    }
     r <- s$r
     r <- if (is.null(r)) rep(NA_real_, nrow(pairs)) else as.numeric(vapply(r, function(x) if (is.null(x)) NA_real_ else as.numeric(x), 0))
-    if (length(r) != nrow(pairs)) stop(sprintf("Study %d: %d correlations expected, one per pair of the model's %d observed variables.", k, nrow(pairs), p))
-    if (any(!is.na(r) & (!is.finite(r) | abs(r) >= 1))) stop(sprintf("Study %d: a correlation is not between -1 and 1.", k))
+    if (length(r) != nrow(pairs)) {
+      stop(sprintf("Study %d: %d correlations expected, one per pair of the model's %d observed variables.", k, nrow(pairs), p))
+    }
+    if (any(!is.na(r) & (!is.finite(r) | abs(r) >= 1))) {
+      stop(sprintf("Study %d: a correlation is not between -1 and 1.", k))
+    }
     if (all(is.na(r))) stop(sprintf("Study %d reports none of the correlations.", k))
     m <- diag(p)
     m[pairs] <- r
@@ -50,20 +58,34 @@ ps_metasem_studies <- function(meta, vars) {
 
 ps_metasem <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  if (ps_in_browser()) stop("Meta-analytic SEM (metaSEM, OpenMx) runs in desktop R: choose Desktop R (helper) under R runs in.")
+  if (ps_in_browser()) {
+    stop("Meta-analytic SEM (metaSEM, OpenMx) runs in desktop R: choose Desktop R (helper) under R runs in.")
+  }
   meta <- req$meta
   method <- meta[["method", exact = TRUE]] %||% "REM"
-  if (!(is.character(method) && length(method) == 1 && method %in% c("FEM", "REM"))) stop("Invalid stage-1 method in the request.")
+  if (!(is.character(method) && length(method) == 1 && method %in% c("FEM", "REM"))) {
+    stop("Invalid stage-1 method in the request.")
+  }
   re_type <- meta[["reType", exact = TRUE]] %||% "Diag"
-  if (!(is.character(re_type) && length(re_type) == 1 && re_type %in% c("Diag", "Symm", "Zero"))) stop("Invalid random-effects structure in the request.")
+  if (!(is.character(re_type) && length(re_type) == 1 && re_type %in% c("Diag", "Symm", "Zero"))) {
+    stop("Invalid random-effects structure in the request.")
+  }
   # The canvas model's lavaan syntax, as the Model tab writes it (factors identified by unit variances, as TSSEM on
   # correlations does: lavaan2RAM's std.lv); built against a placeholder correlation matrix of its observed variables.
   n0 <- ps_names(req$model$constructs)
   vars <- n0$all_inds
-  if (length(vars) < 2 || length(vars) > 60) stop("Meta-analytic SEM needs a model of 2 to 60 observed variables.")
-  if (length(req$model$moderations)) stop("Meta-analytic SEM is not available with latent interactions.")
-  if (!is.null(req$model$multigroup) || !is.null(req$model$multilevel)) stop("Meta-analytic SEM fits one pooled matrix: remove the grouping or the levels.")
-  if (length(unlist(req$model$ordered))) stop("Meta-analytic SEM pools correlations: the model cannot have ordinal indicators.")
+  if (length(vars) < 2 || length(vars) > 60) {
+    stop("Meta-analytic SEM needs a model of 2 to 60 observed variables.")
+  }
+  if (length(req$model$moderations)) {
+    stop("Meta-analytic SEM is not available with latent interactions.")
+  }
+  if (!is.null(req$model$multigroup) || !is.null(req$model$multilevel)) {
+    stop("Meta-analytic SEM fits one pooled matrix: remove the grouping or the levels.")
+  }
+  if (length(unlist(req$model$ordered))) {
+    stop("Meta-analytic SEM pools correlations: the model cannot have ordinal indicators.")
+  }
   req$model$identification <- "unit"
   req$estimator <- "ML"
   req$missing <- "casewise"
@@ -71,7 +93,9 @@ ps_metasem <- function(req_json, export = FALSE) {
   b <- ps_cb_build(req)
   if (length(b$composites)) stop("Composites (<~) are not available in meta-analytic SEM.")
   if (length(b$esem_blocks)) stop("ESEM blocks are not available in meta-analytic SEM.")
-  if (isTRUE(b$means)) stop("Meta-analytic SEM on correlations has no mean structure: remove the constant.")
+  if (isTRUE(b$means)) {
+    stop("Meta-analytic SEM on correlations has no mean structure: remove the constant.")
+  }
   iv <- unname(b$n$iv[vars])
   studies <- ps_metasem_studies(meta, iv)
   inputs <- list(n = studies$n)

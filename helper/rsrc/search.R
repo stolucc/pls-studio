@@ -8,11 +8,15 @@
 #' lavaan names of an arrow of the diagram: c(lhs, op, rhs) for a path (to ~ from) or a covariance (a ~~ b).
 ps_arrow_lavaan <- function(b, o) {
   lv <- function(x) {
-    if (!(is.character(x) && length(x) == 1 && x %in% names(b$lname))) stop("Unknown construct in the request.")
+    if (!(is.character(x) && length(x) == 1 && x %in% names(b$lname))) {
+      stop("Unknown construct in the request.")
+    }
     unname(b$lname[[x]])
   }
   iv <- function(x) {
-    if (!(is.character(x) && length(x) == 1 && x %in% names(b$n$iv))) stop("Unknown indicator in the request.")
+    if (!(is.character(x) && length(x) == 1 && x %in% names(b$n$iv))) {
+      stop("Unknown indicator in the request.")
+    }
     unname(b$n$iv[[x]])
   }
   if (identical(o$type, "path")) {
@@ -39,12 +43,18 @@ ps_cb_specsearch <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   ps_cb_plain(b, "The specification search", raw = FALSE)
-  if (!(req$estimator %in% PS_LIKELIHOOD_ESTIMATORS)) stop("The specification search ranks models by AIC and BIC: choose a maximum-likelihood estimator (ML, MLR, MLM or MLMV).")
-  if (length(unlist(req$model$ordered))) stop("The specification search ranks models by AIC and BIC, which ordinal indicators (WLSMV) do not have.")
+  if (!(req$estimator %in% PS_LIKELIHOOD_ESTIMATORS)) {
+    stop("The specification search ranks models by AIC and BIC: choose a maximum-likelihood estimator (ML, MLR, MLM or MLMV).")
+  }
+  if (length(unlist(req$model$ordered))) {
+    stop("The specification search ranks models by AIC and BIC, which ordinal indicators (WLSMV) do not have.")
+  }
   opt <- req$optional
   m <- length(opt)
   if (m < 1) stop("Mark at least one arrow as optional (right-click a path or covariance).")
-  if (m > 12) stop(sprintf("%d optional arrows would mean %s models: at most 12 (4096 models).", m, format(2^m, big.mark = ",")))
+  if (m > 12) {
+    stop(sprintf("%d optional arrows would mean %s models: at most 12 (4096 models).", m, format(2^m, big.mark = ",")))
+  }
   arrows <- lapply(opt, function(o) ps_arrow_lavaan(b, o))
   bl <- if (length(b$baseline)) ", baseline.model = fit_baseline" else ""
   # (the model's own call, fitted to a parameter table instead of the syntax)
@@ -116,7 +126,9 @@ ps_cb_equivalent <- function(req_json, export = FALSE) {
     r2$model$paths <- v$paths
     r2$model$covariances <- v$covariances
     b2 <- ps_cb_build(r2)
-    if (!identical(b2$call, b$call)) stop("An alternative model needs other lavaan options than the model; it cannot be compared.")
+    if (!identical(b2$call, b$call)) {
+      stop("An alternative model needs other lavaan options than the model; it cannot be compared.")
+    }
     ps_model_lines(b2)
   }))
   names(texts) <- c("model", sprintf("alternative_%d", seq_along(variants)))
@@ -169,7 +181,9 @@ ps_cb_lmwald <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   ps_cb_plain(b, "The multivariate LM and Wald tests", raw = FALSE)
-  if (!is.null(b$group_var) || !is.null(req$model$multigroup)) stop("The multivariate LM and Wald tests are available for one group: remove the grouping.")
+  if (!is.null(b$group_var) || !is.null(req$model$multigroup)) {
+    stop("The multivariate LM and Wald tests are available for one group: remove the grouping.")
+  }
   kinds_of <- function(x) {
     k <- intersect(unlist(x), names(PS_TEST_KINDS))
     unname(PS_TEST_KINDS[k])
@@ -180,7 +194,9 @@ ps_cb_lmwald <- function(req_json, export = FALSE) {
   alpha <- ps_number(req$alpha %||% 0.05, "significance level")
   if (alpha <= 0 || alpha >= 0.5) stop("The significance level must be between 0 and 0.5.")
   maxc <- as.integer(ps_number(req$lm$maxCandidates %||% 60, "number of candidates"))
-  if (is.na(maxc) || maxc < 1 || maxc > 500) stop("The number of LM candidates must be between 1 and 500.")
+  if (is.na(maxc) || maxc < 1 || maxc > 500) {
+    stop("The number of LM candidates must be between 1 and 500.")
+  }
   body <- c(
     b$body,
     sprintf("alpha <- %s", format(alpha, digits = 15)),
@@ -271,17 +287,31 @@ ps_cb_regsem <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   ps_cb_plain(b, "Regularised SEM (lslx)")
-  if (!is.null(b$group_var) || !is.null(req$model$multigroup)) stop("Regularised SEM is available for one group here: remove the grouping.")
-  if (length(unlist(req$model$ordered))) stop("lslx fits continuous indicators (normal-theory ML): treat the indicators as continuous.")
-  if (!(req$estimator %in% c("ML", "MLR"))) stop("lslx fits by maximum likelihood (with sandwich standard errors): choose ML or MLR.")
-  if (!(req$missing %in% c("casewise", "mean", "fiml"))) stop("Regularised SEM takes casewise deletion, mean replacement or FIML (lslx's two-step method).")
-  if (length(b$composites) || length(b$mods) || length(b$esem_blocks) || length(b$rel_inds)) stop("Regularised SEM (lslx) takes common factors and paths: no composites, latent interactions, ESEM blocks or known reliabilities.")
+  if (!is.null(b$group_var) || !is.null(req$model$multigroup)) {
+    stop("Regularised SEM is available for one group here: remove the grouping.")
+  }
+  if (length(unlist(req$model$ordered))) {
+    stop("lslx fits continuous indicators (normal-theory ML): treat the indicators as continuous.")
+  }
+  if (!(req$estimator %in% c("ML", "MLR"))) {
+    stop("lslx fits by maximum likelihood (with sandwich standard errors): choose ML or MLR.")
+  }
+  if (!(req$missing %in% c("casewise", "mean", "fiml"))) {
+    stop("Regularised SEM takes casewise deletion, mean replacement or FIML (lslx's two-step method).")
+  }
+  if (length(b$composites) || length(b$mods) || length(b$esem_blocks) || length(b$rel_inds)) {
+    stop("Regularised SEM (lslx) takes common factors and paths: no composites, latent interactions, ESEM blocks or known reliabilities.")
+  }
   pen_kinds <- intersect(unlist(req$penalise), c("loadings", "paths", "covariances"))
   if (!length(pen_kinds)) stop("Choose which parameters to penalise.")
   method <- req[["penalty", exact = TRUE]]
-  if (!(is.character(method) && length(method) == 1 && method %in% names(PS_LSLX_PENALTY))) stop("Invalid penalty in the request.")
+  if (!(is.character(method) && length(method) == 1 && method %in% names(PS_LSLX_PENALTY))) {
+    stop("Invalid penalty in the request.")
+  }
   selector <- req[["selector", exact = TRUE]]
-  if (!(is.character(selector) && length(selector) == 1 && selector %in% c("bic", "aic"))) stop("Invalid selector in the request.")
+  if (!(is.character(selector) && length(selector) == 1 && selector %in% c("bic", "aic"))) {
+    stop("Invalid selector in the request.")
+  }
   # The penalty levels: lslx's own grid of `length` levels, or `length` equally spaced levels from `from` to `to`
   lam <- req$lambda
   L <- as.integer(ps_number(lam$length %||% 50, "number of penalty levels"))
@@ -291,7 +321,9 @@ ps_cb_regsem <- function(req_json, export = FALSE) {
   } else {
     lo <- ps_number(lam$from, "smallest penalty level")
     hi <- ps_number(lam$to, "largest penalty level")
-    if (lo < 0 || hi <= lo || hi > 1e3) stop("The penalty levels must run from a level of 0 or more to a larger one.")
+    if (lo < 0 || hi <= lo || hi > 1e3) {
+      stop("The penalty levels must run from a level of 0 or more to a larger one.")
+    }
     sprintf("lambda_grid = seq(%s, %s, length.out = %d)", format(lo, digits = 15), format(hi, digits = 15), L)
   }
   # Elastic net: the share of the lasso (0 ridge, 1 lasso); MCP: the convexity (above 1; Inf is the lasso). Several are tried.
@@ -299,15 +331,25 @@ ps_cb_regsem <- function(req_json, export = FALSE) {
   ds <- if (method %in% c("enet", "mcp")) as.character(unlist(req$deltas %||% (if (method == "enet") 0.5 else 3))) else character(0)
   deltas <- ifelse(ds == "Inf", Inf, suppressWarnings(as.numeric(ds)))
   if (anyNA(deltas) || any(is.infinite(deltas) & ds != "Inf")) stop("Invalid delta in the request.")
-  if (method %in% c("enet", "mcp") && (!length(deltas) || length(deltas) > 10)) stop("Give one to ten deltas.")
-  if (method == "enet" && any(deltas < 0 | deltas > 1)) stop("The elastic-net mixing must be between 0 (ridge) and 1 (lasso).")
+  if (method %in% c("enet", "mcp") && (!length(deltas) || length(deltas) > 10)) {
+    stop("Give one to ten deltas.")
+  }
+  if (method == "enet" && any(deltas < 0 | deltas > 1)) {
+    stop("The elastic-net mixing must be between 0 (ridge) and 1 (lasso).")
+  }
   if (method == "mcp" && any(deltas <= 1)) stop("The MCP convexity must be above 1.")
   # The model as the app writes it, comments dropped; labels and constraints are not lslx syntax
   lines <- trimws(sub("\\s*#.*$", "", ps_model_lines(b)))
   lines <- lines[nzchar(lines)]
-  if (any(grepl("efa\\(|:=|==|<|>|~\\*~|\\|", lines))) stop("Regularised SEM (lslx) takes no ESEM blocks, defined parameters, constraints or thresholds.")
-  if (any(grepl("(^|[ +~])(?!NA\\*)[A-Za-z_.][A-Za-z0-9_.]*\\*", lines, perl = TRUE))) stop("Regularised SEM (lslx) takes no parameter labels (equality constraints): remove them.")
-  if (any(grepl("~ *1$|~ *[^ ]+\\*1$", lines))) stop("Regularised SEM (lslx) estimates every intercept itself: remove the mean structure.")
+  if (any(grepl("efa\\(|:=|==|<|>|~\\*~|\\|", lines))) {
+    stop("Regularised SEM (lslx) takes no ESEM blocks, defined parameters, constraints or thresholds.")
+  }
+  if (any(grepl("(^|[ +~])(?!NA\\*)[A-Za-z_.][A-Za-z0-9_.]*\\*", lines, perl = TRUE))) {
+    stop("Regularised SEM (lslx) takes no parameter labels (equality constraints): remove them.")
+  }
+  if (any(grepl("~ *1$|~ *[^ ]+\\*1$", lines))) {
+    stop("Regularised SEM (lslx) estimates every intercept itself: remove the mean structure.")
+  }
   lines <- gsub("NA\\*", "free()*", lines)
   n <- b$n
   # (factors of two or more indicators: a single indicator's construct is the variable itself)
@@ -319,7 +361,9 @@ ps_cb_regsem <- function(req_json, export = FALSE) {
   if ("loadings" %in% pen_kinds) {
     for (k in seq_along(facs)) {
       other <- setdiff(inds, own[[k]])
-      if (length(other)) added <- c(added, sprintf("%s =~ %s", facs[k], paste(sprintf("pen()*%s", other), collapse = " + ")))
+      if (length(other)) {
+        added <- c(added, sprintf("%s =~ %s", facs[k], paste(sprintf("pen()*%s", other), collapse = " + ")))
+      }
     }
   }
   if ("paths" %in% pen_kinds) {

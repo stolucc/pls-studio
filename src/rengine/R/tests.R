@@ -10,7 +10,11 @@ ps_bt_factor_line <- function(req, fr, n) {
   x <- fr$data[[vn]]
   codes <- sort(unique(x[!is.na(x)]))
   l <- unlist(req$categories[[n]])
-  labels <- if (!is.null(l) && length(codes) && all(codes %in% seq_along(l))) l[codes] else format(codes, trim = TRUE)
+  labels <- if (!is.null(l) && length(codes) && all(codes %in% seq_along(l))) {
+    l[codes]
+  } else {
+    format(codes, trim = TRUE)
+  }
   sprintf("data$%s <- factor(data$%s, levels = c(%s), labels = %s)", vn, vn, paste(format(codes, digits = 15, trim = TRUE), collapse = ", "), ps_q(labels))
 }
 
@@ -18,7 +22,9 @@ ps_bt_factor_line <- function(req, fr, n) {
 
 ps_bt_alt <- function(req) {
   a <- req$alternative %||% "two.sided"
-  if (!a %in% c("two.sided", "greater", "less")) stop("Invalid alternative hypothesis in the request.")
+  if (!a %in% c("two.sided", "greater", "less")) {
+    stop("Invalid alternative hypothesis in the request.")
+  }
   a
 }
 ps_bt_conf <- function(req) {
@@ -66,7 +72,9 @@ ps_ttest <- function(req_json, export = FALSE) {
     NULL
   }
   vars <- if (type == "paired") unique(unlist(pairs)) else unlist(req$vars)
-  if (!length(vars)) stop(if (type == "paired") "Choose at least one pair of variables." else "Choose at least one variable.")
+  if (!length(vars)) {
+    stop(if (type == "paired") "Choose at least one pair of variables." else "Choose at least one variable.")
+  }
   for (p in pairs) if (length(p) != 2 || p[1] == p[2]) stop("Each pair needs two different variables.")
   group <- req$group %||% ""
   if (type == "independent" && !nzchar(group)) stop("Choose the grouping variable.")
@@ -78,7 +86,9 @@ ps_ttest <- function(req_json, export = FALSE) {
   if (type == "independent") {
     body <- c(ps_bt_factor_line(req, fr, group), sprintf("g <- data$%s", v[[group]]))
     lv <- levels(factor(fr$data[[v[[group]]]]))
-    if (length(lv) != 2) stop(sprintf("The grouping variable must have exactly two groups; %s has %d.", group, length(lv)))
+    if (length(lv) != 2) {
+      stop(sprintf("The grouping variable must have exactly two groups; %s has %d.", group, length(lv)))
+    }
   }
   for (k in seq_along(if (type == "paired") pairs else vars)) {
     if (type == "paired") {
@@ -268,12 +278,18 @@ ps_rmanova <- function(req_json, export = FALSE) {
     between <- req$between %||% ""
     if (!nzchar(between)) stop("Choose the first between-subjects factor before further ones.")
     betweens <- c(between, more)
-    if (anyDuplicated(betweens) || length(betweens) > 4) stop("Choose up to four different between-subjects factors.")
+    if (anyDuplicated(betweens) || length(betweens) > 4) {
+      stop("Choose up to four different between-subjects factors.")
+    }
     if (is.null(design)) {
       within <- as.character(unlist(req$levels))
       fname <- req$factorName %||% "condition"
-      if (length(within) < 2) stop("Choose at least two columns: one per level of the within-subject factor.")
-      if (!grepl("^[A-Za-z][A-Za-z0-9_.]{0,30}$", fname) || fname %in% c("subject", "y")) stop("The factor name must be a letter followed by letters, digits, _ or . (at most 31).")
+      if (length(within) < 2) {
+        stop("Choose at least two columns: one per level of the within-subject factor.")
+      }
+      if (!grepl("^[A-Za-z][A-Za-z0-9_.]{0,30}$", fname) || fname %in% c("subject", "y")) {
+        stop("The factor name must be a letter followed by letters, digits, _ or . (at most 31).")
+      }
       design <- list(names = fname, levels = list(within), cells = within, single = TRUE)
     }
     return(ps_rmanova_car(req, design, betweens, export))
@@ -283,9 +299,13 @@ ps_rmanova <- function(req_json, export = FALSE) {
   }
   within <- unlist(req$levels)
   between <- req$between %||% ""
-  if (length(within) < 2) stop("Choose at least two columns: one per level of the within-subject factor.")
+  if (length(within) < 2) {
+    stop("Choose at least two columns: one per level of the within-subject factor.")
+  }
   fname <- req$factorName %||% "condition"
-  if (!grepl("^[A-Za-z][A-Za-z0-9_.]{0,30}$", fname)) stop("The factor name must be a letter followed by letters, digits, _ or . (at most 31).")
+  if (!grepl("^[A-Za-z][A-Za-z0-9_.]{0,30}$", fname)) {
+    stop("The factor name must be a letter followed by letters, digits, _ or . (at most 31).")
+  }
   fr <- ps_long_frame(req, unique(c(within, if (nzchar(between)) between)))
   v <- fr$v
   W <- ps_q(unname(unlist(v[within])))
@@ -330,7 +350,11 @@ ps_rmanova <- function(req_json, export = FALSE) {
   bs <- ren(bs)
   ws <- ren(ws)
   res_w <- Filter(function(r) r$term == "Residuals", ws)[[1]]$ss
-  res_b <- if (length(Filter(function(r) r$term == "Residuals", bs))) Filter(function(r) r$term == "Residuals", bs)[[1]]$ss else NULL
+  res_b <- if (length(Filter(function(r) r$term == "Residuals", bs))) {
+    Filter(function(r) r$term == "Residuals", bs)[[1]]$ss
+  } else {
+    NULL
+  }
   pe <- function(rows, res) {
     lapply(rows, function(r) {
       if (r$term != "Residuals" && !is.null(res)) r$partialEta2 <- r$ss / (r$ss + res)
@@ -378,12 +402,18 @@ ps_rm_design <- function(req) {
   }, "")
   lv <- lapply(fs, function(f) as.character(unlist(f$levels)))
   for (k in seq_along(fs)) {
-    if (!grepl("^[A-Za-z][A-Za-z0-9_.]{0,30}$", nm[k]) || nm[k] %in% c("subject", "y")) stop("Each factor name must be a letter followed by letters, digits, _ or . (at most 31), and not subject or y.")
-    if (length(lv[[k]]) < 2 || length(lv[[k]]) > 50 || anyDuplicated(lv[[k]]) || any(!nzchar(lv[[k]]))) stop(sprintf("Factor %s needs at least two distinct, named levels.", nm[k]))
+    if (!grepl("^[A-Za-z][A-Za-z0-9_.]{0,30}$", nm[k]) || nm[k] %in% c("subject", "y")) {
+      stop("Each factor name must be a letter followed by letters, digits, _ or . (at most 31), and not subject or y.")
+    }
+    if (length(lv[[k]]) < 2 || length(lv[[k]]) > 50 || anyDuplicated(lv[[k]]) || any(!nzchar(lv[[k]]))) {
+      stop(sprintf("Factor %s needs at least two distinct, named levels.", nm[k]))
+    }
   }
   if (anyDuplicated(nm)) stop("The within-subject factors need different names.")
   cells <- as.character(unlist(req$cells))
-  if (length(cells) != prod(lengths(lv)) || any(!nzchar(cells)) || anyDuplicated(cells)) stop(sprintf("Assign a different column to each of the %d cells.", prod(lengths(lv))))
+  if (length(cells) != prod(lengths(lv)) || any(!nzchar(cells)) || anyDuplicated(cells)) {
+    stop(sprintf("Assign a different column to each of the %d cells.", prod(lengths(lv))))
+  }
   list(names = nm, levels = lv, cells = cells)
 }
 
@@ -421,7 +451,9 @@ ps_rmanova_multi <- function(req, design, export) {
   fr <- ps_long_frame(req, unique(c(design$cells, if (bt) between)))
   v <- fr$v
   bvar <- if (bt) v[[between]] else ""
-  if (bt && bvar %in% c("subject", "y", "idata", design$names)) stop("Rename the between factor: its name is taken by a within-subject factor or the model.")
+  if (bt && bvar %in% c("subject", "y", "idata", design$names)) {
+    stop("Rename the between factor: its name is taken by a within-subject factor or the model.")
+  }
   cellsR <- unname(unlist(v[design$cells]))
   effects <- ps_rm_effects(design$names)
   wf <- paste(design$names, collapse = " * ")
@@ -486,7 +518,9 @@ ps_rmanova_multi <- function(req, design, export) {
     M <- t(C) %*% S %*% C
     gg <- sum(diag(M))^2 / (k * sum(diag(M %*% M)))
     hf <- min(1, ((n + 1) * k * gg - 2) / (k * (n - k * gg)))
-    if (k > 1) sph[[length(sph) + 1]] <- list(term = term, df = k, w = unname(env$mauchly[[i]]$statistic), p = env$mauchly[[i]]$p.value, gg = gg, hf = hf)
+    if (k > 1) {
+      sph[[length(sph) + 1]] <- list(term = term, df = k, w = unname(env$mauchly[[i]]$statistic), p = env$mauchly[[i]]$p.value, gg = gg, hf = hf)
+    }
     sp <- env$spher[[i]]
     for (j in seq_len(nrow(sp) - 1)) corr[[length(corr) + 1]] <- list(term = if (j == 1) term else paste(term, "×", between), p = sp[j, "Pr(>F)"], pGG = sp[j, "G-G Pr"], pHF = sp[j, "H-F Pr"])
   }
@@ -529,7 +563,9 @@ ps_rmanova_car <- function(req, design, betweens, export) {
   fr <- ps_long_frame(req, unique(c(design$cells, betweens)))
   v <- fr$v
   bvars <- vapply(betweens, function(b) v[[b]], "", USE.NAMES = FALSE)
-  if (any(bvars %in% c("subject", "y", "idata", "mlm", "Y", design$names))) stop("Rename a between factor: its name is taken by a within-subject factor or the model.")
+  if (any(bvars %in% c("subject", "y", "idata", "mlm", "Y", design$names))) {
+    stop("Rename a between factor: its name is taken by a within-subject factor or the model.")
+  }
   cellsR <- unname(unlist(v[design$cells]))
   k <- length(design$names)
   fac <- vapply(rev(seq_len(k)), function(i) sprintf("%s = factor(%s, levels = %s)", design$names[i], ps_q(design$levels[[i]]), ps_q(design$levels[[i]])), "")
@@ -581,7 +617,9 @@ ps_rmanova_car <- function(req, design, betweens, export) {
     rows_w[[length(rows_w) + 1]] <- c(row, list(stratum = stratum))
     if (!length(b)) {
       # (an effect's error row once, after its terms; Mauchly's test and the epsilons for effects with more than one df)
-      if (!is.null(st) && rn[i] %in% rownames(st)) sph[[length(sph) + 1]] <- list(term = stratum, df = df, w = st[rn[i], "Test statistic"], p = st[rn[i], "p-value"], gg = pa[rn[i], "GG eps"], hf = min(1, pa[rn[i], "HF eps"]))
+      if (!is.null(st) && rn[i] %in% rownames(st)) {
+        sph[[length(sph) + 1]] <- list(term = stratum, df = df, w = st[rn[i], "Test statistic"], p = st[rn[i], "p-value"], gg = pa[rn[i], "GG eps"], hf = min(1, pa[rn[i], "HF eps"]))
+      }
     }
     last <- i == length(rn) || !identical(sort(parts[[i + 1]][parts[[i + 1]] %in% wn]), sort(w))
     if (!is.null(pa) && rn[i] %in% rownames(pa)) {
@@ -589,10 +627,16 @@ ps_rmanova_car <- function(req, design, betweens, export) {
     } else {
       corr[[length(corr) + 1]] <- list(term = row$term, p = row$p, pGG = row$p, pHF = row$p)
     }
-    if (last) rows_w[[length(rows_w) + 1]] <- list(term = "Residuals", stratum = stratum, ss = ess, df = edf, ms = ess / edf)
+    if (last) {
+      rows_w[[length(rows_w) + 1]] <- list(term = "Residuals", stratum = stratum, ss = ess, df = edf, ms = ess / edf)
+    }
   }
   single <- isTRUE(design$single)
-  labels <- if (single) design$cells else apply(expand.grid(rev(design$levels), KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)[, rev(seq_len(k)), drop = FALSE], 1, paste, collapse = " · ")
+  labels <- if (single) {
+    design$cells
+  } else {
+    apply(expand.grid(rev(design$levels), KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)[, rev(seq_len(k)), drop = FALSE], 1, paste, collapse = " · ")
+  }
   sp1 <- if (single && length(sph)) sph[[1]] else NULL
   ps_json(list(
     factorName = paste(design$names, collapse = " × "), levels = design$cells, between = paste(betweens, collapse = " × "), betweenFactors = I(betweens), n = nrow(env$Y), ssType = "II",
@@ -611,7 +655,9 @@ ps_manova <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   ys <- unlist(req$dependents)
   fac <- unlist(req$factors)
-  if (length(ys) < 2 || !length(fac)) stop("Choose at least two dependent variables and one factor.")
+  if (length(ys) < 2 || !length(fac)) {
+    stop("Choose at least two dependent variables and one factor.")
+  }
   full <- !identical(req$interactions, FALSE)
   fr <- ps_long_frame(req, unique(c(ys, fac)))
   v <- fr$v
@@ -648,7 +694,9 @@ ps_correlation <- function(req_json, export = FALSE) {
   vars <- unlist(req$vars)
   if (length(vars) < 2) stop("Choose at least two variables.")
   method <- req$method %||% "pearson"
-  if (!method %in% c("pearson", "spearman", "kendall", "polychoric")) stop("Invalid correlation method in the request.")
+  if (!method %in% c("pearson", "spearman", "kendall", "polychoric")) {
+    stop("Invalid correlation method in the request.")
+  }
   alt <- ps_bt_alt(req)
   conf <- ps_bt_conf(req)
   listwise <- identical(req$deletion, "listwise")
@@ -710,7 +758,9 @@ ps_polychoric <- function(fr, vars, alt, conf, listwise, export) {
     x <- x[!is.na(x)]
     length(x) > 0 && all(x == round(x)) && length(unique(x)) <= 8
   }, TRUE)
-  if (!any(ordinal)) stop("No variable has at most 8 categories (integer values), so there is nothing ordinal to correlate: choose Pearson, Spearman or Kendall.")
+  if (!any(ordinal)) {
+    stop("No variable has at most 8 categories (integer values), so there is nothing ordinal to correlate: choose Pearson, Spearman or Kendall.")
+  }
   bin <- vapply(col, function(k) length(unique(stats::na.omit(fr$data[[k]]))) == 2, TRUE)
   body <- c(
     "suppressPackageStartupMessages(library(lavaan))",
@@ -723,7 +773,9 @@ ps_polychoric <- function(fr, vars, alt, conf, listwise, export) {
     sprintf("est <- standardizedSolution(fit, level = %s)", format(conf)),
     "est <- est[est$op == \"~~\" & est$lhs != est$rhs, ]",
     "n <- vapply(seq_len(nrow(est)), function(i) sum(complete.cases(data[[est$lhs[i]]], data[[est$rhs[i]]])), 0)",
-    if (sum(ordinal) >= 2) "normality <- lavTables(fit, dimension = 2L, type = \"table\", statistic = c(\"X2\", \"G2\"), p_value = TRUE)"
+    if (sum(ordinal) >= 2) {
+      "normality <- lavTables(fit, dimension = 2L, type = \"table\", statistic = c(\"X2\", \"G2\"), p_value = TRUE)"
+    }
   )
   inputs <- list(data = fr$data)
   if (export) {
@@ -777,7 +829,9 @@ ps_contingency <- function(req_json, export = FALSE) {
   rv <- req$rows %||% ""
   cv <- req$columns %||% ""
   wv <- req$counts %||% ""
-  if (!nzchar(rv) || !nzchar(cv) || rv == cv) stop("Choose two different variables for the rows and the columns.")
+  if (!nzchar(rv) || !nzchar(cv) || rv == cv) {
+    stop("Choose two different variables for the rows and the columns.")
+  }
   conf <- ps_bt_conf(req)
   fr <- ps_long_frame(req, unique(c(rv, cv, if (nzchar(wv)) wv)))
   v <- fr$v
@@ -834,7 +888,9 @@ ps_freqtest <- function(req_json, export = FALSE) {
   } else {
     lv <- levels(factor(fr$data[[v[[x]]]]))
     props <- unlist(req$proportions)
-    if (length(props) && (length(props) != length(lv) || any(!is.finite(props)) || any(props <= 0))) stop(sprintf("Give one positive expected proportion per category (%d).", length(lv)))
+    if (length(props) && (length(props) != length(lv) || any(!is.finite(props)) || any(props <= 0))) {
+      stop(sprintf("Give one positive expected proportion per category (%d).", length(lv)))
+    }
     body <- c(body, sprintf("gof <- chisq.test(counts%s)", if (length(props)) sprintf(", p = c(%s), rescale.p = TRUE", paste(format(props, digits = 15), collapse = ", ")) else ""))
   }
   inputs <- list(data = fr$data)
@@ -862,8 +918,12 @@ ps_kappa_weights <- function(req, k) {
     return(character(0))
   }
   m <- req$weightMatrix
-  if (!is.matrix(m) || !is.numeric(m) || nrow(m) != ncol(m) || nrow(m) < 2 || any(!is.finite(m))) stop("The kappa weights must be a square matrix of numbers.")
-  if (!is.null(k) && nrow(m) != k) stop(sprintf("The weight matrix has %d rows; the table has %d categories.", nrow(m), k))
+  if (!is.matrix(m) || !is.numeric(m) || nrow(m) != ncol(m) || nrow(m) < 2 || any(!is.finite(m))) {
+    stop("The kappa weights must be a square matrix of numbers.")
+  }
+  if (!is.null(k) && nrow(m) != k) {
+    stop(sprintf("The weight matrix has %d rows; the table has %d categories.", nrow(m), k))
+  }
   c(
     "# Weights (rows: the first rater's categories).",
     sprintf("W <- matrix(c(%s), nrow = %d, byrow = TRUE)", paste(format(c(t(m)), digits = 15), collapse = ", "), nrow(m)),
@@ -889,7 +949,9 @@ ps_kappa_table <- function(req, export) {
   rv <- kt$rows %||% ""
   cv <- kt$columns %||% ""
   wv <- kt$counts %||% ""
-  if (!is.character(rv) || !is.character(cv) || !is.character(wv) || !nzchar(rv) || !nzchar(cv) || rv == cv) stop("Choose the two raters' variables for the rows and the columns.")
+  if (!is.character(rv) || !is.character(cv) || !is.character(wv) || !nzchar(rv) || !nzchar(cv) || rv == cv) {
+    stop("Choose the two raters' variables for the rows and the columns.")
+  }
   nobs <- kt$nObs
   if (!is.null(nobs)) {
     nobs <- ps_number(nobs, "number of subjects")
@@ -900,13 +962,19 @@ ps_kappa_table <- function(req, export) {
   v <- fr$v
   if (is.null(nobs) && nzchar(wv)) {
     w <- fr$data[[v[[wv]]]]
-    if (abs(sum(w[stats::complete.cases(fr$data)], na.rm = TRUE) - 1) < 1e-6) stop("The table holds proportions: give the number of subjects rated, for the standard errors.")
+    if (abs(sum(w[stats::complete.cases(fr$data)], na.rm = TRUE) - 1) < 1e-6) {
+      stop("The table holds proportions: give the number of subjects rated, for the standard errors.")
+    }
   }
   codes <- sort(unique(c(fr$data[[v[[rv]]]], fr$data[[v[[cv]]]])))
   codes <- codes[!is.na(codes)]
   if (length(codes) < 2) stop("The raters use fewer than two categories.")
   l <- unlist(req$categories[[rv]]) %||% unlist(req$categories[[cv]])
-  labels <- if (!is.null(l) && all(codes %in% seq_along(l))) l[codes] else format(codes, trim = TRUE)
+  labels <- if (!is.null(l) && all(codes %in% seq_along(l))) {
+    l[codes]
+  } else {
+    format(codes, trim = TRUE)
+  }
   lev <- sprintf("levels = c(%s), labels = %s", paste(format(codes, digits = 15, trim = TRUE), collapse = ", "), ps_q(labels))
   body <- c(
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(rv, cv, if (nzchar(wv)) wv)])))),
@@ -941,16 +1009,24 @@ ps_kappa_table <- function(req, export) {
 ps_reliability <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   type <- req$type %||% "scale"
-  if (!type %in% c("scale", "icc", "kappa", "blandaltman")) stop("Invalid reliability analysis in the request.")
+  if (!type %in% c("scale", "icc", "kappa", "blandaltman")) {
+    stop("Invalid reliability analysis in the request.")
+  }
   if (type == "kappa" && is.list(req$kappaTable)) {
     return(ps_kappa_table(req, export))
   }
   vars <- unlist(req$vars)
   need <- c(scale = 2, icc = 2, kappa = 2, blandaltman = 2)[[type]]
   if (length(vars) < need) stop(sprintf("Choose at least %d variables.", need))
-  if (type %in% c("kappa", "blandaltman") && length(vars) != 2) stop("Choose exactly two variables (the two raters or methods).")
+  if (type %in% c("kappa", "blandaltman") && length(vars) != 2) {
+    stop("Choose exactly two variables (the two raters or methods).")
+  }
   conf <- ps_bt_conf(req)
-  bayes <- if (type == "scale" && isTRUE(req$bayes)) ps_bayesrel_options(req, length(vars)) else NULL
+  bayes <- if (type == "scale" && isTRUE(req$bayes)) {
+    ps_bayesrel_options(req, length(vars))
+  } else {
+    NULL
+  }
   fr <- ps_long_frame(req, vars)
   v <- unname(unlist(fr$v[vars]))
   body <- c(sprintf("X <- data[complete.cases(data[, %s]), %s, drop = FALSE]", ps_q(v), ps_q(v)))

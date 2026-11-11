@@ -27,23 +27,35 @@ ps_efa <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   method <- req$method %||% "minres"
   rotation <- req$rotation %||% "oblimin"
-  if (!(length(method) == 1 && method %in% names(PS_EFA_METHODS))) stop("Invalid method in the request.")
-  if (!(length(rotation) == 1 && rotation %in% PS_EFA_ROTATIONS)) stop("Invalid rotation in the request.")
+  if (!(length(method) == 1 && method %in% names(PS_EFA_METHODS))) {
+    stop("Invalid method in the request.")
+  }
+  if (!(length(rotation) == 1 && rotation %in% PS_EFA_ROTATIONS)) {
+    stop("Invalid rotation in the request.")
+  }
   vars <- unlist(req$vars)
   if (length(vars) < 3) stop("Choose at least three variables.")
   criterion <- req$criterion %||% "fixed"
-  if (!(length(criterion) == 1 && criterion %in% names(PS_EFA_CRITERIA))) stop("Invalid criterion for the number of factors in the request.")
+  if (!(length(criterion) == 1 && criterion %in% names(PS_EFA_CRITERIA))) {
+    stop("Invalid criterion for the number of factors in the request.")
+  }
   k <- as.integer(ps_number(req$nfactors %||% 1, "number of factors"))
-  if (criterion == "fixed" && (k < 1 || k >= length(vars))) stop("The number of factors must be at least 1 and less than the number of variables.")
+  if (criterion == "fixed" && (k < 1 || k >= length(vars))) {
+    stop("The number of factors must be at least 1 and less than the number of variables.")
+  }
   iter <- as.integer(ps_number(req$parallel %||% 100, "number of parallel-analysis samples"))
   if (iter < 0 || iter > 2000) stop("Invalid number of parallel-analysis samples.")
-  if (criterion == "parallel" && iter == 0) stop("Parallel analysis needs samples: set the number of parallel-analysis samples above 0, or choose another criterion.")
+  if (criterion == "parallel" && iter == 0) {
+    stop("Parallel analysis needs samples: set the number of parallel-analysis samples above 0, or choose another criterion.")
+  }
   seed <- as.integer(ps_number(req$seed %||% 1, "seed"))
   # Correlations: Pearson, or for ordinal (Likert) items those of the continuous responses assumed to underlie
   # them: psych's mixedCor (cor = "mixed"): polychoric between items with at most 8 categories, tetrachoric
   # between binary ones, polyserial with a continuous variable, Pearson between continuous ones.
   correlation <- req$correlation %||% "pearson"
-  if (!(length(correlation) == 1 && correlation %in% c("pearson", "polychoric"))) stop("Invalid correlation type in the request.")
+  if (!(length(correlation) == 1 && correlation %in% c("pearson", "polychoric"))) {
+    stop("Invalid correlation type in the request.")
+  }
   poly <- correlation == "polychoric"
   carg <- if (poly) ", cor = \"mixed\"" else ""
   listwise <- identical(req$deletion, "listwise") # (missing: reserved for the SEM missing-data choices)
@@ -51,24 +63,40 @@ ps_efa <- function(req_json, export = FALSE) {
   v <- ps_lookup(fr$v, vars)
   pca <- method == "pca"
   lav <- method == "lavaan"
-  if (!lav && rotation %in% c("bigeomin", "biquartimin")) stop("Bifactor rotations need the lavaan extraction (maximum likelihood with standard errors).")
+  if (!lav && rotation %in% c("bigeomin", "biquartimin")) {
+    stop("Bifactor rotations need the lavaan extraction (maximum likelihood with standard errors).")
+  }
   # lavaan: geomin's epsilon (lavaan's default 0.001; Mplus uses 0.0001 with two factors, 0.001 with three, 0.01 with
   # four or more), the standard errors' information matrix (Mplus's ML default: observed), and the smallest number
   # of factors whose fit is compared.
   eps <- req$epsilon
-  if (!is.null(eps) && !(is.numeric(eps) && length(eps) == 1 && eps > 0 && eps <= 1)) stop("Invalid geomin epsilon in the request.")
+  if (!is.null(eps) && !(is.numeric(eps) && length(eps) == 1 && eps > 0 && eps <= 1)) {
+    stop("Invalid geomin epsilon in the request.")
+  }
   observed <- identical(req$information, "observed")
   # WLSMV (polychoric): standard errors as Mplus's (ps_mplus_se_lines), unless wlsmvSe is "lavaan" (lavaan 0.7's
   # observed information in the sandwich).
-  if (!is.null(req$wlsmvSe) && !identical(req$wlsmvSe, "lavaan")) stop("Invalid WLSMV standard errors in the request.")
+  if (!is.null(req$wlsmvSe) && !identical(req$wlsmvSe, "lavaan")) {
+    stop("Invalid WLSMV standard errors in the request.")
+  }
   mplus_se <- poly && lav && is.null(req$wlsmvSe)
   # WLSMV: the test statistic as Mplus's (mimic = "Mplus", gamma.vcov.mplus = FALSE).
-  if (!is.null(req$mimic) && !identical(req$mimic, "Mplus")) stop("Invalid test statistic in the request.")
+  if (!is.null(req$mimic) && !identical(req$mimic, "Mplus")) {
+    stop("Invalid test statistic in the request.")
+  }
   mimic <- poly && lav && identical(req$mimic, "Mplus")
   from <- as.integer(ps_number(req$from %||% 1, "smallest number of factors"))
   if (from < 1) stop("Invalid smallest number of factors in the request.")
-  if (rotation %in% c("bigeomin", "biquartimin") && (from < 2 || (criterion == "fixed" && k < 2))) stop("A bifactor rotation needs at least two factors (a general and a specific one): compare fit from 2.")
-  fm <- if (pca) "minres" else if (lav) "ml" else method
+  if (rotation %in% c("bigeomin", "biquartimin") && (from < 2 || (criterion == "fixed" && k < 2))) {
+    stop("A bifactor rotation needs at least two factors (a general and a specific one): compare fit from 2.")
+  }
+  fm <- if (pca) {
+    "minres"
+  } else if (lav) {
+    "ml"
+  } else {
+    method
+  }
   compare <- ps_efa_compare(req$compare, lav, carg)
   schmid <- isTRUE(req$schmid)
   if (schmid && !(method %in% c("minres", "ml", "pa"))) {
@@ -77,7 +105,9 @@ ps_efa <- function(req_json, export = FALSE) {
   if (schmid && !(rotation %in% c("oblimin", "promax", "geominQ"))) {
     stop("The Schmid-Leiman solution needs an oblique rotation (oblimin, promax or geomin).")
   }
-  if (schmid && criterion == "fixed" && k < 3) stop("The Schmid-Leiman solution needs at least three factors.")
+  if (schmid && criterion == "fixed" && k < 3) {
+    stop("The Schmid-Leiman solution needs at least three factors.")
+  }
   unit <- if (pca) "components" else "factors"
   # k is set in the script: the given number, or what the criterion retains (at least 1, fewer than the variables).
   kline <- switch(criterion,
@@ -101,7 +131,11 @@ ps_efa <- function(req_json, export = FALSE) {
   } else {
     sprintf("fa(X, nfactors = k, fm = \"%s\", rotate = \"%s\"%s)", fm, rotation, carg)
   }
-  what <- if (criterion == "fixed") sprintf("%d %s", k, unit) else sprintf("%s by %s", unit, PS_EFA_CRITERIA[[criterion]])
+  what <- if (criterion == "fixed") {
+    sprintf("%d %s", k, unit)
+  } else {
+    sprintf("%s by %s", unit, PS_EFA_CRITERIA[[criterion]])
+  }
   body <- c(
     if (lav) {
       "suppressPackageStartupMessages({ library(psych); library(GPArotation); library(lavaan) })"

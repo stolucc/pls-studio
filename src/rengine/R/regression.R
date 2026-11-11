@@ -10,57 +10,103 @@ ps_regression <- function(req_json, export = FALSE) {
   preds <- unlist(req$predictors)
   cats <- unlist(req$categorical)
   family <- req$family %||% "gaussian"
-  if (!family %in% c("gaussian", "binomial", "poisson", "negbin", "gamma", "ordinal", "multinomial", "censored", "survival")) stop("Invalid family in the request.")
+  if (!family %in% c("gaussian", "binomial", "poisson", "negbin", "gamma", "ordinal", "multinomial", "censored", "survival")) {
+    stop("Invalid family in the request.")
+  }
   link <- req$link %||% if (family == "ordinal") "logistic" else "logit"
-  if (family == "binomial" && !link %in% c("logit", "probit", "cloglog")) stop("Invalid link in the request.")
-  if (family == "ordinal" && !link %in% c("logistic", "probit", "cloglog")) stop("Invalid link in the request.")
+  if (family == "binomial" && !link %in% c("logit", "probit", "cloglog")) {
+    stop("Invalid link in the request.")
+  }
+  if (family == "ordinal" && !link %in% c("logistic", "probit", "cloglog")) {
+    stop("Invalid link in the request.")
+  }
   trials <- req$trials %||% ""
   wcol <- req$weights %||% ""
   cluster <- req$cluster %||% ""
   se <- req$se %||% "model"
-  if (!se %in% c("model", "HC0", "HC3", "cluster")) stop("Invalid standard-error choice in the request.")
-  if (se == "cluster" && !nzchar(cluster)) stop("Choose the cluster column for cluster-robust standard errors.")
+  if (!se %in% c("model", "HC0", "HC3", "cluster")) {
+    stop("Invalid standard-error choice in the request.")
+  }
+  if (se == "cluster" && !nzchar(cluster)) {
+    stop("Choose the cluster column for cluster-robust standard errors.")
+  }
   # Censored (tobit), zero- or censored-inflated, survival (Cox, piecewise exponential), the multinomial reference level.
   censoring <- req$censoring %||% "below"
-  if (!identical(censoring, "below") && !identical(censoring, "above")) stop("Invalid censoring in the request.")
+  if (!identical(censoring, "below") && !identical(censoring, "above")) {
+    stop("Invalid censoring in the request.")
+  }
   inflated <- isTRUE(req$inflated)
-  if (inflated && !family %in% c("poisson", "censored")) stop("Inflation applies to Poisson and censored models.")
+  if (inflated && !family %in% c("poisson", "censored")) {
+    stop("Inflation applies to Poisson and censored models.")
+  }
   reference <- req$reference %||% "first"
-  if (!identical(reference, "first") && !identical(reference, "last")) stop("Invalid reference level in the request.")
+  if (!identical(reference, "first") && !identical(reference, "last")) {
+    stop("Invalid reference level in the request.")
+  }
   status <- if (family == "survival") req$status %||% "" else ""
   status_censored <- isTRUE(req$statusCensored)
-  cuts <- if (family == "survival") vapply(as.list(unlist(req$cuts)), function(x) ps_number(x, "interval cut point"), 0) else numeric(0)
-  if (length(cuts) && (any(cuts <= 0) || is.unsorted(cuts, strictly = TRUE) || length(cuts) > 200)) stop("The interval cut points must be positive and increasing (at most 200).")
-  if (family == "survival" && !nzchar(status)) stop("Choose the status column: which times are events and which are censored.")
+  cuts <- if (family == "survival") {
+    vapply(as.list(unlist(req$cuts)), function(x) ps_number(x, "interval cut point"), 0)
+  } else {
+    numeric(0)
+  }
+  if (length(cuts) && (any(cuts <= 0) || is.unsorted(cuts, strictly = TRUE) || length(cuts) > 200)) {
+    stop("The interval cut points must be positive and increasing (at most 200).")
+  }
+  if (family == "survival" && !nzchar(status)) {
+    stop("Choose the status column: which times are events and which are censored.")
+  }
   # A random slope in a one-level linear model (Mplus TYPE = RANDOM: s | y ON x): the residual variance becomes
   # sigma2 + 2 c x + tau x^2 (tau the slope's variance, c its covariance with the residual), by maximum likelihood.
   slope <- req$randomSlope %||% ""
-  if (nzchar(slope) && family != "gaussian") stop("A random slope is available for a linear regression.")
-  if (nzchar(slope) && !slope %in% unlist(req$predictors)) stop("The random slope must be one of the predictors.")
+  if (nzchar(slope) && family != "gaussian") {
+    stop("A random slope is available for a linear regression.")
+  }
+  if (nzchar(slope) && !slope %in% unlist(req$predictors)) {
+    stop("The random slope must be one of the predictors.")
+  }
   if (nzchar(slope) && slope %in% cats) stop("A random slope needs a numeric predictor.")
   # Zero-inflated and hurdle count models (pscl): the count part on the predictors, the zero part (a logit model for a
   # structural zero, or for crossing the hurdle) on the same predictors, an intercept only, or its own predictors.
   zmodel <- req$zeroModel %||% ""
   if (!zmodel %in% c("", "zeroinfl", "hurdle")) stop("Invalid zero model in the request.")
   zmod <- nzchar(zmodel)
-  if (zmod && !family %in% c("poisson", "negbin")) stop("Zero-inflated and hurdle models apply to Poisson and negative binomial counts.")
-  if (zmod && inflated) stop("Choose either the zero-inflated Poisson written out (Mplus COUNT (i)) or a pscl zero model, not both.")
+  if (zmod && !family %in% c("poisson", "negbin")) {
+    stop("Zero-inflated and hurdle models apply to Poisson and negative binomial counts.")
+  }
+  if (zmod && inflated) {
+    stop("Choose either the zero-inflated Poisson written out (Mplus COUNT (i)) or a pscl zero model, not both.")
+  }
   zpart <- if (zmod) req$zeroPart %||% "same" else "same"
   if (!zpart %in% c("same", "intercept", "chosen")) stop("Invalid zero part in the request.")
-  zpreds <- if (zpart == "chosen") unique(as.character(unlist(req$zeroPredictors))) else character(0)
+  zpreds <- if (zpart == "chosen") {
+    unique(as.character(unlist(req$zeroPredictors)))
+  } else {
+    character(0)
+  }
   if (zpart == "chosen" && !length(zpreds)) stop("Choose the predictors of the zero part.")
   if (y %in% zpreds) stop("The outcome cannot be a predictor.")
   if (zmod && nzchar(wcol)) stop("Weights are not available for zero-inflated and hurdle models.")
   own <- inflated || family %in% c("censored", "survival") || nzchar(slope)
-  if (se != "model" && family == "ordinal") stop("Robust standard errors are available for lm and glm models; ordinal models report their own.")
-  if (se %in% c("HC3", "cluster") && zmod) stop("For zero-inflated and hurdle models choose model-based or HC0 (sandwich) standard errors.")
-  if (se %in% c("HC3", "cluster") && (family == "multinomial" || own)) stop("For multinomial, censored, inflated and survival models choose model-based or HC0 (Mplus MLR) standard errors.")
-  if (nzchar(wcol) && (family == "survival" || inflated || nzchar(slope))) stop("Weights are not available for survival, inflated and random-slope models.")
+  if (se != "model" && family == "ordinal") {
+    stop("Robust standard errors are available for lm and glm models; ordinal models report their own.")
+  }
+  if (se %in% c("HC3", "cluster") && zmod) {
+    stop("For zero-inflated and hurdle models choose model-based or HC0 (sandwich) standard errors.")
+  }
+  if (se %in% c("HC3", "cluster") && (family == "multinomial" || own)) {
+    stop("For multinomial, censored, inflated and survival models choose model-based or HC0 (Mplus MLR) standard errors.")
+  }
+  if (nzchar(wcol) && (family == "survival" || inflated || nzchar(slope))) {
+    stop("Weights are not available for survival, inflated and random-slope models.")
+  }
   conf <- ps_number(req$confidence %||% 0.95, "confidence level")
   # (terms of equal length arrive from JSON as a matrix, one row per term; otherwise as a list)
   ints <- req$interactions
   ints <- if (is.matrix(ints)) lapply(seq_len(nrow(ints)), function(i) as.character(ints[i, ])) else lapply(ints, function(t) as.character(unlist(t)))
-  if (!nzchar(y) || (!length(preds) && !length(ints))) stop("Choose the outcome and at least one predictor.")
+  if (!nzchar(y) || (!length(preds) && !length(ints))) {
+    stop("Choose the outcome and at least one predictor.")
+  }
   for (t in ints) if (length(t) < 2) stop("An interaction term must combine two or more variables.")
   vars <- unique(c(preds, unlist(ints), zpreds)) # (a variable may enter through an interaction or the zero part only)
   cols <- unique(c(y, vars, if (nzchar(trials)) trials, if (nzchar(wcol)) wcol, if (nzchar(cluster)) cluster, if (nzchar(status)) status))
@@ -79,23 +125,43 @@ ps_regression <- function(req_json, export = FALSE) {
   }
   # A text outcome with two categories in a logistic model: a factor, whose second level is the event (glm's convention).
   if (family == "binomial" && !nzchar(trials) && !is.null(levels_of[[y]])) {
-    if (length(unlist(levels_of[[y]])) != 2) stop("A logistic model needs a 0/1 outcome, or a text column with exactly two categories.")
+    if (length(unlist(levels_of[[y]])) != 2) {
+      stop("A logistic model needs a 0/1 outcome, or a text column with exactly two categories.")
+    }
     fac_lines <- c(fac_lines, sprintf("data$%s <- ps_labelled(data$%s, %s)", v[[y]], v[[y]], ps_q(unlist(levels_of[[y]]))))
   }
-  if (family == "ordinal" && !is.null(levels_of[[y]])) fac_lines <- c(fac_lines, sprintf("data$%s <- factor(data$%s, ordered = TRUE)", v[[y]], v[[y]]))
+  if (family == "ordinal" && !is.null(levels_of[[y]])) {
+    fac_lines <- c(fac_lines, sprintf("data$%s <- factor(data$%s, ordered = TRUE)", v[[y]], v[[y]]))
+  }
   # (Mplus's reference category of a nominal outcome is the last)
-  if (family == "multinomial" && reference == "last") fac_lines <- c(fac_lines, sprintf("data$%s <- relevel(data$%s, ref = tail(levels(data$%s), 1))  # the last level is the reference", v[[y]], v[[y]], v[[y]]))
+  if (family == "multinomial" && reference == "last") {
+    fac_lines <- c(fac_lines, sprintf("data$%s <- relevel(data$%s, ref = tail(levels(data$%s), 1))  # the last level is the reference", v[[y]], v[[y]], v[[y]]))
+  }
   if (nzchar(status)) {
-    if (!is.null(levels_of[[status]]) || !all(fr$data[[v[[status]]]] %in% c(0, 1, NA))) stop("The status column must be coded 0/1.")
+    if (!is.null(levels_of[[status]]) || !all(fr$data[[v[[status]]]] %in% c(0, 1, NA))) {
+      stop("The status column must be coded 0/1.")
+    }
     if (!is.null(levels_of[[y]])) stop("The survival time must be a numeric column.")
   }
-  if (own && !is.null(levels_of[[y]])) stop("The outcome of a censored, inflated or survival model must be numeric.")
+  if (own && !is.null(levels_of[[y]])) {
+    stop("The outcome of a censored, inflated or survival model must be numeric.")
+  }
   term <- function(t) paste(vapply(t, function(n) v[[n]], ""), collapse = ":")
   rhs <- paste(c(vapply(preds, function(n) v[[n]], ""), vapply(ints, term, "")), collapse = " + ")
   preds <- vars
-  lhs <- if (family == "binomial" && nzchar(trials)) sprintf("cbind(%s, %s - %s)", v[[y]], v[[trials]], v[[y]]) else v[[y]]
+  lhs <- if (family == "binomial" && nzchar(trials)) {
+    sprintf("cbind(%s, %s - %s)", v[[y]], v[[trials]], v[[y]])
+  } else {
+    v[[y]]
+  }
   fml <- sprintf("%s ~ %s", lhs, rhs)
-  zfml <- if (zpart == "intercept") sprintf("%s | 1", fml) else if (zpart == "chosen") sprintf("%s | %s", fml, paste(vapply(zpreds, function(n) v[[n]], ""), collapse = " + ")) else fml
+  zfml <- if (zpart == "intercept") {
+    sprintf("%s | 1", fml)
+  } else if (zpart == "chosen") {
+    sprintf("%s | %s", fml, paste(vapply(zpreds, function(n) v[[n]], ""), collapse = " + "))
+  } else {
+    fml
+  }
   w <- if (nzchar(wcol)) sprintf(", weights = %s", v[[wcol]]) else ""
   piecewise <- family == "survival" && length(cuts) > 0
   # (HC0 for the negative binomial and multinomial models, and every model fitted below by survival or by
@@ -163,7 +229,9 @@ ps_regression <- function(req_json, export = FALSE) {
       sprintf("long$.exposure <- long$%s - long$.start; long$.interval <- factor(long$.interval)", yv),
       sprintf("fit <- glm(.event ~ 0 + .interval + %s + offset(log(.exposure)), family = poisson, data = long)", rhs),
       "ll <- as.numeric(logLik(fit)) - sum(long$.event * log(long$.exposure))  # the log-likelihood of the survival times",
-      if (se == "HC0") "# Robust (HC0) standard errors, clustered by person (as Mplus MLR).\nvc <- vcovCL(fit, cluster = ~.id, type = \"HC0\", cadjust = FALSE)"
+      if (se == "HC0") {
+        "# Robust (HC0) standard errors, clustered by person (as Mplus MLR).\nvc <- vcovCL(fit, cluster = ~.id, type = \"HC0\", cadjust = FALSE)"
+      }
     )
   } else if (zmod) {
     c(
@@ -300,7 +368,15 @@ ps_regression <- function(req_json, export = FALSE) {
       t <- names(est)[i]
       b <- est[[i]]
       s <- sev[[i]]
-      part <- if (startsWith(t, "inflation:")) "inflation" else if (startsWith(t, ".interval")) "baseline" else if (startsWith(t, "random:")) "random" else NULL
+      part <- if (startsWith(t, "inflation:")) {
+        "inflation"
+      } else if (startsWith(t, ".interval")) {
+        "baseline"
+      } else if (startsWith(t, "random:")) {
+        "random"
+      } else {
+        NULL
+      }
       coefs[[length(coefs) + 1]] <- if (identical(part, "baseline")) {
         j <- as.integer(substring(t, 10))
         list(part = part, term = sprintf("[%s, %s)", format(br[j]), format(br[j + 1])), est = exp(b), se = exp(b) * s, stat = b / s, p = 2 * pnorm(-abs(b / s)), ciLow = exp(b - z * s), ciHigh = exp(b + z * s))
@@ -316,8 +392,22 @@ ps_regression <- function(req_json, export = FALSE) {
       }
     }
     n <- nrow(env$data)
-    ll <- if (inflated || nzchar(slope)) fit$logLik else if (piecewise) env$ll else if (family == "survival") fit$loglik[2] else as.numeric(logLik(fit))
-    npar <- if (inflated || nzchar(slope)) fit$npar else if (family == "survival") length(coef(fit)) else attr(logLik(fit), "df")
+    ll <- if (inflated || nzchar(slope)) {
+      fit$logLik
+    } else if (piecewise) {
+      env$ll
+    } else if (family == "survival") {
+      fit$loglik[2]
+    } else {
+      as.numeric(logLik(fit))
+    }
+    npar <- if (inflated || nzchar(slope)) {
+      fit$npar
+    } else if (family == "survival") {
+      length(coef(fit))
+    } else {
+      attr(logLik(fit), "df")
+    }
     lrt <- if (family == "survival" && !piecewise) {
       st <- 2 * (fit$loglik[2] - fit$loglik[1])
       list(stat = st, df = npar, p = pchisq(st, npar, lower.tail = FALSE))
@@ -332,7 +422,11 @@ ps_regression <- function(req_json, export = FALSE) {
       zeros = if (family == "poisson") sum(yy == 0) else NULL,
       residualVariance = resvar$est, residualVarianceSe = resvar$se
     )
-    eng <- if (inflated || nzchar(slope)) list(package = "stats", version = as.character(getRversion())) else ps_engine("survival")
+    eng <- if (inflated || nzchar(slope)) {
+      list(package = "stats", version = as.character(getRversion()))
+    } else {
+      ps_engine("survival")
+    }
     shown <- if (family == "survival") sprintf("Surv(%s, %s) ~ %s%s", yv, event, if (piecewise) "baseline hazard by interval + " else "", rhs) else fml
     return(ps_json(list(
       family = family, link = link, formula = nm(shown), se = se, coefficients = coefs, thresholds = list(), levels = NULL, fit = fitv, lrt = lrt,
@@ -355,7 +449,9 @@ ps_regression <- function(req_json, export = FALSE) {
       B <- matrix(B, 1, dimnames = list(fit$lev[2], names(B)))
       S <- matrix(S, 1, dimnames = list(fit$lev[2], names(S)))
     }
-    if (se == "HC0") S <- matrix(sqrt(diag(env$vc)), nrow = nrow(B), byrow = TRUE, dimnames = dimnames(B))
+    if (se == "HC0") {
+      S <- matrix(sqrt(diag(env$vc)), nrow = nrow(B), byrow = TRUE, dimnames = dimnames(B))
+    }
     levels_out <- list(reference = fit$lev[1], others = rownames(B))
     for (r in rownames(B)) {
       for (j in colnames(B)) {
@@ -478,14 +574,24 @@ ps_regression <- function(req_json, export = FALSE) {
   xnum <- Filter(function(n) !is_fac(n), preds)
   d <- env$data
   keep <- if (nrow(d) > 5000) seq(1, nrow(d), length.out = 5000) else seq_len(nrow(d))
-  yobs <- if (family == "binomial" && nzchar(trials)) d[[v[[y]]]] / d[[v[[trials]]]] else if (family == "binomial" && is.factor(d[[v[[y]]]])) as.numeric(d[[v[[y]]]]) - 1 else d[[v[[y]]]]
+  yobs <- if (family == "binomial" && nzchar(trials)) {
+    d[[v[[y]]]] / d[[v[[trials]]]]
+  } else if (family == "binomial" && is.factor(d[[v[[y]]]])) {
+    as.numeric(d[[v[[y]]]]) - 1
+  } else {
+    d[[v[[y]]]]
+  }
   curves <- Filter(Negate(is.null), lapply(xnum, function(xn) {
     xv <- v[[xn]]
     grid <- seq(min(d[[xv]]), max(d[[xv]]), length.out = 50)
     nd <- d[rep(1, 50), , drop = FALSE]
     for (n in preds) {
       cv <- v[[n]]
-      nd[[cv]] <- if (is.factor(d[[cv]])) factor(rep(levels(d[[cv]])[1], 50), levels = levels(d[[cv]])) else rep(mean(d[[cv]]), 50)
+      nd[[cv]] <- if (is.factor(d[[cv]])) {
+        factor(rep(levels(d[[cv]])[1], 50), levels = levels(d[[cv]]))
+      } else {
+        rep(mean(d[[cv]]), 50)
+      }
     }
     nd[[xv]] <- grid
     pred <- ps_try(

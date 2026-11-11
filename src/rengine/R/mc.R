@@ -31,7 +31,11 @@ ps_mc_body <- function(req) {
   est_lines <- unlist(lapply(seq_along(req$estimators), function(ei) {
     e <- req$estimators[[ei]]
     if (e$method == "pls") {
-      boot <- if (req$bootSamples > 0) sprintf(", .resample_method = \"bootstrap\", .R = %d, .seed = boot_seed", as.integer(req$bootSamples)) else ""
+      boot <- if (req$bootSamples > 0) {
+        sprintf(", .resample_method = \"bootstrap\", .R = %d, .seed = boot_seed", as.integer(req$bootSamples))
+      } else {
+        ""
+      }
       sprintf(
         "  res[[%d]] <- tryCatch(pls_stats(csem(data, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"path\"%s)), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
         ei, if (isTRUE(e$consistent)) "TRUE" else "FALSE", boot

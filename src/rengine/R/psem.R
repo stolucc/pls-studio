@@ -15,17 +15,23 @@ ps_psem <- function(req_json, export = FALSE) {
   ys <- vapply(eqs, function(e) as.character(e$y), "")
   xs <- lapply(eqs, function(e) as.character(unlist(e$x)))
   fam <- vapply(eqs, function(e) as.character(e$family %||% "gaussian"), "")
-  if (anyDuplicated(ys) || any(lengths(xs) == 0)) stop("Each outcome needs one equation with at least one predictor.")
+  if (anyDuplicated(ys) || any(lengths(xs) == 0)) {
+    stop("Each outcome needs one equation with at least one predictor.")
+  }
   if (!all(fam %in% names(PS_PSEM_FAMILIES))) stop("Invalid family in the request.")
   isolated <- as.character(unlist(req$isolated))
   cr <- req$correlations %||% list() # (pairs; JSON's array of pairs arrives as a matrix)
   cors <- if (is.matrix(cr)) lapply(seq_len(nrow(cr)), function(i) as.character(cr[i, ])) else lapply(cr, function(p) as.character(unlist(p)))
   if (any(lengths(cors) != 2)) stop("Invalid correlated errors in the request.")
   std <- req$standardizeType %||% "latent.linear"
-  if (!(length(std) == 1 && std %in% c("latent.linear", "Menard.OE"))) stop("Invalid standardisation in the request.")
+  if (!(length(std) == 1 && std %in% c("latent.linear", "Menard.OE"))) {
+    stop("Invalid standardisation in the request.")
+  }
   group <- req$group
   vars <- unique(c(ys, unlist(xs), isolated, unlist(cors)))
-  if (!is.null(group) && !(is.character(group) && length(group) == 1 && !group %in% vars)) stop("The grouping column must be a column that is not a variable of the model.")
+  if (!is.null(group) && !(is.character(group) && length(group) == 1 && !group %in% vars)) {
+    stop("The grouping column must be a column that is not a variable of the model.")
+  }
   fr <- ps_long_frame(req, c(vars, group))
   v <- fr$v
   g <- if (is.null(group)) NULL else v[[group]]

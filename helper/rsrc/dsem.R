@@ -63,7 +63,9 @@ ps_dsem_spec <- function(req) {
   if (L > 2) stop("At most two cluster variables.")
   params <- lapply(s$params, function(p) {
     t <- p$type
-    if (!(is.character(t) && length(t) == 1 && t %in% c("real", "pos", "block"))) stop("Invalid parameter type in the request.")
+    if (!(is.character(t) && length(t) == 1 && t %in% c("real", "pos", "block"))) {
+      stop("Invalid parameter type in the request.")
+    }
     if (t == "block") {
       fx <- unlist(lapply(p$fixed, function(x) if (is.null(x) || (length(x) == 1 && is.na(x))) NA_real_ else ps_number(x, "fixed variance")))
       k <- length(fx)
@@ -79,7 +81,9 @@ ps_dsem_spec <- function(req) {
     # (Mplus's N(0, 5) for the loadings and thresholds of categorical outcomes: a mean and a variance)
     if (!is.null(p$prior)) {
       pr <- unlist(p$prior)
-      if (length(pr) != 2 || !is.numeric(pr) || any(!is.finite(pr)) || pr[2] <= 0) stop("Invalid prior in the request.")
+      if (length(pr) != 2 || !is.numeric(pr) || any(!is.finite(pr)) || pr[2] <= 0) {
+        stop("Invalid prior in the request.")
+      }
       out$prior <- pr
     }
     out
@@ -94,7 +98,9 @@ ps_dsem_spec <- function(req) {
   coef <- function(c, what) ps_dsem_coef(c, np, nre, what)
   nodes <- lapply(s$nodes, function(n) {
     k <- n$kind
-    if (!(is.character(k) && length(k) == 1 && k %in% c("y", "u", "f", "x"))) stop("Invalid variable kind in the request.")
+    if (!(is.character(k) && length(k) == 1 && k %in% c("y", "u", "f", "x"))) {
+      stop("Invalid variable kind in the request.")
+    }
     out <- list(kind = k)
     if (k != "f") {
       if (!(is.character(n$column) && length(n$column) == 1)) stop("Invalid column in the request.")
@@ -118,7 +124,9 @@ ps_dsem_spec <- function(req) {
   wblocks <- lapply(s$wblocks, function(b) list(members = vapply(b$members, function(m) ps_dsem_int(m, 0, nn - 1, "block member") + 1L, 1L), c = coef(b$c, "block")))
   bt <- lapply(s$btargets, function(t) {
     k <- t$kind
-    if (!(is.character(k) && length(k) == 1 && k %in% c("re", "bf", "z"))) stop("Invalid between-level variable in the request.")
+    if (!(is.character(k) && length(k) == 1 && k %in% c("re", "bf", "z"))) {
+      stop("Invalid between-level variable in the request.")
+    }
     out <- list(kind = k, level = ps_dsem_int(t$level, 0, L - 1, "level") + 1L)
     if (k == "re") out$re <- ps_dsem_int(t$re, 0, nre - 1, "random effect") + 1L
     if (k == "z") {
@@ -138,14 +146,18 @@ ps_dsem_spec <- function(req) {
     } else {
       stop("Invalid between-level term in the request.")
     }
-    if (!is.null(out$b) && bt[[out$b]]$level != bt[[out$t]]$level) stop("A between-level term must stay at its level.")
+    if (!is.null(out$b) && bt[[out$b]]$level != bt[[out$t]]$level) {
+      stop("A between-level term must stay at its level.")
+    }
     out
   })
   bblocks <- lapply(s$bblocks, function(b) list(members = vapply(b$members, function(m) ps_dsem_int(m, 0, nb - 1, "block member") + 1L, 1L), c = coef(b$c, "block")))
   for (b in bblocks) if (length(unique(vapply(b$members, function(m) bt[[m]]$level, 1L))) != 1) stop("A block of between-level residuals must stay at one level.")
   report <- lapply(s$report, function(r) list(lhs = as.character(r$lhs), op = as.character(r$op), rhs = as.character(r$rhs %||% ""), block = as.character(r$block %||% ""), c = coef(r$c, "reported value")))
   levels <- lapply(s$levels, function(l) {
-    if (!(is.character(l$column) && length(l$column) == 1)) stop("Invalid cluster column in the request.")
+    if (!(is.character(l$column) && length(l$column) == 1)) {
+      stop("Invalid cluster column in the request.")
+    }
     list(column = l$column, nested = isTRUE(l$nested))
   })
   series <- s$series %||% list()
@@ -208,7 +220,9 @@ ps_dsem_data <- function(req, s) {
   }
   for (n in s$nodes) {
     if (n$kind == "x" && anyNA(col(n$column))) {
-      if (has_lag) stop(sprintf("The covariate %s has missing values in a time series; the rows cannot be dropped.", n$column))
+      if (has_lag) {
+        stop(sprintf("The covariate %s has missing values in a time series; the rows cannot be dropped.", n$column))
+      }
       keep <- !is.na(col(n$column))
       d <- d[keep, , drop = FALSE]
       series <- series[keep]
@@ -246,7 +260,9 @@ ps_dsem_data <- function(req, s) {
       sd[[sprintf("nm%d", k)]] <- length(mis)
       sd[[sprintf("mi%d", k)]] <- as.array(as.integer(mis))
     } else if (n$kind == "u") {
-      if (any(!is.na(x) & !(x %in% c(0, 1)))) stop(sprintf("%s: binary outcomes are coded 0 and 1 (ordinal outcomes with more categories are not available here).", n$column))
+      if (any(!is.na(x) & !(x %in% c(0, 1)))) {
+        stop(sprintf("%s: binary outcomes are coded 0 and 1 (ordinal outcomes with more categories are not available here).", n$column))
+      }
       sd[[sprintf("n1_%d", k)]] <- sum(x == 1, na.rm = TRUE)
       sd[[sprintf("i1_%d", k)]] <- as.array(which(x == 1))
       sd[[sprintf("n0_%d", k)]] <- sum(x == 0, na.rm = TRUE)
@@ -266,7 +282,9 @@ ps_dsem_data <- function(req, s) {
     if (!is.null(t$x)) {
       l <- s$bt[[t$t]]$level
       x <- per(t$x, l)
-      if (anyNA(x)) stop(sprintf("The between-level covariate %s is missing for some clusters.", t$x))
+      if (anyNA(x)) {
+        stop(sprintf("The between-level covariate %s is missing for some clusters.", t$x))
+      }
       sd[[sprintf("bx%d", i)]] <- unname(x)
     }
   }
@@ -298,12 +316,16 @@ ps_dsem_kalman <- function(s) {
     if (n$kind != "f" || !is.null(n$part) || k %in% inb || !plain(n$resid)) next
     to <- Filter(function(t) t$t == k, wt)
     from <- Filter(function(t) !is.na(t$p) && t$p == k, wt)
-    if (length(to) != 1 || is.null(to[[1]]$pb) == FALSE || is.na(to[[1]]$p) || to[[1]]$p != k || to[[1]]$lag != 1) next
+    if (length(to) != 1 || is.null(to[[1]]$pb) == FALSE || is.na(to[[1]]$p) || to[[1]]$p != k || to[[1]]$lag != 1) {
+      next
+    }
     ind <- Filter(function(t) !(t$t == k && t$lag == 1), from)
     if (length(ind) != 1 || ind[[1]]$lag != 0 || !isTRUE(ind[[1]]$load) || !plain(ind[[1]]$c)) next
     m <- ind[[1]]$t
     if (nodes[[m]]$kind != "y" || m %in% inb || !plain(nodes[[m]]$resid)) next
-    if (length(Filter(function(t) t$t == m, wt)) != 1 || length(Filter(function(t) !is.na(t$p) && t$p == m, wt))) next
+    if (length(Filter(function(t) t$t == m, wt)) != 1 || length(Filter(function(t) !is.na(t$p) && t$p == m, wt))) {
+      next
+    }
     out[[length(out) + 1]] <- list(f = k, y = m, ar = to[[1]]$c, load = ind[[1]]$c)
   }
   out
@@ -323,7 +345,9 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
   # parameters
   for (i in seq_along(s$params)) {
     p <- s$params[[i]]
-    if (!is.null(p$prior)) M <- c(M, sprintf("  p%d ~ normal(%s, %s);", i, format(p$prior[1], digits = 15), format(sqrt(p$prior[2]), digits = 15)))
+    if (!is.null(p$prior)) {
+      M <- c(M, sprintf("  p%d ~ normal(%s, %s);", i, format(p$prior[1], digits = 15), format(sqrt(p$prior[2]), digits = 15)))
+    }
     if (p$type == "real") {
       P <- c(P, sprintf("  real p%d;", i))
     } else if (p$type == "pos") {
@@ -388,7 +412,13 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
     if (any(vapply(bl$members, function(m) bt[[m]]$kind == "z", TRUE))) next
     P <- c(P, sprintf("  matrix[J%d, %d] zb%d;", l, k, b))
     single <- !is.null(bl$c$v) || (is.null(bl$c$i) && s$params[[bl$c$p]]$type != "block")
-    sdb <- if (!is.null(bl$c$v)) sprintf("sqrt(%s)", format(bl$c$v, digits = 15)) else if (single) sprintf("sqrt(p%d)", bl$c$p) else NULL
+    sdb <- if (!is.null(bl$c$v)) {
+      sprintf("sqrt(%s)", format(bl$c$v, digits = 15))
+    } else if (single) {
+      sprintf("sqrt(p%d)", bl$c$p)
+    } else {
+      NULL
+    }
     if (centered[l]) {
       # clusters with many observations each: the residuals themselves (centred), which their data determine well
       M <- c(M, if (single) {
@@ -410,9 +440,13 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
     rhs <- sprintf("rep_vector(%s, J%d)", cval(t$mean), l)
     for (j in seq_along(s$bterms)) {
       tm <- s$bterms[[j]]
-      if (tm$t == i) rhs <- paste(rhs, "+", if (!is.null(tm$b)) sprintf("%s * bt%d", cval(tm$c), tm$b) else sprintf("%s * bx%d", cval(tm$c), j))
+      if (tm$t == i) {
+        rhs <- paste(rhs, "+", if (!is.null(tm$b)) sprintf("%s * bt%d", cval(tm$c), tm$b) else sprintf("%s * bx%d", cval(tm$c), j))
+      }
     }
-    if (blockof[i]) rhs <- paste(rhs, "+", sprintf("eb%d[:, %d]", blockof[i], match(i, s$bblocks[[blockof[i]]]$members)))
+    if (blockof[i]) {
+      rhs <- paste(rhs, "+", sprintf("eb%d[:, %d]", blockof[i], match(i, s$bblocks[[blockof[i]]]$members)))
+    }
     TP <- c(TP, sprintf("  vector[J%d] bt%d = %s;", l, i, rhs))
   }
   for (j in seq_along(s$bterms)) if (!is.null(s$bterms[[j]]$x)) D <- c(D, sprintf("  vector[J%d] bx%d;", bt[[s$bterms[[j]]$t]]$level, j))
@@ -423,9 +457,13 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
     mu <- sprintf("rep_vector(%s, J%d)", cval(t$mean), t$level)
     for (j in seq_along(s$bterms)) {
       tm <- s$bterms[[j]]
-      if (tm$t == i) mu <- paste(mu, "+", if (!is.null(tm$b)) sprintf("%s * bt%d", cval(tm$c), tm$b) else sprintf("%s * bx%d", cval(tm$c), j))
+      if (tm$t == i) {
+        mu <- paste(mu, "+", if (!is.null(tm$b)) sprintf("%s * bt%d", cval(tm$c), tm$b) else sprintf("%s * bx%d", cval(tm$c), j))
+      }
     }
-    if (!blockof[i] || length(s$bblocks[[blockof[i]]]$members) != 1) stop("A between-level outcome needs a residual variance of its own.")
+    if (!blockof[i] || length(s$bblocks[[blockof[i]]]$members) != 1) {
+      stop("A between-level outcome needs a residual variance of its own.")
+    }
     M <- c(M, sprintf("  z%d ~ normal((%s)[iz%d], sqrt(%s));", i, mu, i, cval(s$bblocks[[blockof[i]]]$c)))
   }
   # random effects' totals over the levels, per row
@@ -470,7 +508,13 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
   }
   lagged <- function(k, lag, load) {
     n <- nodes[[k]]
-    v <- if (n$kind == "x") sprintf("x%d", k) else if (n$kind == "f" && load) sprintf("F%d", k) else sprintf("W%d", k)
+    v <- if (n$kind == "x") {
+      sprintf("x%d", k)
+    } else if (n$kind == "f" && load) {
+      sprintf("F%d", k)
+    } else {
+      sprintf("W%d", k)
+    }
     if (n$kind == "u") stop("A binary outcome cannot be a predictor here.")
     if (lag == 0) v else sprintf("append_row(%s, %s)[lag%d]", if (n$kind == "x") "rep_vector(0, 2 * S)" else sprintf("pre%d", k), v, lag)
   }
@@ -524,7 +568,9 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
       M <- c(M, sprintf("  target += std_normal_lcdf(%s[i1_%d] / %s) + std_normal_lccdf(%s[i0_%d] / %s);", eta, k, sdv(res), eta, k, sdv(res)))
       next
     }
-    if (!is.null(res$v) && res$v == 0) stop("A variable with a residual variance of 0 is not available here.")
+    if (!is.null(res$v) && res$v == 0) {
+      stop("A variable with a residual variance of 0 is not available here.")
+    }
     M <- c(M, sprintf("  W%d ~ normal(%s, %s);", k, mu[[k]], sdv(res)))
   }
   for (b in seq_along(s$wblocks)) {
@@ -543,7 +589,9 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
   for (q in kal) {
     k <- q$f
     m <- q$y
-    if (is.null(nodes[[k]]$resid) || is.null(nodes[[m]]$resid)) stop("Invalid filtered series in the request.")
+    if (is.null(nodes[[k]]$resid) || is.null(nodes[[m]]$resid)) {
+      stop("Invalid filtered series in the request.")
+    }
     ph <- if (!is.null(q$ar$r)) sprintf("re%d[i]", q$ar$r) else cval(q$ar)
     M <- c(
       M, "  {",
@@ -637,7 +685,9 @@ ps_dsem_bscore <- function(s, dd, k) {
 #' Bayesian multilevel / DSEM model by Stan (desktop R).
 ps_dsem <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  if (ps_in_browser()) stop("Bayesian multilevel and DSEM models (Stan) run in desktop R: choose Desktop R (helper) under R runs in.")
+  if (ps_in_browser()) {
+    stop("Bayesian multilevel and DSEM models (Stan) run in desktop R: choose Desktop R (helper) under R runs in.")
+  }
   chains <- ps_dsem_int(req$chains %||% 2, 1, 8, "number of chains")
   warmup <- ps_dsem_int(req$warmup %||% 1000, 100, 1e5, "burn-in")
   draws <- ps_dsem_int(req$draws %||% 1000, 100, 1e5, "number of draws")
@@ -649,7 +699,9 @@ ps_dsem <- function(req_json, export = FALSE) {
   # (a level whose clusters have 20 or more rows each: its random effects centred, unless the request asks for
   # standardised random effects on every level)
   par <- req[["parametrization", exact = TRUE]] %||% "auto"
-  if (!(is.character(par) && length(par) == 1 && par %in% c("auto", "noncentred"))) stop("Invalid parametrization in the request.")
+  if (!(is.character(par) && length(par) == 1 && par %in% c("auto", "noncentred"))) {
+    stop("Invalid parametrization in the request.")
+  }
   code <- ps_dsem_stan(s, centered = vapply(seq_along(s$levels), function(l) par == "auto" && sdat$N / sdat$J[l] >= 20, TRUE))
   keep <- unique(c(sprintf("p%d", seq_along(s$params))))
   q <- c((1 - conf) / 2, 1 - (1 - conf) / 2)
@@ -679,7 +731,11 @@ ps_dsem <- function(req_json, export = FALSE) {
       zb = ps_dsem_bscore(s, dd, k),
       ym = {
         y <- dd[[sprintf("y%d", k)]]
-        m <- if (length(dd[[sprintf("mi%d", k)]]) < length(y)) mean(y[-dd[[sprintf("mi%d", k)]]]) else 0
+        m <- if (length(dd[[sprintf("mi%d", k)]]) < length(y)) {
+          mean(y[-dd[[sprintf("mi%d", k)]]])
+        } else {
+          0
+        }
         as.array(rep(m, dd[[sprintf("nm%d", k)]]))
       },
       W = ps_dsem_score(s, dd, k),

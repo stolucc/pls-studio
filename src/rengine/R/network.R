@@ -24,12 +24,18 @@ ps_network <- function(req_json, export = FALSE) {
   if (!estimator %in% c("EBICglasso", "pcor", "cor")) stop("Unknown network estimator.")
   cor_method <- req[["corMethod", exact = TRUE]]
   if (!cor_method %in% c("cor_auto", "cor", "spearman")) stop("Unknown correlation method.")
-  missing <- if (identical(req[["netMissing", exact = TRUE]], "listwise")) "listwise" else "pairwise"
+  missing <- if (identical(req[["netMissing", exact = TRUE]], "listwise")) {
+    "listwise"
+  } else {
+    "pairwise"
+  }
   gamma <- ps_number(req[["gamma", exact = TRUE]] %||% 0.5, "EBIC tuning parameter")
   if (gamma < 0 || gamma > 1) stop("The EBIC tuning parameter must be between 0 and 1.")
   B <- as.integer(ps_number(req$boot$samples %||% 0, "bootstrap samples"))
   seed <- as.integer(ps_number(req$boot$seed %||% 1, "seed"))
-  if (is.na(B) || B < 0 || B > 5000) stop("The number of bootstrap samples must be between 0 and 5000.")
+  if (is.na(B) || B < 0 || B > 5000) {
+    stop("The number of bootstrap samples must be between 0 and 5000.")
+  }
   inputs <- list(data = ps_net_data(req))
   body <- c(
     "suppressPackageStartupMessages(library(bootnet))",
@@ -78,7 +84,9 @@ ps_ega <- function(req_json, export = FALSE) {
   if (!corr %in% c("auto", "pearson", "spearman")) stop("Unknown correlation.")
   B <- as.integer(ps_number(req$boot$samples %||% 0, "bootstrap samples"))
   seed <- as.integer(ps_number(req$boot$seed %||% 1, "seed"))
-  if (is.na(B) || B < 0 || B > 5000) stop("The number of bootstrap samples must be between 0 and 5000.")
+  if (is.na(B) || B < 0 || B > 5000) {
+    stop("The number of bootstrap samples must be between 0 and 5000.")
+  }
   inputs <- list(data = ps_net_data(req))
   args <- sprintf("model = \"%s\", algorithm = \"%s\", corr = \"%s\"", model, algorithm, corr)
   body <- c(

@@ -8,8 +8,12 @@
 #' other analyses refuse them. allow_ord: ordinal indicators (OrdPLS/OrdPLSc, cSEM),
 #' likewise accepted by the estimation and the bootstrap only.
 ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE, allow_ord = FALSE) {
-  if (isTRUE(req$missing %in% c("fiml", "pairwise", "twostage", "robusttwostage"))) stop("FIML, pairwise deletion and the two-stage approach are CB-SEM (lavaan) options; PLS-SEM uses mean replacement, casewise deletion or multiple imputation.")
-  if (identical(req$missing, "mi") && !allow_mi) stop("This analysis is not available with multiple imputation; choose mean replacement or casewise deletion for it.")
+  if (isTRUE(req$missing %in% c("fiml", "pairwise", "twostage", "robusttwostage"))) {
+    stop("FIML, pairwise deletion and the two-stage approach are CB-SEM (lavaan) options; PLS-SEM uses mean replacement, casewise deletion or multiple imputation.")
+  }
+  if (identical(req$missing, "mi") && !allow_mi) {
+    stop("This analysis is not available with multiple imputation; choose mean replacement or casewise deletion for it.")
+  }
   pkg <- req$package
   cons <- req$model$constructs
   n <- ps_names(cons)
@@ -17,7 +21,9 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE, allow_ord = F
   k0 <- length(cons)
   type <- vapply(cons, function(c) c$type %||% if (identical(c$mode, "B")) "composite" else "factor", "")
   mode <- vapply(cons, function(c) c$mode %||% "A", "")
-  if (!all(mode %in% c("A", "B", "unit")) || !all(type %in% c("factor", "composite"))) stop("Invalid measurement mode or construct type in the request.")
+  if (!all(mode %in% c("A", "B", "unit")) || !all(type %in% c("factor", "composite"))) {
+    stop("Invalid measurement mode or construct type in the request.")
+  }
   comps <- lapply(cons, function(c) as.character(unlist(c$components)))
   hoc <- lengths(comps) > 0
   o <- req$options
@@ -33,47 +39,87 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE, allow_ord = F
   body <- character(0)
 
   approach <- o$approach %||% "PLS-PM"
-  if (!approach %in% c("PLS-PM", "GSCA", "PCA", "unit")) stop("Invalid weighting approach in the request.")
+  if (!approach %in% c("PLS-PM", "GSCA", "PCA", "unit")) {
+    stop("Invalid weighting approach in the request.")
+  }
   gsca <- approach != "PLS-PM" # (any approach other than PLS path modeling: cSEM's .approach_weights)
   hoc_approach <- o$hocApproach %||% "two_stage"
-  if (!hoc_approach %in% c("two_stage", "embedded", "repeated")) stop("Invalid second-order approach in the request.")
+  if (!hoc_approach %in% c("two_stage", "embedded", "repeated")) {
+    stop("Invalid second-order approach in the request.")
+  }
   repeated <- any(hoc) && hoc_approach == "repeated"
   two <- any(hoc) && !repeated # (a two-stage approach: the package estimates in two stages)
   if (any(hoc)) {
-    if (!allow_hoc) stop("This analysis is not available for models with second-order constructs (estimate and bootstrap them with cSEM).")
-    if (hoc_approach == "embedded" && pkg != "cSEM") stop("The embedded two-stage approach is cSEM's (.approach_2ndorder = \"mixed\"); choose cSEM, or the two-stage or repeated-indicators approach.")
-    if (pkg == "seminr" && isTRUE(o$consistent)) stop("Second-order constructs with consistent PLS are estimated with cSEM; choose cSEM, or turn off PLSc for seminr.")
-    if (gsca) stop("Second-order constructs are estimated with PLS path modeling; choose PLS-PM as the weighting approach.")
+    if (!allow_hoc) {
+      stop("This analysis is not available for models with second-order constructs (estimate and bootstrap them with cSEM).")
+    }
+    if (hoc_approach == "embedded" && pkg != "cSEM") {
+      stop("The embedded two-stage approach is cSEM's (.approach_2ndorder = \"mixed\"); choose cSEM, or the two-stage or repeated-indicators approach.")
+    }
+    if (pkg == "seminr" && isTRUE(o$consistent)) {
+      stop("Second-order constructs with consistent PLS are estimated with cSEM; choose cSEM, or turn off PLSc for seminr.")
+    }
+    if (gsca) {
+      stop("Second-order constructs are estimated with PLS path modeling; choose PLS-PM as the weighting approach.")
+    }
     first <- unique(unlist(comps))
     if (!all(first %in% n$cname)) stop("A second-order construct refers to an unknown component.")
-    if (any(hoc[match(first, n$cname)]) || any(lengths(n$inds[match(first, n$cname)]) == 0)) stop("The components of a second-order construct must be first-order constructs with indicators.")
-    if (any(lengths(n$inds[hoc]) > 0)) stop("A second-order construct is measured by its components only, not by indicators of its own.")
+    if (any(hoc[match(first, n$cname)]) || any(lengths(n$inds[match(first, n$cname)]) == 0)) {
+      stop("The components of a second-order construct must be first-order constructs with indicators.")
+    }
+    if (any(lengths(n$inds[hoc]) > 0)) {
+      stop("A second-order construct is measured by its components only, not by indicators of its own.")
+    }
     lvs <- unlist(lapply(c(paths, mods), function(p) c(p$from, p$to, p$moderator)))
-    if (any(first %in% lvs)) stop("The components of a second-order construct cannot take part in the structural model (two-stage approach); connect the second-order construct instead.")
-    if (length(mods) && any(n$cname[hoc] %in% unlist(lapply(mods, function(m) c(m$from, m$moderator))))) stop("Interactions with a second-order construct are not supported.")
+    if (any(first %in% lvs)) {
+      stop("The components of a second-order construct cannot take part in the structural model (two-stage approach); connect the second-order construct instead.")
+    }
+    if (length(mods) && any(n$cname[hoc] %in% unlist(lapply(mods, function(m) c(m$from, m$moderator))))) {
+      stop("Interactions with a second-order construct are not supported.")
+    }
   }
   if (gsca && pkg != "cSEM") stop("This weighting approach is estimated with cSEM; choose cSEM.")
   # Ordinal indicators: OrdPLS / OrdPLSc (Schuberth, Henseler & Dijkstra 2018), cSEM's estimator for ordered factors.
   ord <- intersect(as.character(unlist(req$model$ordered)), n$all_inds)
   if (length(ord)) {
-    if (!allow_ord) stop("This analysis is for continuous indicators; ordinal PLS (OrdPLS/OrdPLSc) is available for the estimation and the bootstrap. Treat the indicators as continuous (right-click an indicator) to run it.")
-    if (pkg != "cSEM") stop("seminr has no ordinal PLS: OrdPLS and OrdPLSc (polychoric correlations) are estimated with cSEM. Choose cSEM, or treat the indicators as continuous.")
-    if (identical(req$missing, "mean") && anyNA(inputs$data[unname(n$iv[ord])])) stop("Mean replacement would put non-category values into ordinal indicators that have missing values; choose casewise deletion.")
-    if (identical(req$missing, "mi")) stop("Ordinal PLS (OrdPLS/OrdPLSc) is available with casewise deletion; multiple imputation is for continuous indicators.")
-    if (gsca) stop("Ordinal indicators are estimated by OrdPLS (PLS path modeling on polychoric correlations); choose PLS-PM as the weighting approach.")
-    if (length(mods)) stop("Interaction terms are products of construct scores, which OrdPLS does not estimate from the polychoric correlations; remove the interactions or treat the indicators as continuous.")
-    if (any(hoc)) stop("Second-order constructs are not available with ordinal indicators (the two-stage approach uses construct scores); treat the indicators as continuous.")
+    if (!allow_ord) {
+      stop("This analysis is for continuous indicators; ordinal PLS (OrdPLS/OrdPLSc) is available for the estimation and the bootstrap. Treat the indicators as continuous (right-click an indicator) to run it.")
+    }
+    if (pkg != "cSEM") {
+      stop("seminr has no ordinal PLS: OrdPLS and OrdPLSc (polychoric correlations) are estimated with cSEM. Choose cSEM, or treat the indicators as continuous.")
+    }
+    if (identical(req$missing, "mean") && anyNA(inputs$data[unname(n$iv[ord])])) {
+      stop("Mean replacement would put non-category values into ordinal indicators that have missing values; choose casewise deletion.")
+    }
+    if (identical(req$missing, "mi")) {
+      stop("Ordinal PLS (OrdPLS/OrdPLSc) is available with casewise deletion; multiple imputation is for continuous indicators.")
+    }
+    if (gsca) {
+      stop("Ordinal indicators are estimated by OrdPLS (PLS path modeling on polychoric correlations); choose PLS-PM as the weighting approach.")
+    }
+    if (length(mods)) {
+      stop("Interaction terms are products of construct scores, which OrdPLS does not estimate from the polychoric correlations; remove the interactions or treat the indicators as continuous.")
+    }
+    if (any(hoc)) {
+      stop("Second-order constructs are not available with ordinal indicators (the two-stage approach uses construct scores); treat the indicators as continuous.")
+    }
     few <- ord[vapply(ord, function(i) length(unique(stats::na.omit(inputs$data[[n$iv[[i]]]]))) < 2, TRUE)]
-    if (length(few)) stop(sprintf("%s %s fewer than two categories; an ordinal indicator needs two or more.", paste(few, collapse = ", "), if (length(few) == 1) "has" else "have"))
+    if (length(few)) {
+      stop(sprintf("%s %s fewer than two categories; an ordinal indicator needs two or more.", paste(few, collapse = ", "), if (length(few) == 1) "has" else "have"))
+    }
   }
   # Interaction terms: seminr builds them by the two-stage, orthogonalising or product-indicator approach
   # (interaction_term's method); cSEM has one approach, products of the construct scores.
   int_method <- vapply(mods, function(m) {
     v <- m$method %||% "two_stage"
-    if (!v %in% c("two_stage", "orthogonal", "product_indicator")) stop("Invalid interaction method in the request.")
+    if (!v %in% c("two_stage", "orthogonal", "product_indicator")) {
+      stop("Invalid interaction method in the request.")
+    }
     v
   }, "")
-  if (pkg != "seminr" && any(int_method != "two_stage")) stop("The orthogonalising and product-indicator interaction terms are seminr's (interaction_term); cSEM estimates products of the construct scores. Choose seminr, or the two-stage term.")
+  if (pkg != "seminr" && any(int_method != "two_stage")) {
+    stop("The orthogonalising and product-indicator interaction terms are seminr's (interaction_term); cSEM estimates products of the construct scores. Choose seminr, or the two-stage term.")
+  }
   if (pkg == "cSEM") {
     sep <- "."
     int_l <- vapply(mods, function(m) paste0(n$cv[[m$from]], ".", n$cv[[m$moderator]]), "")
@@ -98,9 +144,15 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE, allow_ord = F
     # Dominant indicators: each such construct's sign is set so that this indicator loads positively.
     dom <- unlist(lapply(seq_len(k0), function(j) {
       d <- cons[[j]]$dominant
-      if (is.character(d) && length(d) == 1 && d %in% n$inds[[j]] && !hoc[j]) setNames(unname(n$iv[d]), cv[j])
+      if (is.character(d) && length(d) == 1 && d %in% n$inds[[j]] && !hoc[j]) {
+        setNames(unname(n$iv[d]), cv[j])
+      }
     }))
-    dom_arg <- if (length(dom)) sprintf(", .dominant_indicators = c(%s)", paste(sprintf("%s = \"%s\"", names(dom), dom), collapse = ", ")) else ""
+    dom_arg <- if (length(dom)) {
+      sprintf(", .dominant_indicators = c(%s)", paste(sprintf("%s = \"%s\"", names(dom), dom), collapse = ", "))
+    } else {
+      ""
+    }
     body <- c(
       "suppressPackageStartupMessages(library(cSEM))", ps_missing_code(req$missing),
       if (length(ord)) {
@@ -147,7 +199,9 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE, allow_ord = F
       )
     )
   } else if (pkg == "seminr") {
-    if (o$scheme == "centroid") stop("seminr offers the path and factor weighting schemes only; choose one of those, or cSEM.")
+    if (o$scheme == "centroid") {
+      stop("seminr offers the path and factor weighting schemes only; choose one of those, or cSEM.")
+    }
     int_l <- vapply(mods, function(m) paste0(n$cv[[m$from]], "*", n$cv[[m$moderator]]), "")
     weights_of <- function(j) if (mode[j] == "unit") "unit_weights" else paste0("mode_", mode[j])
     mm <- vapply(which(!hoc), function(j) {
@@ -230,9 +284,15 @@ ps_pls <- function(req_json, export = FALSE) {
 ps_htmt_notes <- function(res) {
   f <- res$htmtFlags
   res$htmtFlags <- NULL
-  if (length(f$within)) ps_note(sprintf("Some items of %s correlate negatively with the others: is an item reverse-coded? Recode it (Data tab) before interpreting loadings, reliability and HTMT.", paste(f$within, collapse = ", ")))
-  if (length(f$undefined)) ps_note(sprintf("The HTMT of %s is not reported: it assumes same-sign item correlations, which a reverse-coded item breaks.", paste(f$undefined, collapse = "; ")))
-  if (length(f$mixed)) ps_note(sprintf("The items of %s correlate with mixed signs: these constructs are nearly uncorrelated, so their HTMT is close to zero and their HTMT2, a geometric mean, is not defined (Roemer, Schuberth & Henseler, 2021).", paste(f$mixed, collapse = "; of ")))
+  if (length(f$within)) {
+    ps_note(sprintf("Some items of %s correlate negatively with the others: is an item reverse-coded? Recode it (Data tab) before interpreting loadings, reliability and HTMT.", paste(f$within, collapse = ", ")))
+  }
+  if (length(f$undefined)) {
+    ps_note(sprintf("The HTMT of %s is not reported: it assumes same-sign item correlations, which a reverse-coded item breaks.", paste(f$undefined, collapse = "; ")))
+  }
+  if (length(f$mixed)) {
+    ps_note(sprintf("The items of %s correlate with mixed signs: these constructs are nearly uncorrelated, so their HTMT is close to zero and their HTMT2, a geometric mean, is not defined (Roemer, Schuberth & Henseler, 2021).", paste(f$mixed, collapse = "; of ")))
+  }
   res
 }
 
@@ -282,7 +342,11 @@ ps_pls_out <- function(req, b, env) {
     loadings <- vapply(seq_along(item_l), function(i) L[cv[owner[i]], item_l[i]], 0)
     r2 <- e$R2
     r2a <- e$R2adj
-    scores <- if (two) cbind(e1$Construct_scores, e$Construct_scores[, cv[b$hoc], drop = FALSE])[, cv, drop = FALSE] else e$Construct_scores[, cv, drop = FALSE]
+    scores <- if (two) {
+      cbind(e1$Construct_scores, e$Construct_scores[, cv[b$hoc], drop = FALSE])[, cv, drop = FALSE]
+    } else {
+      e$Construct_scores[, cv, drop = FALSE]
+    }
     for (q in seq_along(mods)) scores <- cbind(scores, scores[, b$cv[match(mods[[q]]$from, n$cname)]] * scores[, b$cv[match(mods[[q]]$moderator, n$cname)]])
     ccor <- if (two) stats::cor(scores) else e$Construct_VCV[cv, cv, drop = FALSE]
     if (length(mods)) {
@@ -291,9 +355,17 @@ ps_pls_out <- function(req, b, env) {
       ccor <- full
     }
     linear <- !length(mods)
-    a <- if (linear) safe(cSEM::assess(fit1, .quality_criterion = c("reliability", "ave")), "Reliability and AVE (cSEM::assess; computed one by one instead)") else NULL
+    a <- if (linear) {
+      safe(cSEM::assess(fit1, .quality_criterion = c("reliability", "ave")), "Reliability and AVE (cSEM::assess; computed one by one instead)")
+    } else {
+      NULL
+    }
     # Second-order constructs: their reliability and AVE from stage 2 (components as indicators).
-    a2 <- if (two && linear) safe(cSEM::assess(fit2, .quality_criterion = c("reliability", "ave")), "Reliability and AVE of the second-order constructs (cSEM::assess)") else NULL
+    a2 <- if (two && linear) {
+      safe(cSEM::assess(fit2, .quality_criterion = c("reliability", "ave")), "Reliability and AVE of the second-order constructs (cSEM::assess)")
+    } else {
+      NULL
+    }
     pick <- function(v, v2 = NULL) {
       out <- if (is.null(v)) nas(k0) else unname(v[cv])
       if (two && !is.null(v2)) out[b$hoc] <- unname(v2[cv[b$hoc]])
@@ -326,7 +398,9 @@ ps_pls_out <- function(req, b, env) {
     # the HTMT covers) name the constructs and blank the undefined values.
     htmt <- function(type) {
       h <- safe(withCallingHandlers(cSEM::calculateHTMT(fit1, .type_htmt = type), warning = function(w) {
-        if (grepl("all-positive or all-negative|show different signs|could not be computed|NaNs produced", conditionMessage(w))) invokeRestart("muffleWarning")
+        if (grepl("all-positive or all-negative|show different signs|could not be computed|NaNs produced", conditionMessage(w))) {
+          invokeRestart("muffleWarning")
+        }
       }), if (type == "htmt2") "HTMT2 (cSEM::calculateHTMT)" else "HTMT (cSEM::calculateHTMT)") # (first-order constructs)
       if (is.list(h) && !is.null(h$htmts)) h <- h$htmts
       out <- matrix(NA_real_, K, K)
@@ -403,7 +477,9 @@ ps_pls_out <- function(req, b, env) {
     r2a <- setNames(as.numeric(rs["AdjRsq", ]), colnames(rs))
     # (Second-order models: the dimensions' scores are the first stage's.)
     sc <- fit$construct_scores
-    if (two) sc <- cbind(sc, fit$first_stage_model$construct_scores[, setdiff(colnames(fit$first_stage_model$construct_scores), colnames(sc)), drop = FALSE])
+    if (two) {
+      sc <- cbind(sc, fit$first_stage_model$construct_scores[, setdiff(colnames(fit$first_stage_model$construct_scores), colnames(sc)), drop = FALSE])
+    }
     scores <- sc[, all_l, drop = FALSE]
     ccor <- stats::cor(scores)
     rel <- s$reliability
@@ -442,7 +518,9 @@ ps_pls_out <- function(req, b, env) {
   has <- matrix(FALSE, K, K)
   for (p in req$model$paths) has[match(p$from, constructs), match(p$to, constructs)] <- TRUE
   # Repeated indicators: the dimensions' paths to their second-order construct are part of the model.
-  if (isTRUE(b$repeated)) for (j in which(b$hoc)) for (k in match(b$comps[[j]], n$cname)) has[k, j] <- TRUE
+  if (isTRUE(b$repeated)) {
+    for (j in which(b$hoc)) for (k in match(b$comps[[j]], n$cname)) has[k, j] <- TRUE
+  }
   for (q in seq_along(mods)) has[k0 + q, match(mods[[q]]$to, constructs)] <- TRUE
   total <- solve(diag(K) - B) - diag(K)
   endo <- vapply(seq_len(K), function(j) any(has[, j]), TRUE)

@@ -35,31 +35,45 @@ ps_semtree_nodes <- function(node, back, fr, parent = NULL, edge = NULL) {
 
 ps_semtree <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  if (ps_in_browser()) stop("SEM trees (semtree, OpenMx) run in desktop R: choose Desktop R (helper) under R runs in.")
+  if (ps_in_browser()) {
+    stop("SEM trees (semtree, OpenMx) run in desktop R: choose Desktop R (helper) under R runs in.")
+  }
   o <- req$tree
   method <- o[["method", exact = TRUE]] %||% "naive"
-  if (!(is.character(method) && length(method) == 1 && method %in% c("naive", "score", "fair"))) stop("Invalid split method in the request.")
+  if (!(is.character(method) && length(method) == 1 && method %in% c("naive", "score", "fair"))) {
+    stop("Invalid split method in the request.")
+  }
   alpha <- ps_number(o$alpha %||% 0.05, "significance level")
   if (alpha <= 0 || alpha >= 1) stop("Invalid significance level in the request.")
   depth <- ps_number(o$maxDepth %||% 3, "maximum depth")
   if (depth < 1 || depth > 10 || depth != round(depth)) stop("The maximum depth must be 1 to 10.")
   minn <- ps_number(o$minN %||% 20, "minimum node size")
-  if (minn < 2 || minn > 1e6 || minn != round(minn)) stop("Invalid minimum node size in the request.")
+  if (minn < 2 || minn > 1e6 || minn != round(minn)) {
+    stop("Invalid minimum node size in the request.")
+  }
   b <- ps_cb_build(req)
   ps_cb_plain(b, "SEM trees")
   if (!grepl("^fit <- sem\\(.*\\)$", b$call)) stop("SEM trees are not available for this model.")
-  if (!is.null(b$group_var)) stop("SEM trees split one sample: remove the grouping (add the grouping column as a covariate instead).")
-  if (length(b$composites)) stop("SEM trees are for common-factor models; the model has composites (<~).")
+  if (!is.null(b$group_var)) {
+    stop("SEM trees split one sample: remove the grouping (add the grouping column as a covariate instead).")
+  }
+  if (length(b$composites)) {
+    stop("SEM trees are for common-factor models; the model has composites (<~).")
+  }
   # The covariates travel with the data under syntactic names no model variable has.
   cv <- req$covariates
   cn <- as.character(unlist(cv$names))
   types <- as.character(unlist(cv$types))
-  if (!length(cn) || length(cn) > 50 || anyDuplicated(cn) || length(types) != length(cn) || !all(types %in% .ps_semtree_types)) stop("Choose 1 to 50 covariates, each numeric, ordered or categorical.")
+  if (!length(cn) || length(cn) > 50 || anyDuplicated(cn) || length(types) != length(cn) || !all(types %in% .ps_semtree_types)) {
+    stop("Choose 1 to 50 covariates, each numeric, ordered or categorical.")
+  }
   if (any(cn %in% b$n$all_inds)) stop("A covariate is also a variable of the model.")
   col <- function(i) ps_col(cv$cols, i)
   idents <- ps_ident(c(names(b$inputs$data), cn))[-seq_along(names(b$inputs$data))]
   for (j in seq_along(idents)) while (idents[j] %in% c(names(b$inputs$data), idents[-j])) idents[j] <- paste0(idents[j], "_cov")
-  if (any(vapply(seq_along(cn), function(i) length(col(i)) != nrow(b$inputs$data), TRUE))) stop("A covariate does not have one value per case.")
+  if (any(vapply(seq_along(cn), function(i) length(col(i)) != nrow(b$inputs$data), TRUE))) {
+    stop("A covariate does not have one value per case.")
+  }
   for (i in seq_along(cn)) b$inputs$data[[idents[i]]] <- col(i)
   back <- c(ps_cb_back(b), setNames(cn, idents))
   conv <- vapply(seq_along(cn), function(i) {
@@ -72,7 +86,9 @@ ps_semtree <- function(req_json, export = FALSE) {
   ctrl <- sprintf("semtree.control(method = \"%s\", alpha = %s, max.depth = %d, min.N = %d, verbose = FALSE, progress.bar = FALSE)", method, format(alpha), as.integer(depth), as.integer(minn))
   fo <- o$forest
   trees <- if (is.null(fo)) 0L else as.integer(ps_number(fo$trees %||% 50, "number of trees"))
-  if (!is.null(fo) && (is.na(trees) || trees < 2 || trees > 1000)) stop("A forest of 2 to 1000 trees.")
+  if (!is.null(fo) && (is.na(trees) || trees < 2 || trees > 1000)) {
+    stop("A forest of 2 to 1000 trees.")
+  }
   seed <- if (is.null(fo)) NULL else as.integer(ps_number(fo$seed %||% 1, "seed"))
   body <- c(
     b$body,

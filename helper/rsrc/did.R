@@ -15,10 +15,14 @@ ps_did <- function(req_json, export = FALSE) {
   tr <- req$treated
   post <- req$post %||% ""
   covs <- unlist(req$covariates)
-  if (!all(nzchar(c(y, id, tm, tr)))) stop("Choose the outcome, the unit, the time and the treatment columns.")
+  if (!all(nzchar(c(y, id, tm, tr)))) {
+    stop("Choose the outcome, the unit, the time and the treatment columns.")
+  }
   first <- req$firstPeriod
   control <- req$control %||% "nevertreated"
-  if (!control %in% c("nevertreated", "notyettreated")) stop("Invalid control group in the request.")
+  if (!control %in% c("nevertreated", "notyettreated")) {
+    stop("Invalid control group in the request.")
+  }
   event <- isTRUE(req$eventStudy)
   seed <- as.integer(req$seed %||% 1)
   conf <- ps_number(req$confidence %||% 0.95, "confidence level")
@@ -33,7 +37,9 @@ ps_did <- function(req_json, export = FALSE) {
   xs <- if (length(X)) paste(X, collapse = " + ") else NULL
   z <- qnorm(1 - (1 - conf) / 2)
   if (design == "twfe") {
-    if (!nzchar(post) && (is.null(first) || !is.finite(first))) stop("Give the post-treatment indicator, or the first treated period.")
+    if (!nzchar(post) && (is.null(first) || !is.finite(first))) {
+      stop("Give the post-treatment indicator, or the first treated period.")
+    }
     P <- if (nzchar(post)) v[[post]] else "post"
     body <- c(
       "suppressPackageStartupMessages(library(fixest))",
@@ -63,7 +69,9 @@ ps_did <- function(req_json, export = FALSE) {
     env <- ps_run(body, inputs)
     ct <- fixest::coeftable(env$est)
     k <- grep(sprintf("^%s:%s$|^%s:%s$", TR, P, P, TR), rownames(ct))
-    if (!length(k)) stop("The treatment-by-post term could not be estimated (is the treatment constant within periods?).")
+    if (!length(k)) {
+      stop("The treatment-by-post term could not be estimated (is the treatment constant within periods?).")
+    }
     ci <- stats::confint(env$est, level = conf) # (fixest: t with the cluster degrees of freedom, as its p values)
     att <- list(est = ct[k, 1], se = ct[k, 2], t = ct[k, 3], p = ct[k, 4], ciLow = ci[rownames(ct)[k], 1], ciHigh = ci[rownames(ct)[k], 2])
     ev <- NULL
@@ -79,7 +87,9 @@ ps_did <- function(req_json, export = FALSE) {
       ev <- lapply(seq_along(rows), function(i) list(time = times[i], rel = relt(times[i]), est = ce[rows[i], 1], se = ce[rows[i], 2], ciLow = cie[rownames(ce)[rows[i]], 1], ciHigh = cie[rownames(ce)[rows[i]], 2]))
       ev <- c(ev, list(list(time = env$ref, rel = -1, est = 0, se = 0, ciLow = 0, ciHigh = 0)))
       ev <- ev[order(vapply(ev, function(e) e$time, 0))]
-      if (!is.null(env$pretrend)) pt <- list(stat = unname(env$pretrend$stat), df1 = unname(env$pretrend$df1), df2 = unname(env$pretrend$df2), p = unname(env$pretrend$p))
+      if (!is.null(env$pretrend)) {
+        pt <- list(stat = unname(env$pretrend$stat), df1 = unname(env$pretrend$df1), df2 = unname(env$pretrend$df2), p = unname(env$pretrend$p))
+      }
     }
     d <- env$data
     ps_json(list(
@@ -118,7 +128,11 @@ ps_did <- function(req_json, export = FALSE) {
       cv <- if (is.finite(dy$crit.val.egt)) dy$crit.val.egt else z
       ev <- lapply(seq_along(dy$egt), function(i) list(time = NA, rel = dy$egt[i], est = dy$att.egt[i], se = dy$se.egt[i], ciLow = dy$att.egt[i] - cv * dy$se.egt[i], ciHigh = dy$att.egt[i] + cv * dy$se.egt[i]))
     }
-    pt <- if (!is.null(out$Wpval) && is.finite(out$Wpval)) list(stat = unname(out$W), p = unname(out$Wpval)) else NULL
+    pt <- if (!is.null(out$Wpval) && is.finite(out$Wpval)) {
+      list(stat = unname(out$W), p = unname(out$Wpval))
+    } else {
+      NULL
+    }
     d <- env$data
     ps_json(list(
       design = "staggered", att = att, event = ev, groupTime = gt, preTrend = pt, n = nrow(d), units = length(unique(d[[ID]])), periods = length(unique(d[[TM]])),

@@ -5,7 +5,9 @@
 
 ps_fittest <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  if (req$package != "cSEM") stop("The bootstrap test of overall model fit is a cSEM analysis; choose cSEM as the PLS package.")
+  if (req$package != "cSEM") {
+    stop("The bootstrap test of overall model fit is a cSEM analysis; choose cSEM as the PLS package.")
+  }
   b <- ps_pls_build(req)
   B <- as.integer(req$boot$samples)
   seed <- as.integer(req$boot$seed)
@@ -86,7 +88,9 @@ ps_ipma <- function(req_json, export = FALSE) {
 ps_miiv <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   if (length(req$model$moderations)) stop("MIIV-2SLS does not support latent interactions.")
-  if (!is.null(req$model$weights)) stop("MIIV-2SLS does not use sampling weights; choose ML, MLR or MLM.")
+  if (!is.null(req$model$weights)) {
+    stop("MIIV-2SLS does not use sampling weights; choose ML, MLR or MLM.")
+  }
   req$estimator <- "ML"
   b <- ps_cb_build(req)
   # Same model syntax; single-indicator error variances are implied by MIIVsem's scaling.
@@ -154,13 +158,23 @@ ps_miiv <- function(req_json, export = FALSE) {
   et <- et[et$op %in% c("=~", "~") & et$se > 0, ]
   coef <- function(lhs, op, rhs) {
     r <- et[et$lhs == lhs & et$op == op & et$rhs == rhs, ][1, ]
-    s <- if (std_ok) env$std$est.std[env$std$lhs == lhs & env$std$op == op & env$std$rhs == rhs] else numeric(0)
+    s <- if (std_ok) {
+      env$std$est.std[env$std$lhs == lhs & env$std$op == op & env$std$rhs == rhs]
+    } else {
+      numeric(0)
+    }
     list(lhs = if (op == "~") nmc(lhs) else nm(lhs), op = op, rhs = if (op == "~") nmc(rhs) else nm(rhs), est = r$est, se = r$se, z = r$z, p = r$pvalue, std = if (length(s)) s[1] else NULL)
   }
   lv <- unname(b$lname[constructs])
   eqs <- lapply(fit$eqn, function(e) {
     measurement <- e$EQmod == "measurement"
-    kind <- if (!measurement) "structural" else if (e$DVlat %in% lv) "higher-order" else "measurement"
+    kind <- if (!measurement) {
+      "structural"
+    } else if (e$DVlat %in% lv) {
+      "higher-order"
+    } else {
+      "measurement"
+    }
     cf <- if (measurement) list(coef(e$IVlat, "=~", e$DVlat)) else lapply(e$IVlat, function(iv) coef(e$DVlat, "~", iv))
     list(
       kind = kind, dv = nm(e$DVobs), regressors = nm(e$IVobs), instruments = nm(e$MIIVs), coefficients = cf,

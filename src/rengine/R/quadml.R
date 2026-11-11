@@ -117,7 +117,9 @@ qml_model <- function(spec, data) {
       lev <- as.numeric(unlist(o$levels))
       u$code <- match(u$y, lev)
       u$K <- length(lev)
-      if (any(!is.na(u$y) & is.na(u$code))) stop(sprintf("%s has values other than its categories.", o$column))
+      if (any(!is.na(u$y) & is.na(u$code))) {
+        stop(sprintf("%s has values other than its categories.", o$column))
+      }
     }
     if (u$type %in% c("censored", "cinfl")) u$cpoint <- if (identical(u$side, "above")) max(u$y, na.rm = TRUE) else min(u$y, na.rm = TRUE)
     if (u$type == "surv") {
@@ -133,12 +135,18 @@ qml_model <- function(spec, data) {
       u$event <- as.numeric(!is.na(cens) & cens == 0)
       u$haz <- as.integer(unlist(o$hazards))
     }
-    u$xs_mat <- if (length(u$xs)) as.matrix(data[, vapply(u$xs, function(p) p$x, ""), drop = FALSE]) else NULL
+    u$xs_mat <- if (length(u$xs)) {
+      as.matrix(data[, vapply(u$xs, function(p) p$x, ""), drop = FALSE])
+    } else {
+      NULL
+    }
     if (!is.null(u$infl)) u$infl$xs_mat <- if (length(u$infl$xs)) as.matrix(data[, vapply(u$infl$xs, function(p) p$x, ""), drop = FALSE]) else NULL
     u$refs <- unique(c(u$loads[, 1], u$prods[, 1:2], if (!is.null(u$infl)) c(u$infl$loads[, 1], u$infl$prods[, 1:2])))
     u$slots <- unique(c(
       u$thr, u$resvar, u$disp, u$icpt, u$loads[, 2], u$prods[, 3], vapply(u$xs, function(p) p$slot, 1L), u$haz,
-      if (!is.null(u$infl)) c(u$infl$icpt, u$infl$loads[, 2], u$infl$prods[, 3], vapply(u$infl$xs, function(p) p$slot, 1L))
+      if (!is.null(u$infl)) {
+        c(u$infl$icpt, u$infl$loads[, 2], u$infl$prods[, 3], vapply(u$infl$xs, function(p) p$slot, 1L))
+      }
     ))
     u$slots <- u$slots[u$slots >= 0] + 1L
     u
@@ -300,7 +308,9 @@ qml_ld <- function(u, phi, Z, rows, K, lin = NULL, li = NULL) {
       out[] <- stats::dnorm(Y, lin, s, log = TRUE)
       if (u$type != "normal") {
         at <- if (identical(u$side, "above")) y >= u$cpoint - 1e-9 else y <= u$cpoint + 1e-9
-        if (any(at)) out[at, ] <- stats::pnorm((u$cpoint - lin[at, , drop = FALSE]) / s, lower.tail = !identical(u$side, "above"), log.p = TRUE)
+        if (any(at)) {
+          out[at, ] <- stats::pnorm((u$cpoint - lin[at, , drop = FALSE]) / s, lower.tail = !identical(u$side, "above"), log.p = TRUE)
+        }
         if (u$type == "cinfl") {
           if (is.null(li)) li <- qml_lin(u$infl, phi, Z, rows, K)
           out <- stats::plogis(li, lower.tail = FALSE, log.p = TRUE) + out
@@ -407,7 +417,9 @@ qml_eval <- function(M, phi, keep = FALSE, adapt = 0L) {
     gr <- M$grids[[r + 1]]
     K <- nrow(gr$X)
     ad <- M$state$ad[[pk]]
-    if (!M$adaptive || is.null(ad) || ncol(ad$m) != r) ad <- list(m = matrix(0, np, r), s = matrix(1, np, r))
+    if (!M$adaptive || is.null(ad) || ncol(ad$m) != r) {
+      ad <- list(m = matrix(0, np, r), s = matrix(1, np, r))
+    }
     passes <- if (M$adaptive && r) adapt + 1L else 1L
     for (pass in seq_len(passes)) {
       Xi <- lapply(seq_len(r), function(j) ad$m[, j] + outer(ad$s[, j], gr$X[, j]))
@@ -638,7 +650,9 @@ qml_estimate <- function(spec, data) {
     o <- stats::optim(th, fa, g, method = "BFGS", control = list(maxit = 500, reltol = 1e-8))
     if (is.finite(o$value) && o$value < 1e299) th <- o$par
     adapt(th, 3L)
-    if (getOption("qml.trace", FALSE)) message(sprintf("re-adapted BFGS: f %.6f (%d evaluations)", f(th), o$counts[1]))
+    if (getOption("qml.trace", FALSE)) {
+      message(sprintf("re-adapted BFGS: f %.6f (%d evaluations)", f(th), o$counts[1]))
+    }
   }
   prev <- f(th)
   conv <- FALSE
@@ -649,7 +663,9 @@ qml_estimate <- function(spec, data) {
     th1 <- o$par
     if (M$adaptive) adapt(th1, 3L)
     cur <- f(th1)
-    if (getOption("qml.trace", FALSE)) message(sprintf("round %d: f %.6f (%d evaluations, at most %d iterations)", round, cur, o$counts[1], maxit))
+    if (getOption("qml.trace", FALSE)) {
+      message(sprintf("round %d: f %.6f (%d evaluations, at most %d iterations)", round, cur, o$counts[1], maxit))
+    }
     if (M$adaptive && cur > prev + 1e-6) {
       M$state$ad <- saved
       if (maxit <= 2L) break
@@ -701,7 +717,9 @@ qml_estimate <- function(spec, data) {
     fresh <- FALSE
     th <- tn
     if (M$adaptive) adapt(th, 1L)
-    if (getOption("qml.trace", FALSE)) message(sprintf("newton %d: f %.6f step %.2g", it, f(th), max(abs(s * d))))
+    if (getOption("qml.trace", FALSE)) {
+      message(sprintf("newton %d: f %.6f step %.2g", it, f(th), max(abs(s * d))))
+    }
     if (max(abs(s * d)) < 1e-7) break
   }
   if (M$adaptive) adapt(th, 3L)
@@ -715,7 +733,13 @@ qml_estimate <- function(spec, data) {
   Hi <- tryCatch(solve(H), error = function(e) NULL)
   robust <- !identical(spec$se, "ml")
   # (H: the Hessian of the log-likelihood, negative definite at the maximum)
-  V <- if (is.null(Hi)) NULL else if (robust) Hi %*% crossprod(sc$scores * sqrt(M$w)) %*% Hi else -Hi
+  V <- if (is.null(Hi)) {
+    NULL
+  } else if (robust) {
+    Hi %*% crossprod(sc$scores * sqrt(M$w)) %*% Hi
+  } else {
+    -Hi
+  }
   list(M = M, theta = th, ll = ll, logPrior = if (length(ps)) lp else NULL, V = V, k = length(th), converged = conv)
 }
 
@@ -756,7 +780,11 @@ ps_quadml <- function(req_json, export = FALSE) {
     unlist(spec$gauss$x), unlist(lapply(spec$outcomes, function(o) c(vapply(o$xs %||% list(), function(p) as.character(p[[1]]), ""), vapply(o$infl$xs %||% list(), function(p) as.character(p[[1]]), "")))),
     unlist(lapply(spec$outcomes, function(o) if (identical(o$type, "surv") && nzchar(o$censor %||% "")) o$censor))
   ))
-  keep <- if (length(xs)) stats::complete.cases(fr$data[, xs, drop = FALSE]) else rep(TRUE, nrow(fr$data))
+  keep <- if (length(xs)) {
+    stats::complete.cases(fr$data[, xs, drop = FALSE])
+  } else {
+    rep(TRUE, nrow(fr$data))
+  }
   ys <- c(unlist(lapply(spec$outcomes, function(o) o$column)), unlist(spec$gauss$cols))
   ys <- ys[nzchar(ys)]
   keep <- keep & rowSums(!is.na(fr$data[, ys, drop = FALSE])) > 0
@@ -764,7 +792,9 @@ ps_quadml <- function(req_json, export = FALSE) {
   integ <- spec$integration
   if (!integ$type %in% c("rect", "gh", "mc")) stop("Invalid integration in the request.")
   pts <- as.integer(integ$points)
-  if (!is.finite(pts) || pts < 1 || pts > (if (integ$type == "mc") 100000 else 100)) stop("Invalid number of integration points.")
+  if (!is.finite(pts) || pts < 1 || pts > (if (integ$type == "mc") 100000 else 100)) {
+    stop("Invalid number of integration points.")
+  }
   body <- c(
     unlist(lapply(PS_QML_FUNCTIONS, function(f) c(sprintf("%s <- %s", f, paste(deparse(get(f)), collapse = "\n")), ""))),
     "spec <- jsonlite::fromJSON(spec_json, simplifyVector = TRUE, simplifyDataFrame = FALSE, simplifyMatrix = FALSE)",
@@ -786,7 +816,9 @@ ps_quadml <- function(req_json, export = FALSE) {
   est <- env$est
   nobs <- sum(est$M$w)
   k <- est$k
-  if (is.null(est$V)) ps_warning("The information matrix is singular: no standard errors (the model may not be identified).")
+  if (is.null(est$V)) {
+    ps_warning("The information matrix is singular: no standard errors (the model may not be identified).")
+  }
   if (!isTRUE(est$converged)) ps_warning("The optimizer did not report convergence.")
   gp <- qml_gauss(est$M, drop(est$M$b + est$M$A %*% est$theta))
   dims <- max(vapply(est$M$pats, function(p) sum(diag(gp$S)[p$D] > 1e-12), 1L))
