@@ -13,8 +13,9 @@ import { CARD_VALIDITY } from './validity';
 import { CARD_QCA } from './qca';
 import { CARD_INVARIANCE } from './invariance';
 
-export const CARD_EXAMPLES: PackageExample[] = [...CARD_BASIC, ...CARD_BAYES, ...CARD_MODEL, ...CARD_LIKELIHOOD, ...CARD_ITEMS, ...CARD_INTEGRATION, ...CARD_DSEM, ...CARD_DFI, ...CARD_VALIDITY, ...CARD_QCA, ...CARD_SCORETEST, ...CARD_LCS, ...CARD_MISSING, ...CARD_SENSITIVITY, ...CARD_INVARIANCE];
+export const CARD_EXAMPLES: PackageExample[] = [...CARD_BASIC, ...CARD_BAYES, ...CARD_MODEL, ...CARD_LIKELIHOOD, ...CARD_ITEMS, ...CARD_INTEGRATION, ...CARD_DSEM, ...CARD_DFI, ...CARD_VALIDITY, ...CARD_QCA, ...CARD_SCORETEST, ...CARD_LCS, ...CARD_MISSING, ...CARD_SENSITIVITY, ...CARD_INVARIANCE, ...CARD_HYPOTHESES];
 import { CARD_MISSING } from './missing';
 import { CARD_SENSITIVITY } from './sensitivity';
 import { CARD_SCORETEST } from './scoretest';
 import { CARD_LCS } from './lcs';
+import { CARD_HYPOTHESES } from './hypotheses';

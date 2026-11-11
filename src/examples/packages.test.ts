@@ -60,7 +60,7 @@ it('panel examples carry no diagram and name their columns (a Bayesian SEM card 
       expect(panelColumns(e.panel!)).toEqual(by ? [panelPreset(e.panel!)[by]] : []);
       continue;
     }
-    if (['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'cbcompare', 'scoreweights', 'dynamicfit', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb', 'sempower', 'metasem', 'semtree', 'plsmultilevel', 'regsem', 'semsens', 'medsens', 'scoretest', 'cbmodels'].includes(e.panel!.kind)) { expect(e.constructs.length || (e.syntax ? 1 : 0), e.id).toBeGreaterThan(0); expect(panelColumns(e.panel!)).toEqual([]); continue; }
+    if (['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'cbcompare', 'scoreweights', 'dynamicfit', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb', 'sempower', 'metasem', 'semtree', 'plsmultilevel', 'regsem', 'semsens', 'medsens', 'scoretest', 'cbmodels', 'hypotheses'].includes(e.panel!.kind)) { expect(e.constructs.length || (e.syntax ? 1 : 0), e.id).toBeGreaterThan(0); expect(panelColumns(e.panel!)).toEqual([]); continue; }
     expect(e.constructs, e.id).toEqual([]);
     for (const p of examplePanels(e)) expect(panelColumns(p).length, e.id).toBeGreaterThanOrEqual(['freqtest', 'bbinomial', 'chart', 'customml'].includes(p.kind) || (p as { type?: string }).type === 'one' ? 1 : 2);  // (a binomial test, a one-sample t-test, a chart of one variable and a nominal custom likelihood have one column)
   }
@@ -92,7 +92,8 @@ it('ids are unique and every R package the app calculates with has an example', 
   // car: repeated measures with several between factors (car::Anova), shown by the carData OBrienKaiser example.
   // lavaanRotate: ESEM blocks with invariant loadings, rotated jointly (lavaan + GPArotation), shown by Mplus 5.26.
   // psychotools: example data only (YouthGratitude), shown by the strucchange example.
-  const covered = new Set<string>([...EXAMPLE_PACKAGES, 'simulation', 'processGlm', 'manymomeSam', 'optimx', 'polynomial', 'nca', 'flexmix', 'cta', 'cSEMMi', 'seminrMi', 'readData', 'versions', 'regression', 'psychLavaan', 'regressionSurvival', 'customml', 'efa2', 'car', 'lavaanRotate', 'psychotools']);
+  // informative: the informative-hypotheses card with both restriktor and bain, shown by their own examples.
+  const covered = new Set<string>([...EXAMPLE_PACKAGES, 'simulation', 'processGlm', 'manymomeSam', 'optimx', 'polynomial', 'nca', 'flexmix', 'cta', 'cSEMMi', 'seminrMi', 'readData', 'versions', 'regression', 'psychLavaan', 'regressionSurvival', 'customml', 'efa2', 'car', 'lavaanRotate', 'psychotools', 'informative']);
   for (const p of Object.keys(R_PACKAGES)) expect(covered, p).toContain(p);
 });
 

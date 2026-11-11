@@ -24,10 +24,11 @@ const PANEL_TAGS: Record<string, string[]> = {
   semtree: ['SEM trees', 'Heterogeneity'],
   plsmultilevel: ['Multilevel', 'Random slopes'],
   regsem: ['Regularised SEM', 'Model modification'],
+  hypotheses: ['Informative hypotheses', 'Bayes factors'],
   semsens: ['Sensitivity analysis', 'Unmeasured confounding'], medsens: ['Sensitivity analysis', 'Unmeasured confounding'],
 };
 /** Cards about the example's model: the model's method is a topic of the example. The other cards stand on their own. */
-const MODEL_CARDS = new Set(['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'dynamicfit', 'cbcompare', 'scoreweights', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb', 'regsem', 'sempower', 'metasem', 'semtree', 'plsmultilevel', 'alignment', 'semsens', 'medsens', 'scoretest', 'cbmodels']);
+const MODEL_CARDS = new Set(['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'dynamicfit', 'cbcompare', 'scoreweights', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb', 'regsem', 'sempower', 'metasem', 'semtree', 'plsmultilevel', 'alignment', 'semsens', 'medsens', 'scoretest', 'cbmodels', 'hypotheses']);
 const ASSESSMENT_TAGS: Record<string, string> = { predict: 'Prediction', blindfold: 'Blindfolding', compare: 'Model comparison', groups: 'Multigroup', cca: 'Confirmatory composite analysis' };
 const SEGMENTATION_TAGS: Record<string, string> = { rebus: 'Segmentation', fimix: 'Segmentation', pathmox: 'Segmentation', pos: 'Segmentation' };
 
