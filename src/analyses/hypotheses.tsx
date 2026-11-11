@@ -45,16 +45,18 @@ const labelsOf = (ctx: AnalysisCtx) => new Set(ctx.model ? labelUses(ctx.model).
 const requestOf = (o: HypOptions, ctx: AnalysisCtx) => ({ ...o, seed: ctx.settings.seed });
 
 /** The GORICA table and the ratios of its weights. */
+/** The GORICA's names for the comparison hypotheses. */
+const comparisonName = (m: string) => {
+  if (m === 'complement') return 'Complement';
+  if (m === 'unconstrained') return 'Unconstrained';
+  return m;
+};
+
 function GoricaTables({ g, names }: { g: GoricaResult; names: string[] }) {
   const label = (m: string) => {
     const i = /^H(\d+)$/.exec(m);
-    return i
-      ? `${m}: ${names[Number(i[1]) - 1] ?? ''}`
-      : m === 'complement'
-        ? 'Complement'
-        : m === 'unconstrained'
-          ? 'Unconstrained'
-          : m;
+    if (i) return `${m}: ${names[Number(i[1]) - 1] ?? ''}`;
+    return comparisonName(m);
   };
   const best = g.gorica.indexOf(Math.min(...g.gorica));
   const rows: Row[] = g.models.map((m, i) => [
@@ -64,8 +66,14 @@ function GoricaTables({ g, names }: { g: GoricaResult; names: string[] }) {
     { ...c(g.gorica[i], undefined, 3), bold: i === best },
     { ...c(g.weights[i], undefined, 3), bold: i === best },
   ]);
-  const short = (m: string) =>
-    m === 'complement' ? 'Complement' : m === 'unconstrained' ? 'Unconstrained' : m;
+  let comparisonNote =
+    'The hypotheses are compared with each other only: the best of a set of poor hypotheses still gets the most weight.';
+  if (g.comparison === 'complement')
+    comparisonNote =
+      'Against its complement (every order the hypothesis rules out), a weight above .5 supports the hypothesis.';
+  else if (g.comparison === 'unconstrained')
+    comparisonNote =
+      'The unconstrained hypothesis is a safeguard: a hypothesis that is not better than it is weak.';
   return (
     <>
       <Table
@@ -73,14 +81,17 @@ function GoricaTables({ g, names }: { g: GoricaResult; names: string[] }) {
         file="gorica"
         columns={['Hypothesis', 'Log-likelihood', 'Penalty', 'GORICA', 'GORICA weight']}
         rows={rows}
-        note={`The GORICA (Altinisik et al. 2021) is −2 × (the log-likelihood of the estimates under the hypothesis’s constraints, from their asymptotic normal distribution) + 2 × the penalty, the hypothesis’s complexity (the expected number of distinct parameters under the constraints, from chi-bar-square level probabilities). Lower is better (bold); the weights are the relative support of each hypothesis in the set. ${g.comparison === 'complement' ? 'Against its complement (every order the hypothesis rules out), a weight above .5 supports the hypothesis.' : g.comparison === 'unconstrained' ? 'The unconstrained hypothesis is a safeguard: a hypothesis that is not better than it is weak.' : 'The hypotheses are compared with each other only: the best of a set of poor hypotheses still gets the most weight.'}`}
+        note={`The GORICA (Altinisik et al. 2021) is −2 × (the log-likelihood of the estimates under the hypothesis’s constraints, from their asymptotic normal distribution) + 2 × the penalty, the hypothesis’s complexity (the expected number of distinct parameters under the constraints, from chi-bar-square level probabilities). Lower is better (bold); the weights are the relative support of each hypothesis in the set. ${comparisonNote}`}
       />
       {g.models.length > 1 && (
         <Table
           title="Ratios of the GORICA weights"
           file="gorica-ratios"
-          columns={['', ...g.models.map(short)]}
-          rows={g.models.map((m, i) => [c(short(m)), ...g.ratio[i].map((v) => c(v, undefined, 2))])}
+          columns={['', ...g.models.map(comparisonName)]}
+          rows={g.models.map((m, i) => [
+            c(comparisonName(m)),
+            ...g.ratio[i].map((v) => c(v, undefined, 2)),
+          ])}
           note="Row versus column: how many times more support the row hypothesis has than the column hypothesis (the ratio of their weights)."
         />
       )}
@@ -92,13 +103,10 @@ function GoricaTables({ g, names }: { g: GoricaResult; names: string[] }) {
 function BainTables({ b, names }: { b: BainResult; names: string[] }) {
   const label = (r: string) => {
     const i = /^H(\d+)$/.exec(r);
-    return i
-      ? `${r}: ${names[Number(i[1]) - 1] ?? ''}`
-      : r === 'Hu'
-        ? 'Hu: unconstrained'
-        : r === 'Hc'
-          ? 'Hc: complement of all'
-          : r;
+    if (i) return `${r}: ${names[Number(i[1]) - 1] ?? ''}`;
+    if (r === 'Hu') return 'Hu: unconstrained';
+    if (r === 'Hc') return 'Hc: complement of all';
+    return r;
   };
   const rows: Row[] = b.rows.map((r, i) => [
     c(label(r)),
@@ -180,8 +188,12 @@ export const hypothesesAnalysis: AnalysisType<HypOptions, HypResult> = {
   fitsModel: true,
   defaults: (ctx) => {
     const l = [...labelsOf(ctx)];
+    // An example to edit: the first two labels ordered, or the only one above zero.
+    let text = '';
+    if (l.length > 1) text = `${l[0]} > ${l[1]}`;
+    else if (l.length) text = `${l[0]} > 0`;
     return {
-      text: l.length > 1 ? `${l[0]} > ${l[1]}` : l.length ? `${l[0]} > 0` : '',
+      text,
       method: 'both',
       comparison: 'complement',
       standardized: false,
@@ -294,6 +306,9 @@ export const hypothesesAnalysis: AnalysisType<HypOptions, HypResult> = {
     (await import('../rengine/hypotheses')).hypothesesR(cbCall(ctx), requestOf(o, ctx)),
   script: async (o, ctx) =>
     (await import('../rengine/hypotheses')).hypothesesScriptR(cbCall(ctx), requestOf(o, ctx)),
-  summary: (o) =>
-    `${lines(o.text).length} hypothes${lines(o.text).length === 1 ? 'is' : 'es'}, ${METHODS.find(([m]) => m === o.method)![1]}${o.standardized ? ', standardised' : ''}`,
+  summary: (o) => {
+    const count = lines(o.text).length;
+    const method = METHODS.find(([m]) => m === o.method)![1];
+    return `${count} hypothes${count === 1 ? 'is' : 'es'}, ${method}${o.standardized ? ', standardised' : ''}`;
+  },
 };

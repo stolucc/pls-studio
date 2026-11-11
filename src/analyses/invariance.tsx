@@ -144,15 +144,13 @@ function FactorPicker({
             type={single ? 'radio' : 'checkbox'}
             name={single ? 'inv-factor' : undefined}
             checked={value.includes(f.name)}
-            onChange={(e) =>
-              onChange(
-                single
-                  ? [f.name]
-                  : e.target.checked
-                    ? all.map((x) => x.name).filter((n) => n === f.name || value.includes(n))
-                    : value.filter((n) => n !== f.name),
-              )
-            }
+            onChange={(e) => {
+              if (single) onChange([f.name]);
+              // (ticking keeps the factors in the model's order)
+              else if (e.target.checked)
+                onChange(all.map((x) => x.name).filter((n) => n === f.name || value.includes(n)));
+              else onChange(value.filter((n) => n !== f.name));
+            }}
           />
           <span>
             {f.name} <span className="hint">({f.indicators.join(', ')})</span>
@@ -300,6 +298,16 @@ function alignedRows(r: AlignmentResult, f: AlignedFactor, which: 'lambda' | 'nu
   ];
 }
 
+/** How the alignment was identified and whether it converged. */
+function alignmentNote(f: AlignedFactor): string {
+  const identification = f.fixed ? 'its SD 1' : 'the product of the SDs 1';
+  const groups = f.fixed ? ' for few groups' : ' for many groups';
+  const converged = f.converged
+    ? 'The alignment converged'
+    : 'The alignment did NOT converge: read with care';
+  return `The first group’s mean is 0 and ${identification} (sirt’s identification${groups}). The means are comparable across groups although scalar invariance is not assumed. ${converged} (loss ${fmt(f.fopt, 3)}). sirt gives no standard errors for a lavaan configural fit.`;
+}
+
 function AlignedFactorView({ r, f }: { r: AlignmentResult; f: AlignedFactor }) {
   const lc = f.lambdaConstraints,
     nc = f.nuConstraints;
@@ -335,7 +343,7 @@ function AlignedFactorView({ r, f }: { r: AlignmentResult; f: AlignedFactor }) {
             c((f.sd[i] ?? NaN) ** 2),
           ],
         )}
-        note={`The first group’s mean is 0 and ${f.fixed ? 'its SD 1' : 'the product of the SDs 1'} (sirt’s identification${f.fixed ? ' for few groups' : ' for many groups'}). The means are comparable across groups although scalar invariance is not assumed. ${f.converged ? 'The alignment converged' : 'The alignment did NOT converge: read with care'} (loss ${fmt(f.fopt, 3)}). sirt gives no standard errors for a lavaan configural fit.`}
+        note={alignmentNote(f)}
       />
       <Table
         title={t('Effect sizes of approximate invariance')}
@@ -607,7 +615,8 @@ function MnlfaView({ r }: { r: MnlfaResult }) {
   const label = (term: string) => {
     if (term === '(Intercept)') return 'Intercept';
     const t = r.terms.find((x) => x.term === term);
-    return t ? (t.level === null ? t.covariate : `${t.covariate} = ${t.level}`) : term;
+    if (!t) return term;
+    return t.level === null ? t.covariate : `${t.covariate} = ${t.level}`;
   };
   const items = [...new Set(r.items.map((p) => p.item))];
   const table = (kind: 'a' | 'b') => {
@@ -982,12 +991,11 @@ export function lsemKind(p: LsemParam, factors: Set<string>): LsemKind {
   if (p.lhs !== p.rhs) return 'covariance';
   return factors.has(p.lhs) ? 'variance' : 'residual';
 }
-export const lsemLabel = (p: LsemParam) =>
-  p.op === 'fit'
-    ? p.par.toUpperCase()
-    : p.op === '~1'
-      ? `${p.lhs} ~1`
-      : `${p.lhs} ${p.op} ${p.rhs}`;
+export const lsemLabel = (p: LsemParam) => {
+  if (p.op === 'fit') return p.par.toUpperCase();
+  if (p.op === '~1') return `${p.lhs} ~1`;
+  return `${p.lhs} ${p.op} ${p.rhs}`;
+};
 
 function LsemChart({ r, params, kind }: { r: LsemResult; params: LsemParam[]; kind: string }) {
   const band = (p: LsemParam, i: number) =>
@@ -1092,6 +1100,12 @@ function LsemView({ r }: { r: LsemResult }) {
   const shown = r.params.filter((p) => lsemKind(p, factors) === kind);
   const model = r.params.filter((p) => p.op !== 'fit');
   const perm = r.permutations > 0;
+  // The permutation p values of a parameter's variation (blank where it has none).
+  const permutationCells = (t: LsemParam['test']) => {
+    if (!perm) return [];
+    if (!t) return [c(null), c(null), c(null)];
+    return [pCell(t.sdP), pCell(t.madP), pCell(t.linSlopeP)];
+  };
   const g = (v: number) => fmt(v, 3);
   return (
     <div className="tables">
@@ -1141,11 +1155,7 @@ function LsemView({ r }: { r: LsemResult }) {
               c(s.max),
               c(s.linSlope),
               c(s.sdNonlin),
-              ...(perm
-                ? t
-                  ? [pCell(t.sdP), pCell(t.madP), pCell(t.linSlopeP)]
-                  : [c(null), c(null), c(null)]
-                : []),
+              ...permutationCells(t),
             ];
           })}
         note={`Over the focal points, weighted by the moderator’s density there (sirt’s parameters_summary): the mean, SD and mean absolute deviation (MAD) of each parameter’s curve, its range, the slope of a weighted linear regression on ${r.moderator} and the SD of what that line leaves.${perm ? ` p: the share of the ${r.permutations} permutations of ${r.moderator} in which the statistic was at least as large (lsem.permutationTest): a small p for the SD or MAD says the parameter is not invariant along ${r.moderator}; for the slope, that it changes linearly.` : ' Tick the permutation test for p values of this variation.'}`}
@@ -1260,8 +1270,11 @@ export const lsemAnalysis: AnalysisType<LsemOptions, LsemResult> = {
   },
   run: async (o, ctx) => (await engine()).lsemR(cbCall(ctx), lsemInput(o, ctx)),
   script: async (o, ctx) => (await engine()).lsemScriptR(cbCall(ctx), lsemInput(o, ctx)),
-  summary: (o) =>
-    `along ${o.moderator || '…'} · ${o.points} focal points, h = ${o.h}${o.bootstrap ? ` · bootstrap ${o.bootR}` : ''}${o.permutation ? ` · ${o.permB} permutations` : ''}`,
+  summary: (o) => {
+    const bootstrap = o.bootstrap ? ` · bootstrap ${o.bootR}` : '';
+    const permutation = o.permutation ? ` · ${o.permB} permutations` : '';
+    return `along ${o.moderator || '…'} · ${o.points} focal points, h = ${o.h}${bootstrap}${permutation}`;
+  },
 };
 
 // ---------------------------------------------------------------- effect sizes of non-invariance (dMACS)
