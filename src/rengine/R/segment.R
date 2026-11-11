@@ -59,10 +59,21 @@ ps_rebus <- function(req_json, export = FALSE) {
     "hc <- hclust(dist(rebus_residuals(global)), method = \"ward.D\")",
     sprintf("# Step 2: REBUS iterations from the hierarchical solution with %s classes; permutation tests between the classes.", paste(ks, collapse = ", ")),
     sprintf("set.seed(%d)", seed),
-    "rebus <- list(); tests <- list()",
+    "# Each number of classes on its own: one that cannot be estimated (a class that becomes empty or",
+    "# too small for its local model) is reported, and the others still run.",
+    "rebus <- list(); tests <- list(); failed <- list()",
     sprintf("for (k in %s) {", paste(deparse(ks), collapse = "")),
-    sprintf("  rebus[[as.character(k)]] <- it.reb(global, hc, nk = k, stop.crit = %s, iter.max = %d)", format(stop_crit), iter_max),
-    "  tests[[as.character(k)]] <- rebus.test(global, rebus[[as.character(k)]])",
+    "  key <- as.character(k)",
+    "  fit <- tryCatch(",
+    sprintf("    it.reb(global, hc, nk = k, stop.crit = %s, iter.max = %d),", format(stop_crit), iter_max),
+    "    error = function(e) e",
+    "  )",
+    "  if (inherits(fit, \"error\")) {",
+    "    failed[[key]] <- list(message = conditionMessage(fit), wardSizes = as.integer(table(cutree(hc, k))))",
+    "    next",
+    "  }",
+    "  rebus[[key]] <- fit",
+    "  tests[[key]] <- tryCatch(rebus.test(global, fit), error = function(e) e)",
     "}"
   )
   inputs <- list(data = ps_frame(req, n))
@@ -82,10 +93,13 @@ ps_rebus <- function(req_json, export = FALSE) {
   }
   h <- env$hc$height
   top <- rev(utils::tail(h, 12)) # fusion levels of the last merges: the k-class cut lies below top[k - 1]
-  models <- lapply(as.character(ks), function(k) {
+  estimated <- intersect(as.character(ks), names(env$rebus))
+  models <- lapply(estimated, function(k) {
     r <- env$rebus[[k]]
     q <- r$quality
     t <- env$tests[[k]]
+    tests_error <- if (inherits(t, "error")) conditionMessage(t) else NULL
+    if (!is.null(tests_error)) t <- list()
     row <- function(prefix) {
       i <- startsWith(rownames(q), paste0(prefix, "."))
       setNames(lapply(which(i), function(j) unname(q[j, ])), ps_back(sub("^[A-Za-z0-9]+\\.", "", rownames(q)[i]), back_lv, FALSE))
@@ -97,6 +111,7 @@ ps_rebus <- function(req_json, export = FALSE) {
       paths = lapply(seq_len(nrow(r$path.coef)), function(i) c(path_name(rownames(r$path.coef)[i]), list(byClass = unname(r$path.coef[i, ])))),
       loadings = lapply(seq_len(nrow(r$loadings)), function(i) list(indicator = ps_back(rownames(r$loadings)[i], back_mv, FALSE), byClass = unname(r$loadings[i, ]))),
       communality = row("Com"), r2 = row("R2"), gof = unname(q["GoF", ]),
+      testsError = tests_error,
       tests = lapply(names(t), function(nm) {
         x <- t[[nm]]
         cls <- as.integer(strsplit(sub("^test_", "", nm), "_")[[1]])
@@ -117,6 +132,9 @@ ps_rebus <- function(req_json, export = FALSE) {
       )
     }),
     fusion = top, models = models,
+    failed = lapply(names(env$failed), function(k) {
+      list(k = as.integer(k), message = ps_flat(env$failed[[k]]$message), wardSizes = env$failed[[k]]$wardSizes)
+    }),
     warnings = env$.warnings, engine = ps_engine("plspm")
   ))
 }

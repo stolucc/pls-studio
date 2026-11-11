@@ -118,6 +118,11 @@ function Solution({ r, m }: { r: RebusResult; m: RebusModel }) {
         ]}
         note="Class-specific (local) PLS models estimated on each class’s observations; the global model on all of them."
       />
+      {m.testsError && (
+        <div className="hint">
+          The permutation tests between the classes could not be computed: {m.testsError}
+        </div>
+      )}
       {m.tests.length > 0 && (
         <Table
           title="Differences between classes (permutation tests)"
@@ -406,6 +411,36 @@ function PosView({ r, current }: { r: PosResult; current: boolean }) {
   );
 }
 
+/** The numbers of classes REBUS could not estimate, and why (usually a class that became empty). */
+function RebusFailures({ r }: { r: RebusResult }) {
+  if (!r.failed.length) return null;
+  return (
+    <Table
+      title="Solutions that could not be estimated"
+      file="rebus-failed"
+      columns={['Classes', 'Ward class sizes', 'Reason']}
+      rows={r.failed.map((f) => [
+        c(f.k, undefined, 0),
+        c(f.wardSizes.join(', ')),
+        c(rebusFailureReason(f.message)),
+      ])}
+      note="REBUS reassigns cases to the class whose local model fits them best; when a class loses (nearly) all its cases, its local model cannot be fitted. Choose fewer classes, or check the Ward tree: a very small branch means that number of classes is not supported by the data."
+    />
+  );
+}
+
+/** R's message for a REBUS solution that failed, in plain words where it is the usual empty-class case. */
+export function rebusFailureReason(message: string): string {
+  if (
+    /0 \(non-NA\) cases|Too few units|dimnames|subscript out of bounds|non-conformable/.test(
+      message,
+    )
+  ) {
+    return `A class became empty or too small for its local model (R: ${message})`;
+  }
+  return message;
+}
+
 function RebusView({ r, current }: { r: RebusResult; current: boolean }) {
   // GQI tends to grow with more classes: show the smallest solution first, not the highest GQI.
   const [k, setK] = useState(r.models[0]?.k);
@@ -413,6 +448,15 @@ function RebusView({ r, current }: { r: RebusResult; current: boolean }) {
   const data = useStore((s) => s.data),
     info = useStore((s) => s.dataInfo);
   const rows = data?.cols[0]?.length ?? 0;
+  // (no number of classes could be estimated: only the failures and the Ward tree)
+  if (!m) {
+    return (
+      <div className="tables">
+        <RebusFailures r={r} />
+        <Fusion heights={r.fusion.slice(0, 10)} />
+      </div>
+    );
+  }
   const saveColumn = () => {
     if (!current || !data || !info || m.segments.length !== rows) return;
     const col = freeColumnName(data.names, `rebus_${m.k}`);
@@ -430,6 +474,7 @@ function RebusView({ r, current }: { r: RebusResult; current: boolean }) {
   };
   return (
     <div className="tables">
+      <RebusFailures r={r} />
       <Table
         title="Solutions"
         file="rebus-solutions"

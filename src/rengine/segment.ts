@@ -26,6 +26,8 @@ export interface RebusModel {
   communality: Record<string, number[]>;
   r2: Record<string, number[]>;
   gof: number[];
+  /** Why the permutation tests could not be computed (e.g. a class too small to permute), if so. */
+  testsError?: string;
   /** Permutation tests between pairs of classes (plspm's rebus.test). */
   tests: {
     classes: number[];
@@ -40,6 +42,8 @@ export interface RebusResult {
   /** Fusion levels of the last merges of the Ward clustering (largest first). */
   fusion: number[];
   models: RebusModel[];
+  /** Numbers of classes that could not be estimated, with R's message and the Ward tree's class sizes at that cut. */
+  failed: { k: number; message: string; wardSizes: number[] }[];
   warnings: string[];
   engine: REngineInfo;
 }
@@ -65,6 +69,11 @@ export function parseRebus(raw: Record<string, any>): RebusResult {
     fusion: nums(raw.fusion),
     warnings: rStrings(raw.warnings),
     engine: raw.engine,
+    failed: rList<any>(raw.failed).map((f) => ({
+      k: f.k,
+      message: String(f.message ?? ''),
+      wardSizes: nums(f.wardSizes),
+    })),
     models: rList<any>(raw.models).map((m) => ({
       ...m,
       sizes: nums(m.sizes),

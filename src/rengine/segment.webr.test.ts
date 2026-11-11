@@ -84,3 +84,22 @@ it('refuses formative blocks and interactions', async () => {
     ),
   ).rejects.toThrow(/Mode A/);
 }, 900_000);
+
+// A number of classes that empties a class (here 4 to 6 classes on 40 cases) is reported with the Ward tree's
+// class sizes, and the solutions that can be estimated still are, rather than one failure stopping the card.
+it('REBUS reports the numbers of classes it cannot estimate and keeps the others', async () => {
+  const small = { ...data, cols: data.cols.map((col) => col.slice(0, 40)) };
+  const r = await rebusR(small, spec, options, {
+    classes: [2, 3, 4, 5, 6],
+    stopCrit: 0.005,
+    iterMax: 100,
+    seed: 1,
+  });
+  expect(r.models.map((m) => m.k)).toEqual([2, 3]);
+  expect(r.failed.map((f) => f.k)).toEqual([4, 5, 6]);
+  for (const f of r.failed) {
+    expect(f.message.length).toBeGreaterThan(0);
+    expect(f.wardSizes).toHaveLength(f.k);
+    expect(f.wardSizes.reduce((a, b) => a + b, 0)).toBe(40);
+  }
+}, 900_000);

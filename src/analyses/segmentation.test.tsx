@@ -5,6 +5,7 @@ import {
   moveCategory,
   pathmoxAnalysis,
   rebusAnalysis,
+  rebusFailureReason,
   segmentationCard,
 } from './segmentation';
 import type { AnalysisCtx } from './types';
@@ -175,5 +176,43 @@ describe('segmentation hints', () => {
     expect(
       pathmoxAnalysis.blocked(pathmoxAnalysis.defaults(ctx({})), ctx({ plsApproach: 'unit' })),
     ).toMatch(/PLS-PM/);
+  });
+});
+
+describe('REBUS solutions that cannot be estimated', () => {
+  const engine = { package: 'plspm', version: '0.6.0' };
+  const failed = [
+    {
+      k: 4,
+      message: 'Too few units: a class with less than 6 units was detected',
+      wardSizes: [20, 12, 6, 2],
+    },
+  ];
+  it('are explained in plain words, R’s message kept', () => {
+    expect(rebusFailureReason('0 (non-NA) cases')).toMatch(/^A class became empty or too small/);
+    expect(rebusFailureReason(failed[0].message)).toContain('Too few units');
+    expect(rebusFailureReason('something else')).toBe('something else');
+  });
+  it('are listed, and a result with no estimable solution still renders', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const r = {
+      n: 40,
+      globalGof: 0.5,
+      globalPaths: [],
+      fusion: [3, 2, 1],
+      models: [],
+      failed,
+      warnings: [],
+      engine,
+    };
+    const html = renderToStaticMarkup(
+      <rebusAnalysis.View
+        result={r as never}
+        options={rebusAnalysis.defaults({} as never)}
+        current
+      />,
+    );
+    expect(html).toContain('Solutions that could not be estimated');
+    expect(html).toContain('20, 12, 6, 2');
   });
 });
