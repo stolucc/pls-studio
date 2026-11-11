@@ -68,6 +68,18 @@ function CmbForm({ options: o, set, ctx, disabled }: OptionsProps<CmbOptions>) {
   if (!d) return <div className="empty-results">Import raw data first.</div>;
   const numeric = d.names.filter((n) => !d.categories?.[n]);
   const hasModel = !!ctx.model?.constructs.length;
+  // Harman's test reads the diagram's indicators; the VIFs read the PLS construct scores.
+  let modelSourceTitle = 'Draw a model first';
+  if (hasModel)
+    modelSourceTitle =
+      o.type === 'harman'
+        ? 'Every indicator of the diagram'
+        : 'The construct scores of the current PLS-SEM results';
+  const modelSourceHint = () => {
+    if (o.type === 'harman') return `${modelIndicators(ctx).length} indicators of the diagram.`;
+    if (ctx.pls) return `${ctx.pls.constructs.length} constructs of the current PLS-SEM results.`;
+    return 'Calculate the PLS-SEM model first (Model tab).';
+  };
   return (
     <fieldset className="card-options" disabled={disabled}>
       <Choice
@@ -91,13 +103,7 @@ function CmbForm({ options: o, set, ctx, disabled }: OptionsProps<CmbOptions>) {
             className={o.source === 'model' ? 'on' : ''}
             disabled={!hasModel}
             onClick={() => set({ ...o, source: 'model' })}
-            title={
-              hasModel
-                ? o.type === 'harman'
-                  ? 'Every indicator of the diagram'
-                  : 'The construct scores of the current PLS-SEM results'
-                : 'Draw a model first'
-            }
+            title={modelSourceTitle}
           >
             {o.type === 'harman' ? 'The model’s indicators' : 'PLS construct scores'}
           </button>
@@ -117,13 +123,7 @@ function CmbForm({ options: o, set, ctx, disabled }: OptionsProps<CmbOptions>) {
           onChange={(vars) => set({ ...o, vars })}
         />
       ) : (
-        <div className="hint">
-          {o.type === 'harman'
-            ? `${modelIndicators(ctx).length} indicators of the diagram.`
-            : ctx.pls
-              ? `${ctx.pls.constructs.length} constructs of the current PLS-SEM results.`
-              : 'Calculate the PLS-SEM model first (Model tab).'}
-        </div>
+        <div className="hint">{modelSourceHint()}</div>
       )}
       {o.type === 'harman' && (
         <Choice
@@ -144,6 +144,13 @@ function CmbForm({ options: o, set, ctx, disabled }: OptionsProps<CmbOptions>) {
 function HarmanView({ r }: { r: CmbResult }) {
   const pctShare = r.share! * 100;
   const over = r.share! > 0.5;
+  const verdict = over
+    ? 'A single factor accounts for more than half of the variance: by the usual heuristic, common method variance may be substantial.'
+    : 'No single factor accounts for more than half of the variance (the usual heuristic), and more than one factor emerges.';
+  const extraction =
+    r.extraction === 'fa'
+      ? 'Unrotated common-factor (minres) extraction of one factor, psych::fa.'
+      : 'Unrotated principal component analysis of one component, psych::principal, as most papers run it.';
   return (
     <div className="tables">
       <Engine e={r.engine} />
@@ -162,7 +169,7 @@ function HarmanView({ r }: { r: CmbResult }) {
           [c('Eigenvalues above 1'), c(r.kaiser ?? null, undefined, 0)],
           [c('Largest eigenvalue'), c(r.eigenvalues?.[0] ?? null)],
         ]}
-        note={`${over ? 'A single factor accounts for more than half of the variance: by the usual heuristic, common method variance may be substantial.' : 'No single factor accounts for more than half of the variance (the usual heuristic), and more than one factor emerges.'} The 50% rule is a convention, not a test: Podsakoff, MacKenzie, Lee & Podsakoff (2003) and Podsakoff, MacKenzie & Podsakoff (2012) warn that the test is insensitive (a method factor rarely explains most of the variance even when it biases the estimates), that the cutoff is arbitrary, and that it corrects nothing; report it alongside a stronger check such as the full-collinearity VIFs or a marker variable. ${r.extraction === 'fa' ? 'Unrotated common-factor (minres) extraction of one factor, psych::fa.' : 'Unrotated principal component analysis of one component, psych::principal, as most papers run it.'} Complete cases.`}
+        note={`${verdict} The 50% rule is a convention, not a test: Podsakoff, MacKenzie, Lee & Podsakoff (2003) and Podsakoff, MacKenzie & Podsakoff (2012) warn that the test is insensitive (a method factor rarely explains most of the variance even when it biases the estimates), that the cutoff is arbitrary, and that it corrects nothing; report it alongside a stronger check such as the full-collinearity VIFs or a marker variable. ${extraction} Complete cases.`}
       />
       <Table
         title="Eigenvalues of the correlation matrix"
@@ -187,8 +194,21 @@ function HarmanView({ r }: { r: CmbResult }) {
   );
 }
 
+/** Kock's full-collinearity threshold in red, amber above 3. */
+function vifClass(vif: number) {
+  if (vif > KOCK_VIF) return 'bad';
+  if (vif > 3) return 'warn';
+  return 'good';
+}
+
 function VifView({ r, scores }: { r: CmbResult; scores: boolean }) {
   const over = (r.rows ?? []).filter((x) => x.vif > KOCK_VIF);
+  const verdict = over.length
+    ? `${over.map((x) => x.variable).join(', ')} exceed${over.length === 1 ? 's' : ''} ${KOCK_VIF}: by Kock’s (2015) criterion the model shows pathological collinearity, which a common method shared by the measures can produce.`
+    : `Every VIF is at most ${KOCK_VIF}: by Kock’s (2015) criterion the model is free of common method bias.`;
+  const data = scores
+    ? ' Construct scores of the current PLS-SEM results (standardised; the VIF does not depend on the scale).'
+    : ' Complete cases.';
   return (
     <div className="tables">
       <Engine e={r.engine} />
@@ -197,13 +217,9 @@ function VifView({ r, scores }: { r: CmbResult; scores: boolean }) {
         file="cmb-vif"
         columns={[scores ? 'Construct' : 'Variable', 'R² on all the others', 'VIF']}
         rows={(r.rows ?? []).map(
-          (x): Row => [
-            c(x.variable),
-            c(x.r2),
-            c(x.vif, x.vif > KOCK_VIF ? 'bad' : x.vif > 3 ? 'warn' : 'good', 3),
-          ],
+          (x): Row => [c(x.variable), c(x.r2), c(x.vif, vifClass(x.vif), 3)],
         )}
-        note={`${over.length ? `${over.map((x) => x.variable).join(', ')} exceed${over.length === 1 ? 's' : ''} ${KOCK_VIF}: by Kock’s (2015) criterion the model shows pathological collinearity, which a common method shared by the measures can produce.` : `Every VIF is at most ${KOCK_VIF}: by Kock’s (2015) criterion the model is free of common method bias.`} Full collinearity (Kock & Lynn 2012; Kock 2015): each ${scores ? 'construct' : 'variable'} regressed on all the others, VIF = 1 / (1 − R²); unlike the lateral (predictor-only) VIFs it also catches vertical collinearity between a dependent construct and its predictors. Kock’s threshold is 3.3 (red; amber above 3), set for the full-collinearity test; 5 and 10 are the more lenient conventions for predictors in a regression.${scores ? ' Construct scores of the current PLS-SEM results (standardised; the VIF does not depend on the scale).' : ' Complete cases.'}`}
+        note={`${verdict} Full collinearity (Kock & Lynn 2012; Kock 2015): each ${scores ? 'construct' : 'variable'} regressed on all the others, VIF = 1 / (1 − R²); unlike the lateral (predictor-only) VIFs it also catches vertical collinearity between a dependent construct and its predictors. Kock’s threshold is 3.3 (red; amber above 3), set for the full-collinearity test; 5 and 10 are the more lenient conventions for predictors in a regression.${data}`}
       />
     </div>
   );
@@ -286,8 +302,15 @@ export const cmbAnalysis: AnalysisType<CmbOptions, CmbResult> = {
         ]),
   run: async (o, ctx) => (await engine()).cmbR(cmbData(o, ctx).data!, cmbInput(o, ctx)),
   script: async (o, ctx) => (await engine()).cmbScriptR(cmbData(o, ctx).data!, cmbInput(o, ctx)),
-  summary: (o) =>
-    `${CMB_NAME[o.type].toLowerCase()} · ${o.source === 'model' ? (o.type === 'harman' ? 'the model’s indicators' : 'construct scores') : o.vars.join(', ') || '…'}${o.type === 'harman' ? ` · ${o.extraction === 'fa' ? 'common factor' : 'principal component'}` : ''}`,
+  summary: (o) => {
+    let variables = o.vars.join(', ') || '…';
+    if (o.source === 'model')
+      variables = o.type === 'harman' ? 'the model’s indicators' : 'construct scores';
+    let extraction = '';
+    if (o.type === 'harman')
+      extraction = ` · ${o.extraction === 'fa' ? 'common factor' : 'principal component'}`;
+    return `${CMB_NAME[o.type].toLowerCase()} · ${variables}${extraction}`;
+  },
 };
 
 // ---------------------------------------------------------------- content validity index
@@ -295,8 +318,12 @@ export const cmbAnalysis: AnalysisType<CmbOptions, CmbResult> = {
 export type CviOptions = CviInput;
 
 /** Cicchetti & Sparrow's (1981) bands for k*, as Polit, Beck & Owen (2007) apply them. */
-export const kappaBand = (k: number) =>
-  k > 0.74 ? 'excellent' : k >= 0.6 ? 'good' : k >= 0.4 ? 'fair' : 'poor';
+export const kappaBand = (k: number) => {
+  if (k > 0.74) return 'excellent';
+  if (k >= 0.6) return 'good';
+  if (k >= 0.4) return 'fair';
+  return 'poor';
+};
 const bandClass = { excellent: 'good', good: '', fair: 'warn', poor: 'bad' } as const;
 
 function CviForm({ options: o, set, ctx, disabled }: OptionsProps<CviOptions>) {
@@ -341,6 +368,13 @@ function CviForm({ options: o, set, ctx, disabled }: OptionsProps<CviOptions>) {
   );
 }
 
+/** The scale-level CVI (average): .90 or higher is excellent, .80 acceptable. */
+function scviAveClass(scvi: number) {
+  if (scvi >= 0.9) return 'good';
+  if (scvi >= 0.8) return 'warn';
+  return 'bad';
+}
+
 function CviView({ r }: { r: CviResult }) {
   const N = r.experts.length;
   const icviRule = N <= 5 ? 1 : 0.78;
@@ -353,10 +387,7 @@ function CviView({ r }: { r: CviResult }) {
         file="cvi-scale"
         columns={['Index', 'Value']}
         rows={[
-          [
-            c('S-CVI/Ave (mean of the I-CVIs)'),
-            c(r.scviAve, r.scviAve >= 0.9 ? 'good' : r.scviAve >= 0.8 ? 'warn' : 'bad', 2),
-          ],
+          [c('S-CVI/Ave (mean of the I-CVIs)'), c(r.scviAve, scviAveClass(r.scviAve), 2)],
           [
             c('S-CVI/UA (items every expert found relevant)'),
             c(r.scviUA, r.scviUA >= 0.8 ? 'good' : 'bad', 2),
@@ -421,12 +452,11 @@ export const cviAnalysis: AnalysisType<CviOptions, CviResult> = {
       : null,
   Options: CviForm,
   View: ({ result }) => <CviView r={result} />,
-  blocked: (o, ctx) =>
-    o.raters.length < 2
-      ? 'Choose at least two experts’ columns.'
-      : o.raters.includes(o.item)
-        ? 'The item column cannot be an expert’s ratings.'
-        : missingColumns(ctx, cviCols(o), 'The content validity index'),
+  blocked: (o, ctx) => {
+    if (o.raters.length < 2) return 'Choose at least two experts’ columns.';
+    if (o.raters.includes(o.item)) return 'The item column cannot be an expert’s ratings.';
+    return missingColumns(ctx, cviCols(o), 'The content validity index');
+  },
   fingerprint: (o, ctx) => columnsFingerprint(ctx, cviCols(o), [o.threshold, o.item, ...o.raters]),
   run: async (o, ctx) => (await engine()).cviR(rawData(ctx)!, o),
   script: async (o, ctx) => (await engine()).cviScriptR(rawData(ctx)!, o),
