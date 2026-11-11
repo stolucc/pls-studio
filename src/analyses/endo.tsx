@@ -63,6 +63,22 @@ const coefRow = (x: EndoCoef): Row => [
   c(x.ciHigh),
 ];
 
+/** The title of a Heckman equation's table. */
+function equationTitle(eq: string) {
+  if (eq === 'selection') return 'Selection equation (probit)';
+  if (eq === 'outcome') return 'Outcome equation';
+  return 'Error terms';
+}
+
+/** The note under the coefficients: how the method gets its standard errors. */
+function coefficientsNote(r: EndoResult) {
+  if (r.method === 'liv')
+    return 'Maximum likelihood (Nelder–Mead, optimx); standard errors from the numerical Hessian (delta method for theta5), as REndo::latentIV. The P coefficient is corrected for endogeneity; theta7 ≠ 0 indicates it.';
+  if (r.method === 'copula')
+    return `Standard errors and percentile intervals from ${r.boot?.samples} bootstrap samples. P* terms: their significance tests whether the regressor is endogenous; the other coefficients are corrected for it.`;
+  return `${r.n} observations.`;
+}
+
 function EndoView({ r, input }: { r: EndoResult; input: EndoInput }) {
   const level = Math.round(100 * input.boot.confidence);
   const cols = [
@@ -84,13 +100,7 @@ function EndoView({ r, input }: { r: EndoResult; input: EndoInput }) {
           {(['selection', 'outcome', 'error terms'] as const).map((eq) => (
             <Table
               key={eq}
-              title={
-                eq === 'selection'
-                  ? 'Selection equation (probit)'
-                  : eq === 'outcome'
-                    ? 'Outcome equation'
-                    : 'Error terms'
-              }
+              title={equationTitle(eq)}
               file={`heckman-${eq.replace(' ', '-')}`}
               columns={cols}
               rows={r.coefficients.filter((x) => x.equation === eq).map(coefRow)}
@@ -114,13 +124,7 @@ function EndoView({ r, input }: { r: EndoResult; input: EndoInput }) {
             file={`endogeneity-${r.method}`}
             columns={cols}
             rows={r.coefficients.map(coefRow)}
-            note={
-              r.method === 'liv'
-                ? 'Maximum likelihood (Nelder–Mead, optimx); standard errors from the numerical Hessian (delta method for theta5), as REndo::latentIV. The P coefficient is corrected for endogeneity; theta7 ≠ 0 indicates it.'
-                : r.method === 'copula'
-                  ? `Standard errors and percentile intervals from ${r.boot?.samples} bootstrap samples. P* terms: their significance tests whether the regressor is endogenous; the other coefficients are corrected for it.`
-                  : `${r.n} observations.`
-            }
+            note={coefficientsNote(r)}
           />
           {focus.length > 0 && (
             <Table
@@ -478,8 +482,12 @@ export const endoAnalysis: AnalysisType<EndoOptions, EndoCardResult> = {
   },
   script: async (o, ctx) =>
     (await import('../rengine/endo')).endoScriptR(sourceData(o.source, ctx)!, toInput(o, ctx)),
-  summary: (o) =>
-    o.outcome
-      ? `${METHODS.find((m) => m.id === o.method)!.label} · ${(o.method === 'heckman' ? o.exogenous : o.endogenous).join(', ') || '…'} → ${o.outcome}${o.source === 'scores' ? ' (construct scores)' : ''}`
-      : 'not set up yet',
+  summary: (o) => {
+    if (!o.outcome) return 'not set up yet';
+    const method = METHODS.find((m) => m.id === o.method)!.label;
+    // Heckman's model has no endogenous regressors: its summary lists the exogenous ones.
+    const regressors = o.method === 'heckman' ? o.exogenous : o.endogenous;
+    const scores = o.source === 'scores' ? ' (construct scores)' : '';
+    return `${method} · ${regressors.join(', ') || '…'} → ${o.outcome}${scores}`;
+  },
 };

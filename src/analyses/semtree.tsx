@@ -106,9 +106,33 @@ export function edgeLabel(
   return `${edge ? '' : 'not '}${rule.variable} ${rule.relation} ${v.join(', ')}`;
 }
 
-const pText = (p?: number) => (p === undefined ? '' : p < 0.001 ? 'p < .001' : `p = ${fmt(p, 3)}`);
+const pText = (p?: number) => {
+  if (p === undefined) return '';
+  return p < 0.001 ? 'p < .001' : `p = ${fmt(p, 3)}`;
+};
 const paramName = (p: SemTreeNode['params'][number]) =>
   p.op === '~1' ? `${p.lhs} (mean)` : `${p.lhs} ${p.op} ${p.rhs}`;
+
+/** A node's outline: the picked node, a leaf, or an inner node. */
+function nodeColor(picked: boolean, terminal: boolean) {
+  if (picked) return NEGATIVE_COLOR;
+  return terminal ? POSITIVE_COLOR : OTHER_COLOR;
+}
+
+/** How the splits were chosen, as the result names the method. */
+function splitTests(method: string) {
+  if (method === 'naive') return 'likelihood-ratio tests of every cut';
+  if (method === 'score') return 'score-based tests';
+  return 'the fair two-stage selection';
+}
+
+const METHOD_HINT: Record<SemTreeOptions['method'], string> = {
+  naive:
+    'Every cut of every covariate compared by its likelihood-ratio test (semtree’s default; exhaustive, favours covariates with many cuts).',
+  score:
+    'Score-based tests (Arnold et al. 2021): fast and unbiased between covariates; not with equality constraints between parameters.',
+  fair: 'Half the sample chooses each covariate’s best cut, the other half compares the covariates (Brandmaier et al. 2013).',
+};
 
 function TreeChart({
   r,
@@ -193,7 +217,7 @@ function TreeChart({
                   height={BH}
                   rx={6}
                   fill="var(--surface, #f6f7f9)"
-                  stroke={on ? NEGATIVE_COLOR : n.terminal ? POSITIVE_COLOR : OTHER_COLOR}
+                  stroke={nodeColor(on, n.terminal)}
                   strokeWidth={on ? 2.5 : 1.5}
                 />
                 <text x={x + BW / 2} y={y + 17} textAnchor="middle" fontWeight={600}>
@@ -304,18 +328,16 @@ function SemTreeView({ r }: { r: SemTreeResult }) {
     ...leaves.map((l) => c(l.params[k]?.est ?? null)),
   ]);
   const splits = r.nodes.filter((n) => !n.terminal);
+  const nodePath = path(node);
+  const leaf = node.terminal ? ' (leaf)' : '';
+  const where = nodePath.length ? `, ${nodePath.join(' and ')}` : ' (all cases)';
+  const nodeTitle = `Node ${node.id}${leaf}: N = ${node.n}${where}`;
   return (
     <div className="tables">
       <p className="hint" style={{ marginTop: 0 }}>
         {r.n} cases; {splits.length} split{splits.length === 1 ? '' : 's'}, {leaves.length} leaves;
-        splits by{' '}
-        {r.method === 'naive'
-          ? 'likelihood-ratio tests of every cut'
-          : r.method === 'score'
-            ? 'score-based tests'
-            : 'the fair two-stage selection'}{' '}
-        at α = {r.alpha}, depth at most {r.maxDepth}, nodes of at least {r.minN} cases. semtree{' '}
-        {r.engine.version}
+        splits by {splitTests(r.method)} at α = {r.alpha}, depth at most {r.maxDepth}, nodes of at
+        least {r.minN} cases. semtree {r.engine.version}
         {r.engine.openmx ? `, OpenMx ${r.engine.openmx}` : ''}
         {r.engine.desktop ? ` in desktop ${r.engine.desktop}` : ''}.
       </p>
@@ -337,7 +359,7 @@ function SemTreeView({ r }: { r: SemTreeResult }) {
         />
       )}
       <Table
-        title={`Node ${node.id}${node.terminal ? ' (leaf)' : ''}: N = ${node.n}${path(node).length ? `, ${path(node).join(' and ')}` : ' (all cases)'}`}
+        title={nodeTitle}
         file={`semtree-node-${node.id}`}
         columns={['Parameter', 'Estimate']}
         rows={node.params.map((p) => [c(paramName(p)), c(p.est)])}
@@ -462,13 +484,7 @@ function SemTreeForm({ options: o, set, ctx, disabled }: OptionsProps<SemTreeOpt
           ['fair', 'Fair'],
         ]}
         onChange={(method) => set({ ...o, method })}
-        hint={
-          o.method === 'naive'
-            ? 'Every cut of every covariate compared by its likelihood-ratio test (semtree’s default; exhaustive, favours covariates with many cuts).'
-            : o.method === 'score'
-              ? 'Score-based tests (Arnold et al. 2021): fast and unbiased between covariates; not with equality constraints between parameters.'
-              : 'Half the sample chooses each covariate’s best cut, the other half compares the covariates (Brandmaier et al. 2013).'
-        }
+        hint={METHOD_HINT[o.method]}
       />
       <div className="row2">
         <NumField

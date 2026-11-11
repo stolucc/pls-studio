@@ -174,6 +174,15 @@ function ScoreOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Score
 /** A category's label: the text column's category, else the value. */
 const catLabel = (r: ScoreView, code: string) => r.categoryLabels?.[Number(code) - 1] ?? code;
 
+/** The y axis of the process chart for each statistic. */
+function processAxisName(fn: ScoreFn) {
+  if (fn === 'LMuo') return 'Contribution to LMuo';
+  if (fn === 'WDMo') return 'Weighted max statistic';
+  if (fn === 'DM') return 'max |fluctuation|';
+  if (fn === 'CvM') return 'Squared fluctuation';
+  return 'LM statistic';
+}
+
 /** The aggregated empirical fluctuation process with its 5% boundary, as strucchange plots it. */
 function ProcessChart({ r }: { r: ScoreView }) {
   const s = r.series;
@@ -187,16 +196,14 @@ function ProcessChart({ r }: { r: ScoreView }) {
   const xs: [number, number] = cat ? [0.5, s.x.length + 0.5] : [Math.min(...s.x), Math.max(...s.x)];
   const sx = (v: number) => pad.l + ((v - xs[0]) / (xs[1] - xs[0] || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((ys[1] - v) / (ys[1] - ys[0] || 1)) * (H - pad.t - pad.b);
-  const yName =
-    r.fn === 'LMuo'
-      ? 'Contribution to LMuo'
-      : r.fn === 'WDMo'
-        ? 'Weighted max statistic'
-        : r.fn === 'DM'
-          ? 'max |fluctuation|'
-          : r.fn === 'CvM'
-            ? 'Squared fluctuation'
-            : 'LM statistic';
+  const yName = processAxisName(r.fn);
+  let what = 'The process along the covariate; ';
+  if (r.fn === 'LMuo') what = 'Each category’s contribution to the statistic; ';
+  else if (cat) what = 'Each split: the categories up to this one against those above; ';
+  let critical = 'dashed: the 5% critical value (the test rejects when the process crosses it).';
+  if (r.fn === 'LMuo') critical = 'the dashed line is the 5% critical value of their sum.';
+  else if (r.fn === 'CvM')
+    critical = 'CvM is its mean (dotted); the dashed line is the 5% critical value of the mean.';
   const line = SERIES_COLORS[0];
   return (
     <ChartFrame
@@ -207,16 +214,8 @@ function ProcessChart({ r }: { r: ScoreView }) {
       defaults={{ x: r.covariate, y: yName }}
       caption={
         <span className="hint">
-          {r.fn === 'LMuo'
-            ? 'Each category’s contribution to the statistic; '
-            : cat
-              ? 'Each split: the categories up to this one against those above; '
-              : 'The process along the covariate; '}
-          {r.fn === 'LMuo'
-            ? 'the dashed line is the 5% critical value of their sum.'
-            : r.fn === 'CvM'
-              ? 'CvM is its mean (dotted); the dashed line is the 5% critical value of the mean.'
-              : 'dashed: the 5% critical value (the test rejects when the process crosses it).'}
+          {what}
+          {critical}
         </span>
       }
     >
@@ -301,8 +300,9 @@ function ProcessChart({ r }: { r: ScoreView }) {
 }
 
 export function ScoreTestView({ r }: { r: ScoreView }) {
-  const peak =
-    r.peak === null ? null : typeof r.peak === 'number' ? fmt(r.peak, 3) : catLabel(r, r.peak);
+  let peak: string | null = null;
+  if (typeof r.peak === 'number') peak = fmt(r.peak, 3);
+  else if (r.peak !== null) peak = catLabel(r, r.peak);
   const name = SCORE_FN_NAMES[r.fn];
   return (
     <div className="tables">
@@ -367,6 +367,13 @@ export function ScoreTestView({ r }: { r: ScoreView }) {
   );
 }
 
+/** What else a run depends on: the seed for maxLMo and WDMo, which simulate, and maxLMo's replications. */
+function randomInputs(o: ScoreOptions, ctx: AnalysisCtx) {
+  if (o.fn === 'maxLMo') return [o.nrep, ctx.settings.seed];
+  if (o.fn === 'WDMo') return [ctx.settings.seed];
+  return [];
+}
+
 export const scoreTestAnalysis: AnalysisType<ScoreOptions, ScoreView> = {
   id: 'scoretest',
   title: 'Score-based invariance test',
@@ -408,11 +415,7 @@ export const scoreTestAnalysis: AnalysisType<ScoreOptions, ScoreView> = {
       o.scale,
       o.fn,
       ...o.sets,
-      ...(o.fn === 'maxLMo'
-        ? [o.nrep, ctx.settings.seed]
-        : o.fn === 'WDMo'
-          ? [ctx.settings.seed]
-          : []),
+      ...randomInputs(o, ctx),
       columnsFingerprint(ctx, [o.covariate]),
     ]),
   run: async (o, ctx) => {

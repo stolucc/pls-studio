@@ -144,7 +144,10 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
     if (s.section === 'MODEL') {
       const h = /^%\s*(WITHIN|BETWEEN)(?:\s+(\S+))?\s*%$/i.exec(s.text);
       if (h) {
-        level = lc(h[1]) === 'within' ? 'within' : h[2] ? `between:${lc(h[2])}` : 'between';
+        // %BETWEEN% or, with several cluster variables, %BETWEEN id% names the level.
+        if (lc(h[1]) === 'within') level = 'within';
+        else if (h[2]) level = `between:${lc(h[2])}`;
+        else level = 'between';
         continue;
       }
       if (/^%/.test(s.text)) fail(`Unknown model part “${s.text}”.`);
@@ -320,14 +323,12 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
     return i >= 0 ? i : fail(`%BETWEEN ${name}%: ${name} is not a cluster variable.`);
   };
   const meanLevel = 0;
-  const blockName = (l: number) =>
-    !multilevel
-      ? ''
-      : l < 0
-        ? 'Within Level'
-        : levels.length === 1
-          ? 'Between Level'
-          : `Between ${levels[l].column.toUpperCase()} Level`;
+  const blockName = (l: number) => {
+    if (!multilevel) return '';
+    if (l < 0) return 'Within Level';
+    if (levels.length === 1) return 'Between Level';
+    return `Between ${levels[l].column.toUpperCase()} Level`;
+  };
 
   // ---- MODEL statements ----
   type Stmt = {
@@ -510,12 +511,12 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
   };
   /** All random loadings (their means start at 1). */
   const loadingRe = new Set<number>();
-  const coefOf = (e: El, type: 'real' | 'pos', defaultFixed?: number): DsemCoef =>
-    e.mod.fixed !== undefined
-      ? { v: e.mod.fixed }
-      : !e.mod.free && defaultFixed !== undefined
-        ? { v: defaultFixed }
-        : newParam(type, e.label);
+  // A coefficient fixed in the input, fixed by default (unless freed with *), or a new parameter.
+  const coefOf = (e: El, type: 'real' | 'pos', defaultFixed?: number): DsemCoef => {
+    if (e.mod.fixed !== undefined) return { v: e.mod.fixed };
+    if (!e.mod.free && defaultFixed !== undefined) return { v: defaultFixed };
+    return newParam(type, e.label);
+  };
 
   // ---- within level: nodes ----
   const nodes: DsemNode[] = [];
@@ -532,8 +533,12 @@ export function parseDsem(src: string, data: Dataset): DsemParse {
     const isF = isLatentW(name);
     const col = isF ? undefined : colOf(name);
     if (!isF && !col) fail(`${name} is not a column of the data or a factor of the within level.`);
+    // Unless given: a factor (f), a categorical (u) or a continuous (y) observed variable.
+    let defaultKind: DsemNode['kind'] = 'y';
+    if (isF) defaultKind = 'f';
+    else if (isCat(name)) defaultKind = 'u';
     nodes.push({
-      kind: kind ?? (isF ? 'f' : isCat(name) ? 'u' : 'y'),
+      kind: kind ?? defaultKind,
       ...(col ? { column: col } : {}),
     });
     nodeIdx.set(k, nodes.length - 1);
