@@ -42,13 +42,17 @@ ps_endo_pkg <- function(method) {
 ps_endo <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   method <- req$method %||% "iv"
-  if (!method %in% c("iv", "copula", "het", "hm", "liv", "heckman")) stop("Invalid method in the request.")
+  if (!method %in% c("iv", "copula", "het", "hm", "liv", "heckman")) {
+    stop("Invalid method in the request.")
+  }
   f <- ps_endo_frame(req)
   y <- f$y
   x <- f$x
   p <- f$p
   z <- f$z
-  if (method != "heckman" && (!length(y) || !length(p))) stop("Choose the outcome and the endogenous regressor(s).")
+  if (method != "heckman" && (!length(y) || !length(p))) {
+    stop("Choose the outcome and the endogenous regressor(s).")
+  }
   rhs <- function(...) {
     t <- c(...)
     if (length(t)) paste(t, collapse = " + ") else "1"
@@ -57,8 +61,12 @@ ps_endo <- function(req_json, export = FALSE) {
   B <- as.integer(req$boot$samples %||% 1000)
   seed <- as.integer(req$boot$seed %||% 1)
   # (the same ranges as the project settings allow)
-  if (!is.finite(B) || B < 10 || B > 100000) stop(sprintf("Bootstrap samples must be between 10 and 100,000 (got %s).", req$boot$samples %||% "none"))
-  if (!is.finite(conf) || conf < 0.5 || conf >= 1) stop(sprintf("The confidence level must lie between 0.5 and 1 (got %s).", req$boot$confidence %||% "none"))
+  if (!is.finite(B) || B < 10 || B > 100000) {
+    stop(sprintf("Bootstrap samples must be between 10 and 100,000 (got %s).", req$boot$samples %||% "none"))
+  }
+  if (!is.finite(conf) || conf < 0.5 || conf >= 1) {
+    stop(sprintf("The confidence level must lie between 0.5 and 1 (got %s).", req$boot$confidence %||% "none"))
+  }
   ols <- sprintf("ols <- lm(%s ~ %s, data = data)", y, rhs(x, p))
   # Only the instrument methods need packages: the copula correction is base R, so its script runs anywhere.
   needs_ivreg <- method %in% c("iv", "het", "hm")
@@ -69,10 +77,15 @@ ps_endo <- function(req_json, export = FALSE) {
   )
   pkgs <- if (needs_ivreg) "ivreg" else character(0)
   if (method == "iv") {
-    if (!length(z)) stop("Choose at least one instrument (a variable that affects the outcome only through the endogenous regressor).")
-    if (length(z) < length(p)) stop("Two-stage least squares needs at least as many instruments as endogenous regressors.")
+    if (!length(z)) {
+      stop("Choose at least one instrument (a variable that affects the outcome only through the endogenous regressor).")
+    }
+    if (length(z) < length(p)) {
+      stop("Two-stage least squares needs at least as many instruments as endogenous regressors.")
+    }
     body <- c(
-      body, "# Two-stage least squares: the endogenous regressors replaced by their prediction from the instruments and the exogenous regressors.",
+      body,
+      "# Two-stage least squares: the endogenous regressors replaced by their prediction from the instruments and the exogenous regressors.",
       sprintf("fit <- ivreg(%s ~ %s | %s, data = data)", y, rhs(x, p), rhs(x, z)),
       "res <- summary(fit, diagnostics = TRUE)  # weak instruments, Wu-Hausman, Sargan",
       sprintf("ci <- confint(fit, level = %s)", format(conf))
@@ -90,9 +103,16 @@ ps_endo <- function(req_json, export = FALSE) {
       ),
       "fit <- fit_copula(data)",
       sprintf("set.seed(%d)", seed),
-      sprintf("boots <- sapply(seq_len(%d), function(i) coef(fit_copula(data[sample.int(nrow(data), replace = TRUE), , drop = FALSE])))", B),
+      sprintf(
+        "boots <- sapply(seq_len(%d), function(i) coef(fit_copula(data[sample.int(nrow(data), replace = TRUE), , drop = FALSE])))",
+        B
+      ),
       "se <- apply(boots, 1, sd)",
-      sprintf("ci <- t(apply(boots, 1, stats::quantile, probs = c(%s, %s)))", format((1 - conf) / 2), format(1 - (1 - conf) / 2)),
+      sprintf(
+        "ci <- t(apply(boots, 1, stats::quantile, probs = c(%s, %s)))",
+        format((1 - conf) / 2),
+        format(1 - (1 - conf) / 2)
+      ),
       "est <- coef(fit); z <- est / se",
       "res <- cbind(Estimate = est, `Std. Error` = se, `z value` = z, `Pr(>|z|)` = 2 * stats::pnorm(-abs(z)))",
       "# The method needs non-normal endogenous regressors (otherwise P* is collinear with P): Shapiro-Wilk tests.",
@@ -100,15 +120,23 @@ ps_endo <- function(req_json, export = FALSE) {
     )
   } else if (method == "het") {
     hx <- f$v(req$hetRegressors %||% req$exogenous)
-    if (!length(hx)) stop("Choose the exogenous regressors whose heteroskedasticity builds the instruments.")
-    if (length(p) != 1) stop("Heteroskedasticity-based instruments need exactly one endogenous regressor.")
+    if (!length(hx)) {
+      stop("Choose the exogenous regressors whose heteroskedasticity builds the instruments.")
+    }
+    if (length(p) != 1) {
+      stop("Heteroskedasticity-based instruments need exactly one endogenous regressor.")
+    }
     body <- c(
       body,
       "# Heteroskedasticity-based instruments (Lewbel 2012), as REndo::hetErrorsIV: (X - mean X) times the",
       "# residuals of the endogenous regressor on the exogenous ones; they work only if those residuals are heteroskedastic.",
       sprintf("e <- residuals(lm(%s ~ %s, data = data))", p, rhs(x)),
       sprintf("data$IIV.%s <- (data$%s - mean(data$%s)) * e", hx, hx, hx),
-      sprintf("bp <- sapply(%s, function(v) lmtest::bptest(stats::reformulate(v, \"%s\"), studentize = TRUE, data = data)$p.value[[1]])", ps_q(hx), p),
+      sprintf(
+        "bp <- sapply(%s, function(v) lmtest::bptest(stats::reformulate(v, \"%s\"), studentize = TRUE, data = data)$p.value[[1]])",
+        ps_q(hx),
+        p
+      ),
       sprintf("fit <- ivreg(%s ~ %s | %s, data = data)", y, rhs(x, p), rhs(x, paste0("IIV.", hx))),
       "res <- summary(fit, diagnostics = TRUE)",
       sprintf("ci <- confint(fit, level = %s)", format(conf))
@@ -116,15 +144,29 @@ ps_endo <- function(req_json, export = FALSE) {
   } else if (method == "hm") {
     if (length(p) != 1) stop("Higher-moment instruments need exactly one endogenous regressor.")
     types <- unlist(req$hmTypes)
-    if (!length(types) || !all(types %in% c("g", "gp", "gy", "yp", "p2", "y2"))) stop("Choose the internal instruments.")
+    if (!length(types) || !all(types %in% c("g", "gp", "gy", "yp", "p2", "y2"))) {
+      stop("Choose the internal instruments.")
+    }
     hx <- f$v(req$hetRegressors %||% req$exogenous)
-    if (any(types %in% c("g", "gp", "gy")) && !length(hx)) stop("These instruments need exogenous regressors.")
+    if (any(types %in% c("g", "gp", "gy")) && !length(hx)) {
+      stop("These instruments need exogenous regressors.")
+    }
     dm <- function(e) sprintf("(%s - mean(%s))", e, e)
     lines <- unlist(lapply(types, function(t) {
       switch(t,
         g = sprintf("data$IIV.isg.gisx2.regis%s <- %s", hx, dm(sprintf("data$%s^2", hx))),
-        gp = sprintf("data$IIV.isgp.gisx2.regis%s <- %s * %s", hx, dm(sprintf("data$%s^2", hx)), dm(sprintf("data$%s", p))),
-        gy = sprintf("data$IIV.isgy.gisx2.regis%s <- %s * %s", hx, dm(sprintf("data$%s^2", hx)), dm(sprintf("data$%s", y))),
+        gp = sprintf(
+          "data$IIV.isgp.gisx2.regis%s <- %s * %s",
+          hx,
+          dm(sprintf("data$%s^2", hx)),
+          dm(sprintf("data$%s", p))
+        ),
+        gy = sprintf(
+          "data$IIV.isgy.gisx2.regis%s <- %s * %s",
+          hx,
+          dm(sprintf("data$%s^2", hx)),
+          dm(sprintf("data$%s", y))
+        ),
         yp = sprintf("data$IIV.isyp <- %s * %s", dm(sprintf("data$%s", y)), dm(sprintf("data$%s", p))),
         p2 = sprintf("data$IIV.isp2 <- %s^2", dm(sprintf("data$%s", p))),
         y2 = sprintf("data$IIV.isy2 <- %s^2", dm(sprintf("data$%s", y)))
@@ -140,7 +182,9 @@ ps_endo <- function(req_json, export = FALSE) {
       sprintf("ci <- confint(fit, level = %s)", format(conf))
     )
   } else if (method == "liv") {
-    if (length(p) != 1 || length(x)) stop("Latent instrumental variables take one endogenous regressor and no other regressors (y ~ P).")
+    if (length(p) != 1 || length(x)) {
+      stop("Latent instrumental variables take one endogenous regressor and no other regressors (y ~ P).")
+    }
     pkgs <- c("optimx", "mvtnorm", "corpcor")
     body <- c(
       body,
@@ -159,7 +203,14 @@ ps_endo <- function(req_json, export = FALSE) {
       "  -sum(m + log(pt * exp(l1 - m) + (1 - pt) * exp(l2 - m)))",
       "}",
       "# Start: the OLS coefficients and REndo's starting values for the mixture.",
-      sprintf("start <- c(coef(lm(%s ~ %s, data = data)), pi1 = mean(data$%s), pi2 = mean(data$%s) + sd(data$%s), theta5 = 0.5, theta6 = 1, theta7 = 0.5, theta8 = 1)", y, p, p, p, p),
+      sprintf(
+        "start <- c(coef(lm(%s ~ %s, data = data)), pi1 = mean(data$%s), pi2 = mean(data$%s) + sd(data$%s), theta5 = 0.5, theta6 = 1, theta7 = 0.5, theta8 = 1)",
+        y,
+        p,
+        p,
+        p,
+        p
+      ),
       "opt <- optimx(par = start, fn = liv_ll, method = \"Nelder-Mead\", hessian = TRUE, itnmax = 10000, control = list(trace = 0, dowarn = FALSE))",
       "raw <- unlist(coef(opt)[1, ]); est <- raw; est[\"theta5\"] <- exp(raw[\"theta5\"]) / (1 + exp(raw[\"theta5\"]))",
       "H <- attr(opt, \"details\")[, \"nhatend\"][[1]]",
@@ -168,14 +219,23 @@ ps_endo <- function(req_json, export = FALSE) {
       "V <- D %*% corpcor::pseudoinverse(H) %*% D",
       "se <- sqrt(diag(V)); z <- est / se",
       "res <- cbind(Estimate = est, `Std. Error` = se, `z-score` = z, `Pr(>|z|)` = 2 * pt(-abs(z), df = nrow(data) - 1))",
-      sprintf("rownames(res) <- c(\"(Intercept)\", \"%s\", \"pi1\", \"pi2\", \"theta5\", \"theta6\", \"theta7\", \"theta8\")", p),
-      sprintf("ci <- cbind(est - stats::qnorm(%s) * se, est + stats::qnorm(%s) * se)", format(1 - (1 - conf) / 2), format(1 - (1 - conf) / 2)),
+      sprintf(
+        "rownames(res) <- c(\"(Intercept)\", \"%s\", \"pi1\", \"pi2\", \"theta5\", \"theta6\", \"theta7\", \"theta8\")",
+        p
+      ),
+      sprintf(
+        "ci <- cbind(est - stats::qnorm(%s) * se, est + stats::qnorm(%s) * se)",
+        format(1 - (1 - conf) / 2),
+        format(1 - (1 - conf) / 2)
+      ),
       "converged <- opt$convcode[1] == 0"
     )
   } else {
     s <- f$v(req$selection$outcome)
     w <- f$v(req$selection$regressors)
-    if (!length(s) || !length(w) || !length(y)) stop("Choose the selection indicator, its regressors and the outcome.")
+    if (!length(s) || !length(w) || !length(y)) {
+      stop("Choose the selection indicator, its regressors and the outcome.")
+    }
     hm <- req$heckmanMethod %||% "ml"
     if (!hm %in% c("ml", "2step")) stop("Invalid Heckman estimation method in the request.")
     pkgs <- "sampleSelection"
@@ -192,8 +252,12 @@ ps_endo <- function(req_json, export = FALSE) {
   }
   inputs <- list(data = f$fr$data)
   title <- c(
-    iv = "Instrumental variables (ivreg)", copula = "Gaussian copula correction", het = "Heteroskedasticity-based instruments (Lewbel 2012)",
-    hm = "Higher-moment instruments (Lewbel 1997)", liv = "Latent instrumental variables (Ebbes et al. 2005)", heckman = "Heckman selection model (sampleSelection)"
+    iv = "Instrumental variables (ivreg)",
+    copula = "Gaussian copula correction",
+    het = "Heteroskedasticity-based instruments (Lewbel 2012)",
+    hm = "Higher-moment instruments (Lewbel 1997)",
+    liv = "Latent instrumental variables (Ebbes et al. 2005)",
+    heckman = "Heckman selection model (sampleSelection)"
   )[[method]]
   if (export) {
     return(ps_script(
@@ -220,14 +284,21 @@ ps_endo <- function(req_json, export = FALSE) {
   }
   if (method == "liv") {
     names_liv <- c(
-      pi1 = "Mean of P, group 1 (pi1)", pi2 = "Mean of P, group 2 (pi2)", theta5 = "Probability of group 1 (theta5)",
-      theta6 = "Outcome error variance (theta6)", theta7 = "Error covariance (theta7)", theta8 = "Regressor error variance (theta8)"
+      pi1 = "Mean of P, group 1 (pi1)",
+      pi2 = "Mean of P, group 2 (pi2)",
+      theta5 = "Probability of group 1 (theta5)",
+      theta6 = "Outcome error variance (theta6)",
+      theta7 = "Error covariance (theta7)",
+      theta8 = "Regressor error variance (theta8)"
     )
     for (i in seq_along(coefs)) if (coefs[[i]]$term %in% names(names_liv)) coefs[[i]]$term <- names_liv[[coefs[[i]]$term]]
-    if (!isTRUE(env$converged)) env$.warnings <- c(env$.warnings, "The optimiser did not report convergence; check the estimates.")
+    if (!isTRUE(env$converged)) {
+      env$.warnings <- c(env$.warnings, "The optimiser did not report convergence; check the estimates.")
+    }
   }
   ps_json(list(
-    method = method, n = if (method %in% c("heckman", "liv")) nrow(env$data) else stats::nobs(env$fit),
+    method = method,
+    n = if (method %in% c("heckman", "liv")) nrow(env$data) else stats::nobs(env$fit),
     coefficients = coefs,
     ols = if (method == "heckman") list() else ps_coef_rows(stats::coef(summary(env$ols)), back, stats::confint(env$ols, level = conf)),
     diagnostics = diag,
@@ -235,6 +306,7 @@ ps_endo <- function(req_json, export = FALSE) {
     heteroskedasticity = if (method == "het") lapply(names(env$bp), function(k) list(variable = ps_back(k, f$fr$back, FALSE), p = unname(env$bp[[k]]))) else list(),
     selection = if (method == "heckman") list(selected = sum(env$data[[f$v(req$selection$outcome)]] == 1), total = nrow(env$data)) else NULL,
     boot = if (method == "copula") list(samples = B, confidence = conf) else NULL,
-    warnings = env$.warnings, engine = ps_engine(ps_endo_pkg(method))
+    warnings = env$.warnings,
+    engine = ps_engine(ps_endo_pkg(method))
   ))
 }

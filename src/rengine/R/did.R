@@ -15,10 +15,14 @@ ps_did <- function(req_json, export = FALSE) {
   tr <- req$treated
   post <- req$post %||% ""
   covs <- unlist(req$covariates)
-  if (!all(nzchar(c(y, id, tm, tr)))) stop("Choose the outcome, the unit, the time and the treatment columns.")
+  if (!all(nzchar(c(y, id, tm, tr)))) {
+    stop("Choose the outcome, the unit, the time and the treatment columns.")
+  }
   first <- req$firstPeriod
   control <- req$control %||% "nevertreated"
-  if (!control %in% c("nevertreated", "notyettreated")) stop("Invalid control group in the request.")
+  if (!control %in% c("nevertreated", "notyettreated")) {
+    stop("Invalid control group in the request.")
+  }
   event <- isTRUE(req$eventStudy)
   seed <- as.integer(req$seed %||% 1)
   conf <- ps_number(req$confidence %||% 0.95, "confidence level")
@@ -33,22 +37,48 @@ ps_did <- function(req_json, export = FALSE) {
   xs <- if (length(X)) paste(X, collapse = " + ") else NULL
   z <- qnorm(1 - (1 - conf) / 2)
   if (design == "twfe") {
-    if (!nzchar(post) && (is.null(first) || !is.finite(first))) stop("Give the post-treatment indicator, or the first treated period.")
+    if (!nzchar(post) && (is.null(first) || !is.finite(first))) {
+      stop("Give the post-treatment indicator, or the first treated period.")
+    }
     P <- if (nzchar(post)) v[[post]] else "post"
     body <- c(
       "suppressPackageStartupMessages(library(fixest))",
       sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(c(Y, ID, TM, TR, if (nzchar(post)) P, X))),
       sprintf("# Treated group: the higher of the two values of %s.", ps_comment(tr)),
-      sprintf("vals <- sort(unique(data$%s)); if (length(vals) != 2) stop(\"The treatment group column must have exactly two values.\")", TR),
+      sprintf(
+        "vals <- sort(unique(data$%s)); if (length(vals) != 2) stop(\"The treatment group column must have exactly two values.\")",
+        TR
+      ),
       sprintf("data$%s <- as.integer(data$%s == vals[2])", TR, TR),
       if (!nzchar(post)) sprintf("data$post <- as.integer(data$%s >= %s)  # post-treatment periods", TM, ps_num(first)),
       "# Two-way fixed effects (unit and period), standard errors clustered by unit.",
-      sprintf("est <- feols(%s ~ %s:%s%s | %s + %s, data = data, cluster = ~%s)", Y, TR, P, if (!is.null(xs)) paste0(" + ", xs) else "", ID, TM, ID),
+      sprintf(
+        "est <- feols(%s ~ %s:%s%s | %s + %s, data = data, cluster = ~%s)",
+        Y,
+        TR,
+        P,
+        if (!is.null(xs)) paste0(" + ", xs) else "",
+        ID,
+        TM,
+        ID
+      ),
       if (event) {
         c(
           "# Event study: the treated group's deviation in each period, relative to the last pre-treatment period.",
-          sprintf("ref <- %s  # the last period before treatment", if (!is.null(first) && is.finite(first)) sprintf("max(data$%s[data$%s < %s])", TM, TM, ps_num(first)) else sprintf("max(data$%s[data$%s == 0])", TM, P)),
-          sprintf("es <- feols(%s ~ i(%s, %s, ref)%s | %s + %s, data = data, cluster = ~%s)", Y, TM, TR, if (!is.null(xs)) paste0(" + ", xs) else "", ID, TM, ID),
+          sprintf(
+            "ref <- %s  # the last period before treatment",
+            if (!is.null(first) && is.finite(first)) sprintf("max(data$%s[data$%s < %s])", TM, TM, ps_num(first)) else sprintf("max(data$%s[data$%s == 0])", TM, P)
+          ),
+          sprintf(
+            "es <- feols(%s ~ i(%s, %s, ref)%s | %s + %s, data = data, cluster = ~%s)",
+            Y,
+            TM,
+            TR,
+            if (!is.null(xs)) paste0(" + ", xs) else "",
+            ID,
+            TM,
+            ID
+          ),
           "# Pre-trends: are the pre-treatment deviations jointly zero?",
           sprintf("evn <- grep(\"^%s::\", names(coef(es)), value = TRUE)", TM),
           sprintf("pre <- evn[as.numeric(sub(\"^%s::([^:]+):.*$\", \"\\\\1\", evn)) < ref]", TM),
@@ -63,9 +93,18 @@ ps_did <- function(req_json, export = FALSE) {
     env <- ps_run(body, inputs)
     ct <- fixest::coeftable(env$est)
     k <- grep(sprintf("^%s:%s$|^%s:%s$", TR, P, P, TR), rownames(ct))
-    if (!length(k)) stop("The treatment-by-post term could not be estimated (is the treatment constant within periods?).")
+    if (!length(k)) {
+      stop("The treatment-by-post term could not be estimated (is the treatment constant within periods?).")
+    }
     ci <- stats::confint(env$est, level = conf) # (fixest: t with the cluster degrees of freedom, as its p values)
-    att <- list(est = ct[k, 1], se = ct[k, 2], t = ct[k, 3], p = ct[k, 4], ciLow = ci[rownames(ct)[k], 1], ciHigh = ci[rownames(ct)[k], 2])
+    att <- list(
+      est = ct[k, 1],
+      se = ct[k, 2],
+      t = ct[k, 3],
+      p = ct[k, 4],
+      ciLow = ci[rownames(ct)[k], 1],
+      ciHigh = ci[rownames(ct)[k], 2]
+    )
     ev <- NULL
     pt <- NULL
     if (event) {
@@ -76,15 +115,33 @@ ps_did <- function(req_json, export = FALSE) {
       # Relative time counts observed periods (periods need not be consecutive integers): the reference is -1.
       periods <- sort(unique(env$data[[TM]]))
       relt <- function(t) match(t, periods) - match(env$ref, periods) - 1
-      ev <- lapply(seq_along(rows), function(i) list(time = times[i], rel = relt(times[i]), est = ce[rows[i], 1], se = ce[rows[i], 2], ciLow = cie[rownames(ce)[rows[i]], 1], ciHigh = cie[rownames(ce)[rows[i]], 2]))
+      ev <- lapply(
+        seq_along(rows),
+        function(i) list(time = times[i], rel = relt(times[i]), est = ce[rows[i], 1], se = ce[rows[i], 2], ciLow = cie[rownames(ce)[rows[i]], 1], ciHigh = cie[rownames(ce)[rows[i]], 2])
+      )
       ev <- c(ev, list(list(time = env$ref, rel = -1, est = 0, se = 0, ciLow = 0, ciHigh = 0)))
       ev <- ev[order(vapply(ev, function(e) e$time, 0))]
-      if (!is.null(env$pretrend)) pt <- list(stat = unname(env$pretrend$stat), df1 = unname(env$pretrend$df1), df2 = unname(env$pretrend$df2), p = unname(env$pretrend$p))
+      if (!is.null(env$pretrend)) {
+        pt <- list(
+          stat = unname(env$pretrend$stat),
+          df1 = unname(env$pretrend$df1),
+          df2 = unname(env$pretrend$df2),
+          p = unname(env$pretrend$p)
+        )
+      }
     }
     d <- env$data
     ps_json(list(
-      design = "twfe", att = att, event = ev, preTrend = pt, n = nrow(d), units = length(unique(d[[ID]])), periods = length(unique(d[[TM]])),
-      treatedUnits = length(unique(d[[ID]][d[[TR]] == 1])), warnings = env$.warnings, engine = ps_engine("fixest")
+      design = "twfe",
+      att = att,
+      event = ev,
+      preTrend = pt,
+      n = nrow(d),
+      units = length(unique(d[[ID]])),
+      periods = length(unique(d[[TM]])),
+      treatedUnits = length(unique(d[[ID]][d[[TR]] == 1])),
+      warnings = env$.warnings,
+      engine = ps_engine("fixest")
     ))
   } else {
     body <- c(
@@ -95,7 +152,13 @@ ps_did <- function(req_json, export = FALSE) {
       "# Group-time average treatment effects (Callaway & Sant'Anna 2021), then aggregated.",
       sprintf(
         "out <- att_gt(yname = \"%s\", tname = \"%s\", idname = \"%s\", gname = \"%s\", xformla = %s, data = data, control_group = \"%s\", alp = %s)",
-        Y, TM, ID, TR, if (is.null(xs)) "NULL" else paste0("~", xs), control, ps_num(1 - conf)
+        Y,
+        TM,
+        ID,
+        TR,
+        if (is.null(xs)) "NULL" else paste0("~", xs),
+        control,
+        ps_num(1 - conf)
       ),
       "overall <- aggte(out, type = \"simple\")   # one ATT over all treated groups and periods",
       if (event) "dynamic <- aggte(out, type = \"dynamic\")  # by length of exposure (event study)"
@@ -108,21 +171,45 @@ ps_did <- function(req_json, export = FALSE) {
     out <- env$out
     ov <- env$overall
     att <- list(
-      est = ov$overall.att, se = ov$overall.se, t = ov$overall.att / ov$overall.se, p = 2 * pnorm(-abs(ov$overall.att / ov$overall.se)),
-      ciLow = ov$overall.att - z * ov$overall.se, ciHigh = ov$overall.att + z * ov$overall.se
+      est = ov$overall.att,
+      se = ov$overall.se,
+      t = ov$overall.att / ov$overall.se,
+      p = 2 * pnorm(-abs(ov$overall.att / ov$overall.se)),
+      ciLow = ov$overall.att - z * ov$overall.se,
+      ciHigh = ov$overall.att + z * ov$overall.se
     )
-    gt <- lapply(seq_along(out$att), function(i) list(group = out$group[i], time = out$t[i], est = out$att[i], se = out$se[i]))
+    gt <- lapply(
+      seq_along(out$att),
+      function(i) list(group = out$group[i], time = out$t[i], est = out$att[i], se = out$se[i])
+    )
     ev <- NULL
     if (event) {
       dy <- env$dynamic
       cv <- if (is.finite(dy$crit.val.egt)) dy$crit.val.egt else z
-      ev <- lapply(seq_along(dy$egt), function(i) list(time = NA, rel = dy$egt[i], est = dy$att.egt[i], se = dy$se.egt[i], ciLow = dy$att.egt[i] - cv * dy$se.egt[i], ciHigh = dy$att.egt[i] + cv * dy$se.egt[i]))
+      ev <- lapply(
+        seq_along(dy$egt),
+        function(i) list(time = NA, rel = dy$egt[i], est = dy$att.egt[i], se = dy$se.egt[i], ciLow = dy$att.egt[i] - cv * dy$se.egt[i], ciHigh = dy$att.egt[i] + cv * dy$se.egt[i])
+      )
     }
-    pt <- if (!is.null(out$Wpval) && is.finite(out$Wpval)) list(stat = unname(out$W), p = unname(out$Wpval)) else NULL
+    pt <- if (!is.null(out$Wpval) && is.finite(out$Wpval)) {
+      list(stat = unname(out$W), p = unname(out$Wpval))
+    } else {
+      NULL
+    }
     d <- env$data
     ps_json(list(
-      design = "staggered", att = att, event = ev, groupTime = gt, preTrend = pt, n = nrow(d), units = length(unique(d[[ID]])), periods = length(unique(d[[TM]])),
-      treatedUnits = length(unique(d[[ID]][d[[TR]] > 0])), control = control, warnings = env$.warnings, engine = ps_engine("did")
+      design = "staggered",
+      att = att,
+      event = ev,
+      groupTime = gt,
+      preTrend = pt,
+      n = nrow(d),
+      units = length(unique(d[[ID]])),
+      periods = length(unique(d[[TM]])),
+      treatedUnits = length(unique(d[[ID]][d[[TR]] > 0])),
+      control = control,
+      warnings = env$.warnings,
+      engine = ps_engine("did")
     ))
   }
 }

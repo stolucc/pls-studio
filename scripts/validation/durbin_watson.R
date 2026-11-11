@@ -31,5 +31,8 @@ out <- lapply(models, function(fit) {
   )
 })
 out$version <- as.character(packageVersion("lmtest"))
-write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/regression/durbin_watson.json")
+write(
+  toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE),
+  "src/engine/__fixtures__/regression/durbin_watson.json"
+)
 cat("written\n")

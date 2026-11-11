@@ -38,7 +38,9 @@ mix_model <- function(spec, data) {
       vals <- as.numeric(unlist(v$known$values))
       g <- data[[v$known$column]]
       v$obs <- match(g, vals)
-      if (any(!is.na(g) & is.na(v$obs))) stop(sprintf("KNOWNCLASS %s: values of %s other than those listed.", v$name, v$known$column))
+      if (any(!is.na(g) & is.na(v$obs))) {
+        stop(sprintf("KNOWNCLASS %s: values of %s other than those listed.", v$name, v$known$column))
+      }
     }
     v
   })
@@ -69,7 +71,9 @@ mix_model <- function(spec, data) {
       bk$code <- match(bk$Y[, 1], lev)
       bk$K <- length(lev)
       bk$idx <- lapply(seq_along(lev), function(j) which(bk$code == j))
-      if (any(!is.na(bk$Y[, 1]) & is.na(bk$code))) stop(sprintf("%s has values other than its categories.", bk$y))
+      if (any(!is.na(bk$Y[, 1]) & is.na(bk$code))) {
+        stop(sprintf("%s has values other than its categories.", bk$y))
+      }
     }
     if (bk$type == "censored") bk$cpoint <- if (identical(bk$side, "above")) max(bk$Y[, 1], na.rm = TRUE) else min(bk$Y[, 1], na.rm = TRUE)
     if (bk$type == "mvn") {
@@ -87,7 +91,19 @@ mix_model <- function(spec, data) {
   grp <- vapply(th, function(t) if (is.null(t$group)) NA_real_ else as.numeric(t$group), 1)
   groups <- unname(split(seq_along(grp)[!is.na(grp)], grp[!is.na(grp)]))
   list(
-    n = n, w = w, A = A, b = b, nth = nth, derived = lapply(spec$derived, function(d) d$expr), cls = cls, ks = ks, Z = Z, nz = nz, blocks = blocks, loglinear = isTRUE(spec$loglinear), groups = groups,
+    n = n,
+    w = w,
+    A = A,
+    b = b,
+    nth = nth,
+    derived = lapply(spec$derived, function(d) d$expr),
+    cls = cls,
+    ks = ks,
+    Z = Z,
+    nz = nz,
+    blocks = blocks,
+    loglinear = isTRUE(spec$loglinear),
+    groups = groups,
     free = which(rowSums(A != 0) > 0)
   )
 }
@@ -202,7 +218,14 @@ mix_ld <- function(bk, v) {
     nominal = {
       K <- bk$K
       y <- bk$code
-      E <- cbind(vapply(seq_len(K - 1), function(j) rep(v[j], n) + (if (q) drop(bk$X %*% v[K - 1 + (j - 1) * q + seq_len(q)]) else 0), numeric(n)), 0)
+      E <- cbind(
+        vapply(
+          seq_len(K - 1),
+          function(j) rep(v[j], n) + (if (q) drop(bk$X %*% v[K - 1 + (j - 1) * q + seq_len(q)]) else 0),
+          numeric(n)
+        ),
+        0
+      )
       E <- matrix(E, n)
       lp <- E - mix_lse(E)
       out <- numeric(n)
@@ -236,7 +259,11 @@ mix_ld <- function(bk, v) {
       out <- dpois(y, lam, log = TRUE)
       if (bk$type == "zip") {
         lz <- v[q + 2] + (if (q) drop(bk$X %*% v[q + 2 + seq_len(q)]) else 0)
-        out <- ifelse(y == 0, log(plogis(lz) + plogis(lz, lower.tail = FALSE) * exp(-lam)), plogis(lz, lower.tail = FALSE, log.p = TRUE) + out)
+        out <- ifelse(
+          y == 0,
+          log(plogis(lz) + plogis(lz, lower.tail = FALSE) * exp(-lam)),
+          plogis(lz, lower.tail = FALSE, log.p = TRUE) + out
+        )
       }
       out[is.na(y)] <- 0
       out
@@ -454,10 +481,22 @@ mix_candidates <- function(start, scale, starts, seed, given = NULL) {
 # so the result does not depend on the number of sessions): `only` the short runs of those starts; `stage` given,
 # continue them (`cont`) to convergence; `finals` given, finish from the best. Without any: all three in turn.
 mix_phase <- function(phase, starts, final) {
-  sl <- function(x) lapply(x, function(o) list(i = as.integer(o$i), par = as.numeric(unlist(o$par)), value = as.numeric(o$value), convergence = if (is.null(o$convergence)) NULL else as.integer(o$convergence)))
+  # The given starts or finals (from JSON) with typed fields
+  sl <- function(x) {
+    lapply(x, function(o) {
+      list(
+        i = as.integer(o$i),
+        par = as.numeric(unlist(o$par)),
+        value = as.numeric(o$value),
+        convergence = if (is.null(o$convergence)) NULL else as.integer(o$convergence)
+      )
+    })
+  }
   list(
-    idx = if (length(phase$only)) as.integer(unlist(phase$only)) else NULL, stage = if (length(phase$stage)) sl(phase$stage) else NULL,
-    cont = if (isTRUE(phase$cont)) TRUE else NULL, finals = if (length(phase$finals)) sl(phase$finals) else NULL
+    idx = if (length(phase$only)) as.integer(unlist(phase$only)) else NULL,
+    stage = if (length(phase$stage)) sl(phase$stage) else NULL,
+    cont = if (isTRUE(phase$cont)) TRUE else NULL,
+    finals = if (length(phase$finals)) sl(phase$finals) else NULL
   )
 }
 # The starts continued to convergence: the `final` best short runs (ties in start order).
@@ -556,7 +595,10 @@ mix_newton <- function(M, th, f, g, steps = 20) {
 mix_reorder <- function(M, th, order, f, g, X) {
   phi <- drop(M$b + M$A %*% th)
   if (is.matrix(order)) order <- lapply(seq_len(nrow(order)), function(i) order[i, ])
-  perm <- lapply(seq_along(M$cls), function(v) if (length(order) >= v && length(order[[v]])) as.integer(unlist(order[[v]])) else seq_len(M$ks[v]))
+  perm <- lapply(
+    seq_along(M$cls),
+    function(v) if (length(order) >= v && length(order[[v]])) as.integer(unlist(order[[v]])) else seq_len(M$ks[v])
+  )
   if (all(vapply(seq_along(perm), function(v) identical(perm[[v]], seq_len(M$ks[v])), TRUE))) {
     return(th)
   }
@@ -679,7 +721,18 @@ mix_estimate <- function(spec, data) {
   X <- mix_eta(M)
   fe <- function(e) f(X$to_th(e))
   ge <- function(e) X$chain(e, g(X$to_th(e)))
-  fit <- mix_fit(M, fe, ge, X$to_eta(start), scale, as.integer(spec$starts %||% 20), as.integer(spec$final %||% 4), as.integer(spec$seed %||% 1), if (is.null(given)) NULL else X$to_eta(given), spec$phase %||% list())
+  fit <- mix_fit(
+    M,
+    fe,
+    ge,
+    X$to_eta(start),
+    scale,
+    as.integer(spec$starts %||% 20),
+    as.integer(spec$final %||% 4),
+    as.integer(spec$seed %||% 1),
+    if (is.null(given)) NULL else X$to_eta(given),
+    spec$phase %||% list()
+  )
   if (!is.null(fit$stage) || !is.null(fit$finals)) {
     return(fit)
   }
@@ -736,7 +789,18 @@ mix_report <- function(spec, est) {
   se[fixed] <- 0
   lapply(seq_along(est0), function(i) {
     r <- spec$report[[i]]
-    c(list(lhs = r$lhs, op = r$op, rhs = r$rhs %||% "", at = as.integer(unlist(r$at)), est = est0[i], se = if (is.finite(se[i])) se[i] else NULL, fixed = fixed[i]), if (!is.null(r$level)) list(level = r$level))
+    c(
+      list(
+        lhs = r$lhs,
+        op = r$op,
+        rhs = r$rhs %||% "",
+        at = as.integer(unlist(r$at)),
+        est = est0[i],
+        se = if (is.finite(se[i])) se[i] else NULL,
+        fixed = fixed[i]
+      ),
+      if (!is.null(r$level)) list(level = r$level)
+    )
   })
 }
 
@@ -746,7 +810,10 @@ mix_shares <- function(est) {
   w <- M$w / sum(M$w)
   pz <- colSums(est$post * w)
   list(
-    classes = lapply(seq_along(M$cls), function(v) list(name = M$cls[[v]]$name, k = M$ks[v], shares = vapply(seq_len(M$ks[v]), function(j) sum(pz[M$Z[, v] == j]), 1))),
+    classes = lapply(
+      seq_along(M$cls),
+      function(v) list(name = M$cls[[v]]$name, k = M$ks[v], shares = vapply(seq_len(M$ks[v]), function(j) sum(pz[M$Z[, v] == j]), 1))
+    ),
     patterns = lapply(seq_len(M$nz), function(z) list(classes = as.integer(M$Z[z, ]), share = pz[z])),
     entropy = if (M$nz > 1) 1 - sum(-est$post * log(pmax(est$post, 1e-300)) * M$w) / (sum(M$w) * log(M$nz)) else NULL
   )
@@ -775,7 +842,11 @@ mixq_rule <- function(rule, points, d, seed = 1) {
     return(list(U = matrix(0, 1, 0), base = 0, lphi = matrix(0, 1, 0)))
   }
   if (rule == "mc") {
-    old <- if (exists(".Random.seed", envir = globalenv())) get(".Random.seed", envir = globalenv()) else NULL
+    old <- if (exists(".Random.seed", envir = globalenv())) {
+      get(".Random.seed", envir = globalenv())
+    } else {
+      NULL
+    }
     set.seed(seed + 7919L)
     U <- matrix(stats::rnorm(points * d), points, d)
     if (!is.null(old)) assign(".Random.seed", old, envir = globalenv())
@@ -825,7 +896,9 @@ mixq_ldens <- function(E, Mu, S) {
   out <- numeric(nrow(E))
   if (length(free) < d) {
     fx <- setdiff(seq_len(d), free)
-    if (any(abs(E[, fx, drop = FALSE] - Mu[, fx, drop = FALSE]) > 1e-8)) stop("mixq: a latent variable without variance is integrated.")
+    if (any(abs(E[, fx, drop = FALSE] - Mu[, fx, drop = FALSE]) > 1e-8)) {
+      stop("mixq: a latent variable without variance is integrated.")
+    }
   }
   if (!length(free)) {
     return(out)
@@ -860,7 +933,9 @@ mixq_ld <- function(bk, v, rows, off = NULL) {
       b <- ix$b
       if (length(b)) out[b] <- stats::plogis(tau[K - 1] - e[b], lower.tail = FALSE, log.p = TRUE)
       m <- ix$m
-      if (length(m)) out[m] <- log(pmax(stats::plogis(tau[y[m]] - e[m]) - stats::plogis(tau[y[m] - 1] - e[m]), 1e-300))
+      if (length(m)) {
+        out[m] <- log(pmax(stats::plogis(tau[y[m]] - e[m]) - stats::plogis(tau[y[m] - 1] - e[m]), 1e-300))
+      }
       out
     },
     normal = ,
@@ -899,16 +974,29 @@ mixq_ld <- function(bk, v, rows, off = NULL) {
       }
       if (bk$type == "zip") {
         lz <- v[q + 2] + (if (q) drop(X %*% v[q + 2 + seq_len(q)]) else 0)
-        out <- ifelse(y == 0, log(stats::plogis(lz) + stats::plogis(lz, lower.tail = FALSE) * exp(-lam)), stats::plogis(lz, lower.tail = FALSE, log.p = TRUE) + out)
+        out <- ifelse(
+          y == 0,
+          log(stats::plogis(lz) + stats::plogis(lz, lower.tail = FALSE) * exp(-lam)),
+          stats::plogis(lz, lower.tail = FALSE, log.p = TRUE) + out
+        )
       }
       out[is.na(y)] <- 0
       out
     },
     nominal = {
-      if (!is.null(off)) stop("mixq: a nominal outcome does not load on an integrated latent variable.")
+      if (!is.null(off)) {
+        stop("mixq: a nominal outcome does not load on an integrated latent variable.")
+      }
       K <- bk$K
       y <- bk$code[rows]
-      E <- cbind(vapply(seq_len(K - 1), function(j) rep(v[j], nr) + (if (q) drop(X %*% v[K - 1 + (j - 1) * q + seq_len(q)]) else 0), numeric(nr)), 0)
+      E <- cbind(
+        vapply(
+          seq_len(K - 1),
+          function(j) rep(v[j], nr) + (if (q) drop(X %*% v[K - 1 + (j - 1) * q + seq_len(q)]) else 0),
+          numeric(nr)
+        ),
+        0
+      )
       E <- matrix(E, nr)
       lp <- E - mix_lse(E)
       out <- numeric(nr)
@@ -1039,8 +1127,25 @@ mixq_dld <- function(bk, v, rows, VV, fr) {
     return(out)
   }
   # positions entering through the linear predictor, with their regressors
-  lin <- if (bk$type == "cat") c(K - 1 + seq_len(q), bk$latcols) else if (bk$type == "nominal") integer(0) else c(1, 1 + seq_len(q), bk$latcols)
-  reg <- function(r) if (r %in% bk$latcols) VV[, match(r, bk$latcols)] else if (bk$type == "cat") X[, r - (K - 1)] else if (r == 1) 1 else X[, r - 1]
+  lin <- if (bk$type == "cat") {
+    c(K - 1 + seq_len(q), bk$latcols)
+  } else if (bk$type == "nominal") {
+    integer(0)
+  } else {
+    c(1, 1 + seq_len(q), bk$latcols)
+  }
+  # The regressor in column r: a latent variable's values, or a covariate (after the intercepts)
+  reg <- function(r) {
+    if (r %in% bk$latcols) {
+      VV[, match(r, bk$latcols)]
+    } else if (bk$type == "cat") {
+      X[, r - (K - 1)]
+    } else if (r == 1) {
+      1
+    } else {
+      X[, r - 1]
+    }
+  }
   off0 <- offOf(v)
   if (is.null(off0)) off0 <- 0
   ge <- NULL
@@ -1111,7 +1216,11 @@ mixq_catidx <- function(bk, rows) {
 mixq_model <- function(spec, data) {
   M <- mix_model(spec, data)
   n <- M$n
-  M$cl <- if (!is.null(spec$cluster)) match(data[[spec$cluster]], unique(data[[spec$cluster]])) else seq_len(n)
+  M$cl <- if (!is.null(spec$cluster)) {
+    match(data[[spec$cluster]], unique(data[[spec$cluster]]))
+  } else {
+    seq_len(n)
+  }
   M$J <- max(M$cl)
   M$first <- match(seq_len(M$J), M$cl)
   L <- spec$lat
@@ -1174,7 +1283,9 @@ mixq_model <- function(spec, data) {
       bk$patkey <- match(key, u)
       bk$patobs <- lapply(u, function(k2) which(!pat[match(k2, key), ]))
     }
-    if (bk$type == "nominal" || bk$type == "cat") bk$code <- match(bk$Y[, 1], as.numeric(unlist(spec$blocks[[k]]$levels)))
+    if (bk$type == "nominal" || bk$type == "cat") {
+      bk$code <- match(bk$Y[, 1], as.numeric(unlist(spec$blocks[[k]]$levels)))
+    }
     if (bk$type == "cat") {
       Qn <- if (is.null(M$lat)) 1L else M$lat$Q
       bk$cidx <- list()
@@ -1190,7 +1301,9 @@ mixq_model <- function(spec, data) {
     bk$uses <- bk$nl > 0 && any(M$A[lat_sl, , drop = FALSE] != 0 | (is.finite(M$b[lat_sl]) & M$b[lat_sl] != 0))
     # the configurations it is evaluated in: its own classes and, using a shifted latent variable, the shift's
     key <- bk$map
-    if (bk$uses && !is.null(M$lat$shiftMap)) key <- (bk$map - 1L) * max(M$lat$shiftMap) + M$lat$shiftMap
+    if (bk$uses && !is.null(M$lat$shiftMap)) {
+      key <- (bk$map - 1L) * max(M$lat$shiftMap) + M$lat$shiftMap
+    }
     bk$key <- match(key, unique(key))
     bk$keyz <- match(unique(key), key)
     M$blocks[[k]] <- bk
@@ -1380,7 +1493,9 @@ mixq_core <- function(M, phi, A) {
     }
     H <- matrix(vapply(seq_len(nz), function(z) mix_lse(matrix(Lw[, z], n, Q)), numeric(n)), n)
     Hz <- H + Pw[seq_len(n), , drop = FALSE]
-    if (Q > 1 && !isTRUE(M$nocheck) && L$rule != "mc" && mixq_collapsed(matrix(vapply(seq_len(nz), function(z) mixq_ess(exp(matrix(Lw[, z], n, Q) - H[, z]), L$dimIdx), numeric(n)), n), Hz)) stop("mixq: the integration points no longer cover the latent distribution")
+    if (Q > 1 && !isTRUE(M$nocheck) && L$rule != "mc" && mixq_collapsed(matrix(vapply(seq_len(nz), function(z) mixq_ess(exp(matrix(Lw[, z], n, Q) - H[, z]), L$dimIdx), numeric(n)), n), Hz)) {
+      stop("mixq: the integration points no longer cover the latent distribution")
+    }
     G <- matrix(mixq_lse_groups(Hz, M$zb), n)
     S <- rowsum(G, cl, reorder = TRUE)
     T <- Pb[, match(seq_len(M$nzb), M$zb), drop = FALSE] + S
@@ -1412,7 +1527,9 @@ mixq_core <- function(M, phi, A) {
       Tz <- matrix(T[, zb, ], J, Q)
       pz <- exp(mix_lse(Tz) - ll)
       Wq <- exp(Tz - mix_lse(Tz))
-      if (L$rule != "mc" && any(pz > 0.05 & mixq_ess(Wq, L$dimIdx) < 2.5)) stop("mixq: the integration points no longer cover the latent distribution")
+      if (L$rule != "mc" && any(pz > 0.05 & mixq_ess(Wq, L$dimIdx) < 2.5)) {
+        stop("mixq: the integration points no longer cover the latent distribution")
+      }
     }
   }
   list(ll = ll, T = T, G = G, Lw = Lw, Pw = Pw, rows = rows, Vs = Vs, Q = Q, nd = nd)
@@ -1494,7 +1611,13 @@ mixq_eval <- function(M, theta, A, grad = FALSE, C = NULL) {
           if (!any(sl %in% M$free)) next
           g <- rowSums(Wt[, inpc & M$Z[, vi] == m, drop = FALSE]) - exp(Wv[[pc]][, m]) * ppc
           for (t in which(sl %in% M$free)) {
-            x <- if (t == 1) 1 else if (t <= 1 + q) v$X[pt$rr, t - 1] else pt$Bn[, t - 1 - q]
+            x <- if (t == 1) {
+              1
+            } else if (t <= 1 + q) {
+              v$X[pt$rr, t - 1]
+            } else {
+              pt$Bn[, t - 1 - q]
+            }
             D[, sl[t]] <- D[, sl[t]] + rowsum(g * x, pt$tocl, reorder = TRUE)[, 1]
           }
         }
@@ -1566,7 +1689,9 @@ mixq_eval <- function(M, theta, A, grad = FALSE, C = NULL) {
             ge[!is.finite(ge)] <- 0
             for (r in seq_along(shs)) {
               s <- shs[r]
-              if (s %in% M$free && lam[r] != 0) D[, s] <- D[, s] + rowsum(wt * ge * lam[r], sc, reorder = TRUE)[, 1]
+              if (s %in% M$free && lam[r] != 0) {
+                D[, s] <- D[, s] + rowsum(wt * ge * lam[r], sc, reorder = TRUE)[, 1]
+              }
             }
           }
         }
@@ -1783,12 +1908,23 @@ mixq_converge <- function(M, e, X, fe, budget = 5000, newton = TRUE) {
   while (used < budget) {
     it <- min(maxit, budget - used)
     # (BFGS to a moderate tolerance: Newton steps finish)
-    o <- tryCatch(stats::optim(e, function(x) fe(x, A), function(x) ge(x, A), method = "BFGS", control = list(maxit = it, reltol = if (newton) 1e-10 else 1e-12)), error = function(err) NULL)
+    o <- tryCatch(
+      stats::optim(
+        e,
+        function(x) fe(x, A),
+        function(x) ge(x, A),
+        method = "BFGS",
+        control = list(maxit = it, reltol = if (newton) 1e-10 else 1e-12)
+      ),
+      error = function(err) NULL
+    )
     used <- used + it
     if (is.null(o)) break
     A2 <- mixq_adapt(M, X$to_th(o$par), A, 2)
     f2 <- fe(o$par, A2)
-    if (nzchar(Sys.getenv("MIXQ_DEBUG"))) message(sprintf("round maxit %d: %.4f -> %.4f (fixed points %.4f), counts %s", it, f0, f2, o$value, paste(o$counts, collapse = "/")))
+    if (nzchar(Sys.getenv("MIXQ_DEBUG"))) {
+      message(sprintf("round maxit %d: %.4f -> %.4f (fixed points %.4f), counts %s", it, f0, f2, o$value, paste(o$counts, collapse = "/")))
+    }
     if (f2 <= f0 + 1e-9) {
       # (BFGS crawling between adaptations: Newton steps take over)
       done <- (f0 - f2 < 1e-8 && o$convergence == 0) || (newton && maxit >= 80 && f0 - f2 < 0.05)
@@ -1833,8 +1969,15 @@ mixq_estimate <- function(spec, data) {
   given <- if (length(spec$given)) as.numeric(unlist(spec$given)) else NULL
   X <- mix_eta(M)
   fit <- mixq_fit(
-    M, X$to_eta(start), scale, X, as.integer(spec$starts %||% 20), as.integer(spec$final %||% 4), as.integer(spec$seed %||% 1),
-    if (is.null(given)) NULL else X$to_eta(given), spec$phase %||% list()
+    M,
+    X$to_eta(start),
+    scale,
+    X,
+    as.integer(spec$starts %||% 20),
+    as.integer(spec$final %||% 4),
+    as.integer(spec$seed %||% 1),
+    if (is.null(given)) NULL else X$to_eta(given),
+    spec$phase %||% list()
   )
   if (!is.null(fit$stage) || !is.null(fit$finals)) {
     return(fit)
@@ -1874,7 +2017,10 @@ mixq_estimate <- function(spec, data) {
 mixq_reorder <- function(M, th, order, X, A) {
   phi <- drop(M$b + M$A %*% mix_full(M, th))
   if (is.matrix(order)) order <- lapply(seq_len(nrow(order)), function(i) order[i, ])
-  perm <- lapply(seq_along(M$cls), function(v) if (length(order) >= v && length(order[[v]])) as.integer(unlist(order[[v]])) else seq_len(M$ks[v]))
+  perm <- lapply(
+    seq_along(M$cls),
+    function(v) if (length(order) >= v && length(order[[v]])) as.integer(unlist(order[[v]])) else seq_len(M$ks[v])
+  )
   if (all(vapply(seq_along(perm), function(v) identical(perm[[v]], seq_len(M$ks[v])), TRUE))) {
     return(list(theta = th, A = A))
   }
@@ -1935,9 +2081,53 @@ mixq_reorder <- function(M, th, order, X, A) {
 }
 
 PS_MIX_FUNCTIONS <- c(
-  "mix_expr", "mix_full", "mix_full_jac", "mix_collapse", "mix_model", "mix_lse", "mix_prior", "mix_ld", "mix_mvn_parts", "mix_block", "mix_eval", "mix_fit", "mix_eta", "mix_hessian", "mix_newton", "mix_reorder", "mix_estimate", "mix_report", "mix_shares", "mix_candidates", "mix_phase", "mix_keep",
-  "mixq_rule", "mixq_lat_parts", "mixq_catidx", "mixq_dld", "mixq_dlat", "mixq_ldens", "mixq_ld", "mixq_model", "mixq_prior", "mixq_collapsed", "mixq_ess", "mixq_rowmax", "mix_lse_list", "mixq_lse_groups", "mixq_nodes", "mixq_aof", "mixq_core", "mixq_post", "mixq_eval",
-  "mixq_adapt_init", "mixq_adapt", "mixq_fit", "mixq_converge", "mixq_estimate", "mixq_reorder"
+  "mix_expr",
+  "mix_full",
+  "mix_full_jac",
+  "mix_collapse",
+  "mix_model",
+  "mix_lse",
+  "mix_prior",
+  "mix_ld",
+  "mix_mvn_parts",
+  "mix_block",
+  "mix_eval",
+  "mix_fit",
+  "mix_eta",
+  "mix_hessian",
+  "mix_newton",
+  "mix_reorder",
+  "mix_estimate",
+  "mix_report",
+  "mix_shares",
+  "mix_candidates",
+  "mix_phase",
+  "mix_keep",
+  "mixq_rule",
+  "mixq_lat_parts",
+  "mixq_catidx",
+  "mixq_dld",
+  "mixq_dlat",
+  "mixq_ldens",
+  "mixq_ld",
+  "mixq_model",
+  "mixq_prior",
+  "mixq_collapsed",
+  "mixq_ess",
+  "mixq_rowmax",
+  "mix_lse_list",
+  "mixq_lse_groups",
+  "mixq_nodes",
+  "mixq_aof",
+  "mixq_core",
+  "mixq_post",
+  "mixq_eval",
+  "mixq_adapt_init",
+  "mixq_adapt",
+  "mixq_fit",
+  "mixq_converge",
+  "mixq_estimate",
+  "mixq_reorder"
 )
 
 ps_mixture <- function(req_json, export = FALSE) {
@@ -1949,7 +2139,11 @@ ps_mixture <- function(req_json, export = FALSE) {
   names(fr$data) <- cols
   # Cases with a missing covariate are left out (as Mplus does); a missing outcome adds nothing to that case's likelihood.
   xs <- unique(c(unlist(lapply(spec$classes, function(v) v$covariates)), unlist(lapply(spec$blocks, function(bk) bk$x))))
-  keep <- if (length(xs)) stats::complete.cases(fr$data[, xs, drop = FALSE]) else rep(TRUE, nrow(fr$data))
+  keep <- if (length(xs)) {
+    stats::complete.cases(fr$data[, xs, drop = FALSE])
+  } else {
+    rep(TRUE, nrow(fr$data))
+  }
   ys <- unique(unlist(lapply(spec$blocks, function(bk) bk$y)))
   keep <- keep & rowSums(!is.na(fr$data[, ys, drop = FALSE])) > 0
   data <- fr$data[keep, , drop = FALSE]
@@ -1984,14 +2178,29 @@ ps_mixture <- function(req_json, export = FALSE) {
   }
   nobs <- sum(est$M$w)
   k <- est$k
-  if (is.null(est$V)) ps_warning("The information matrix is singular: no standard errors (the model may not be identified).")
+  if (is.null(est$V)) {
+    ps_warning("The information matrix is singular: no standard errors (the model may not be identified).")
+  }
   lls <- est$fit$lls
   rep_best <- sum(abs(lls - max(lls)) < 1e-3)
-  if (length(lls) > 1 && rep_best < 2) ps_warning(sprintf("The best log-likelihood was reached from only one of the %d final starts: increase the starts to make sure it is the maximum.", length(lls)))
+  if (length(lls) > 1 && rep_best < 2) {
+    ps_warning(sprintf("The best log-likelihood was reached from only one of the %d final starts: increase the starts to make sure it is the maximum.", length(lls)))
+  }
   ps_json(list(
-    n = nobs, rows = nrow(data), logLik = est$ll, npar = k, aic = -2 * est$ll + 2 * k, bic = -2 * est$ll + k * log(nobs),
-    params = env$report, classes = env$shares$classes, patterns = env$shares$patterns, entropy = env$shares$entropy,
-    lls = lls, converged = est$fit$converged, theta = est$theta,
-    warnings = env$.warnings, engine = list(package = "R", version = paste(R.version$major, R.version$minor, sep = "."))
+    n = nobs,
+    rows = nrow(data),
+    logLik = est$ll,
+    npar = k,
+    aic = -2 * est$ll + 2 * k,
+    bic = -2 * est$ll + k * log(nobs),
+    params = env$report,
+    classes = env$shares$classes,
+    patterns = env$shares$patterns,
+    entropy = env$shares$entropy,
+    lls = lls,
+    converged = est$fit$converged,
+    theta = est$theta,
+    warnings = env$.warnings,
+    engine = list(package = "R", version = paste(R.version$major, R.version$minor, sep = "."))
   ))
 }

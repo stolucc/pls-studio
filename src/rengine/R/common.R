@@ -12,7 +12,9 @@ ps_parse <- function(req_json) ps_validate(jsonlite::fromJSON(req_json, simplify
 ps_validate <- function(req) {
   # [[ ]] matches names exactly ($ would match req$estimators for req$estimator).
   one_of <- function(x, allowed, what) {
-    if (!is.null(x) && !(length(x) == 1 && is.character(x) && x %in% allowed)) stop(sprintf("Invalid %s in the request.", what))
+    if (!is.null(x) && !(length(x) == 1 && is.character(x) && x %in% allowed)) {
+      stop(sprintf("Invalid %s in the request.", what))
+    }
   }
   get <- function(x, ...) {
     for (k in c(...)) {
@@ -25,7 +27,11 @@ ps_validate <- function(req) {
   }
   cb_est <- c("ML", "MLM", "MLMV", "MLR", "GLS", "ULS", "WLS", "WLSMV", "2SLS", "RML")
   one_of(get(req, "estimator"), cb_est, "estimator")
-  one_of(get(req, "missing"), c("mean", "casewise", "fiml", "mi", "pairwise", "twostage", "robusttwostage"), "missing-value treatment")
+  one_of(
+    get(req, "missing"),
+    c("mean", "casewise", "fiml", "mi", "pairwise", "twostage", "robusttwostage"),
+    "missing-value treatment"
+  )
   one_of(get(req, "probe"), c("percentiles", "meansd"), "probing method")
   one_of(get(req, "interaction"), c("product", "lms", "qml"), "latent interaction method")
   one_of(get(req, "hc"), c("none", "HC0", "HC1", "HC2", "HC3", "HC4"), "standard error type")
@@ -95,7 +101,9 @@ ps_try <- function(expr, what, otherwise = NULL) {
 #' ps_* function with the request; warnings raised anywhere in it are kept.
 #' Errors propagate (the app reports them).
 ps_call <- function(fn, req, export = FALSE) {
-  if (!(is.character(fn) && length(fn) == 1 && grepl("^ps_[a-z0-9_]+$", fn))) stop("Invalid bridge function.")
+  if (!(is.character(fn) && length(fn) == 1 && grepl("^ps_[a-z0-9_]+$", fn))) {
+    stop("Invalid bridge function.")
+  }
   f <- get(fn, envir = globalenv(), mode = "function")
   if (!identical(names(formals(f))[1], "req_json")) stop("Invalid bridge function.")
   .ps_state$warnings <- character(0)
@@ -152,9 +160,15 @@ ps_back_names <- function(x, back, prefix = FALSE) {
   }
   keys <- names(back)[order(-nchar(names(back)))]
   alt <- paste(gsub("([.\\\\|()\\[\\]{}^$*+?])", "\\\\\\1", keys, perl = TRUE), collapse = "|")
-  re <- if (prefix) sprintf("^(?:%s)", alt) else sprintf("(?<![A-Za-z0-9._])(?:%s)(?![A-Za-z0-9._])", alt)
+  re <- if (prefix) {
+    sprintf("^(?:%s)", alt)
+  } else {
+    sprintf("(?<![A-Za-z0-9._])(?:%s)(?![A-Za-z0-9._])", alt)
+  }
   m <- gregexpr(re, x, perl = TRUE)
-  regmatches(x, m) <- lapply(regmatches(x, m), function(s) vapply(s, function(k) as.character(back[[k]]), "", USE.NAMES = FALSE))
+  # Each matched name replaced by the user's name
+  to_user_names <- function(s) vapply(s, function(k) as.character(back[[k]]), "", USE.NAMES = FALSE)
+  regmatches(x, m) <- lapply(regmatches(x, m), to_user_names)
   x
 }
 
@@ -169,11 +183,25 @@ ps_back <- function(x, back, keep = TRUE) {
   y
 }
 
+#' A JSON array of string arrays as a list of character vectors: equally long arrays arrive as a matrix
+#' (one per row), others as a list.
+ps_string_rows <- function(x) {
+  if (is.matrix(x)) {
+    lapply(seq_len(nrow(x)), function(i) as.character(x[i, ]))
+  } else {
+    lapply(x, function(t) as.character(unlist(t)))
+  }
+}
+
 #' A term "a:b" back to the user's names, "A × B" (a piece with no match is kept).
 ps_back_term <- function(t, back) paste(ps_back(strsplit(t, ":", fixed = TRUE)[[1]], back), collapse = " \u00d7 ")
 
 #' The model's construct and indicator names back to the app's (constructs: which constructs to map).
-ps_back_map <- function(b, constructs = b$n$cname) c(setNames(constructs, unname(b$lname[constructs])), setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds])))
+ps_back_map <- function(b, constructs = b$n$cname) {
+  construct_names <- setNames(constructs, unname(b$lname[constructs]))
+  indicator_names <- setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds]))
+  c(construct_names, indicator_names)
+}
 
 #' Display name of an interaction term; a construct times itself is its quadratic term (X²).
 ps_int_name <- function(from, moderator) ifelse(from == moderator, paste0(from, "\u00b2"), paste(from, "\u00d7", moderator))
@@ -197,7 +225,9 @@ ps_col <- function(cols, i) as.numeric(if (is.matrix(cols)) cols[i, ] else cols[
 ps_frame <- function(req, n) {
   cols <- req$data$cols
   at <- match(n$all_inds, req$data$names)
-  if (anyNA(at)) stop("Indicator(s) not in the dataset: ", paste(n$all_inds[is.na(at)], collapse = ", "))
+  if (anyNA(at)) {
+    stop("Indicator(s) not in the dataset: ", paste(n$all_inds[is.na(at)], collapse = ", "))
+  }
   df <- as.data.frame(lapply(at, function(i) ps_col(cols, i)))
   names(df) <- unname(n$iv[n$all_inds])
   df
@@ -223,7 +253,12 @@ ps_missing_code <- function(missing) {
 
 #' lavaan's missing-data options for the app's choices (CB-SEM): FIML, pairwise
 #' deletion, and the two-stage approach (Savalei & Bentler 2009), plain or robust.
-PS_LAVAAN_MISSING <- list(fiml = "ml", pairwise = "pairwise", twostage = "two.stage", robusttwostage = "robust.two.stage")
+PS_LAVAAN_MISSING <- list(
+  fiml = "ml",
+  pairwise = "pairwise",
+  twostage = "two.stage",
+  robusttwostage = "robust.two.stage"
+)
 #' The lavaan argument for the choice ("" for deletion or mean replacement done beforehand).
 ps_lavaan_missing <- function(missing) {
   m <- PS_LAVAAN_MISSING[[missing %||% ""]]
@@ -232,20 +267,26 @@ ps_lavaan_missing <- function(missing) {
 
 #' A single finite number as R code; anything else is refused (values come from project files).
 ps_num <- function(x) {
-  if (!(is.numeric(x) && length(x) == 1 && is.finite(x))) stop("Invalid fixed value in the request.")
+  if (!(is.numeric(x) && length(x) == 1 && is.finite(x))) {
+    stop("Invalid fixed value in the request.")
+  }
   format(x, digits = 15)
 }
 
 #' A parameter label or defined-parameter name as R code; anything else is refused.
 ps_label <- function(x) {
-  if (!(is.character(x) && length(x) == 1 && grepl("^[A-Za-z][A-Za-z0-9_]{0,30}$", x))) stop("Invalid parameter label in the request.")
+  if (!(is.character(x) && length(x) == 1 && grepl("^[A-Za-z][A-Za-z0-9_]{0,30}$", x))) {
+    stop("Invalid parameter label in the request.")
+  }
   x
 }
 
 #' Arithmetic over labels (as printed by the app's parser): letters, digits, _ . + - * / ^ ( ) and spaces,
 #' and no name or number directly followed by "(" (no function calls).
 ps_expr <- function(x) {
-  ok <- is.character(x) && length(x) == 1 && nchar(x) <= 2000 && grepl("^[A-Za-z0-9_ .+*/^()-]+$", x) && !grepl("[A-Za-z0-9_.][[:space:]]*\\(", x)
+  ok <- is.character(x) && length(x) == 1 && nchar(x) <= 2000 &&
+    grepl("^[A-Za-z0-9_ .+*/^()-]+$", x) && # only the allowed characters
+    !grepl("[A-Za-z0-9_.][[:space:]]*\\(", x) # no function calls
   if (!ok) stop("Invalid expression in the request.")
   x
 }
@@ -260,14 +301,18 @@ ps_lookup <- function(map, x, what = "variable") {
   if (!length(x)) {
     return(character(0))
   }
-  if (!is.character(x) || anyNA(match(x, names(map)))) stop(sprintf("Unknown %s in the request.", what))
+  if (!is.character(x) || anyNA(match(x, names(map)))) {
+    stop(sprintf("Unknown %s in the request.", what))
+  }
   unname(map[x])
 }
 
 #' A number from the request that is written into R code (format(), %s): one
 #' finite number, or an error (a string would otherwise become code).
 ps_number <- function(x, what = "number") {
-  if (!is.numeric(x) || length(x) != 1 || !is.finite(x)) stop(sprintf("Invalid %s in the request.", what))
+  if (!is.numeric(x) || length(x) != 1 || !is.finite(x)) {
+    stop(sprintf("Invalid %s in the request.", what))
+  }
   x
 }
 
@@ -325,7 +370,11 @@ ps_script <- function(title, packages, inputs, body, report) {
     else if (is.list(v) && length(v) && all(vapply(v, is.matrix, TRUE))) {
       c(
         unlist(lapply(seq_along(v), function(i) ps_embed_matrix(sprintf("%s_%d", nm, i), v[[i]]))),
-        sprintf("%s <- list(%s)", nm, paste(sprintf("%s = %s_%d", encodeString(names(v), quote = '"'), nm, seq_along(v)), collapse = ", "))
+        sprintf(
+          "%s <- list(%s)",
+          nm,
+          paste(sprintf("%s = %s_%d", encodeString(names(v), quote = '"'), nm, seq_along(v)), collapse = ", ")
+        )
       )
     } else {
       sprintf("%s <- %s", nm, paste(deparse(v, width.cutoff = 500), collapse = ""))
@@ -335,9 +384,18 @@ ps_script <- function(title, packages, inputs, body, report) {
   paste(c(
     sprintf("# %s", ps_comment(title)),
     if (length(packages)) {
-      sprintf("# Generated by PLS Studio on %s with %s (%s).", format(Sys.Date()), paste(vers, collapse = ", "), R.version.string)
+      sprintf(
+        "# Generated by PLS Studio on %s with %s (%s).",
+        format(Sys.Date()),
+        paste(vers, collapse = ", "),
+        R.version.string
+      )
     } else {
-      sprintf("# Generated by PLS Studio on %s with %s; base R only, no packages needed.", format(Sys.Date()), R.version.string)
+      sprintf(
+        "# Generated by PLS Studio on %s with %s; base R only, no packages needed.",
+        format(Sys.Date()),
+        R.version.string
+      )
     },
     "# Running this script reproduces the calculation exactly.",
     "",
@@ -396,7 +454,9 @@ ps_dataset <- function(req_json) {
 ps_read_data <- function(req_json) {
   req <- ps_parse(req_json)
   format <- req[["format", exact = TRUE]]
-  if (!is.character(format) || length(format) != 1L || !format %in% c("sav", "zsav", "dta", "xlsx", "xls")) stop("Unsupported file type.")
+  if (!is.character(format) || length(format) != 1L || !format %in% c("sav", "zsav", "dta", "xlsx", "xls")) {
+    stop("Unsupported file type.")
+  }
   pf <- req[["package_file", exact = TRUE]]
   if (!is.null(pf)) {
     parts <- strsplit(as.character(pf$path), "/", fixed = TRUE)[[1]]
@@ -450,7 +510,9 @@ ps_mi_settings <- function(req) {
   seed <- as.integer(ps_number(mi[["seed", exact = TRUE]] %||% 1, "imputation seed"))
   if (is.na(m) || m < 2L || m > 200L) stop("The number of imputations must be between 2 and 200.")
   method <- mi[["method", exact = TRUE]] %||% "mice"
-  if (!(is.character(method) && length(method) == 1 && method %in% c("mice", "amelia", "micenorm", "joint"))) stop("Invalid imputation method in the request.")
+  if (!(is.character(method) && length(method) == 1 && method %in% c("mice", "amelia", "micenorm", "joint"))) {
+    stop("Invalid imputation method in the request.")
+  }
   # (auxiliary and nominal columns: names, checked against the data by the caller)
   aux <- as.character(unlist(mi[["auxiliary", exact = TRUE]]))
   noms <- as.character(unlist(mi[["nominal", exact = TRUE]]))
@@ -471,7 +533,9 @@ ps_joint_impute <- function(data, m, seed, categorical = character(0), burn = 10
   cat_j <- match(categorical, vn)
   miss <- is.na(X)
   if (anyNA(cat_j)) stop("A categorical variable of the imputation is not among its variables.")
-  if (any(colSums(!miss) < 2)) stop("Every variable of the imputation needs at least two observed values.")
+  if (any(colSums(!miss) < 2)) {
+    stop("Every variable of the imputation needs at least two observed values.")
+  }
   lev <- lapply(seq_len(p), function(j) if (j %in% cat_j) sort(unique(X[!miss[, j], j])) else NULL)
   for (j in cat_j) if (length(lev[[j]]) < 2 || length(lev[[j]]) > 10) stop("A categorical variable of the imputation needs 2 to 10 categories.")
   code <- lapply(seq_len(p), function(j) if (j %in% cat_j) match(X[, j], lev[[j]]) else NULL)

@@ -60,8 +60,12 @@ ps_influence <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   if (b$matrix_input) stop("Case influence needs raw data; this dataset is a covariance matrix.")
-  if (isTRUE(b$mi)) stop("Case influence is not available with multiple imputation; use FIML or casewise deletion.")
-  if (isTRUE(b$robust)) stop("Case influence refits the model by ML; choose ML or MLR (robust ML already down-weights influential cases).")
+  if (isTRUE(b$mi)) {
+    stop("Case influence is not available with multiple imputation; use FIML or casewise deletion.")
+  }
+  if (isTRUE(b$robust)) {
+    stop("Case influence refits the model by ML; choose ML or MLR (robust ML already down-weights influential cases).")
+  }
   if (!is.null(b$modsem)) stop("Case influence is not available for LMS / QML models.")
   if (!is.null(b$cluster_var)) stop("Case influence is not available for two-level models.")
   cores <- as.integer(req$cores %||% 1L)
@@ -81,14 +85,21 @@ ps_influence <- function(req_json, export = FALSE) {
     } else {
       c(
         "# Leave-one-out: the model refitted without each case (semfindr), then the influence statistics.",
-        sprintf("rerun <- lavaan_rerun(fit, parallel = %s, progress = FALSE%s)", if (par) "TRUE" else "FALSE", if (par) sprintf(", ncores = %d", cores) else ""),
+        sprintf(
+          "rerun <- lavaan_rerun(fit, parallel = %s, progress = FALSE%s)",
+          if (par) "TRUE" else "FALSE",
+          if (par) sprintf(", ncores = %d", cores) else ""
+        ),
         "infl <- influence_stat(rerun)"
       )
     },
     "rows <- as.integer(rownames(data))[as.integer(rownames(infl))]",
     "# Each case's contribution to Mardia's multivariate kurtosis b2,p of the model's indicators (as psych::mardia:",
     "# complete cases, the sample covariance matrix): d_i^4 / n, with d_i^2 the case's Mahalanobis distance; they sum to b2,p.",
-    sprintf("Xk <- as.matrix(data[, %s, drop = FALSE]); okk <- complete.cases(Xk); Xk <- Xk[okk, , drop = FALSE]", ps_q(unname(b$n$iv[b$n$all_inds]))),
+    sprintf(
+      "Xk <- as.matrix(data[, %s, drop = FALSE]); okk <- complete.cases(Xk); Xk <- Xk[okk, , drop = FALSE]",
+      ps_q(unname(b$n$iv[b$n$all_inds]))
+    ),
     "kurt_d2 <- mahalanobis(Xk, colMeans(Xk), cov(Xk))",
     "kurt_i <- kurt_d2^2 / nrow(Xk)",
     "kurt_rows <- as.integer(rownames(data))[okk]"
@@ -102,9 +113,17 @@ ps_influence <- function(req_json, export = FALSE) {
   infl <- env$infl
   col <- function(k) if (k %in% colnames(infl)) unname(infl[, k]) else rep(NA_real_, nrow(infl))
   ps_json(list(
-    approach = approach, rows = env$rows, gcd = col(g), md = col("md"), chisq = col("chisq"), cfi = col("cfi"), rmsea = col("rmsea"), tli = col("tli"),
+    approach = approach,
+    rows = env$rows,
+    gcd = col(g),
+    md = col("md"),
+    chisq = col("chisq"),
+    cfi = col("cfi"),
+    rmsea = col("rmsea"),
+    tli = col("tli"),
     kurtosis = list(rows = env$kurt_rows, contribution = unname(env$kurt_i), b2p = sum(env$kurt_i), p = ncol(env$Xk)),
-    warnings = env$.warnings, engine = ps_engine("semfindr")
+    warnings = env$.warnings,
+    engine = ps_engine("semfindr")
   ))
 }
 
@@ -121,16 +140,26 @@ ps_missing <- function(req_json, export = FALSE) {
   vars <- as.character(unlist(req$vars))
   meas <- as.character(unlist(req$measures))
   desc <- as.character(unlist(req$descriptive))
-  if (length(vars) < 1 || length(vars) > 200 || anyDuplicated(vars)) stop("Choose 1 to 200 variables.")
-  if (length(meas) == 1 || length(meas) > 50 || anyDuplicated(meas)) stop("Dropout needs 2 to 50 repeated measures, in time order.")
-  if (length(desc) && length(desc) != length(meas)) stop("The second set of variables needs one entry per occasion (empty for none).")
-  if (length(desc) && !length(meas)) stop("The second set of variables is described by dropout: choose the repeated measures.")
+  if (length(vars) < 1 || length(vars) > 200 || anyDuplicated(vars)) {
+    stop("Choose 1 to 200 variables.")
+  }
+  if (length(meas) == 1 || length(meas) > 50 || anyDuplicated(meas)) {
+    stop("Dropout needs 2 to 50 repeated measures, in time order.")
+  }
+  if (length(desc) && length(desc) != length(meas)) {
+    stop("The second set of variables needs one entry per occasion (empty for none).")
+  }
+  if (length(desc) && !length(meas)) {
+    stop("The second set of variables is described by dropout: choose the repeated measures.")
+  }
   # Little's (1988) MCAR test and Jamshidian & Jalal's (2010) tests (misty::na.test; mvnmle's ML estimates)
   mcar <- isTRUE(req$mcar)
   jamjal <- isTRUE(req$jamjal)
   seed <- as.integer(ps_number(req$seed %||% 42, "seed"))
   if (is.na(seed)) stop("Invalid seed.")
-  if ((mcar || jamjal) && length(vars) > 50) stop("The MCAR tests take at most 50 variables (mvnmle::mlest).")
+  if ((mcar || jamjal) && length(vars) > 50) {
+    stop("The MCAR tests take at most 50 variables (mvnmle::mlest).")
+  }
   if ((mcar || jamjal) && length(vars) < 2) stop("The MCAR tests need at least two variables.")
   used <- unique(c(vars, meas, desc[nzchar(desc)]))
   fr <- ps_long_frame(req, used)
@@ -190,7 +219,10 @@ ps_missing <- function(req_json, export = FALSE) {
       "# Jamshidian & Jalal's (2010) tests (misty::na.test, after MissMech::TestMCARNormality): the data imputed 20 times",
       "# (nonparametric), the patterns' covariance matrices compared by Hawkins's test of homoscedasticity, and the",
       "# patterns' distributions by a k-sample Anderson-Darling test; patterns with fewer than 6 cases are left out",
-      sprintf("jj <- tryCatch(misty::na.test(as.data.frame(X), print = \"jamjal\", seed = %d, output = FALSE)$result, error = function(e) conditionMessage(e))", seed)
+      sprintf(
+        "jj <- tryCatch(misty::na.test(as.data.frame(X), print = \"jamjal\", seed = %d, output = FALSE)$result, error = function(e) conditionMessage(e))",
+        seed
+      )
     )
   }
   if (length(meas)) {
@@ -234,8 +266,21 @@ ps_missing <- function(req_json, export = FALSE) {
   inputs <- list(data = fr$data)
   if (export) {
     return(ps_script(
-      sprintf("Missing data (patterns, coverage, EM estimates, dropout%s)", if (mcar || jamjal) ", MCAR tests" else ""), c("lavaan", if (mcar || jamjal) c("misty", "mvnmle")), inputs, body,
-      c("patterns", "coverage", "em_mean", "em_cov", "loglik_h1", if (mcar) c("little", "little_patterns"), if (jamjal) "jj[c(\"hawkins\", \"anderson\")]", if (length(meas)) c("table(out_at, useNA = \"ifany\")", "set1"), if (length(desc)) "set2")
+      sprintf("Missing data (patterns, coverage, EM estimates, dropout%s)", if (mcar || jamjal) ", MCAR tests" else ""),
+      c("lavaan", if (mcar || jamjal) c("misty", "mvnmle")),
+      inputs,
+      body,
+      c(
+        "patterns",
+        "coverage",
+        "em_mean",
+        "em_cov",
+        "loglik_h1",
+        if (mcar) c("little", "little_patterns"),
+        if (jamjal) "jj[c(\"hawkins\", \"anderson\")]",
+        if (length(meas)) c("table(out_at, useNA = \"ifany\")", "set1"),
+        if (length(desc)) "set2"
+      )
     ))
   }
   env <- ps_run(body, inputs)
@@ -243,7 +288,13 @@ ps_missing <- function(req_json, export = FALSE) {
   em_cor <- stats::cov2cor(env$em_cov)
   res <- list(
     variables = I(vars), n = env$n, patterns = env$patterns, coverage = sym(env$coverage),
-    em = list(means = I(unname(env$em_mean)), cov = sym(env$em_cov), cor = sym(em_cor), loglik = if (is.finite(env$loglik_h1) && !env$singular) env$loglik_h1 else NULL, singular = env$singular),
+    em = list(
+      means = I(unname(env$em_mean)),
+      cov = sym(env$em_cov),
+      cor = sym(em_cor),
+      loglik = if (is.finite(env$loglik_h1) && !env$singular) env$loglik_h1 else NULL,
+      singular = env$singular
+    ),
     warnings = env$.warnings, engine = ps_engine("lavaan")
   )
   if (mcar) {
@@ -259,16 +310,23 @@ ps_missing <- function(req_json, export = FALSE) {
       list(error = ps_flat(jj))
     } else {
       list(
-        n = jj$hawkins$no.cases, incomplete = jj$hawkins$no.incomplete, patterns = jj$hawkins$no.pattern,
-        patternN = I(as.integer(jj$jamjal$n.pattern)), hawkins = list(stat = jj$hawkins$statistic, df = jj$hawkins$df, p = jj$hawkins$p),
-        anderson = list(stat = jj$anderson$statistic, p = jj$anderson$p), seed = seed
+        n = jj$hawkins$no.cases,
+        incomplete = jj$hawkins$no.incomplete,
+        patterns = jj$hawkins$no.pattern,
+        patternN = I(as.integer(jj$jamjal$n.pattern)),
+        hawkins = list(stat = jj$hawkins$statistic, df = jj$hawkins$df, p = jj$hawkins$p),
+        anderson = list(stat = jj$anderson$statistic, p = jj$anderson$p),
+        seed = seed
       )
     }
   }
   if (mcar || jamjal) res$engine <- ps_engine("misty", lavaan = "lavaan", mvnmle = "mvnmle")
   if (length(meas)) {
     res$dropout <- list(
-      measures = I(meas), dropouts = sum(env$dropout), nonDropoutsComplete = sum(env$stayer & !env$intermittent), nonDropoutsIntermittent = sum(env$stayer & env$intermittent),
+      measures = I(meas),
+      dropouts = sum(env$dropout),
+      nonDropoutsComplete = sum(env$stayer & !env$intermittent),
+      nonDropoutsIntermittent = sum(env$stayer & env$intermittent),
       byTime = I(vapply(seq_len(length(meas) - 1), function(t) sum(env$out_at %in% t), 0L)),
       set1 = lapply(seq_along(meas), function(t) list(variable = meas[t], time = t - 1, rows = env$set1[[t]])),
       set2 = if (length(desc)) {

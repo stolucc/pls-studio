@@ -23,6 +23,7 @@ out <- list(
   omegaH = om$omega_h,
   omegaTotal = om$omega.tot,
   omegaGroup = unname(as.matrix(om$omega.group)),
-  reversed = names(om$key)[om$key < 0])
+  reversed = names(om$key)[om$key < 0]
+)
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/efa/schmid.json")
 cat("written\n")

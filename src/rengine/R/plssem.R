@@ -13,16 +13,26 @@
 ps_plssem_build <- function(req) {
   m <- req$model
   ml <- m$multilevel
-  if (is.null(ml) || !is.character(ml$column) || length(ml$column) != 1 || !nzchar(ml$column)) stop("Multilevel PLS-SEM needs a cluster column (Clusters on the Model tab).")
+  if (is.null(ml) || !is.character(ml$column) || length(ml$column) != 1 || !nzchar(ml$column)) {
+    stop("Multilevel PLS-SEM needs a cluster column (Clusters on the Model tab).")
+  }
   between <- ml[["between", exact = TRUE]] %||% "saturated"
-  if (!(is.character(between) && length(between) == 1 && between %in% c("same", "factors", "model"))) stop("Multilevel PLS-SEM needs a between-level model: choose Same model, Factors or As written under Clusters (a saturated between level is lavaan's).")
+  if (!(is.character(between) && length(between) == 1 && between %in% c("same", "factors", "model"))) {
+    stop("Multilevel PLS-SEM needs a between-level model: choose Same model, Factors or As written under Clusters (a saturated between level is lavaan's).")
+  }
   cons <- m$constructs
   if (!length(cons)) stop("The model has no constructs.")
-  if (length(m$moderations) || length(m$threeWay) || length(m$copulas)) stop("Multilevel PLS-SEM is not available with interactions or copulas.")
+  if (length(m$moderations) || length(m$threeWay) || length(m$copulas)) {
+    stop("Multilevel PLS-SEM is not available with interactions or copulas.")
+  }
   for (c in cons) {
-    if (length(unlist(c$components))) stop(sprintf("%s is a higher-order construct: not available in multilevel PLS-SEM.", c$name))
+    if (length(unlist(c$components))) {
+      stop(sprintf("%s is a higher-order construct: not available in multilevel PLS-SEM.", c$name))
+    }
     if (!length(unlist(c$indicators))) stop(sprintf("%s has no indicators.", c$name))
-    if (length(unlist(c$indicators)) > 1 && (!identical(c$mode %||% "A", "A") || identical(c$type, "composite"))) stop(sprintf("%s is a composite: plssem's MC-PLSc estimates common factors only (it has no Mode B yet); make it a factor with Mode A.", c$name))
+    if (length(unlist(c$indicators)) > 1 && (!identical(c$mode %||% "A", "A") || identical(c$type, "composite"))) {
+      stop(sprintf("%s is a composite: plssem's MC-PLSc estimates common factors only (it has no Mode B yet); make it a factor with Mode A.", c$name))
+    }
   }
   n <- ps_names(cons)
   cname <- n$cname
@@ -42,7 +52,9 @@ ps_plssem_build <- function(req) {
     ps_col(req$data$cols, at)
   }
   data <- ps_frame(req, n)
-  if (ml$column %in% n$all_inds) stop(sprintf("%s is an indicator and cannot also define the clusters.", ml$column))
+  if (ml$column %in% n$all_inds) {
+    stop(sprintf("%s is an indicator and cannot also define the clusters.", ml$column))
+  }
   cl <- fresh(ml$column)
   data[[cl]] <- col(ml$column)
   # (constructs first: a single-indicator construct's variable is shown by the construct's name, except as an indicator)
@@ -56,7 +68,9 @@ ps_plssem_build <- function(req) {
     if (nm %in% names(extra)) {
       return(unname(extra[[nm]]))
     }
-    if (identical(nm, ml$column)) stop(sprintf("%s defines the clusters and cannot be a variable of the model.", nm))
+    if (identical(nm, ml$column)) {
+      stop(sprintf("%s defines the clusters and cannot be a variable of the model.", nm))
+    }
     id <- fresh(nm)
     data[[id]] <<- col(nm)
     extra[nm] <<- id
@@ -69,8 +83,12 @@ ps_plssem_build <- function(req) {
   sname <- character(0)
   slab <- character(0)
   for (s in slopes) {
-    if (!(is.character(s$from) && is.character(s$to) && length(s$from) == 1 && length(s$to) == 1)) stop("Invalid random slope in the request.")
-    if (!any(vapply(m$paths, function(p) identical(p$from, s$from) && identical(p$to, s$to), TRUE))) stop(sprintf("The random slope %s -> %s is not a path of the model.", s$from, s$to))
+    if (!(is.character(s$from) && is.character(s$to) && length(s$from) == 1 && length(s$to) == 1)) {
+      stop("Invalid random slope in the request.")
+    }
+    if (!any(vapply(m$paths, function(p) identical(p$from, s$from) && identical(p$to, s$to), TRUE))) {
+      stop(sprintf("The random slope %s -> %s is not a path of the model.", s$from, s$to))
+    }
     key <- paste(s$from, s$to, sep = "\r")
     if (key %in% names(sname)) stop("A random slope is listed twice.")
     sname[key] <- fresh(sprintf("s_%s_%s", lv[[s$from]], lv[[s$to]]))
@@ -78,7 +96,11 @@ ps_plssem_build <- function(req) {
   }
   back <- c(back, setNames(unname(slab), unname(sname)))
   # Level 1: the canvas model.
-  meas <- vapply(which(!single), function(j) sprintf("%s =~ %s", lv[[j]], paste(unname(n$iv[n$inds[[j]]]), collapse = " + ")), "")
+  meas <- vapply(
+    which(!single),
+    function(j) sprintf("%s =~ %s", lv[[j]], paste(unname(n$iv[n$inds[[j]]]), collapse = " + ")),
+    ""
+  )
   to <- unique(vapply(m$paths, function(p) p$to, ""))
   for (p in m$paths) if (!all(c(p$from, p$to) %in% cname)) stop("A path refers to a removed construct.")
   for (p in m$paths) if (!is.null(p$fixed) || !is.null(p$label)) stop("Multilevel PLS-SEM estimates every path: remove fixed values and labels.")
@@ -102,16 +124,26 @@ ps_plssem_build <- function(req) {
     ws <- vapply(as.character(unlist(ml$betweenCovariates)), column, "")
     fb <- vapply(fac, bname, "")
     level2 <- c(
-      vapply(seq_along(fac), function(k) sprintf("%s =~ %s", fb[k], paste(unname(n$iv[n$inds[[fac[k]]]]), collapse = " + ")), ""),
+      vapply(
+        seq_along(fac),
+        function(k) sprintf("%s =~ %s", fb[k], paste(unname(n$iv[n$inds[[fac[k]]]]), collapse = " + ")),
+        ""
+      ),
       if (length(ws)) sprintf("%s ~ %s", paste(fb, collapse = " + "), paste(ws, collapse = " + ")),
-      if (length(ws) && length(sname)) sprintf("%s ~ %s", paste(unname(sname), collapse = " + "), paste(ws, collapse = " + "))
+      if (length(ws) && length(sname)) {
+        sprintf("%s ~ %s", paste(unname(sname), collapse = " + "), paste(ws, collapse = " + "))
+      }
     )
   } else if (identical(between, "same")) {
     # The same factors (suffix _b) and paths between clusters; observed variables as their cluster-level parts.
     fb <- setNames(lv, cname)
     for (j in which(!single)) fb[[cname[j]]] <- bname(j)
     level2 <- c(
-      vapply(which(!single), function(j) sprintf("%s =~ %s", fb[[j]], paste(unname(n$iv[n$inds[[j]]]), collapse = " + ")), ""),
+      vapply(
+        which(!single),
+        function(j) sprintf("%s =~ %s", fb[[j]], paste(unname(n$iv[n$inds[[j]]]), collapse = " + ")),
+        ""
+      ),
       unname(vapply(to, function(y) sprintf("%s ~ %s", fb[[y]], paste(vapply(Filter(function(p) identical(p$to, y), m$paths), function(p) fb[[p$from]], ""), collapse = " + ")), ""))
     )
   } else {
@@ -137,9 +169,13 @@ ps_plssem_build <- function(req) {
     }
     level2 <- vapply(sts, function(st) {
       op <- st$op
-      if (!(is.character(op) && length(op) == 1 && op %in% c("=~", "~", "~~"))) stop("Multilevel PLS-SEM takes =~, ~ and ~~ statements in the between-level model (no intercepts).")
+      if (!(is.character(op) && length(op) == 1 && op %in% c("=~", "~", "~~"))) {
+        stop("Multilevel PLS-SEM takes =~, ~ and ~~ statements in the between-level model (no intercepts).")
+      }
       if (!length(st$rhs)) stop("A between-level statement has no right-hand side.")
-      if (any(vapply(st$rhs, function(t) !is.null(t$fixed) || !is.null(t$label), TRUE))) stop("Multilevel PLS-SEM estimates every between-level parameter: remove fixed values and labels.")
+      if (any(vapply(st$rhs, function(t) !is.null(t$fixed) || !is.null(t$label), TRUE))) {
+        stop("Multilevel PLS-SEM estimates every between-level parameter: remove fixed values and labels.")
+      }
       paste(name2(st$lhs), op, paste(vapply(st$rhs, function(t) name2(t$name), ""), collapse = " + "))
     }, "")
   }
@@ -147,20 +183,32 @@ ps_plssem_build <- function(req) {
   vars <- c(n$iv, extra)
   ord <- intersect(as.character(unlist(m$ordered)), names(vars))
   list(
-    syntax = c("level: 1", paste0("  ", level1), "level: 2", paste0("  ", level2)), data = data, cluster = cl,
-    ordered = unname(vars[ord]), ordered_names = ord, back = back, inds_map = setNames(n$all_inds, unname(n$iv[n$all_inds])), slopes = sname
+    syntax = c("level: 1", paste0("  ", level1), "level: 2", paste0("  ", level2)),
+    data = data,
+    cluster = cl,
+    ordered = unname(vars[ord]),
+    ordered_names = ord,
+    back = back,
+    inds_map = setNames(n$all_inds, unname(n$iv[n$all_inds])),
+    slopes = sname
   )
 }
 
 ps_plssem <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  if (ps_in_browser()) stop("Multilevel PLS-SEM (plssem 0.2.0) runs in desktop R: choose Desktop R (helper) under R runs in.")
-  if (utils::packageVersion("plssem") < "0.2.0") stop(sprintf("Multilevel PLS-SEM needs plssem 0.2.0 or later (desktop R has %s): update it from the helper's menu (Install R packages...).", utils::packageVersion("plssem")))
+  if (ps_in_browser()) {
+    stop("Multilevel PLS-SEM (plssem 0.2.0) runs in desktop R: choose Desktop R (helper) under R runs in.")
+  }
+  if (utils::packageVersion("plssem") < "0.2.0") {
+    stop(sprintf("Multilevel PLS-SEM needs plssem 0.2.0 or later (desktop R has %s): update it from the helper's menu (Install R packages...).", utils::packageVersion("plssem")))
+  }
   o <- req$options
   b <- ps_plssem_build(req)
   scheme <- c(path = "path", centroid = "centroid", factor = "factorial")[[o[["scheme", exact = TRUE]] %||% "path"]]
   missing <- req[["missing", exact = TRUE]] %||% "casewise"
-  if (!missing %in% c("mean", "casewise")) stop("Multilevel PLS-SEM handles missing values by casewise deletion or mean replacement (plssem's listwise and mean).")
+  if (!missing %in% c("mean", "casewise")) {
+    stop("Multilevel PLS-SEM handles missing values by casewise deletion or mean replacement (plssem's listwise and mean).")
+  }
   seed <- as.integer(ps_number(o$seed %||% 1, "seed"))
   boot <- isTRUE(o$bootstrap)
   R <- if (boot) as.integer(ps_number(o$bootR %||% 500, "number of bootstrap samples")) else 0L
@@ -168,15 +216,20 @@ ps_plssem <- function(req_json, export = FALSE) {
   consistent <- isTRUE(o$consistent)
   data <- b$data
   args <- c(
-    sprintf("cluster = \"%s\"", b$cluster), sprintf("consistent = %s", consistent), sprintf("inner.weights = \"%s\"", scheme),
+    sprintf("cluster = \"%s\"", b$cluster),
+    sprintf("consistent = %s", consistent),
+    sprintf("inner.weights = \"%s\"", scheme),
     sprintf("missing = \"%s\"", if (missing == "mean") "mean" else "listwise"),
     if (length(b$ordered)) sprintf("ordered = %s", ps_q(b$ordered)),
-    if (boot) sprintf("bootstrap = TRUE, boot.R = %d", R), "verbose = FALSE"
+    if (boot) sprintf("bootstrap = TRUE, boot.R = %d", R),
+    "verbose = FALSE"
   )
   body <- c(
     "suppressPackageStartupMessages(library(plssem))",
     "# The two-level model: level 1 within clusters (the diagram), level 2 between clusters",
-    "model <- '", b$syntax, "'",
+    "model <- '",
+    b$syntax,
+    "'",
     "# MC-PLSc is a Monte Carlo estimator: its estimates depend on the seed, set here",
     sprintf("set.seed(%d)", seed),
     sprintf("fit <- pls(model, data = data, %s)", paste(args, collapse = ", ")),
@@ -222,12 +275,27 @@ ps_plssem <- function(req_json, export = FALSE) {
   rsd <- fit@params$rsd
   ps_json(list(
     levels = list(level(1), level(2)),
-    thresholds = lapply(seq_len(nrow(th)), function(i) list(variable = ps_back(th$lhs[i], c(inds_map, bk)), threshold = th$rhs[i], est = num(th$est[i]), se = num(th$se[i]))),
+    thresholds = lapply(
+      seq_len(nrow(th)),
+      function(i) list(variable = ps_back(th$lhs[i], c(inds_map, bk)), threshold = th$rhs[i], est = num(th$est[i]), se = num(th$se[i]))
+    ),
     icc = list(names = I(ps_back(names(icc), inds_map)), values = I(num(unname(icc)))),
     slopes = lapply(seq_along(rsd), function(i) list(name = nm(names(rsd)[i]), sd = num(unname(rsd[i])))),
-    n = fit@info$n, clusters = fit@info$nclusters, iterations = fit@status$iterations, converged = isTRUE(fit@status$converged),
-    admissible = isTRUE(fit@status$is.admissible), estimator = fit@info$estimator, consistent = consistent, scheme = scheme,
-    missing = missing, seed = seed, bootR = R, ordered = I(b$ordered_names), fitNote = fit_note, syntax = I(b$syntax),
-    warnings = I(env$.warnings), engine = ps_engine("plssem")
+    n = fit@info$n,
+    clusters = fit@info$nclusters,
+    iterations = fit@status$iterations,
+    converged = isTRUE(fit@status$converged),
+    admissible = isTRUE(fit@status$is.admissible),
+    estimator = fit@info$estimator,
+    consistent = consistent,
+    scheme = scheme,
+    missing = missing,
+    seed = seed,
+    bootR = R,
+    ordered = I(b$ordered_names),
+    fitNote = fit_note,
+    syntax = I(b$syntax),
+    warnings = I(env$.warnings),
+    engine = ps_engine("plssem")
   ))
 }

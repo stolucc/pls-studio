@@ -37,10 +37,19 @@ ps_pls_predict <- function(req_json, export = FALSE) {
   b <- ps_plsx_build(req)
   body <- c(
     b$body,
-    sprintf("# PLSpredict (Shmueli et al. 2019): %d-fold cross-validation, repeated %d times; benchmark: a linear", folds, reps),
+    sprintf(
+      "# PLSpredict (Shmueli et al. 2019): %d-fold cross-validation, repeated %d times; benchmark: a linear",
+      folds,
+      reps
+    ),
     "# regression of each endogenous indicator on all exogenous indicators (LM). Q2_predict > 0: better than the training means.",
     "# Each repetition with its own seed (cSEM's .r > 1 cannot be made reproducible); the metrics are averaged.",
-    sprintf("runs <- lapply(seq_len(%d), function(k) predict(fit, .benchmark = \"lm\", .cv_folds = %d, .r = 1, .seed = %d + k, .handle_inadmissibles = \"ignore\")$Prediction_metrics)", reps, folds, seed),
+    sprintf(
+      "runs <- lapply(seq_len(%d), function(k) predict(fit, .benchmark = \"lm\", .cv_folds = %d, .r = 1, .seed = %d + k, .handle_inadmissibles = \"ignore\")$Prediction_metrics)",
+      reps,
+      folds,
+      seed
+    ),
     "cols <- c(\"MAE_target\", \"MAE_benchmark\", \"RMSE_target\", \"RMSE_benchmark\", \"Q2_predict\")",
     "metrics <- data.frame(Name = runs[[1]]$Name, Reduce(`+`, lapply(runs, function(r) as.matrix(r[, cols]))) / length(runs))"
   )
@@ -58,8 +67,13 @@ ps_pls_predict <- function(req_json, export = FALSE) {
     folds = folds, repetitions = reps,
     indicators = lapply(seq_len(nrow(m)), function(i) {
       list(
-        indicator = ps_back(m$Name[i], back, FALSE), construct = owner(m$Name[i]),
-        maePls = m$MAE_target[i], maeLm = m$MAE_benchmark[i], rmsePls = m$RMSE_target[i], rmseLm = m$RMSE_benchmark[i], q2 = m$Q2_predict[i]
+        indicator = ps_back(m$Name[i], back, FALSE),
+        construct = owner(m$Name[i]),
+        maePls = m$MAE_target[i],
+        maeLm = m$MAE_benchmark[i],
+        rmsePls = m$RMSE_target[i],
+        rmseLm = m$RMSE_benchmark[i],
+        q2 = m$Q2_predict[i]
       )
     }),
     warnings = env$.warnings, engine = ps_engine("cSEM")
@@ -83,13 +97,24 @@ ps_pls_predict_seminr <- function(req, folds, reps, seed, export) {
     if (length(fit_at) == 1 && all(mean_lines %in% b$body)) {
       b$body <- b$body[!b$body %in% mean_lines]
       fit_at <- grep("^fit <- estimate_pls\\(", b$body)
-      b$body[fit_at] <- sub("\\)$", ", missing = mean_replacement, missing_value = NA)   # missing values: each fold's means", b$body[fit_at])
+      b$body[fit_at] <- sub(
+        "\\)$",
+        ", missing = mean_replacement, missing_value = NA)   # missing values: each fold's means",
+        b$body[fit_at]
+      )
     }
   }
   body <- c(
     b$body,
-    sprintf("# PLSpredict as seminr's predict_pls: %d-fold cross-validation, %d repetitions (the predictions averaged), predicting", folds, reps),
-    sprintf("# from %s; the linear benchmark regresses each endogenous construct's items on the same predictors' items.", if (technique == "EA") "the exogenous constructs (predict_EA)" else "each construct's direct antecedents (predict_DA)"),
+    sprintf(
+      "# PLSpredict as seminr's predict_pls: %d-fold cross-validation, %d repetitions (the predictions averaged), predicting",
+      folds,
+      reps
+    ),
+    sprintf(
+      "# from %s; the linear benchmark regresses each endogenous construct's items on the same predictors' items.",
+      if (technique == "EA") "the exogenous constructs (predict_EA)" else "each construct's direct antecedents (predict_DA)"
+    ),
     sprintf("set.seed(%d)", seed),
     sprintf("pred <- predict_pls(fit, technique = predict_%s, noFolds = %d, reps = %d)", technique, folds, reps),
     "s <- summary(pred)",
@@ -110,8 +135,13 @@ ps_pls_predict_seminr <- function(req, folds, reps, seed, export) {
     folds = folds, repetitions = reps, predictEngine = "seminr", technique = technique,
     indicators = lapply(items, function(i) {
       list(
-        indicator = unname(back[[i]]), construct = owner(i),
-        maePls = s$PLS_out_of_sample["MAE", i], maeLm = s$LM_out_of_sample["MAE", i], rmsePls = s$PLS_out_of_sample["RMSE", i], rmseLm = s$LM_out_of_sample["RMSE", i], q2 = unname(env$q2[i])
+        indicator = unname(back[[i]]),
+        construct = owner(i),
+        maePls = s$PLS_out_of_sample["MAE", i],
+        maeLm = s$LM_out_of_sample["MAE", i],
+        rmsePls = s$PLS_out_of_sample["RMSE", i],
+        rmseLm = s$LM_out_of_sample["RMSE", i],
+        q2 = unname(env$q2[i])
       )
     }),
     warnings = env$.warnings, engine = ps_engine("seminr")
@@ -123,7 +153,9 @@ ps_pls_compare <- function(req_json, export = FALSE) {
   alt <- req
   alt$model <- req$alternative
   same <- function(m) vapply(m$constructs, function(c) paste(c$name, paste(sort(unlist(c$indicators)), collapse = ","), sep = ":"), "")
-  if (!setequal(same(req$model), same(alt$model))) stop("The alternative model must have the same constructs and indicators; only the paths may differ.")
+  if (!setequal(same(req$model), same(alt$model))) {
+    stop("The alternative model must have the same constructs and indicators; only the paths may differ.")
+  }
   b <- ps_plsx_build(req)
   b2 <- ps_plsx_build(alt)
   seed <- as.integer(req$seed %||% 1)
@@ -149,7 +181,13 @@ ps_pls_compare <- function(req_json, export = FALSE) {
   crit <- function(ms) lapply(names(ms), function(k) list(criterion = k, byConstruct = as.list(setNames(unname(ms[[k]]), ps_back(names(ms[[k]]), back, FALSE)))))
   ps_json(list(
     criteria = crit(env$msc), criteriaAlt = crit(env$msc_alt),
-    cvpat = list(statistic = env$cvpat$test_statistic, p = env$cvpat$p_value, df = env$cvpat$`degrees of freedom`, loss = env$losses[1], lossAlt = env$losses[2]),
+    cvpat = list(
+      statistic = env$cvpat$test_statistic,
+      p = env$cvpat$p_value,
+      df = env$cvpat$`degrees of freedom`,
+      loss = env$losses[1],
+      lossAlt = env$losses[2]
+    ),
     warnings = env$.warnings, engine = ps_engine("cSEM")
   ))
 }
@@ -161,7 +199,9 @@ ps_pls_groups <- function(req_json, export = FALSE) {
   seed <- as.integer(req$seed %||% 1)
   if (R < 20 || R > 5000) stop("Invalid number of permutations.")
   approaches <- unlist(req$approaches %||% c("Henseler", "Chin", "Klesel"))
-  if (!all(approaches %in% c("Henseler", "Chin", "Sarstedt", "Keil", "Nitzl", "Klesel"))) stop("Invalid multigroup approach in the request.")
+  if (!all(approaches %in% c("Henseler", "Chin", "Sarstedt", "Keil", "Nitzl", "Klesel"))) {
+    stop("Invalid multigroup approach in the request.")
+  }
   at <- match(req$group, req$data$names)
   if (is.na(at)) stop("The grouping column is not in the dataset.")
   cols <- req$data$cols
@@ -175,13 +215,20 @@ ps_pls_groups <- function(req_json, export = FALSE) {
     b$body[seq_len(last - 1)],
     sprintf("data <- data[!is.na(data$%s), ]", gv),
     if (length(labels)) sprintf("data$%s <- factor(data$%s, levels = seq_len(%d), labels = %s)", gv, gv, length(labels), ps_q(labels)),
-    "# One PLS model per group (cSEM's .id).", b$body[last],
+    "# One PLS model per group (cSEM's .id).",
+    b$body[last],
     "# MICOM (Henseler, Ringle & Sarstedt 2016): step 2, compositional invariance (c close to 1); step 3, equal means and variances.",
     sprintf("set.seed(%d)  # (testMICOM needs an initialised random number generator)", seed),
     sprintf("micom <- testMICOM(fit, .R = %d, .seed = %d, .verbose = FALSE)", R, seed),
     "# Multigroup analysis: differences between the groups' parameters.",
     ps_cores_csem(req),
-    sprintf("mga <- testMGD(fit, .approach_mgd = %s, .R_permutation = %d, .R_bootstrap = %d, .seed = %d, .eval_plan = plan, .verbose = FALSE)", ps_q(approaches), R, R, seed)
+    sprintf(
+      "mga <- testMGD(fit, .approach_mgd = %s, .R_permutation = %d, .R_bootstrap = %d, .seed = %d, .eval_plan = plan, .verbose = FALSE)",
+      ps_q(approaches),
+      R,
+      R,
+      seed
+    )
   )
   if (export) {
     return(ps_script("Group comparison: MICOM and multigroup analysis (cSEM)", "cSEM", b$inputs, body, c("micom", "mga")))
@@ -200,7 +247,10 @@ ps_pls_groups <- function(req_json, export = FALSE) {
   }
   pathRows <- function(stat, p) {
     keep <- grepl(" ~ ", names(p), fixed = TRUE)
-    lapply(which(keep), function(i) c(ps_plsx_path(names(p)[i], back), list(statistic = if (is.null(stat) || is.na(stat[i])) NULL else unname(stat[i]), p = unname(p[i]))))
+    lapply(
+      which(keep),
+      function(i) c(ps_plsx_path(names(p)[i], back), list(statistic = if (is.null(stat) || is.na(stat[i])) NULL else unname(stat[i]), p = unname(p[i])))
+    )
   }
   mga <- lapply(approaches, function(a) {
     x <- env$mga[[a]]
@@ -213,18 +263,34 @@ ps_pls_groups <- function(req_json, export = FALSE) {
       return(list(approach = a, comparisons = list(list(groups = "all", paths = pathRows(x$Test_statistic, first(x$P_value))))))
     }
     comps <- names(x$Test_statistic)
-    list(approach = a, comparisons = lapply(comps, function(k) list(groups = k, paths = pathRows(x$Test_statistic[[k]], first(x$P_value)[[k]]))))
+    list(
+      approach = a,
+      comparisons = lapply(
+        comps,
+        function(k) list(groups = k, paths = pathRows(x$Test_statistic[[k]], first(x$P_value)[[k]]))
+      )
+    )
   })
   per_group <- lapply(names(env$fit), function(g) {
     P <- env$fit[[g]]$Estimates$Path_estimates
-    list(group = g, n = nrow(env$fit[[g]]$Information$Data), paths = lapply(req$model$paths, function(p) list(from = p$from, to = p$to, est = P[b$n$cv[[p$to]], b$n$cv[[p$from]]])))
+    list(
+      group = g,
+      n = nrow(env$fit[[g]]$Information$Data),
+      paths = lapply(
+        req$model$paths,
+        function(p) list(from = p$from, to = p$to, est = P[b$n$cv[[p$to]], b$n$cv[[p$from]]])
+      )
+    )
   })
   ps_json(list(
     groups = per_group,
     micom = list(
       c = as.list(setNames(unname(first(mi$Step2$Test_statistic)), nm(names(first(mi$Step2$Test_statistic))))),
       cP = as.list(setNames(unname(first(first(mi$Step2$P_value))), nm(names(first(first(mi$Step2$P_value)))))),
-      mean = step3("Mean"), variance = step3("Var"), admissible = mi$Information$Number_admissibles, runs = mi$Information$Total_runs
+      mean = step3("Mean"),
+      variance = step3("Var"),
+      admissible = mi$Information$Number_admissibles,
+      runs = mi$Information$Total_runs
     ),
     mga = mga, samples = R,
     warnings = env$.warnings, engine = ps_engine("cSEM")
@@ -264,14 +330,22 @@ ps_cta <- function(req_json, export = FALSE) {
   B <- as.integer(req$samples %||% 1000)
   seed <- as.integer(req$seed %||% 1)
   alpha <- as.numeric(req$alpha %||% 0.05)
-  if (B < 50 || B > 20000 || !is.finite(alpha) || alpha <= 0 || alpha >= 0.5) stop("Invalid CTA settings.")
+  if (B < 50 || B > 20000 || !is.finite(alpha) || alpha <= 0 || alpha >= 0.5) {
+    stop("Invalid CTA settings.")
+  }
   n <- ps_names(req$model$constructs)
   blocks <- Filter(function(j) length(n$inds[[j]]) >= 4, seq_along(n$inds))
   if (!length(blocks)) stop("CTA-PLS needs constructs with at least four indicators.")
   frame <- ps_frame(req, n)
   body <- c(
     PS_CTA_FUNCTIONS, ps_missing_code(req$missing),
-    sprintf("blocks <- list(%s)", paste(vapply(blocks, function(j) sprintf("%s = %s", n$cv[[n$cname[j]]], ps_q(unname(n$iv[n$inds[[j]]]))), ""), collapse = ", ")),
+    sprintf(
+      "blocks <- list(%s)",
+      paste(
+        vapply(blocks, function(j) sprintf("%s = %s", n$cv[[n$cname[j]]], ps_q(unname(n$iv[n$inds[[j]]]))), ""),
+        collapse = ", "
+      )
+    ),
     sprintf("set.seed(%d)", seed),
     sprintf("boot_rows <- replicate(%d, sample.int(nrow(data), replace = TRUE), simplify = FALSE)", B),
     "cta <- lapply(blocks, function(items) {",
@@ -280,7 +354,10 @@ ps_cta <- function(req_json, export = FALSE) {
     "  boot <- t(sapply(boot_rows, function(r) { Sb <- stats::cov(X[r, , drop = FALSE]); apply(tet, 1, function(t) cta_value(Sb, t)) }))",
     "  if (nrow(tet) == 1) boot <- t(boot)",
     "  se <- apply(boot, 2, stats::sd); m <- nrow(tet)",
-    sprintf("  ci <- t(sapply(seq_len(m), function(k) cta_bc(boot[, k], est[k], %s / m)))  # Bonferroni within the block", format(alpha)),
+    sprintf(
+      "  ci <- t(sapply(seq_len(m), function(k) cta_bc(boot[, k], est[k], %s / m)))  # Bonferroni within the block",
+      format(alpha)
+    ),
     "  data.frame(tetrad = apply(tet, 1, function(t) paste(items[t], collapse = \",\")), est = est, se = se, t = est / se,",
     "    p = 2 * stats::pnorm(-abs(est / se)), low = ci[, 1], high = ci[, 2], differs = ci[, 1] > 0 | ci[, 2] < 0)",
     "})"
@@ -298,11 +375,18 @@ ps_cta <- function(req_json, export = FALSE) {
       list(construct = ps_back(k, back_c, FALSE), tetrads = lapply(seq_len(nrow(d)), function(i) {
         list(
           tetrad = paste(ps_back(strsplit(d$tetrad[i], ",", fixed = TRUE)[[1]], back_i, FALSE), collapse = ", "),
-          est = d$est[i], se = d$se[i], t = d$t[i], p = d$p[i], low = d$low[i], high = d$high[i], differs = isTRUE(d$differs[i])
+          est = d$est[i],
+          se = d$se[i],
+          t = d$t[i],
+          p = d$p[i],
+          low = d$low[i],
+          high = d$high[i],
+          differs = isTRUE(d$differs[i])
         )
       }))
     }),
-    warnings = env$.warnings, engine = list(package = "R (CTA-PLS as Gudergan et al. 2008)", version = as.character(getRversion()))
+    warnings = env$.warnings,
+    engine = list(package = "R (CTA-PLS as Gudergan et al. 2008)", version = as.character(getRversion()))
   ))
 }
 
@@ -342,15 +426,30 @@ ps_blindfold <- function(req_json, export = FALSE) {
   b <- ps_plsx_build(req)
   cons <- req$model$constructs
   ends <- unique(vapply(req$model$paths, function(p) p$to, ""))
-  refl <- vapply(cons, function(c) c$name %in% ends && identical(c$mode %||% "A", "A") && length(unlist(c$indicators)) > 0, TRUE)
-  if (!any(refl)) stop("Blindfolding needs endogenous constructs with reflective (Mode A) indicators.")
+  refl <- vapply(
+    cons,
+    function(c) c$name %in% ends && identical(c$mode %||% "A", "A") && length(unlist(c$indicators)) > 0,
+    TRUE
+  )
+  if (!any(refl)) {
+    stop("Blindfolding needs endogenous constructs with reflective (Mode A) indicators.")
+  }
   fit_line <- grep("^fit <- csem\\(data,", b$body, value = TRUE)[1]
   body <- c(
     b$body,
-    sprintf("blind_estimate <- function(d) %s", sub("^fit <- ", "", sub("csem(data,", "csem(d,", fit_line, fixed = TRUE))),
+    sprintf(
+      "blind_estimate <- function(d) %s",
+      sub("^fit <- ", "", sub("csem(data,", "csem(d,", fit_line, fixed = TRUE))
+    ),
     PS_BLINDFOLD_FUNCTIONS,
     sprintf("# Omission distance D = %d; every D-th cell of the block (column by column) is omitted in round j.", D),
-    sprintf("targets <- list(%s)", paste(vapply(which(refl), function(j) sprintf("%s = %s", b$n$cv[[cons[[j]]$name]], ps_q(unname(b$n$iv[unlist(cons[[j]]$indicators)]))), ""), collapse = ", ")),
+    sprintf(
+      "targets <- list(%s)",
+      paste(
+        vapply(which(refl), function(j) sprintf("%s = %s", b$n$cv[[cons[[j]]$name]], ps_q(unname(b$n$iv[unlist(cons[[j]]$indicators)]))), ""),
+        collapse = ", "
+      )
+    ),
     sprintf("q2 <- t(sapply(names(targets), function(k) blindfold(data, targets[[k]], k, %d)))", D)
   )
   if (export) {
@@ -361,8 +460,12 @@ ps_blindfold <- function(req_json, export = FALSE) {
   q <- env$q2
   ps_json(list(
     distance = D, n = nrow(b$inputs$data), divisible = nrow(b$inputs$data) %% D == 0,
-    constructs = lapply(rownames(q), function(k) list(construct = ps_back(k, back, FALSE), sse = q[k, "SSE"], sso = q[k, "SSO"], q2 = q[k, "Q2"])),
-    warnings = env$.warnings, engine = list(package = "cSEM (blindfolding as semPLS)", version = as.character(utils::packageVersion("cSEM")))
+    constructs = lapply(
+      rownames(q),
+      function(k) list(construct = ps_back(k, back, FALSE), sse = q[k, "SSE"], sso = q[k, "SSO"], q2 = q[k, "Q2"])
+    ),
+    warnings = env$.warnings,
+    engine = list(package = "cSEM (blindfolding as semPLS)", version = as.character(utils::packageVersion("cSEM")))
   ))
 }
 
@@ -377,7 +480,9 @@ ps_cca <- function(req_json, export = FALSE) {
   B <- as.integer(req$samples %||% 499)
   seed <- as.integer(req$seed %||% 1)
   alpha <- as.numeric(req$alpha %||% 0.05)
-  if (B < 20 || B > 5000 || !is.finite(alpha) || alpha <= 0 || alpha >= 0.5) stop("Invalid CCA settings.")
+  if (B < 20 || B > 5000 || !is.finite(alpha) || alpha <= 0 || alpha >= 0.5) {
+    stop("Invalid CCA settings.")
+  }
   req$model$constructs <- lapply(req$model$constructs, function(c) {
     c$type <- "composite"
     c
@@ -385,7 +490,9 @@ ps_cca <- function(req_json, export = FALSE) {
   req$options$consistent <- FALSE
   b <- ps_plsx_build(req)
   fit_line <- grep("^fit <- csem\\(data,", b$body, value = TRUE)[1]
-  if (identical(req$options$approach %||% "PLS-PM", "PLS-PM")) fit_line <- sub("\\)$", ", .PLS_ignore_structural_model = TRUE)", fit_line)
+  if (identical(req$options$approach %||% "PLS-PM", "PLS-PM")) {
+    fit_line <- sub("\\)$", ", .PLS_ignore_structural_model = TRUE)", fit_line)
+  }
   body <- c(
     setdiff(b$body, grep("^fit <- csem\\(data,", b$body, value = TRUE)),
     "# Confirmatory composite analysis: all constructs are composites; the weights ignore the structural model (saturated).",
@@ -395,7 +502,14 @@ ps_cca <- function(req_json, export = FALSE) {
     sprintf("omf <- testOMF(fit, .R = %d, .seed = %d, .alpha = c(0.05, 0.01), .saturated = TRUE)", B, seed),
     "# The composites: weights and loadings with bootstrap percentile intervals, VIFs of the Mode B weights.",
     ps_cores_csem(req),
-    sprintf("boot <- %s", sub("\\)$", sprintf(", .resample_method = \"bootstrap\", .R = %d, .seed = %d, .eval_plan = plan)", B, seed), sub("^fit <- ", "", fit_line))),
+    sprintf(
+      "boot <- %s",
+      sub(
+        "\\)$",
+        sprintf(", .resample_method = \"bootstrap\", .R = %d, .seed = %d, .eval_plan = plan)", B, seed),
+        sub("^fit <- ", "", fit_line)
+      )
+    ),
     sprintf("est <- summarize(boot, .alpha = %s, .ci = \"CI_percentile\")$Estimates", format(alpha)),
     "vif <- calculateVIFModeB(fit)",
     "cor_composites <- fit$Estimates$Construct_VCV"
@@ -413,8 +527,13 @@ ps_cca <- function(req_json, export = FALSE) {
     lapply(seq_len(nrow(d)), function(i) {
       p <- strsplit(d$Name[i], " (<~|=~) ")[[1]]
       list(
-        construct = ps_back(p[1], back, FALSE), indicator = ps_back(p[2], back, FALSE), est = d$Estimate[i], se = d$Std_err[i], p = d$p_value[i],
-        low = d[[grep("L$", names(d))[1]]][i], high = d[[grep("U$", names(d))[1]]][i]
+        construct = ps_back(p[1], back, FALSE),
+        indicator = ps_back(p[2], back, FALSE),
+        est = d$Estimate[i],
+        se = d$Std_err[i],
+        p = d$p_value[i],
+        low = d[[grep("L$", names(d))[1]]][i],
+        high = d[[grep("U$", names(d))[1]]][i]
       )
     })
   }
@@ -425,7 +544,10 @@ ps_cca <- function(req_json, export = FALSE) {
     unlist(lapply(rownames(vif), function(k) {
       v <- vif[k, ]
       v <- v[is.finite(v) & v != 0]
-      lapply(names(v), function(i) list(construct = ps_back(k, back, FALSE), indicator = ps_back(i, back, FALSE), vif = unname(v[i])))
+      lapply(
+        names(v),
+        function(i) list(construct = ps_back(k, back, FALSE), indicator = ps_back(i, back, FALSE), vif = unname(v[i]))
+      )
     }), recursive = FALSE)
   }
   R <- env$cor_composites
@@ -434,7 +556,12 @@ ps_cca <- function(req_json, export = FALSE) {
     # (d_G with the natural logarithm, as Dijkstra & Henseler 2015 and the app's Fit tab; cSEM prints it with log base 10)
     fit = lapply(names(omf$Test_statistic), function(k) {
       s <- if (k == "dG") log(10)^2 else 1
-      list(measure = k, statistic = s * unname(omf$Test_statistic[k]), q95 = s * unname(omf$Critical_value[k, "95%"]), q99 = s * unname(omf$Critical_value[k, "99%"]))
+      list(
+        measure = k,
+        statistic = s * unname(omf$Test_statistic[k]),
+        q95 = s * unname(omf$Critical_value[k, "95%"]),
+        q99 = s * unname(omf$Critical_value[k, "99%"])
+      )
     }),
     weights = tab(env$est$Weight_estimates), loadings = tab(env$est$Loading_estimates), vif = vifs,
     composites = ps_back(rownames(R), back, FALSE), correlations = unname(R),

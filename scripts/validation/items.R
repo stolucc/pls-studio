@@ -6,11 +6,17 @@
 
 args <- commandArgs(TRUE)
 if (length(args)) .libPaths(c(args[1], .libPaths()))
-suppressMessages({ library(ltm); library(poLCA); library(jsonlite) })
+suppressMessages({
+  library(ltm)
+  library(poLCA)
+  library(jsonlite)
+})
 root <- "src/engine/__fixtures__/items"
-lsat <- as.data.frame(LSAT); names(lsat) <- paste0("item", 1:5)
+lsat <- as.data.frame(LSAT)
+names(lsat) <- paste0("item", 1:5)
 sci <- Science[c(1, 3, 4, 7)]
-sci <- as.data.frame(lapply(sci, as.integer)); names(sci) <- c("comfort", "work", "future", "benefit")
+sci <- as.data.frame(lapply(sci, as.integer))
+names(sci) <- c("comfort", "work", "future", "benefit")
 data(values)
 write.csv(lsat, file.path(root, "lsat.csv"), row.names = FALSE)
 write.csv(sci, file.path(root, "science.csv"), row.names = FALSE)
@@ -26,8 +32,15 @@ lca <- lapply(2:3, function(k) {
   m <- poLCA(cbind(A, B, C, D) ~ 1, values, nclass = k, nrep = 10, verbose = FALSE)
   list(k = k, llik = m$llik, aic = m$aic, bic = m$bic, npar = m$npar, shares = sort(m$P))
 })
-write(toJSON(list(ltm = as.character(packageVersion("ltm")), poLCA = as.character(packageVersion("poLCA")),
-  irt = lapply(fits, function(x) { x$coef <- lapply(seq_len(nrow(x$coef)), function(i) as.list(x$coef[i, ])); x }),
-  irtRows = list(rasch = rownames(coef(rasch(lsat))), grm = rownames(coef(grm(sci)))), lca = lca),
-  auto_unbox = TRUE, digits = NA, pretty = TRUE), file.path(root, "items.json"))
+write(toJSON(
+  list(
+    ltm = as.character(packageVersion("ltm")), poLCA = as.character(packageVersion("poLCA")),
+    irt = lapply(fits, function(x) {
+      x$coef <- lapply(seq_len(nrow(x$coef)), function(i) as.list(x$coef[i, ]))
+      x
+    }),
+    irtRows = list(rasch = rownames(coef(rasch(lsat))), grm = rownames(coef(grm(sci)))), lca = lca
+  ),
+  auto_unbox = TRUE, digits = NA, pretty = TRUE
+), file.path(root, "items.json"))
 cat("written\n")

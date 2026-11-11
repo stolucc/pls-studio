@@ -14,9 +14,15 @@ ps_efa2_syntax <- function(ys, k, prefix) {
   }
   fs <- sprintf("%s%d", prefix, seq_len(k))
   c(
-    vapply(seq_len(k), function(j) sprintf("%s =~ %s", fs[j], paste(c(if (j > 1) sprintf("0*%s", ys[seq_len(j - 1)]), sprintf("NA*%s", ys[j]), if (j < length(ys)) ys[(j + 1):length(ys)]), collapse = " + ")), ""),
+    vapply(
+      seq_len(k),
+      function(j) sprintf("%s =~ %s", fs[j], paste(c(if (j > 1) sprintf("0*%s", ys[seq_len(j - 1)]), sprintf("NA*%s", ys[j]), if (j < length(ys)) ys[(j + 1):length(ys)]), collapse = " + ")),
+      ""
+    ),
     sprintf("%s ~~ 1*%s", fs, fs),
-    if (k > 1) unlist(lapply(seq_len(k - 1), function(i) sprintf("%s ~~ 0*%s", fs[i], fs[(i + 1):k])))
+    if (k > 1) {
+      unlist(lapply(seq_len(k - 1), function(i) sprintf("%s ~~ 0*%s", fs[i], fs[(i + 1):k])))
+    }
   )
 }
 
@@ -71,7 +77,9 @@ ps_efa_twolevel <- function(req_json, export = FALSE) {
   items <- as.character(unlist(req$items))
   cl <- req$cluster
   if (length(items) < 3 || length(items) > 30) stop("Choose 3 to 30 items.")
-  if (!(is.character(cl) && length(cl) == 1 && nzchar(cl)) || cl %in% items) stop("Choose the cluster column (not one of the items).")
+  if (!(is.character(cl) && length(cl) == 1 && nzchar(cl)) || cl %in% items) {
+    stop("Choose the cluster column (not one of the items).")
+  }
   lev_list <- function(v, what) {
     v <- unlist(v)
     if (!length(v)) stop(sprintf("Choose the numbers of %s factors.", what))
@@ -80,19 +88,31 @@ ps_efa_twolevel <- function(req_json, export = FALSE) {
         "U"
       } else {
         k <- suppressWarnings(as.integer(x))
-        if (is.na(k) || k < 1 || k > 6) stop(sprintf("Invalid number of %s factors in the request.", what))
+        if (is.na(k) || k < 1 || k > 6) {
+          stop(sprintf("Invalid number of %s factors in the request.", what))
+        }
         k
       }
     })
-    if (anyDuplicated(vapply(out, as.character, ""))) stop(sprintf("Each number of %s factors once.", what))
+    if (anyDuplicated(vapply(out, as.character, ""))) {
+      stop(sprintf("Each number of %s factors once.", what))
+    }
     out
   }
   within <- lev_list(req$within, "within")
   between <- lev_list(req$between, "between")
   p <- length(items)
   for (k in c(within, between)) if (!identical(k, "U") && (p - k)^2 < p + k) stop(sprintf("%d factors are too many for %d items.", k, p))
-  combos <- Filter(Negate(is.null), unlist(lapply(within, function(w) lapply(between, function(b) if (identical(w, "U") && identical(b, "U")) NULL else list(w = w, b = b))), recursive = FALSE))
-  if (!length(combos)) stop("Choose factors for at least one level (both unrestricted is the saturated model).")
+  combos <- Filter(
+    Negate(is.null),
+    unlist(
+      lapply(within, function(w) lapply(between, function(b) if (identical(w, "U") && identical(b, "U")) NULL else list(w = w, b = b))),
+      recursive = FALSE
+    )
+  )
+  if (!length(combos)) {
+    stop("Choose factors for at least one level (both unrestricted is the saturated model).")
+  }
   if (length(combos) > 12) stop("At most 12 combinations of within and between factors.")
   fr <- ps_long_frame(req, c(items, cl))
   ys <- unname(fr$v[items])
@@ -103,19 +123,27 @@ ps_efa_twolevel <- function(req_json, export = FALSE) {
     b <- combos[[i]]$b
     syn <- c("level: 1", ps_efa2_syntax(ys, w, "fw"), "level: 2", ps_efa2_syntax(ys, b, "fb"))
     body <- c(
-      body, sprintf("# %s within, %s between", if (identical(w, "U")) "unrestricted" else sprintf("%d factor(s)", w), if (identical(b, "U")) "unrestricted" else sprintf("%d factor(s)", b)),
-      "model <- '", paste0("  ", syn), "'",
-      sprintf("fit <- lavaan::sem(model, data = data, cluster = \"%s\", estimator = \"ML\", information = \"observed\")", cv),
+      body,
+      sprintf("# %s within, %s between", if (identical(w, "U")) "unrestricted" else sprintf("%d factor(s)", w), if (identical(b, "U")) "unrestricted" else sprintf("%d factor(s)", b)),
+      "model <- '",
+      paste0("  ", syn),
+      "'",
+      sprintf(
+        "fit <- lavaan::sem(model, data = data, cluster = \"%s\", estimator = \"ML\", information = \"observed\")",
+        cv
+      ),
       "sol <- list(fit = fit)",
       if (!identical(w, "U")) {
         c(
-          sprintf("fw <- %s", ps_q(sprintf("fw%d", seq_len(w)))), sprintf("sol$within <- efa2_level(lavaan::coef(fit), fit, 1, ys, fw, %s)", format(ps_efa2_epsilon(w))),
+          sprintf("fw <- %s", ps_q(sprintf("fw%d", seq_len(w)))),
+          sprintf("sol$within <- efa2_level(lavaan::coef(fit), fit, 1, ys, fw, %s)", format(ps_efa2_epsilon(w))),
           sprintf("sol$within_se <- efa2_se(fit, 1, ys, fw, %s, sol$within)", format(ps_efa2_epsilon(w)))
         )
       },
       if (!identical(b, "U")) {
         c(
-          sprintf("fb <- %s", ps_q(sprintf("fb%d", seq_len(b)))), sprintf("sol$between <- efa2_level(lavaan::coef(fit), fit, 2, ys, fb, %s)", format(ps_efa2_epsilon(b))),
+          sprintf("fb <- %s", ps_q(sprintf("fb%d", seq_len(b)))),
+          sprintf("sol$between <- efa2_level(lavaan::coef(fit), fit, 2, ys, fb, %s)", format(ps_efa2_epsilon(b))),
           sprintf("sol$between_se <- efa2_se(fit, 2, ys, fb, %s, sol$between)", format(ps_efa2_epsilon(b)))
         )
       },
@@ -125,7 +153,10 @@ ps_efa_twolevel <- function(req_json, export = FALSE) {
   inputs <- list(data = fr$data)
   if (export) {
     return(ps_script(
-      "Two-level exploratory factor analysis (lavaan, geomin rotation by GPArotation)", c("lavaan", "GPArotation"), inputs, body,
+      "Two-level exploratory factor analysis (lavaan, geomin rotation by GPArotation)",
+      c("lavaan", "GPArotation"),
+      inputs,
+      body,
       c("lapply(solutions, function(s) list(fit = lavaan::fitMeasures(s$fit, c(\"npar\", \"logl\", \"chisq\", \"df\", \"aic\", \"bic\")), within = s$within[c(\"L\", \"Phi\", \"th\")], between = s$between[c(\"L\", \"Phi\", \"th\")]))")
     ))
   }
@@ -135,33 +166,51 @@ ps_efa_twolevel <- function(req_json, export = FALSE) {
       NULL
     } else {
       list(
-        factors = I(colnames(sol$L)), loadings = lapply(seq_len(nrow(sol$L)), function(r) list(item = items[r], est = I(unname(sol$L[r, ])), se = I(unname(se$L[r, ])))),
+        factors = I(colnames(sol$L)),
+        loadings = lapply(seq_len(nrow(sol$L)), function(r) list(item = items[r], est = I(unname(sol$L[r, ])), se = I(unname(se$L[r, ])))),
         correlations = if (ncol(sol$L) > 1) {
           ij <- which(lower.tri(sol$Phi), arr.ind = TRUE)
-          lapply(seq_len(nrow(ij)), function(q) list(a = ij[q, 2], b = ij[q, 1], est = sol$Phi[ij[q, 1], ij[q, 2]], se = se$Phi[q]))
+          lapply(
+            seq_len(nrow(ij)),
+            function(q) list(a = ij[q, 2], b = ij[q, 1], est = sol$Phi[ij[q, 1], ij[q, 2]], se = se$Phi[q])
+          )
         } else {
           list()
         },
-        residuals = lapply(seq_along(items), function(r) list(item = items[r], est = unname(sol$th[r]), se = unname(se$th[r]))),
+        residuals = lapply(
+          seq_along(items),
+          function(r) list(item = items[r], est = unname(sol$th[r]), se = unname(se$th[r]))
+        ),
         criterion = if (is.na(sol$f)) NULL else sol$f
       )
     }
   }
   out <- lapply(seq_along(combos), function(i) {
     s <- env$solutions[[i]]
-    fm <- lavaan::fitMeasures(s$fit, c("npar", "logl", "chisq", "df", "pvalue", "aic", "bic", "rmsea", "cfi", "tli", "srmr_within", "srmr_between"))
+    fm <- lavaan::fitMeasures(
+      s$fit,
+      c("npar", "logl", "chisq", "df", "pvalue", "aic", "bic", "rmsea", "cfi", "tli", "srmr_within", "srmr_between")
+    )
     w <- combos[[i]]$w
     b <- combos[[i]]$b
     # (Mplus does not count an unrestricted level's variances and covariances among the free parameters)
     nparM <- unname(fm[["npar"]]) - (if (identical(w, "U") || identical(b, "U")) p * (p + 1) / 2 else 0)
     list(
-      within = if (identical(w, "U")) "U" else w, between = if (identical(b, "U")) "U" else b, converged = lavaan::lavInspect(s$fit, "converged"),
+      within = if (identical(w, "U")) "U" else w,
+      between = if (identical(b, "U")) "U" else b,
+      converged = lavaan::lavInspect(s$fit, "converged"),
       fit = c(as.list(fm), list(nparMplus = nparM)),
-      withinLevel = level_out(s$within, s$within_se), betweenLevel = level_out(s$between, s$between_se)
+      withinLevel = level_out(s$within, s$within_se),
+      betweenLevel = level_out(s$between, s$between_se)
     )
   })
   ps_json(list(
-    items = I(items), cluster = cl, n = lavaan::lavInspect(env$solutions[[1]]$fit, "nobs"), clusters = lavaan::lavInspect(env$solutions[[1]]$fit, "nclusters"),
-    solutions = out, warnings = env$.warnings, engine = list(package = "lavaan + GPArotation", version = as.character(utils::packageVersion("lavaan")))
+    items = I(items),
+    cluster = cl,
+    n = lavaan::lavInspect(env$solutions[[1]]$fit, "nobs"),
+    clusters = lavaan::lavInspect(env$solutions[[1]]$fit, "nclusters"),
+    solutions = out,
+    warnings = env$.warnings,
+    engine = list(package = "lavaan + GPArotation", version = as.character(utils::packageVersion("lavaan")))
   ))
 }

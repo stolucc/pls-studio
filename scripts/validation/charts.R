@@ -5,9 +5,21 @@
 suppressPackageStartupMessages(library(jsonlite))
 d <- airquality[, c("Ozone", "Month")]
 write.csv(d, "src/engine/__fixtures__/charts/airquality.csv", row.names = FALSE, na = "")
-box <- lapply(split(d$Ozone, d$Month), function(x) { x <- sort(x[!is.na(x)]); q <- unname(quantile(x, c(0.25, 0.5, 0.75), type = 7)); f <- 1.5 * (q[3] - q[1])
+box <- lapply(split(d$Ozone, d$Month), function(x) {
+  x <- sort(x[!is.na(x)])
+  q <- unname(quantile(x, c(0.25, 0.5, 0.75), type = 7))
+  f <- 1.5 * (q[3] - q[1])
   inside <- x[x >= q[1] - f & x <= q[3] + f]
-  list(n = length(x), q1 = q[1], median = q[2], q3 = q[3], lo = min(inside), hi = max(inside), outliers = x[x < q[1] - f | x > q[3] + f]) })
+  list(
+    n = length(x),
+    q1 = q[1],
+    median = q[2],
+    q3 = q[3],
+    lo = min(inside),
+    hi = max(inside),
+    outliers = x[x < q[1] - f | x > q[3] + f]
+  )
+})
 tab <- table(d$Month)
 out <- list(box = box, counts = as.list(setNames(as.integer(tab), names(tab))), versions = list(R = R.version.string))
 writeLines(toJSON(out, auto_unbox = FALSE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/charts/reference.json")

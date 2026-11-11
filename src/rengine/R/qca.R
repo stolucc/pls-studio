@@ -31,8 +31,12 @@ qca_models <- function(m, back) {
     list(
       terms = lapply(terms, function(t) {
         list(
-          term = qca_back_term(t, back), inclS = unname(inc[t, "inclS"]), PRI = unname(inc[t, "PRI"]), covS = unname(inc[t, "covS"]),
-          covU = qca_na_null(inc[t, "covU"]), cases = if (!is.null(overall) && "cases" %in% names(overall) && t %in% rownames(overall)) as.character(overall[t, "cases"]) else ""
+          term = qca_back_term(t, back),
+          inclS = unname(inc[t, "inclS"]),
+          PRI = unname(inc[t, "PRI"]),
+          covS = unname(inc[t, "covS"]),
+          covU = qca_na_null(inc[t, "covU"]),
+          cases = if (!is.null(overall) && "cases" %in% names(overall) && t %in% rownames(overall)) as.character(overall[t, "cases"]) else ""
         )
       }),
       inclS = unname(sol$inclS[1]), PRI = unname(sol$PRI[1]), covS = unname(sol$covS[1]),
@@ -40,7 +44,10 @@ qca_models <- function(m, back) {
     )
   }
   if (!is.null(ic$individual)) {
-    lapply(seq_along(m$solution), function(i) one(m$solution[[i]], ic$individual[[i]]$incl.cov, ic$individual[[i]]$sol.incl.cov))
+    lapply(
+      seq_along(m$solution),
+      function(i) one(m$solution[[i]], ic$individual[[i]]$incl.cov, ic$individual[[i]]$sol.incl.cov)
+    )
   } else {
     list(one(m$solution[[1]], ic$incl.cov, ic$sol.incl.cov))
   }
@@ -50,36 +57,60 @@ ps_qca <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   conds <- as.character(unlist(req$conditions))
   yn <- req$outcome
-  if (!length(conds) || !length(yn) || yn %in% conds) stop("Choose the outcome and at least one condition (different columns).")
+  if (!length(conds) || !length(yn) || yn %in% conds) {
+    stop("Choose the outcome and at least one condition (different columns).")
+  }
   if (length(conds) > 12) stop("At most 12 conditions.")
   negate <- isTRUE(req$negate)
   n_cut <- ps_number(req$nCut %||% 1, "frequency cut-off")
   incl_cut <- ps_number(req$inclCut %||% 0.8, "consistency cut-off")
   pri_cut <- ps_number(req$priCut %||% 0, "PRI cut-off")
-  if (n_cut < 1 || incl_cut <= 0 || incl_cut > 1 || pri_cut < 0 || pri_cut > 1) stop("Invalid cut-offs: n.cut >= 1, 0 < incl.cut <= 1, 0 <= pri.cut <= 1.")
+  if (n_cut < 1 || incl_cut <= 0 || incl_cut > 1 || pri_cut < 0 || pri_cut > 1) {
+    stop("Invalid cut-offs: n.cut >= 1, 0 < incl.cut <= 1, 0 <= pri.cut <= 1.")
+  }
   sort_by <- req$sortBy %||% "OUT, incl"
-  if (!(is.character(sort_by) && length(sort_by) == 1 && sort_by %in% c("OUT, incl", "OUT, incl, n", "incl, n", "incl", "OUT", "n"))) stop("Invalid sort order in the request.")
+  if (!(is.character(sort_by) && length(sort_by) == 1 && sort_by %in% c("OUT, incl", "OUT, incl, n", "incl, n", "incl", "OUT", "n"))) {
+    stop("Invalid sort order in the request.")
+  }
   dir_exp <- as.character(unlist(req$dirExp %||% rep("-", length(conds))))
-  if (length(dir_exp) != length(conds) || !all(dir_exp %in% c("1", "0", "-"))) stop("Invalid directional expectations in the request.")
+  if (length(dir_exp) != length(conds) || !all(dir_exp %in% c("1", "0", "-"))) {
+    stop("Invalid directional expectations in the request.")
+  }
   fr <- ps_long_frame(req, c(conds, yn))
   v <- fr$v
   X <- unname(v[conds])
   Y <- v[[yn]]
   labels <- as.character(unlist(req$labels))
-  if (length(labels) && length(labels) != nrow(fr$data)) stop("Case labels must have one entry per row.")
+  if (length(labels) && length(labels) != nrow(fr$data)) {
+    stop("Case labels must have one entry per row.")
+  }
   # Calibration per variable: the direct method with its three anchors, or the column as it is (already fuzzy or crisp).
   cal_lines <- character(0)
   cal_out <- list()
   for (nm in c(conds, yn)) {
     k <- req$calibration[[nm]]
     method <- k$method %||% "none"
-    if (!(is.character(method) && length(method) == 1 && method %in% c("none", "direct"))) stop("Invalid calibration method in the request.")
+    if (!(is.character(method) && length(method) == 1 && method %in% c("none", "direct"))) {
+      stop("Invalid calibration method in the request.")
+    }
     if (method == "direct") {
       e <- ps_number(k$e, "full non-membership anchor")
       cc <- ps_number(k$c, "crossover anchor")
       i <- ps_number(k$i, "full membership anchor")
-      if (!((e < cc && cc < i) || (e > cc && cc > i))) stop(sprintf("The anchors of %s must be in order (full non-membership, crossover, full membership).", nm))
-      cal_lines <- c(cal_lines, sprintf("cal$%s <- calibrate(data$%s, type = \"fuzzy\", thresholds = \"e=%s, c=%s, i=%s\")", v[[nm]], v[[nm]], format(e, digits = 15), format(cc, digits = 15), format(i, digits = 15)))
+      if (!((e < cc && cc < i) || (e > cc && cc > i))) {
+        stop(sprintf("The anchors of %s must be in order (full non-membership, crossover, full membership).", nm))
+      }
+      cal_lines <- c(
+        cal_lines,
+        sprintf(
+          "cal$%s <- calibrate(data$%s, type = \"fuzzy\", thresholds = \"e=%s, c=%s, i=%s\")",
+          v[[nm]],
+          v[[nm]],
+          format(e, digits = 15),
+          format(cc, digits = 15),
+          format(i, digits = 15)
+        )
+      )
       cal_out[[nm]] <- list(variable = nm, method = "direct", e = e, c = cc, i = i)
     } else {
       cal_lines <- c(cal_lines, sprintf("cal$%s <- data$%s  # already calibrated", v[[nm]], v[[nm]]))
@@ -102,7 +133,10 @@ ps_qca <- function(req_json, export = FALSE) {
     "# ---- Truth table ----",
     sprintf(
       "tt <- truthTable(cal, outcome = outcome, conditions = conditions, incl.cut = %s, n.cut = %d, pri.cut = %s, sort.by = \"%s\", show.cases = TRUE)",
-      format(incl_cut, digits = 15), as.integer(n_cut), format(pri_cut, digits = 15), sort_by
+      format(incl_cut, digits = 15),
+      as.integer(n_cut),
+      format(pri_cut, digits = 15),
+      sort_by
     ),
     "# ---- Minimisation: conservative (complex), parsimonious, intermediate ----",
     "try_min <- function(expr) tryCatch(expr, error = function(e) { warning(conditionMessage(e)); NULL })",
@@ -127,13 +161,21 @@ ps_qca <- function(req_json, export = FALSE) {
   obs <- rows[rows$n > 0, , drop = FALSE]
   tt_rows <- lapply(seq_len(nrow(obs)), function(r) {
     list(
-      id = rownames(obs)[r], values = as.integer(unlist(obs[r, X])), out = as.character(obs$OUT[r]), n = as.integer(obs$n[r]),
-      incl = qca_na_null(num(obs$incl[r])), pri = qca_na_null(num(obs$PRI[r])), cases = if ("cases" %in% names(obs)) as.character(obs$cases[r]) else ""
+      id = rownames(obs)[r],
+      values = as.integer(unlist(obs[r, X])),
+      out = as.character(obs$OUT[r]),
+      n = as.integer(obs$n[r]),
+      incl = qca_na_null(num(obs$incl[r])),
+      pri = qca_na_null(num(obs$PRI[r])),
+      cases = if ("cases" %in% names(obs)) as.character(obs$cases[r]) else ""
     )
   })
   nec_rows <- function(p, neg) {
     ic <- p$incl.cov
-    lapply(seq_len(nrow(ic)), function(r) list(condition = paste0(if (neg) "~" else "", back[[sub("^~", "", rownames(ic)[r])]]), inclN = unname(ic$inclN[r]), RoN = unname(ic$RoN[r]), covN = unname(ic$covN[r])))
+    lapply(
+      seq_len(nrow(ic)),
+      function(r) list(condition = paste0(if (neg) "~" else "", back[[sub("^~", "", rownames(ic)[r])]]), inclN = unname(ic$inclN[r]), RoN = unname(ic$RoN[r]), covN = unname(ic$covN[r]))
+    )
   }
   necessity <- c(nec_rows(env$nec, FALSE), nec_rows(env$nec_neg, TRUE))
   solution <- function(m, kind) {
@@ -171,11 +213,20 @@ ps_qca <- function(req_json, export = FALSE) {
     labels = if (length(labels)) utils::head(rownames(env$cal), 3000) else NULL,
     calibration = cal_summary, necessity = necessity,
     truthTable = list(
-      rows = tt_rows, remainders = sum(rows$n == 0), nCut = n_cut, inclCut = incl_cut, priCut = pri_cut, sortBy = sort_by,
+      rows = tt_rows,
+      remainders = sum(rows$n == 0),
+      nCut = n_cut,
+      inclCut = incl_cut,
+      priCut = pri_cut,
+      sortBy = sort_by,
       counts = list(out1 = sum(obs$OUT == "1"), out0 = sum(obs$OUT == "0"), contradictions = sum(obs$OUT == "C"))
     ),
     expectations = dir_exp,
-    solutions = list(complex = solution(env$sol_c, "complex"), parsimonious = solution(env$sol_p, "parsimonious"), intermediate = solution(env$sol_i, "intermediate")),
+    solutions = list(
+      complex = solution(env$sol_c, "complex"),
+      parsimonious = solution(env$sol_p, "parsimonious"),
+      intermediate = solution(env$sol_i, "intermediate")
+    ),
     outcomeValues = utils::head(as.numeric(y), 3000),
     warnings = env$.warnings, engine = ps_engine("QCA")
   ))

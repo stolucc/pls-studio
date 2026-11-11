@@ -9,7 +9,21 @@
 # reproducible without a seed from the app.
 
 #' The dynamic functions the card can call, and what each takes besides the fit.
-.ps_dfi_fns <- c("cfaOne", "cfaHB", "catOne", "catHB", "likertOne", "likertHB", "nnorOne", "nnorHB", "hier1HB", "hier2", "exactFit", "equivTest", "DDDFI")
+.ps_dfi_fns <- c(
+  "cfaOne",
+  "cfaHB",
+  "catOne",
+  "catHB",
+  "likertOne",
+  "likertHB",
+  "nnorOne",
+  "nnorHB",
+  "hier1HB",
+  "hier2",
+  "exactFit",
+  "equivTest",
+  "DDDFI"
+)
 .ps_dfi_with_data <- c("likertOne", "likertHB", "nnorOne", "nnorHB")
 .ps_dfi_estimators <- c("ML", "MLR", "MLM", "MLMV", "WLSMV", "ULSMV", "DWLS", "WLS", "ULS", "GLS")
 
@@ -65,31 +79,55 @@ ps_dfi <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   ps_cb_plain(b, "Dynamic fit cutoffs", raw = FALSE)
-  if (!grepl("^fit <- sem\\(.*\\)$", b$call)) stop("Dynamic fit cutoffs are not available for this model.")
-  if (!is.null(b$group_var)) stop("Dynamic fit cutoffs are for a single group: remove the grouping (or analyse each group's data).")
-  if (length(b$composites)) stop("Dynamic fit cutoffs are for common-factor models; the model has composites (<~).")
-  if (length(req$model$moderations)) stop("Dynamic fit cutoffs are not available with latent interactions.")
+  if (!grepl("^fit <- sem\\(.*\\)$", b$call)) {
+    stop("Dynamic fit cutoffs are not available for this model.")
+  }
+  if (!is.null(b$group_var)) {
+    stop("Dynamic fit cutoffs are for a single group: remove the grouping (or analyse each group's data).")
+  }
+  if (length(b$composites)) {
+    stop("Dynamic fit cutoffs are for common-factor models; the model has composites (<~).")
+  }
+  if (length(req$model$moderations)) {
+    stop("Dynamic fit cutoffs are not available with latent interactions.")
+  }
   o <- req$dfi
   fn <- o[["fn", exact = TRUE]]
-  if (!(is.character(fn) && length(fn) == 1 && fn %in% .ps_dfi_fns)) stop("Invalid DFI function in the request.")
+  if (!(is.character(fn) && length(fn) == 1 && fn %in% .ps_dfi_fns)) {
+    stop("Invalid DFI function in the request.")
+  }
   reps <- as.integer(ps_number(o$reps %||% 500, "replications"))
-  if (is.na(reps) || reps < 10L || reps > 5000L) stop("The number of replications must be between 10 and 5000.")
+  if (is.na(reps) || reps < 10L || reps > 5000L) {
+    stop("The number of replications must be between 10 and 5000.")
+  }
   est <- o[["estimator", exact = TRUE]]
-  if (!is.null(est) && !(is.character(est) && length(est) == 1 && est %in% .ps_dfi_estimators)) stop("Invalid simulation estimator in the request.")
+  if (!is.null(est) && !(is.character(est) && length(est) == 1 && est %in% .ps_dfi_estimators)) {
+    stop("Invalid simulation estimator in the request.")
+  }
   scale <- o[["scale", exact = TRUE]] %||% "normal"
-  if (!(is.character(scale) && length(scale) == 1 && scale %in% c("normal", "nonnormal", "categorical"))) stop("Invalid DDDFI scale in the request.")
+  if (!(is.character(scale) && length(scale) == 1 && scale %in% c("normal", "nonnormal", "categorical"))) {
+    stop("Invalid DDDFI scale in the request.")
+  }
   mad <- o[["mad", exact = TRUE]]
   if (!is.null(mad)) {
     mad <- vapply(as.list(unlist(mad)), function(v) ps_number(v, "mean absolute discrepancy"), 0)
-    if (!length(mad) || length(mad) > 6 || any(mad <= 0 | mad >= 0.5)) stop("Mean absolute discrepancies must be between 0 and 0.5 (at most six).")
+    if (!length(mad) || length(mad) > 6 || any(mad <= 0 | mad >= 0.5)) {
+      stop("Mean absolute discrepancies must be between 0 and 0.5 (at most six).")
+    }
   }
   needs_data <- fn %in% .ps_dfi_with_data || (fn == "DDDFI" && scale != "normal")
-  if (needs_data && b$matrix_input) stop(sprintf("dynamic::%s needs raw data; this dataset is a covariance matrix.", fn))
-  if (length(unlist(req$model$ordered)) && !fn %in% c("catOne", "catHB", "equivTest", "DDDFI")) stop(sprintf("dynamic::%s is for continuous indicators; with ordinal indicators use catOne, catHB or DDDFI.", fn))
+  if (needs_data && b$matrix_input) {
+    stop(sprintf("dynamic::%s needs raw data; this dataset is a covariance matrix.", fn))
+  }
+  if (length(unlist(req$model$ordered)) && !fn %in% c("catOne", "catHB", "equivTest", "DDDFI")) {
+    stop(sprintf("dynamic::%s is for continuous indicators; with ordinal indicators use catOne, catHB or DDDFI.", fn))
+  }
 
   # The lavaan call with its test named (ps_dfi_test), otherwise as the Model tab fits it.
   call <- b$call
-  if (!grepl("test = ", call, fixed = TRUE)) call <- sub("\\)$", sprintf(", test = \"%s\")", ps_dfi_test(req$estimator)), call)
+  if (!grepl("test = ", call, fixed = TRUE)) {
+    call <- sub("\\)$", sprintf(", test = \"%s\")", ps_dfi_test(req$estimator)), call)
+  }
   body <- b$body
   body[body == b$call] <- call
   args <- c(
@@ -98,12 +136,17 @@ ps_dfi <- function(req_json, export = FALSE) {
     if (fn == "DDDFI" && scale != "normal") c("data = data", sprintf("scale = \"%s\"", scale)),
     if (fn != "equivTest") sprintf("reps = %d", reps),
     if (!is.null(est) && !fn %in% c("exactFit", "equivTest")) sprintf("estimator = \"%s\"", est),
-    if (!is.null(mad) && fn == "DDDFI") sprintf("MAD = c(%s)", paste(format(mad, digits = 15), collapse = ", "))
+    if (!is.null(mad) && fn == "DDDFI") {
+      sprintf("MAD = c(%s)", paste(format(mad, digits = 15), collapse = ", "))
+    }
   )
   body <- c(
     body,
     "suppressPackageStartupMessages(library(dynamic))",
-    sprintf("# Dynamic fit index cutoffs (Wolf & McNeish, dynamic::%s): the package simulates this model's fit-index", fn),
+    sprintf(
+      "# Dynamic fit index cutoffs (Wolf & McNeish, dynamic::%s): the package simulates this model's fit-index",
+      fn
+    ),
     "# distributions, correctly specified and under graded misspecifications, with its own fixed seeds.",
     sprintf("dfi <- dynamic::%s(%s)", fn, paste(args, collapse = ", ")),
     "printed <- capture.output(print(dfi))"
@@ -115,20 +158,30 @@ ps_dfi <- function(req_json, export = FALSE) {
   # lavaan's warnings about single simulated replications (a negative residual variance, a fit that did not
   # converge) concern the package's simulation, not the user's model: reported as notes, as the package itself
   # muffles most of them.
-  sim <- grepl("ov variances are negative|could not compute standard errors|not positive definite|did not converge|optimizer warning", env$.warnings)
+  sim <- grepl(
+    "ov variances are negative|could not compute standard errors|not positive definite|did not converge|optimizer warning",
+    env$.warnings
+  )
   for (m in env$.warnings[sim]) ps_note(sprintf("In dynamic's simulated replications: %s", m))
   env$.warnings <- env$.warnings[!sim]
   dfi <- env$dfi
   r <- unclass(dfi)
   dist <- if (fn == "DDDFI") r$indices else r$data
   ps_json(list(
-    fn = fn, reps = if (fn == "equivTest") NULL else reps, n = unname(lavaan::lavInspect(env$fit, "nobs")),
-    estimator = if (!is.null(r$estimator)) as.character(r$estimator) else if (!is.null(est)) est else NULL, scale = if (fn == "DDDFI") scale else NULL,
-    cutoffs = ps_dfi_table(r$cutoffs), fit = ps_dfi_table(r$fit), data = ps_dfi_columns(dist),
+    fn = fn,
+    reps = if (fn == "equivTest") NULL else reps,
+    n = unname(lavaan::lavInspect(env$fit, "nobs")),
+    estimator = if (!is.null(r$estimator)) as.character(r$estimator) else if (!is.null(est)) est else NULL,
+    scale = if (fn == "DDDFI") scale else NULL,
+    cutoffs = ps_dfi_table(r$cutoffs),
+    fit = ps_dfi_table(r$fit),
+    data = ps_dfi_columns(dist),
     equiv = if (fn == "equivTest") {
       list(
-        rmsea = as.character(r$rmsea), cfi = as.character(r$cfi),
-        rmseaBins = I(as.character(c(r$eo_r, r$ct_r, r$ft_r, r$mf_r, r$pf_r))), cfiBins = I(as.character(c(r$pf_c, r$mf_c, r$ft_c, r$ct_c, r$eo_c)))
+        rmsea = as.character(r$rmsea),
+        cfi = as.character(r$cfi),
+        rmseaBins = I(as.character(c(r$eo_r, r$ct_r, r$ft_r, r$mf_r, r$pf_r))),
+        cfiBins = I(as.character(c(r$pf_c, r$mf_c, r$ft_c, r$ct_c, r$eo_c)))
       )
     } else {
       NULL

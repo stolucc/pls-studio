@@ -5,7 +5,10 @@ ps_net_data <- function(req) {
   cols <- req$data$cols
   nm <- unlist(req$data$names)
   # jsonlite turns equal-length columns into a (variables x rows) matrix (as in ps_frame).
-  col <- function(i) as.numeric(if (is.matrix(cols)) cols[i, ] else unlist(lapply(cols[[i]], function(v) if (is.null(v)) NA else v)))
+  col <- function(i) {
+    values <- if (is.matrix(cols)) cols[i, ] else unlist(lapply(cols[[i]], function(v) if (is.null(v)) NA else v))
+    as.numeric(values)
+  }
   d <- as.data.frame(lapply(seq_along(nm), col), col.names = nm, check.names = FALSE)
   vars <- unlist(req$vars)
   if (length(vars) < 3) stop("Choose at least three variables.")
@@ -24,12 +27,18 @@ ps_network <- function(req_json, export = FALSE) {
   if (!estimator %in% c("EBICglasso", "pcor", "cor")) stop("Unknown network estimator.")
   cor_method <- req[["corMethod", exact = TRUE]]
   if (!cor_method %in% c("cor_auto", "cor", "spearman")) stop("Unknown correlation method.")
-  missing <- if (identical(req[["netMissing", exact = TRUE]], "listwise")) "listwise" else "pairwise"
+  missing <- if (identical(req[["netMissing", exact = TRUE]], "listwise")) {
+    "listwise"
+  } else {
+    "pairwise"
+  }
   gamma <- ps_number(req[["gamma", exact = TRUE]] %||% 0.5, "EBIC tuning parameter")
   if (gamma < 0 || gamma > 1) stop("The EBIC tuning parameter must be between 0 and 1.")
   B <- as.integer(ps_number(req$boot$samples %||% 0, "bootstrap samples"))
   seed <- as.integer(ps_number(req$boot$seed %||% 1, "seed"))
-  if (is.na(B) || B < 0 || B > 5000) stop("The number of bootstrap samples must be between 0 and 5000.")
+  if (is.na(B) || B < 0 || B > 5000) {
+    stop("The number of bootstrap samples must be between 0 and 5000.")
+  }
   inputs <- list(data = ps_net_data(req))
   body <- c(
     "suppressPackageStartupMessages(library(bootnet))",
@@ -44,7 +53,10 @@ ps_network <- function(req_json, export = FALSE) {
       c(
         "# Stability of the centrality indices: the network re-estimated on subsets of the cases (case-dropping bootstrap).",
         sprintf("set.seed(%d)", seed),
-        sprintf("boot <- bootnet(net, nBoots = %d, type = \"case\", statistics = c(\"strength\", \"expectedInfluence\", \"closeness\", \"betweenness\"), nCores = 1, verbose = FALSE)", B),
+        sprintf(
+          "boot <- bootnet(net, nBoots = %d, type = \"case\", statistics = c(\"strength\", \"expectedInfluence\", \"closeness\", \"betweenness\"), nCores = 1, verbose = FALSE)",
+          B
+        ),
         "cs <- corStability(boot, verbose = FALSE)"
       )
     }
@@ -57,7 +69,12 @@ ps_network <- function(req_json, export = FALSE) {
   ce <- env$central
   ps_json(list(
     names = I(colnames(W)), weights = lapply(seq_len(nrow(W)), function(i) I(unname(W[i, ]))),
-    centrality = list(strength = I(unname(ce$Strength)), expectedInfluence = I(unname(ce$ExpectedInfluence)), closeness = I(unname(ce$Closeness)), betweenness = I(unname(ce$Betweenness))),
+    centrality = list(
+      strength = I(unname(ce$Strength)),
+      expectedInfluence = I(unname(ce$ExpectedInfluence)),
+      closeness = I(unname(ce$Closeness)),
+      betweenness = I(unname(ce$Betweenness))
+    ),
     layout = lapply(seq_len(nrow(env$layout)), function(i) I(unname(env$layout[i, ]))),
     n = nrow(inputs$data), nComplete = sum(stats::complete.cases(inputs$data)),
     cs = if (B > 0) as.list(env$cs) else NULL, samples = B, warnings = env$.warnings,
@@ -78,7 +95,9 @@ ps_ega <- function(req_json, export = FALSE) {
   if (!corr %in% c("auto", "pearson", "spearman")) stop("Unknown correlation.")
   B <- as.integer(ps_number(req$boot$samples %||% 0, "bootstrap samples"))
   seed <- as.integer(ps_number(req$boot$seed %||% 1, "seed"))
-  if (is.na(B) || B < 0 || B > 5000) stop("The number of bootstrap samples must be between 0 and 5000.")
+  if (is.na(B) || B < 0 || B > 5000) {
+    stop("The number of bootstrap samples must be between 0 and 5000.")
+  }
   inputs <- list(data = ps_net_data(req))
   args <- sprintf("model = \"%s\", algorithm = \"%s\", corr = \"%s\"", model, algorithm, corr)
   body <- c(
@@ -90,7 +109,12 @@ ps_ega <- function(req_json, export = FALSE) {
     if (B > 0) {
       c(
         "# Stability: EGA on bootstrap samples (bootEGA); how often each number of dimensions and each item's dimension recurs.",
-        sprintf("boot <- bootEGA(data, iter = %d, seed = %d, %s, ncores = 1, plot.itemStability = FALSE, plot.typicalStructure = FALSE, verbose = FALSE)", B, seed, args),
+        sprintf(
+          "boot <- bootEGA(data, iter = %d, seed = %d, %s, ncores = 1, plot.itemStability = FALSE, plot.typicalStructure = FALSE, verbose = FALSE)",
+          B,
+          seed,
+          args
+        ),
         "items <- itemStability(boot, IS.plot = FALSE)"
       )
     }
@@ -105,13 +129,19 @@ ps_ega <- function(req_json, export = FALSE) {
   L <- L[vars, , drop = FALSE]
   st <- if (B > 0) env$items$item.stability$empirical.dimensions else NULL
   ps_json(list(
-    names = I(vars), dims = e$n.dim, membership = I(unname(as.integer(e$wc[vars]))),
+    names = I(vars),
+    dims = e$n.dim,
+    membership = I(unname(as.integer(e$wc[vars]))),
     weights = lapply(seq_len(nrow(e$network)), function(i) I(unname(e$network[i, ]))),
-    loadings = lapply(seq_len(nrow(L)), function(i) I(unname(L[i, ]))), loadingDims = I(colnames(L)),
-    layout = lapply(seq_len(nrow(env$layout)), function(i) I(unname(env$layout[i, ]))), tefi = unname(e$TEFI),
+    loadings = lapply(seq_len(nrow(L)), function(i) I(unname(L[i, ]))),
+    loadingDims = I(colnames(L)),
+    layout = lapply(seq_len(nrow(env$layout)), function(i) I(unname(env$layout[i, ]))),
+    tefi = unname(e$TEFI),
     frequency = if (B > 0) lapply(seq_len(nrow(env$boot$frequency)), function(i) list(dims = env$boot$frequency[i, 1], share = env$boot$frequency[i, 2])) else NULL,
     itemStability = if (B > 0) I(unname(as.numeric(if (is.matrix(st)) apply(st, 1, max)[vars] else st[vars]))) else NULL,
-    samples = B, n = nrow(inputs$data), warnings = env$.warnings,
+    samples = B,
+    n = nrow(inputs$data),
+    warnings = env$.warnings,
     engine = ps_engine("EGAnet")
   ))
 }

@@ -5,7 +5,9 @@
 
 ps_fittest <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  if (req$package != "cSEM") stop("The bootstrap test of overall model fit is a cSEM analysis; choose cSEM as the PLS package.")
+  if (req$package != "cSEM") {
+    stop("The bootstrap test of overall model fit is a cSEM analysis; choose cSEM as the PLS package.")
+  }
   b <- ps_pls_build(req)
   B <- as.integer(req$boot$samples)
   seed <- as.integer(req$boot$seed)
@@ -51,8 +53,15 @@ ps_ipma <- function(req_json, export = FALSE) {
   resc <- if (isTRUE(io$rescale)) {
     c(
       "# Rescale every indicator to 0-100 (Ringle & Sarstedt 2016) before estimating.",
-      sprintf("lo <- %s; hi <- %s", if (is.null(io$min)) "NULL" else format(ps_number(io$min, "scale minimum")), if (is.null(io$max)) "NULL" else format(ps_number(io$max, "scale maximum"))),
-      sprintf("for (v in %s) { a <- if (is.null(lo)) min(data[[v]]) else lo; z <- if (is.null(hi)) max(data[[v]]) else hi; data[[v]] <- (data[[v]] - a) / (z - a) * 100 }", ps_q(vars))
+      sprintf(
+        "lo <- %s; hi <- %s",
+        if (is.null(io$min)) "NULL" else format(ps_number(io$min, "scale minimum")),
+        if (is.null(io$max)) "NULL" else format(ps_number(io$max, "scale maximum"))
+      ),
+      sprintf(
+        "for (v in %s) { a <- if (is.null(lo)) min(data[[v]]) else lo; z <- if (is.null(hi)) max(data[[v]]) else hi; data[[v]] <- (data[[v]] - a) / (z - a) * 100 }",
+        ps_q(vars)
+      )
     )
   }
   fitline <- length(b$body)
@@ -60,7 +69,12 @@ ps_ipma <- function(req_json, export = FALSE) {
   if (export) {
     return(ps_script(
       sprintf("Importance-performance map analysis for %s (cSEM)", io$target), "cSEM", b$inputs, body,
-      c(sprintf("ipma$Construct$Importance[\"%s\", ]", tl), "ipma$Construct$Performance", sprintf("ipma$Indicator$Importance[\"%s\", ]", tl), "ipma$Indicator$Performance")
+      c(
+        sprintf("ipma$Construct$Importance[\"%s\", ]", tl),
+        "ipma$Construct$Performance",
+        sprintf("ipma$Indicator$Importance[\"%s\", ]", tl),
+        "ipma$Indicator$Performance"
+      )
     ))
   }
   env <- ps_run(body, b$inputs)
@@ -71,7 +85,10 @@ ps_ipma <- function(req_json, export = FALSE) {
   owner <- vapply(vars, function(v) b$cv[which(vapply(b$n$inds, function(x) inm[[v]] %in% x, TRUE))[1]], "")
   ps_json(list(
     target = io$target, targetPerformance = unname(ip$Construct$Performance[[tl]]),
-    constructs = lapply(setdiff(colnames(ip$Construct$Importance), tl), function(k) list(name = cn[[k]], importance = ip$Construct$Importance[tl, k], performance = unname(ip$Construct$Performance[[k]]))),
+    constructs = lapply(
+      setdiff(colnames(ip$Construct$Importance), tl),
+      function(k) list(name = cn[[k]], importance = ip$Construct$Importance[tl, k], performance = unname(ip$Construct$Performance[[k]]))
+    ),
     indicators = lapply(colnames(ip$Indicator$Importance), function(v) {
       list(
         name = inm[[v]], construct = cn[[owner[[v]]]], weight = W[owner[[v]], v],
@@ -86,7 +103,9 @@ ps_ipma <- function(req_json, export = FALSE) {
 ps_miiv <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   if (length(req$model$moderations)) stop("MIIV-2SLS does not support latent interactions.")
-  if (!is.null(req$model$weights)) stop("MIIV-2SLS does not use sampling weights; choose ML, MLR or MLM.")
+  if (!is.null(req$model$weights)) {
+    stop("MIIV-2SLS does not use sampling weights; choose ML, MLR or MLM.")
+  }
   req$estimator <- "ML"
   b <- ps_cb_build(req)
   # Same model syntax; single-indicator error variances are implied by MIIVsem's scaling.
@@ -154,24 +173,58 @@ ps_miiv <- function(req_json, export = FALSE) {
   et <- et[et$op %in% c("=~", "~") & et$se > 0, ]
   coef <- function(lhs, op, rhs) {
     r <- et[et$lhs == lhs & et$op == op & et$rhs == rhs, ][1, ]
-    s <- if (std_ok) env$std$est.std[env$std$lhs == lhs & env$std$op == op & env$std$rhs == rhs] else numeric(0)
-    list(lhs = if (op == "~") nmc(lhs) else nm(lhs), op = op, rhs = if (op == "~") nmc(rhs) else nm(rhs), est = r$est, se = r$se, z = r$z, p = r$pvalue, std = if (length(s)) s[1] else NULL)
+    s <- if (std_ok) {
+      env$std$est.std[env$std$lhs == lhs & env$std$op == op & env$std$rhs == rhs]
+    } else {
+      numeric(0)
+    }
+    list(
+      lhs = if (op == "~") nmc(lhs) else nm(lhs),
+      op = op,
+      rhs = if (op == "~") nmc(rhs) else nm(rhs),
+      est = r$est,
+      se = r$se,
+      z = r$z,
+      p = r$pvalue,
+      std = if (length(s)) s[1] else NULL
+    )
   }
   lv <- unname(b$lname[constructs])
   eqs <- lapply(fit$eqn, function(e) {
     measurement <- e$EQmod == "measurement"
-    kind <- if (!measurement) "structural" else if (e$DVlat %in% lv) "higher-order" else "measurement"
+    kind <- if (!measurement) {
+      "structural"
+    } else if (e$DVlat %in% lv) {
+      "higher-order"
+    } else {
+      "measurement"
+    }
     cf <- if (measurement) list(coef(e$IVlat, "=~", e$DVlat)) else lapply(e$IVlat, function(iv) coef(e$DVlat, "~", iv))
     list(
-      kind = kind, dv = nm(e$DVobs), regressors = nm(e$IVobs), instruments = nm(e$MIIVs), coefficients = cf,
-      sigma2 = as.numeric(e$sigma), sargan = if (is.null(e$sargan)) NULL else as.numeric(e$sargan),
-      sarganDf = if (is.null(e$sargan.df)) 0L else as.integer(e$sargan.df), sarganP = if (is.null(e$sargan.p)) NULL else as.numeric(e$sargan.p)
+      kind = kind,
+      dv = nm(e$DVobs),
+      regressors = nm(e$IVobs),
+      instruments = nm(e$MIIVs),
+      coefficients = cf,
+      sigma2 = as.numeric(e$sigma),
+      sargan = if (is.null(e$sargan)) NULL else as.numeric(e$sargan),
+      sarganDf = if (is.null(e$sargan.df)) 0L else as.integer(e$sargan.df),
+      sarganP = if (is.null(e$sargan.p)) NULL else as.numeric(e$sargan.p)
     )
   })
   n <- if (b$matrix_input) b$inputs$N else nrow(env$data)
   # Marker loadings (fixed to 1) have no 2SLS estimate, but a standardised value.
   # Markers: the first indicator (or component) of each factor.
-  markers <- unlist(lapply(seq_along(b$comps), function(j) if (b$is_cov[j]) NULL else if (length(b$comps[[j]])) unname(b$lname[[b$comps[[j]][1]]]) else unname(b$n$iv[[b$n$inds[[j]][1]]])))
+  marker_of <- function(j) {
+    if (b$is_cov[j]) {
+      NULL
+    } else if (length(b$comps[[j]])) {
+      unname(b$lname[[b$comps[[j]][1]]])
+    } else {
+      unname(b$n$iv[[b$n$inds[[j]][1]]])
+    }
+  }
+  markers <- unlist(lapply(seq_along(b$comps), marker_of))
   fixed_std <- if (std_ok) {
     s <- env$std[env$std$op == "=~" & env$std$rhs %in% markers, ]
     as.list(setNames(s$est.std, nm(s$rhs)))
@@ -184,8 +237,11 @@ ps_miiv <- function(req_json, export = FALSE) {
     pe <- pe[pe$op == "~~", ]
     lapply(seq_len(nrow(pe)), function(i) {
       list(
-        lhs = nm(pe$lhs[i]), rhs = nm(pe$rhs[i]), latent = pe$lhs[i] %in% unname(b$lname),
-        est = pe$est[i], std = env$std$est.std[env$std$op == "~~" & env$std$lhs == pe$lhs[i] & env$std$rhs == pe$rhs[i]][1]
+        lhs = nm(pe$lhs[i]),
+        rhs = nm(pe$rhs[i]),
+        latent = pe$lhs[i] %in% unname(b$lname),
+        est = pe$est[i],
+        std = env$std$est.std[env$std$op == "~~" & env$std$lhs == pe$lhs[i] & env$std$rhs == pe$rhs[i]][1]
       )
     })
   } else {
@@ -194,7 +250,13 @@ ps_miiv <- function(req_json, export = FALSE) {
   r2 <- ps_try(env$fit$v$rsquare, "R² (MIIVsem)")
   r2 <- if (is.null(r2)) list() else as.list(setNames(as.numeric(r2), nmc(names(r2))))
   ps_json(list(
-    n = n, equations = eqs, estimates = unlist(lapply(eqs, `[[`, "coefficients"), recursive = FALSE), r2 = r2, fixedStd = fixed_std, variances = variances,
-    warnings = env$.warnings, engine = ps_engine("MIIVsem")
+    n = n,
+    equations = eqs,
+    estimates = unlist(lapply(eqs, `[[`, "coefficients"), recursive = FALSE),
+    r2 = r2,
+    fixedStd = fixed_std,
+    variances = variances,
+    warnings = env$.warnings,
+    engine = ps_engine("MIIVsem")
   ))
 }

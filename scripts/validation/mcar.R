@@ -11,7 +11,11 @@
 # Writes src/engine/__fixtures__/mcar/airquality.json.
 #   Rscript scripts/validation/mcar.R   (with misty, mvnmle, MissMech and jsonlite in the library)
 
-suppressPackageStartupMessages({ library(jsonlite); library(misty); library(mvnmle) })
+suppressPackageStartupMessages({
+  library(jsonlite)
+  library(misty)
+  library(mvnmle)
+})
 X <- data.matrix(airquality)
 little <- na.test(airquality, print = "little", output = FALSE)$result$little
 jj <- na.test(airquality, print = "jamjal", output = FALSE)$result
@@ -20,27 +24,56 @@ jj <- na.test(airquality, print = "jamjal", output = FALSE)$result
 ml <- suppressWarnings(mlest(X))
 key <- apply(is.na(X), 1, function(m) paste(as.integer(m), collapse = ""))
 by_pattern <- lapply(sort(unique(key)), function(k) {
-  i <- which(key == k); o <- !is.na(X[i[1], ])
+  i <- which(key == k)
+  o <- !is.na(X[i[1], ])
   dev <- colMeans(X[i, o, drop = FALSE]) - ml$muhat[o]
   list(key = k, n = length(i), k = sum(o), d2 = length(i) * drop(t(dev) %*% solve(ml$sigmahat[o, o]) %*% dev))
 })
 cat(sprintf("Little: chi2 = %.10f, df = %d, p = %.10g; by pattern sum = %.10f\n", little$statistic, little$df, little$p, sum(vapply(by_pattern, `[[`, 0, "d2"))))
-print(jj$hawkins); print(jj$anderson)
+print(jj$hawkins)
+print(jj$anderson)
 
 mm <- if (requireNamespace("MissMech", quietly = TRUE)) {
   t20 <- MissMech::TestMCARNormality(airquality, imputation.number = 20, seed = 42)
   t1 <- MissMech::TestMCARNormality(airquality)
-  cat(sprintf("MissMech, 20 imputations, seed 42: median p Hawkins %.10g, Anderson-Darling %.10g; one imputation (seed 110): %.10g, %.10g\n",
-    median(t20$pvalcomb), median(t20$pnormality), t1$pvalcomb, t1$pnormality))
-  list(version = as.character(packageVersion("MissMech")), hawkinsP = median(t20$pvalcomb), andersonP = median(t20$pnormality), patterns = t20$g,
-    single = list(hawkinsP = t1$pvalcomb, andersonP = t1$pnormality))
-} else NULL
+  cat(sprintf(
+    "MissMech, 20 imputations, seed 42: median p Hawkins %.10g, Anderson-Darling %.10g; one imputation (seed 110): %.10g, %.10g\n",
+    median(t20$pvalcomb),
+    median(t20$pnormality),
+    t1$pvalcomb,
+    t1$pnormality
+  ))
+  list(
+    version = as.character(packageVersion("MissMech")),
+    hawkinsP = median(t20$pvalcomb),
+    andersonP = median(t20$pnormality),
+    patterns = t20$g,
+    single = list(hawkinsP = t1$pvalcomb, andersonP = t1$pnormality)
+  )
+} else {
+  NULL
+}
 
-out <- list(R = R.version.string, misty = as.character(packageVersion("misty")), mvnmle = as.character(packageVersion("mvnmle")),
-  little = list(n = little$no.cases, incomplete = little$no.incomplete, patterns = little$no.pattern, chisq = little$statistic, df = little$df, p = little$p,
-    byPattern = by_pattern),
-  jamjal = list(n = jj$hawkins$no.cases, incomplete = jj$hawkins$no.incomplete, patterns = jj$hawkins$no.pattern, patternN = jj$jamjal$n.pattern,
-    hawkins = list(stat = jj$hawkins$statistic, df = jj$hawkins$df, p = jj$hawkins$p), anderson = list(stat = jj$anderson$statistic, p = jj$anderson$p)),
-  MissMech = mm)
+out <- list(
+  R = R.version.string, misty = as.character(packageVersion("misty")), mvnmle = as.character(packageVersion("mvnmle")),
+  little = list(
+    n = little$no.cases,
+    incomplete = little$no.incomplete,
+    patterns = little$no.pattern,
+    chisq = little$statistic,
+    df = little$df,
+    p = little$p,
+    byPattern = by_pattern
+  ),
+  jamjal = list(
+    n = jj$hawkins$no.cases,
+    incomplete = jj$hawkins$no.incomplete,
+    patterns = jj$hawkins$no.pattern,
+    patternN = jj$jamjal$n.pattern,
+    hawkins = list(stat = jj$hawkins$statistic, df = jj$hawkins$df, p = jj$hawkins$p),
+    anderson = list(stat = jj$anderson$statistic, p = jj$anderson$p)
+  ),
+  MissMech = mm
+)
 dir.create("src/engine/__fixtures__/mcar", showWarnings = FALSE, recursive = TRUE)
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/mcar/airquality.json")

@@ -13,7 +13,10 @@
 # src/engine/__fixtures__/plssem/randomSlopesOrdered.csv (the references use the data read back, as the app does).
 #   R_LIBS=/path/to/helper/library Rscript scripts/validation/plssem_multilevel.R
 
-suppressPackageStartupMessages({ library(jsonlite); library(plssem) })
+suppressPackageStartupMessages({
+  library(jsonlite)
+  library(plssem)
+})
 dir.create("public/examples/plssem", showWarnings = FALSE, recursive = TRUE)
 write.csv(randomSlopes, "public/examples/plssem/randomSlopes.csv", row.names = FALSE)
 d <- read.csv("public/examples/plssem/randomSlopes.csv")
@@ -42,27 +45,43 @@ run <- function(model, seed, ..., data = d) {
   pe <- parameter_estimates(fit)
   fm <- suppressMessages(fit_measures(fit))
   lv <- summary(fit, fit = FALSE)$levels
-  list(seed = seed,
-    est = lapply(seq_len(nrow(pe)), function(i) list(lhs = pe$lhs[i], op = pe$op[i], rhs = pe$rhs[i], level = pe$level[i], est = num(pe$est[i]), se = num(pe$se[i]))),
+  list(
+    seed = seed,
+    est = lapply(
+      seq_len(nrow(pe)),
+      function(i) list(lhs = pe$lhs[i], op = pe$op[i], rhs = pe$rhs[i], level = pe$level[i], est = num(pe$est[i]), se = num(pe$se[i]))
+    ),
     r2 = lapply(lv, function(l) as.list(l$r2.etas)), r2Indicators = lapply(lv, function(l) as.list(l$r2.inds)),
     icc = as.list(fit@params$icc), rsd = as.list(fit@params$rsd),
-    fit = lapply(fm, function(f) lapply(f, num)), iterations = fit@status$iterations)
+    fit = lapply(fm, function(f) lapply(f, num)), iterations = fit@status$iterations
+  )
 }
 dir.create("src/engine/__fixtures__/plssem", showWarnings = FALSE, recursive = TRUE)
 ord <- as.data.frame(lapply(randomSlopesOrdered, function(x) as.numeric(as.character(x))))
 write.csv(ord, "src/engine/__fixtures__/plssem/randomSlopesOrdered.csv", row.names = FALSE)
 ord <- read.csv("src/engine/__fixtures__/plssem/randomSlopesOrdered.csv")
 vars <- setdiff(names(ord), "cluster")
-out <- list(plssem = as.character(packageVersion("plssem")),
+out <- list(
+  plssem = as.character(packageVersion("plssem")),
   twoLevel = run(two_level_model, 1),
   randomSlopes = run(slopes_model, 1),
   twoLevelBoot = run(two_level_model, 7, bootstrap = TRUE, boot.R = 100),
-  twoLevelOrdered = run(two_level_model, 1, ordered = vars, data = ord))
+  twoLevelOrdered = run(two_level_model, 1, ordered = vars, data = ord)
+)
 # (listing the cluster column as well, as the vignette does, changes nothing)
-set.seed(1); asVignette <- parameter_estimates(pls(two_level_model, data = randomSlopesOrdered, cluster = "cluster", ordered = colnames(randomSlopesOrdered), verbose = FALSE))
-cat("ordinal model, as the vignette calls it vs the reference:", max(abs(asVignette$est - vapply(out$twoLevelOrdered$est, `[[`, 0, "est"))), "\n")
+set.seed(1)
+asVignette <- parameter_estimates(pls(two_level_model, data = randomSlopesOrdered, cluster = "cluster", ordered = colnames(randomSlopesOrdered), verbose = FALSE))
+cat(
+  "ordinal model, as the vignette calls it vs the reference:",
+  max(abs(asVignette$est - vapply(out$twoLevelOrdered$est, `[[`, 0, "est"))),
+  "\n"
+)
 # (the seed matters: another seed moves the estimates by about 0.005)
-set.seed(2); other <- parameter_estimates(pls(two_level_model, data = d, cluster = "cluster", verbose = FALSE))
+set.seed(2)
+other <- parameter_estimates(pls(two_level_model, data = d, cluster = "cluster", verbose = FALSE))
 cat("largest change with seed 2 instead of 1:", max(abs(other$est - vapply(out$twoLevel$est, `[[`, 0, "est"))), "\n")
-write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, na = "null"), "src/engine/__fixtures__/plssem/multilevel.json")
+write(
+  toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, na = "null"),
+  "src/engine/__fixtures__/plssem/multilevel.json"
+)
 cat("written\n")

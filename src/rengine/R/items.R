@@ -27,8 +27,12 @@ ps_aux_columns <- function(aux, items) {
   }
   cols <- c(unlist(aux$distal), unlist(aux$covariates))
   if (!length(cols)) stop("Choose distal outcomes or covariates for the three-step analysis.")
-  if (!is.character(cols) || anyDuplicated(cols) || any(cols %in% items)) stop("The auxiliary variables must be distinct columns that are not items.")
-  if (!is.null(aux$method) && !(length(aux$method) == 1 && aux$method %in% c("ml", "bch"))) stop("Invalid three-step method in the request.")
+  if (!is.character(cols) || anyDuplicated(cols) || any(cols %in% items)) {
+    stop("The auxiliary variables must be distinct columns that are not items.")
+  }
+  if (!is.null(aux$method) && !(length(aux$method) == 1 && aux$method %in% c("ml", "bch"))) {
+    stop("Invalid three-step method in the request.")
+  }
   cols
 }
 PS_LCA_AUX_FUNCTIONS <- c(
@@ -91,27 +95,39 @@ ps_lca_aux_body <- function(aux, fr, ks, post, keep, bic) {
     return(character(0))
   }
   k <- aux$classes
-  if (!is.null(k) && !(length(k) == 1 && is.numeric(k) && k %in% ks)) stop("The three-step analysis needs one of the fitted numbers of classes.")
+  if (!is.null(k) && !(length(k) == 1 && is.numeric(k) && k %in% ks)) {
+    stop("The three-step analysis needs one of the fitted numbers of classes.")
+  }
   ref <- aux$reference
-  if (!is.null(ref) && !(length(ref) == 1 && is.numeric(ref) && ref >= 1 && ref <= 10 && ref == round(ref))) stop("Invalid reference class in the request.")
+  if (!is.null(ref) && !(length(ref) == 1 && is.numeric(ref) && ref >= 1 && ref <= 10 && ref == round(ref))) {
+    stop("Invalid reference class in the request.")
+  }
   distal <- unname(fr$v[unlist(aux$distal)])
   covs <- unname(fr$v[unlist(aux$covariates)])
   method <- aux$method %||% "ml"
   c(
     "",
-    "# ---- Auxiliary variables: three-step approach ----", PS_LCA_AUX_FUNCTIONS,
+    "# ---- Auxiliary variables: three-step approach ----",
+    PS_LCA_AUX_FUNCTIONS,
     sprintf("ks <- c(%s)", paste(deparse(ks), collapse = "")),
     if (is.null(k)) sprintf("k <- ks[which.min(ifelse(ks >= 2, %s, Inf))]  # the model with the lowest BIC (of two or more classes)", bic) else sprintf("k <- %d", as.integer(k)),
     "if (k < 2) stop(\"The three-step analysis needs a model with two or more classes.\")",
     "fit <- fits[[match(k, ks)]]",
     sprintf("post <- %s  # posterior class probabilities, classes by size", post),
-    sprintf("aux <- data[%s, %s, drop = FALSE]  # the rows the classes were estimated from", keep, ps_q(c(distal, covs))),
+    sprintf(
+      "aux <- data[%s, %s, drop = FALSE]  # the rows the classes were estimated from",
+      keep,
+      ps_q(c(distal, covs))
+    ),
     "e <- aux_errors(post)",
     if (length(distal)) sprintf("distal <- lapply(%s, function(v) aux_distal(as.numeric(aux[[v]]), e$w))", ps_q(distal)),
     if (length(covs)) {
       c(
         sprintf("ref <- %s  # the reference class", if (is.null(ref)) "k" else sprintf("min(%d, k)", as.integer(ref))),
-        sprintf("cv <- aux[, %s, drop = FALSE]; ok <- complete.cases(cv)  # (cases missing a covariate are left out)", ps_q(covs)),
+        sprintf(
+          "cv <- aux[, %s, drop = FALSE]; ok <- complete.cases(cv)  # (cases missing a covariate are left out)",
+          ps_q(covs)
+        ),
         "X <- model.matrix(~ ., cv[ok, , drop = FALSE])",
         sprintf("covariates <- aux_logit(X, e$s[ok], e$D, e$w[ok, , drop = FALSE], ref, \"%s\")", method)
       )
@@ -125,12 +141,25 @@ ps_lca_aux_result <- function(aux, fr, env) {
     return(NULL)
   }
   back <- function(v) ps_back(v, fr$back, FALSE)
-  out <- list(k = env$k, method = aux$method %||% "ml", n = nrow(env$post), D = ps_rows(env$e$D), counts = tabulate(env$e$s, env$k))
+  out <- list(
+    k = env$k,
+    method = aux$method %||% "ml",
+    n = nrow(env$post),
+    D = ps_rows(env$e$D),
+    counts = tabulate(env$e$s, env$k)
+  )
   if (!is.null(env$distal)) {
     out$distal <- lapply(seq_along(env$distal), function(j) {
       d <- env$distal[[j]]
       list(
-        name = back(unname(fr$v[unlist(aux$distal)][j])), n = d$n, means = unname(d$means), se = unname(d$se), sd = unname(d$sd), chisq = d$chisq, df = d$df, p = d$p,
+        name = back(unname(fr$v[unlist(aux$distal)][j])),
+        n = d$n,
+        means = unname(d$means),
+        se = unname(d$se),
+        sd = unname(d$sd),
+        chisq = d$chisq,
+        df = d$df,
+        p = d$p,
         pairs = lapply(seq_len(nrow(d$pairs)), function(i) as.list(d$pairs[i, ]))
       )
     })
@@ -143,14 +172,26 @@ ps_lca_aux_result <- function(aux, fr, env) {
       if (t == "(Intercept)") {
         "Intercept"
       } else {
-        m <- match(TRUE, startsWith(t, fr$v[unlist(aux$covariates)]))
-        if (is.na(m)) t else paste0(back(unname(fr$v[unlist(aux$covariates)][m])), substring(t, nchar(fr$v[unlist(aux$covariates)][m]) + 1))
+        # A covariate's term: its column name (back to the user's) followed by the level, if any
+        covariate_cols <- fr$v[unlist(aux$covariates)]
+        m <- match(TRUE, startsWith(t, covariate_cols))
+        if (is.na(m)) {
+          t
+        } else {
+          paste0(back(unname(covariate_cols[m])), substring(t, nchar(covariate_cols[m]) + 1))
+        }
       }
     }
     out$covariates <- list(
       n = cv$n, logLik = cv$ll, reference = env$ref, terms = vapply(terms, lab, ""),
-      coefs = lapply(seq_along(cv$free), function(a) list(class = cv$free[a], est = unname(cv$est[, a]), se = unname(se[, a]), p = unname(2 * pnorm(-abs(cv$est[, a] / se[, a]))))),
-      wald = lapply(seq_along(terms), function(j) list(chisq = unname(cv$wald["chisq", j]), df = unname(cv$wald["df", j]), p = unname(cv$wald["p", j])))
+      coefs = lapply(
+        seq_along(cv$free),
+        function(a) list(class = cv$free[a], est = unname(cv$est[, a]), se = unname(se[, a]), p = unname(2 * pnorm(-abs(cv$est[, a] / se[, a]))))
+      ),
+      wald = lapply(
+        seq_along(terms),
+        function(j) list(chisq = unname(cv$wald["chisq", j]), df = unname(cv$wald["df", j]), p = unname(cv$wald["p", j]))
+      )
     )
   }
   out
@@ -208,9 +249,13 @@ ps_irt <- function(req_json, export = FALSE) {
   # Gauss-Hermite quadrature points (ltm's GHk; its defaults are 15 to 21, too few for long tests: the
   # log-likelihood keeps changing up to some 80 points with 20 items), and robust standard errors (Mplus MLR).
   k <- req$quadrature
-  if (!is.null(k) && !(is.numeric(k) && length(k) == 1 && k == round(k) && k >= 5 && k <= 100)) stop("Choose between 5 and 100 quadrature points.")
+  if (!is.null(k) && !(is.numeric(k) && length(k) == 1 && k == round(k) && k >= 5 && k <= 100)) {
+    stop("Choose between 5 and 100 quadrature points.")
+  }
   robust <- isTRUE(req$robust)
-  if (robust && !model %in% c("twopl", "gpcm")) stop("Robust standard errors are available for the 2PL and partial credit models.")
+  if (robust && !model %in% c("twopl", "gpcm")) {
+    stop("Robust standard errors are available for the 2PL and partial credit models.")
+  }
   ctl <- if (is.null(k)) "" else sprintf(", control = list(GHk = %d)", as.integer(k))
   call <- switch(model,
     rasch = quiet(sprintf("rasch(items%s)", ctl)),
@@ -261,14 +306,24 @@ ps_irt <- function(req_json, export = FALSE) {
   pars <- env$pars
   if (is.list(pars) && !is.data.frame(pars)) {
     rows <- names(pars)
-    params <- lapply(seq_along(pars), function(i) list(item = ps_back(rows[i], fr$back, FALSE), values = as.list(pars[[i]])))
+    params <- lapply(
+      seq_along(pars),
+      function(i) list(item = ps_back(rows[i], fr$back, FALSE), values = as.list(pars[[i]]))
+    )
   } else {
     pars <- as.matrix(pars)
-    params <- lapply(seq_len(nrow(pars)), function(i) list(item = ps_back(rownames(pars)[i], fr$back, FALSE), values = as.list(pars[i, ])))
+    params <- lapply(
+      seq_len(nrow(pars)),
+      function(i) list(item = ps_back(rownames(pars)[i], fr$back, FALSE), values = as.list(pars[i, ]))
+    )
   }
   info <- env$info
   # (ltm's item fit is defined for dichotomous models: Rasch and 2PL.)
-  ifit <- if (model %in% c("rasch", "twopl")) ps_try(ltm::item.fit(fit), "Item fit (ltm::item.fit)") else NULL
+  ifit <- if (model %in% c("rasch", "twopl")) {
+    ps_try(ltm::item.fit(fit), "Item fit (ltm::item.fit)")
+  } else {
+    NULL
+  }
   sd <- env$scores
   # Marginal reliability: 1 - mean posterior variance / variance of the EAP scores (+ posterior variance).
   rel <- ps_try(
@@ -286,8 +341,14 @@ ps_irt <- function(req_json, export = FALSE) {
     coefficients <- if (model == "twopl") {
       J <- nrow(cf)
       c(
-        lapply(seq_len(J), function(j) list(item = ps_back(rownames(cf)[j], fr$back, FALSE), parameter = "loading", est = unname(cf[j, 2]), se = unname(se[J + j]))),
-        lapply(seq_len(J), function(j) list(item = ps_back(rownames(cf)[j], fr$back, FALSE), parameter = "threshold 1", est = -unname(cf[j, 1]), se = unname(se[j])))
+        lapply(
+          seq_len(J),
+          function(j) list(item = ps_back(rownames(cf)[j], fr$back, FALSE), parameter = "loading", est = unname(cf[j, 2]), se = unname(se[J + j]))
+        ),
+        lapply(
+          seq_len(J),
+          function(j) list(item = ps_back(rownames(cf)[j], fr$back, FALSE), parameter = "threshold 1", est = -unname(cf[j, 1]), se = unname(se[j]))
+        )
       )
     } else {
       at <- cumsum(c(0, lengths(cf)))
@@ -297,17 +358,31 @@ ps_irt <- function(req_json, export = FALSE) {
         it <- ps_back(names(cf)[j], fr$back, FALSE)
         c(
           list(list(item = it, parameter = "loading", est = unname(b[K]), se = unname(se[at[j] + K]))),
-          lapply(seq_len(K - 1), function(v) list(item = it, parameter = sprintf("step %d", v), est = -unname(b[v]), se = unname(se[at[j] + v])))
+          lapply(
+            seq_len(K - 1),
+            function(v) list(item = it, parameter = sprintf("step %d", v), est = -unname(b[v]), se = unname(se[at[j] + v]))
+          )
         )
       }), recursive = FALSE)
     }
   }
   ps_json(list(
-    model = model, n = nrow(env$items), items = ps_back(fr$items, fr$back, FALSE),
-    params = params, coefficients = coefficients, quadrature = k, robust = robust, logLik = as.numeric(logLik(fit)), aic = AIC(fit), bic = BIC(fit), reliability = rel,
-    theta = unname(info[, 1]), information = lapply(seq_len(ncol(info) - 1), function(j) unname(info[, j + 1])),
+    model = model,
+    n = nrow(env$items),
+    items = ps_back(fr$items, fr$back, FALSE),
+    params = params,
+    coefficients = coefficients,
+    quadrature = k,
+    robust = robust,
+    logLik = as.numeric(logLik(fit)),
+    aic = AIC(fit),
+    bic = BIC(fit),
+    reliability = rel,
+    theta = unname(info[, 1]),
+    information = lapply(seq_len(ncol(info) - 1), function(j) unname(info[, j + 1])),
     itemFit = if (is.null(ifit)) list() else lapply(seq_along(ifit$Tobs), function(i) list(item = ps_back(names(ifit$Tobs)[i], fr$back, FALSE), x2 = unname(ifit$Tobs[i]), p = unname(ifit$p.values[i]))),
-    warnings = env$.warnings, engine = ps_engine("ltm")
+    warnings = env$.warnings,
+    engine = ps_engine("ltm")
   ))
 }
 
@@ -324,24 +399,45 @@ ps_lca <- function(req_json, export = FALSE) {
     "suppressPackageStartupMessages(library(poLCA))",
     sprintf("items <- data[, %s]", ps_q(fr$items)),
     "items[] <- lapply(items, function(v) as.integer(factor(v)))  # poLCA needs categories 1, 2, ...",
-    sprintf("# Latent class models with %s classes; %d random starts each (the best log-likelihood is kept).", paste(ks, collapse = ", "), nrep),
+    sprintf(
+      "# Latent class models with %s classes; %d random starts each (the best log-likelihood is kept).",
+      paste(ks, collapse = ", "),
+      nrep
+    ),
     "# (A best start that stops at the iteration limit, as on a flat likelihood, is continued to convergence.)",
     sprintf(
       "fits <- lapply(%s, function(k) { set.seed(%d); m <- poLCA(%s, items, nclass = k, nrep = %d, maxiter = 5000, verbose = FALSE)",
-      paste(deparse(ks), collapse = ""), seed, f, nrep
+      paste(deparse(ks), collapse = ""),
+      seed,
+      f,
+      nrep
     ),
-    sprintf("  if (m$numiter >= 5000) m <- poLCA(%s, items, nclass = k, probs.start = m$probs, maxiter = 100000, verbose = FALSE)", f),
+    sprintf(
+      "  if (m$numiter >= 5000) m <- poLCA(%s, items, nclass = k, probs.start = m$probs, maxiter = 100000, verbose = FALSE)",
+      f
+    ),
     "  if (m$numiter >= 100000) warning(sprintf(\"The %d-class model did not converge in 100000 iterations.\", k))",
     "  m })",
     "# Entropy-based classification quality (1 = perfectly separated classes).",
     "entropy <- function(m) { p <- m$posterior; k <- ncol(p); if (k == 1) return(NA); 1 - sum(-p * log(pmax(p, 1e-300))) / (nrow(p) * log(k)) }",
-    ps_lca_aux_body(req$aux, fr, ks, "fit$posterior[, order(-fit$P), drop = FALSE]", sprintf("complete.cases(data[, %s])", ps_q(fr$items)), "sapply(fits, function(m) m$bic)")
+    ps_lca_aux_body(
+      req$aux,
+      fr,
+      ks,
+      "fit$posterior[, order(-fit$P), drop = FALSE]",
+      sprintf("complete.cases(data[, %s])", ps_q(fr$items)),
+      "sapply(fits, function(m) m$bic)"
+    )
   )
   inputs <- list(data = fr$data)
   if (export) {
     return(ps_script(
       "Latent class analysis (poLCA)", "poLCA", inputs, body,
-      c("sapply(fits, function(m) c(classes = length(m$P), llik = m$llik, AIC = m$aic, BIC = m$bic, entropy = entropy(m)))", "fits", PS_AUX_REPORT[!is.null(req$aux)])
+      c(
+        "sapply(fits, function(m) c(classes = length(m$P), llik = m$llik, AIC = m$aic, BIC = m$bic, entropy = entropy(m)))",
+        "fits",
+        PS_AUX_REPORT[!is.null(req$aux)]
+      )
     ))
   }
   env <- ps_run(body, inputs)
@@ -360,8 +456,12 @@ ps_lca <- function(req_json, export = FALSE) {
     )
   })
   ps_json(list(
-    n = nrow(env$items), items = ps_back(fr$items, fr$back, FALSE), models = models, aux = ps_lca_aux_result(req$aux, fr, env),
-    warnings = env$.warnings, engine = ps_engine("poLCA")
+    n = nrow(env$items),
+    items = ps_back(fr$items, fr$back, FALSE),
+    models = models,
+    aux = ps_lca_aux_result(req$aux, fr, env),
+    warnings = env$.warnings,
+    engine = ps_engine("poLCA")
   ))
 }
 
@@ -421,15 +521,35 @@ ps_lpa <- function(req_json, export = FALSE) {
   seed <- as.integer(req$seed %||% 1)
   if (nrep < 1 || nrep > 100) stop("Invalid number of starts.")
   structure <- req$structure %||% "EEI"
-  if (!structure %in% c("EEI", "VVI", "EEE", "VVV")) stop("Invalid variance structure in the request.")
+  if (!structure %in% c("EEI", "VVI", "EEE", "VVV")) {
+    stop("Invalid variance structure in the request.")
+  }
   body <- c(
     PS_LPA_FUNCTIONS,
     sprintf("Y <- data[, %s]", ps_q(fr$items)),
     "Y <- Y[complete.cases(Y), , drop = FALSE]  # cases with every indicator",
-    sprintf("# Latent profile models with %s classes (%s); %d starts each (the best log-likelihood is kept).", paste(ks, collapse = ", "), structure, nrep),
-    sprintf("fits <- lapply(%s, function(k) { set.seed(%d); lpa_fit(Y, k, \"%s\", %d) })", paste(deparse(ks), collapse = ""), seed, structure, nrep),
+    sprintf(
+      "# Latent profile models with %s classes (%s); %d starts each (the best log-likelihood is kept).",
+      paste(ks, collapse = ", "),
+      structure,
+      nrep
+    ),
+    sprintf(
+      "fits <- lapply(%s, function(k) { set.seed(%d); lpa_fit(Y, k, \"%s\", %d) })",
+      paste(deparse(ks), collapse = ""),
+      seed,
+      structure,
+      nrep
+    ),
     "entropy <- function(m) { p <- m$post; k <- ncol(p); if (k == 1) return(NA); 1 - sum(-p * log(pmax(p, 1e-300))) / (nrow(p) * log(k)) }",
-    ps_lca_aux_body(req$aux, fr, ks, "fit$post[, order(-fit$pi), drop = FALSE]", sprintf("complete.cases(data[, %s])", ps_q(fr$items)), "sapply(fits, function(m) -2 * m$ll + m$npar * log(nrow(Y)))")
+    ps_lca_aux_body(
+      req$aux,
+      fr,
+      ks,
+      "fit$post[, order(-fit$pi), drop = FALSE]",
+      sprintf("complete.cases(data[, %s])", ps_q(fr$items)),
+      "sapply(fits, function(m) -2 * m$ll + m$npar * log(nrow(Y)))"
+    )
   )
   inputs <- list(data = fr$data)
   if (export) {
@@ -437,7 +557,8 @@ ps_lpa <- function(req_json, export = FALSE) {
       sprintf("Latent profile analysis (%s)", structure), character(0), inputs, body,
       c(
         "sapply(fits, function(m) c(classes = length(m$pi), llik = m$ll, npar = m$npar, BIC = -2 * m$ll + m$npar * log(nrow(Y)), entropy = entropy(m)))",
-        "lapply(fits, function(m) list(proportions = m$pi, means = do.call(rbind, m$mu), covariances = m$S))", PS_AUX_REPORT[!is.null(req$aux)]
+        "lapply(fits, function(m) list(proportions = m$pi, means = do.call(rbind, m$mu), covariances = m$S))",
+        PS_AUX_REPORT[!is.null(req$aux)]
       )
     ))
   }
@@ -446,15 +567,27 @@ ps_lpa <- function(req_json, export = FALSE) {
   models <- lapply(env$fits, function(m) {
     ord <- order(-m$pi)
     list(
-      k = length(m$pi), llik = m$ll, npar = m$npar, aic = -2 * m$ll + 2 * m$npar, bic = -2 * m$ll + m$npar * log(n), gsq = NULL,
-      entropy = env$entropy(m), shares = unname(m$pi[ord]),
+      k = length(m$pi),
+      llik = m$ll,
+      npar = m$npar,
+      aic = -2 * m$ll + 2 * m$npar,
+      bic = -2 * m$ll + m$npar * log(n),
+      gsq = NULL,
+      entropy = env$entropy(m),
+      shares = unname(m$pi[ord]),
       means = lapply(ord, function(c) unname(m$mu[[c]])),
-      cov = lapply(ord, function(c) unname(m$S[[c]])), probs = list()
+      cov = lapply(ord, function(c) unname(m$S[[c]])),
+      probs = list()
     )
   })
   ps_json(list(
-    n = n, items = ps_back(fr$items, fr$back, FALSE), models = models, structure = structure, aux = ps_lca_aux_result(req$aux, fr, env),
-    warnings = env$.warnings, engine = list(package = "R", version = paste(R.version$major, R.version$minor, sep = "."))
+    n = n,
+    items = ps_back(fr$items, fr$back, FALSE),
+    models = models,
+    structure = structure,
+    aux = ps_lca_aux_result(req$aux, fr, env),
+    warnings = env$.warnings,
+    engine = list(package = "R", version = paste(R.version$major, R.version$minor, sep = "."))
   ))
 }
 
@@ -508,16 +641,34 @@ ps_lcga <- function(req_json, export = FALSE) {
   seed <- as.integer(req$seed %||% 1)
   if (nrep < 1 || nrep > 100) stop("Invalid number of starts.")
   times <- as.numeric(unlist(req$times))
-  if (length(times) != length(fr$items) || any(!is.finite(times))) stop("Give one time score per occasion.")
+  if (length(times) != length(fr$items) || any(!is.finite(times))) {
+    stop("Give one time score per occasion.")
+  }
   body <- c(
     PS_LCGA_FUNCTIONS,
     sprintf("U <- data[, %s]", ps_q(fr$items)),
     "U <- U[rowSums(!is.na(U)) > 0, , drop = FALSE]  # (a missing occasion is left out of that person's likelihood)",
     sprintf("times <- %s", paste(deparse(times), collapse = "")),
-    sprintf("# Latent class growth models with %s classes; %d random starts each (the best log-likelihood is kept).", paste(ks, collapse = ", "), nrep),
-    sprintf("fits <- lapply(%s, function(k) { set.seed(%d); lcga_fit(U, times, k, %d) })", paste(deparse(ks), collapse = ""), seed, nrep),
+    sprintf(
+      "# Latent class growth models with %s classes; %d random starts each (the best log-likelihood is kept).",
+      paste(ks, collapse = ", "),
+      nrep
+    ),
+    sprintf(
+      "fits <- lapply(%s, function(k) { set.seed(%d); lcga_fit(U, times, k, %d) })",
+      paste(deparse(ks), collapse = ""),
+      seed,
+      nrep
+    ),
     "entropy <- function(m) { p <- m$post; k <- ncol(p); if (k == 1) return(NA); 1 - sum(-p * log(pmax(p, 1e-300))) / (nrow(p) * log(k)) }",
-    ps_lca_aux_body(req$aux, fr, ks, "fit$post", sprintf("rowSums(!is.na(data[, %s])) > 0", ps_q(fr$items)), "sapply(fits, function(m) -2 * m$ll + m$npar * log(nrow(U)))")
+    ps_lca_aux_body(
+      req$aux,
+      fr,
+      ks,
+      "fit$post",
+      sprintf("rowSums(!is.na(data[, %s])) > 0", ps_q(fr$items)),
+      "sapply(fits, function(m) -2 * m$ll + m$npar * log(nrow(U)))"
+    )
   )
   inputs <- list(data = fr$data)
   if (export) {
@@ -525,7 +676,8 @@ ps_lcga <- function(req_json, export = FALSE) {
       "Latent class growth analysis (ordered categorical outcome)", character(0), inputs, body,
       c(
         "sapply(fits, function(m) c(classes = length(m$pi), llik = m$ll, npar = m$npar, BIC = -2 * m$ll + m$npar * log(nrow(U)), entropy = entropy(m)))",
-        "lapply(fits, function(m) m[c(\"pi\", \"thresholds\", \"intercepts\", \"slopes\")])", PS_AUX_REPORT[!is.null(req$aux)]
+        "lapply(fits, function(m) m[c(\"pi\", \"thresholds\", \"intercepts\", \"slopes\")])",
+        PS_AUX_REPORT[!is.null(req$aux)]
       )
     ))
   }
@@ -547,8 +699,13 @@ ps_lcga <- function(req_json, export = FALSE) {
     )
   })
   ps_json(list(
-    n = n, items = ps_back(fr$items, fr$back, FALSE), models = models, times = times, aux = ps_lca_aux_result(req$aux, fr, env),
-    warnings = env$.warnings, engine = list(package = "R", version = paste(R.version$major, R.version$minor, sep = "."))
+    n = n,
+    items = ps_back(fr$items, fr$back, FALSE),
+    models = models,
+    times = times,
+    aux = ps_lca_aux_result(req$aux, fr, env),
+    warnings = env$.warnings,
+    engine = list(package = "R", version = paste(R.version$major, R.version$minor, sep = "."))
   ))
 }
 
@@ -614,19 +771,27 @@ ps_mirt <- function(req_json, export = FALSE) {
   items <- unlist(req$items)
   if (length(items) < 2) stop("Choose at least two items.")
   freq <- req$freq
-  if (!is.null(freq) && (!is.character(freq) || length(freq) != 1 || freq %in% items)) stop("Invalid frequency column in the request.")
+  if (!is.null(freq) && (!is.character(freq) || length(freq) != 1 || freq %in% items)) {
+    stop("Invalid frequency column in the request.")
+  }
   fr <- ps_long_frame(req, c(items, freq))
   vi <- unname(fr$v[items])
   k <- req$quadrature %||% 61
-  if (!(is.numeric(k) && length(k) == 1 && k == round(k) && k >= 5 && k <= 201)) stop("Choose between 5 and 201 quadrature points.")
+  if (!(is.numeric(k) && length(k) == 1 && k == round(k) && k >= 5 && k <= 201)) {
+    stop("Choose between 5 and 201 quadrature points.")
+  }
   robust <- isTRUE(req$robust)
-  if (robust && model == "mixture") stop("Robust standard errors are available for the 3PL and 4PL models.")
+  if (robust && model == "mixture") {
+    stop("Robust standard errors are available for the 3PL and 4PL models.")
+  }
   prior <- function(p, what) {
     if (is.null(p)) {
       return(NULL)
     }
     p <- as.numeric(unlist(p))
-    if (length(p) != 2 || !all(is.finite(p)) || p[2] <= 0) stop(sprintf("Invalid prior for the %s in the request.", what))
+    if (length(p) != 2 || !all(is.finite(p)) || p[2] <= 0) {
+      stop(sprintf("Invalid prior for the %s in the request.", what))
+    }
     p
   }
   pg <- prior(req$priorG, "lower asymptote")
@@ -634,19 +799,32 @@ ps_mirt <- function(req_json, export = FALSE) {
   if (!is.null(pu) && model != "fourpl") stop("A prior on the upper asymptote needs the 4PL model.")
   if (!is.null(pg) && model == "mixture") stop("Priors are available for the 3PL and 4PL models.")
   guess <- unlist(req$guessItems)
-  if (!is.null(guess) && (model != "threepl" || !all(guess %in% items))) stop("Invalid items with a guessing parameter in the request.")
+  if (!is.null(guess) && (model != "threepl" || !all(guess %in% items))) {
+    stop("Invalid items with a guessing parameter in the request.")
+  }
   classes <- as.integer(req$classes %||% 2)
   nrep <- as.integer(req$nrep %||% 10)
   seed <- as.integer(req$seed %||% 1)
-  if (model == "mixture" && (classes < 2 || classes > 5 || nrep < 1 || nrep > 100)) stop("Choose between 2 and 5 classes.")
-  types <- if (model == "fourpl") rep("4PL", length(items)) else if (model == "mixture") rep("2PL", length(items)) else ifelse(items %in% (guess %||% items), "3PL", "2PL")
+  if (model == "mixture" && (classes < 2 || classes > 5 || nrep < 1 || nrep > 100)) {
+    stop("Choose between 2 and 5 classes.")
+  }
+  types <- if (model == "fourpl") {
+    rep("4PL", length(items))
+  } else if (model == "mixture") {
+    rep("2PL", length(items))
+  } else {
+    ifelse(items %in% (guess %||% items), "3PL", "2PL")
+  }
   body <- c(
     "suppressPackageStartupMessages(library(mirt))",
     sprintf("items <- data[, %s]", ps_q(vi)),
     if (!is.null(freq)) {
       c(
         "# Each row stands for as many respondents as its frequency (mirt's expand.table).",
-        sprintf("items <- items[rep(seq_len(nrow(items)), data[[%s]]), , drop = FALSE]; rownames(items) <- NULL", encodeString(unname(fr$v[freq]), quote = '"'))
+        sprintf(
+          "items <- items[rep(seq_len(nrow(items)), data[[%s]]), , drop = FALSE]; rownames(items) <- NULL",
+          encodeString(unname(fr$v[freq]), quote = '"')
+        )
       )
     },
     "# Binary items: the two observed values become 0 and 1 (lower = 0).",
@@ -655,14 +833,24 @@ ps_mirt <- function(req_json, export = FALSE) {
   if (model == "mixture") {
     body <- c(
       body, PS_MIRT_MIXTURE,
-      sprintf("# %d latent classes, each with its own loadings and thresholds (factor mean 0 and variance 1 in each); %d starts.", classes, nrep),
+      sprintf(
+        "# %d latent classes, each with its own loadings and thresholds (factor mean 0 and variance 1 in each); %d starts.",
+        classes,
+        nrep
+      ),
       sprintf("set.seed(%d)", seed),
       sprintf("fit <- mirt_mixture(items, %d, %d, %d)", classes, nrep, as.integer(k))
     )
   } else {
     pri <- c(
       if (!is.null(pg)) sprintf("sv$parnum[sv$name == \"g\" & sv$est], \"norm\", %s, %s", format(pg[1], digits = 15), format(pg[2], digits = 15)),
-      if (!is.null(pu)) sprintf("sv$parnum[sv$name == \"u\" & sv$est], \"norm\", %s, %s", format(pu[1], digits = 15), format(pu[2], digits = 15))
+      if (!is.null(pu)) {
+        sprintf(
+          "sv$parnum[sv$name == \"u\" & sv$est], \"norm\", %s, %s",
+          format(pu[1], digits = 15),
+          format(pu[2], digits = 15)
+        )
+      }
     )
     body <- c(
       body,
@@ -676,7 +864,11 @@ ps_mirt <- function(req_json, export = FALSE) {
         )
       },
       "# (EM to a change below 1e-6, up to 5000 cycles: mirt's default of 500 stops short on flat likelihoods)",
-      sprintf("fit <- mirt(items, 1, itemtype = itemtype%s, quadpts = %d, TOL = 1e-6, technical = list(NCYCLES = 5000), SE = TRUE, verbose = FALSE)", if (length(pri)) ", parprior = prior" else "", as.integer(k)),
+      sprintf(
+        "fit <- mirt(items, 1, itemtype = itemtype%s, quadpts = %d, TOL = 1e-6, technical = list(NCYCLES = 5000), SE = TRUE, verbose = FALSE)",
+        if (length(pri)) ", parprior = prior" else "",
+        as.integer(k)
+      ),
       "# Standard errors from the observed information (Oakes; with the priors).",
       "V <- vcov(fit)",
       if (robust) c(PS_MIRT_ROBUST, "V <- mirt_robust(fit, as.matrix(items))")
@@ -685,7 +877,10 @@ ps_mirt <- function(req_json, export = FALSE) {
   inputs <- list(data = fr$data)
   if (export) {
     return(ps_script(
-      sprintf("Item response model (%s, mirt)", c(threepl = "3PL", fourpl = "4PL", mixture = "mixture 2PL")[[model]]), "mirt", inputs, body,
+      sprintf("Item response model (%s, mirt)", c(threepl = "3PL", fourpl = "4PL", mixture = "mixture 2PL")[[model]]),
+      "mirt",
+      inputs,
+      body,
       c("fit", "coef(fit, IRTpars = TRUE, simplify = TRUE)", if (model != "mixture") "sqrt(diag(V))")
     ))
   }
@@ -700,11 +895,21 @@ ps_mirt <- function(req_json, export = FALSE) {
         v <- se[[paste(it, nm)]]
         if (is.null(v) || !is.finite(v)) NA_real_ else v
       }
-      one <- function(parameter, est, sv) c(list(item = ps_back(it, fr$back, FALSE), parameter = parameter, est = est, se = sv), if (!is.null(cls)) list(class = cls))
+      one <- function(parameter, est, sv) {
+        c(
+          list(item = ps_back(it, fr$back, FALSE), parameter = parameter, est = est, se = sv),
+          if (!is.null(cls)) list(class = cls)
+        )
+      }
       c(
-        list(one("loading", unname(cf[it, "a1"]), s("a1")), one("threshold 1", -unname(cf[it, "d"]), s("d"))),
+        list(
+          one("loading", unname(cf[it, "a1"]), s("a1")),
+          one("threshold 1", -unname(cf[it, "d"]), s("d"))
+        ),
         if (types[match(it, vi)] %in% c("3PL", "4PL")) list(one("threshold 2 (lower asymptote)", -logit(cf[it, "g"]), s("g"))),
-        if (model == "fourpl") list(one("threshold 3 (upper asymptote)", -logit(cf[it, "u"]), s("u")))
+        if (model == "fourpl") {
+          list(one("threshold 3 (upper asymptote)", -logit(cf[it, "u"]), s("u")))
+        }
       )
     }), recursive = FALSE)
   }
@@ -712,7 +917,12 @@ ps_mirt <- function(req_json, export = FALSE) {
     lapply(rownames(cf), function(it) {
       list(
         item = paste0(ps_back(it, fr$back, FALSE), suffix),
-        values = as.list(c(Dscrmn = unname(cf[it, "a"]), Dffclt = unname(cf[it, "b"]), if (types[match(it, vi)] %in% c("3PL", "4PL")) c(Gussng = unname(cf[it, "g"])), if (model == "fourpl") c(Upper = unname(cf[it, "u"]))))
+        values = as.list(c(
+          Dscrmn = unname(cf[it, "a"]),
+          Dffclt = unname(cf[it, "b"]),
+          if (types[match(it, vi)] %in% c("3PL", "4PL")) c(Gussng = unname(cf[it, "g"])),
+          if (model == "fourpl") c(Upper = unname(cf[it, "u"]))
+        ))
       )
     })
   }
@@ -723,7 +933,10 @@ ps_mirt <- function(req_json, export = FALSE) {
     shares <- vapply(cfs, function(x) as.numeric(unlist(x$class_proportion))[1], 0)
     ord <- order(-shares) # classes by size
     coefficients <- unlist(lapply(seq_along(ord), function(c) rows(cfs[[ord[c]]]$items, list(), c)), recursive = FALSE)
-    params <- unlist(lapply(seq_along(ord), function(c) irt(irts[[ord[c]]]$items, sprintf(" (class %d)", c))), recursive = FALSE)
+    params <- unlist(
+      lapply(seq_along(ord), function(c) irt(irts[[ord[c]]]$items, sprintf(" (class %d)", c))),
+      recursive = FALSE
+    )
     classes_out <- unname(shares[ord])
     theta <- numeric(0)
     info <- list()
@@ -742,12 +955,25 @@ ps_mirt <- function(req_json, export = FALSE) {
   }
   lp <- ps_try(unname(extract.mirt(fit, "logPrior")), "Log prior")
   ps_json(list(
-    model = model, n = nrow(env$items), items = ps_back(vi, fr$back, FALSE),
-    params = params, coefficients = coefficients, quadrature = as.integer(k), robust = robust,
-    logLik = as.numeric(logLik(fit)), logPrior = if (length(pg) || length(pu)) lp else NULL, npar = extract.mirt(fit, "nest"),
-    aic = extract.mirt(fit, "AIC"), bic = extract.mirt(fit, "BIC"), reliability = rel, classes = classes_out,
-    theta = theta, information = info, itemFit = list(),
-    warnings = env$.warnings, engine = ps_engine("mirt")
+    model = model,
+    n = nrow(env$items),
+    items = ps_back(vi, fr$back, FALSE),
+    params = params,
+    coefficients = coefficients,
+    quadrature = as.integer(k),
+    robust = robust,
+    logLik = as.numeric(logLik(fit)),
+    logPrior = if (length(pg) || length(pu)) lp else NULL,
+    npar = extract.mirt(fit, "nest"),
+    aic = extract.mirt(fit, "AIC"),
+    bic = extract.mirt(fit, "BIC"),
+    reliability = rel,
+    classes = classes_out,
+    theta = theta,
+    information = info,
+    itemFit = list(),
+    warnings = env$.warnings,
+    engine = ps_engine("mirt")
   ))
 }
 
@@ -760,8 +986,12 @@ ps_mlca <- function(req_json, export = FALSE) {
   items <- unlist(req$items)
   if (length(items) < 2) stop("Choose at least two items.")
   cluster <- req$cluster
-  if (!is.character(cluster) || length(cluster) != 1 || cluster %in% items) stop("Choose the cluster column (not one of the items).")
-  if (!is.null(req$aux)) stop("The three-step analysis of auxiliary variables is not available for multilevel latent classes.")
+  if (!is.character(cluster) || length(cluster) != 1 || cluster %in% items) {
+    stop("Choose the cluster column (not one of the items).")
+  }
+  if (!is.null(req$aux)) {
+    stop("The three-step analysis of auxiliary variables is not available for multilevel latent classes.")
+  }
   ks <- as.integer(unlist(req$classes))
   if (!length(ks) || any(ks < 1 | ks > 10)) stop("Choose between 1 and 10 classes.")
   w <- as.integer(req$clusterClasses %||% 2)
@@ -776,12 +1006,25 @@ ps_mlca <- function(req_json, export = FALSE) {
   body <- c(
     "suppressPackageStartupMessages(library(glca))",
     sprintf("d <- data[, %s]", ps_q(c(vi, vc))),
-    sprintf("d <- d[!is.na(d[[%s]]), , drop = FALSE]  # (a person without a cluster is left out)", encodeString(vc, quote = '"')),
+    sprintf(
+      "d <- d[!is.na(d[[%s]]), , drop = FALSE]  # (a person without a cluster is left out)",
+      encodeString(vc, quote = '"')
+    ),
     sprintf("for (v in %s) d[[v]] <- as.integer(factor(d[[v]]))  # glca needs categories 1, 2, ...", ps_q(vi)),
-    sprintf("# %s classes of people within %d classes of clusters; %d random starts each (glca keeps the best).", paste(ks, collapse = ", "), w, nrep),
+    sprintf(
+      "# %s classes of people within %d classes of clusters; %d random starts each (glca keeps the best).",
+      paste(ks, collapse = ", "),
+      w,
+      nrep
+    ),
     sprintf(
       "fits <- lapply(%s, function(k) glca(%s, group = %s, data = d, nclass = k, ncluster = %d, n.init = %d, seed = %d, verbose = FALSE))",
-      paste(deparse(ks), collapse = ""), f, vc, w, nrep, seed
+      paste(deparse(ks), collapse = ""),
+      f,
+      vc,
+      w,
+      nrep,
+      seed
     )
   )
   inputs <- list(data = fr$data)
@@ -799,7 +1042,13 @@ ps_mlca <- function(req_json, export = FALSE) {
     ord <- order(-shares)
     cord <- order(-delta) # classes and cluster classes by size
     list(
-      k = ncol(gamma), llik = m$gof$loglik, npar = m$model$npar, aic = m$gof$AIC, bic = m$gof$BIC, gsq = m$gof$Gsq, entropy = m$gof$entropy,
+      k = ncol(gamma),
+      llik = m$gof$loglik,
+      npar = m$model$npar,
+      aic = m$gof$AIC,
+      bic = m$gof$BIC,
+      gsq = m$gof$Gsq,
+      entropy = m$gof$entropy,
       shares = shares[ord],
       probs = lapply(seq_along(vi), function(i) {
         list(
@@ -812,7 +1061,13 @@ ps_mlca <- function(req_json, export = FALSE) {
     )
   })
   ps_json(list(
-    n = nrow(env$d), clusters = length(unique(env$d[[vc]])), items = ps_back(vi, fr$back, FALSE), models = models, cluster = cluster, clusterClasses = w,
-    warnings = env$.warnings, engine = ps_engine("glca")
+    n = nrow(env$d),
+    clusters = length(unique(env$d[[vc]])),
+    items = ps_back(vi, fr$back, FALSE),
+    models = models,
+    cluster = cluster,
+    clusterClasses = w,
+    warnings = env$.warnings,
+    engine = ps_engine("glca")
   ))
 }

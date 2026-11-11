@@ -11,7 +11,12 @@
 #
 #   Rscript scripts/validation/ordinal_fit.R
 
-suppressMessages({ library(lavaan); library(psych); library(jsonlite); library(pbivnorm) })
+suppressMessages({
+  library(lavaan)
+  library(psych)
+  library(jsonlite)
+  library(pbivnorm)
+})
 root <- "src/engine/__fixtures__/categorical"
 items <- c(paste0("A", 1:5), paste0("C", 1:5))
 d <- psych::bfi[, items]
@@ -26,19 +31,37 @@ tb <- lavTables(fit, dimension = 2L, type = "table", statistic = c("X2", "G2"), 
 
 # One pair by hand: the observed table, and the probabilities of its cells under the fitted model.
 pair <- c("A1", "C5")
-th <- lavInspect(fit, "th"); rho <- lavInspect(fit, "cor.ov")[pair[1], pair[2]]
+th <- lavInspect(fit, "th")
+rho <- lavInspect(fit, "cor.ov")[pair[1], pair[2]]
 cuts <- function(v) c(-Inf, th[grep(paste0("^", v, "\\|"), names(th))], Inf)
-a <- cuts(pair[1]); b <- cuts(pair[2])
+a <- cuts(pair[1])
+b <- cuts(pair[2])
 F2 <- function(x, y) if (x == -Inf || y == -Inf) 0 else if (x == Inf && y == Inf) 1 else if (x == Inf) pnorm(y) else if (y == Inf) pnorm(x) else pbivnorm(x, y, rho)
-P <- outer(seq_len(length(a) - 1), seq_len(length(b) - 1), Vectorize(function(i, j) F2(a[i + 1], b[j + 1]) - F2(a[i], b[j + 1]) - F2(a[i + 1], b[j]) + F2(a[i], b[j])))
+P <- outer(
+  seq_len(length(a) - 1),
+  seq_len(length(b) - 1),
+  Vectorize(function(i, j) F2(a[i + 1], b[j + 1]) - F2(a[i], b[j + 1]) - F2(a[i + 1], b[j]) + F2(a[i], b[j]))
+)
 O <- table(factor(d[[pair[1]]], levels = 1:6), factor(d[[pair[2]]], levels = 1:6))
-N <- sum(O); E <- N * P
-x2 <- sum((O - E)^2 / E); g2 <- 2 * sum(ifelse(O > 0, O * log(O / E), 0))
+N <- sum(O)
+E <- N * P
+x2 <- sum((O - E)^2 / E)
+g2 <- 2 * sum(ifelse(O > 0, O * log(O / E), 0))
 
-out <- list(lavaan = as.character(packageVersion("lavaan")), items = items,
+out <- list(
+  lavaan = as.character(packageVersion("lavaan")), items = items,
   polychoric = unname(R), psychPolychoric = unname(polychoric(d)$rho[items, items]),
   thresholds = list(names = names(unclass(ss$th)), values = unname(as.numeric(ss$th))),
-  tech10 = list(lhs = as.character(tb$lhs), rhs = as.character(tb$rhs), df = as.numeric(tb$df), x2 = as.numeric(tb$X2), x2p = as.numeric(tb$X2.pval), g2 = as.numeric(tb$G2), g2p = as.numeric(tb$G2.pval)),
-  byHand = list(lhs = pair[1], rhs = pair[2], x2 = x2, g2 = g2))
+  tech10 = list(
+    lhs = as.character(tb$lhs),
+    rhs = as.character(tb$rhs),
+    df = as.numeric(tb$df),
+    x2 = as.numeric(tb$X2),
+    x2p = as.numeric(tb$X2.pval),
+    g2 = as.numeric(tb$G2),
+    g2p = as.numeric(tb$G2.pval)
+  ),
+  byHand = list(lhs = pair[1], rhs = pair[2], x2 = x2, g2 = g2)
+)
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), file.path(root, "ordinal_fit.json"))
 cat("written\n")

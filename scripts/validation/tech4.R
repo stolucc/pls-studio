@@ -5,10 +5,13 @@
 #
 #   Rscript scripts/validation/tech4.R
 
-suppressMessages({ library(lavaan); library(jsonlite) })
+suppressMessages({
+  library(lavaan)
+  library(jsonlite)
+})
 root <- "src/engine/__fixtures__/means"
 hs <- read.csv("src/engine/__fixtures__/multigroup/hs_school.csv")
-m <- '
+m <- "
   visual =~ x1 + x2 + x3
   textual =~ x4 + x5 + x6
   speed =~ x7 + x8 + x9
@@ -27,13 +30,15 @@ m <- '
   cor_visual_speed := (b1*v1 + b2*c12) / sqrt((b1^2*v1 + b2^2*v2 + 2*b1*b2*c12 + z) * v1)
   # group 1: the same moments, latent means fixed at 0
   var_speed_1 := p1^2*q1 + p2^2*q2 + 2*p1*p2*q3 + q4
-'
+"
 fit <- sem(m, data = hs, group = "school", group.equal = c("loadings", "intercepts"))
 pe <- parameterEstimates(fit)
 d <- pe[pe$op == ":=", ]
-out <- list(lavaan = as.character(packageVersion("lavaan")),
+out <- list(
+  lavaan = as.character(packageVersion("lavaan")),
   defined = setNames(lapply(seq_len(nrow(d)), function(i) list(est = d$est[i], se = d$se[i])), d$lhs),
   mean_visual = list(est = pe$est[pe$label == "m1"], se = pe$se[pe$label == "m1"]),
-  covLv = lapply(lavInspect(fit, "cov.lv"), unname), meanLv = lapply(lavInspect(fit, "mean.lv"), unname))
+  covLv = lapply(lavInspect(fit, "cov.lv"), unname), meanLv = lapply(lavInspect(fit, "mean.lv"), unname)
+)
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), file.path(root, "tech4.json"))
 cat("written\n")

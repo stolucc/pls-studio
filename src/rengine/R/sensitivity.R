@@ -18,10 +18,18 @@ ps_semsens <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   ps_cb_plain(b, "Sensitivity analysis (SEMsens)", raw = FALSE)
-  if (!grepl("^fit <- sem\\(model, .*\\)$", b$call)) stop("Sensitivity analysis (SEMsens) is not available for this model.")
-  if (!is.null(b$group_var)) stop("Sensitivity analysis (SEMsens) is for a single group: remove the grouping.")
-  if (length(req$model$moderations)) stop("Sensitivity analysis (SEMsens) is not available with latent interactions.")
-  if (length(b$composites)) stop("Sensitivity analysis (SEMsens) is for common-factor and observed variables; the model has composites (<~).")
+  if (!grepl("^fit <- sem\\(model, .*\\)$", b$call)) {
+    stop("Sensitivity analysis (SEMsens) is not available for this model.")
+  }
+  if (!is.null(b$group_var)) {
+    stop("Sensitivity analysis (SEMsens) is for a single group: remove the grouping.")
+  }
+  if (length(req$model$moderations)) {
+    stop("Sensitivity analysis (SEMsens) is not available with latent interactions.")
+  }
+  if (length(b$composites)) {
+    stop("Sensitivity analysis (SEMsens) is for common-factor and observed variables; the model has composites (<~).")
+  }
   o <- req$semsens
   opt <- as.integer(ps_number(o$optFun %||% 1, "objective"))
   if (is.na(opt) || !opt %in% .ps_semsens_opt) stop("Invalid objective function.")
@@ -32,23 +40,35 @@ ps_semsens <- function(req_json, export = FALSE) {
   bound <- ps_number(o$bound %||% 1, "domain")
   alpha <- ps_number(o$alpha %||% 0.05, "significance level")
   if (is.na(k) || k < 2 || k > 500) stop("The archive size (k) must be between 2 and 500.")
-  if (is.na(iter) || iter < k || iter > 20000) stop("The number of evaluations must be between the archive size and 20000.")
+  if (is.na(iter) || iter < k || iter > 20000) {
+    stop("The number of evaluations must be between the archive size and 20000.")
+  }
   if (is.na(ants) || ants < 1 || ants > 100) stop("The number of ants must be between 1 and 100.")
   if (is.na(seed)) stop("Invalid seed.")
-  if (!is.finite(bound) || bound <= 0 || bound > 1) stop("The phantom coefficients' bound must be in (0, 1].")
-  if (!is.finite(alpha) || alpha <= 0 || alpha >= 0.5) stop("The significance level must be in (0, 0.5).")
+  if (!is.finite(bound) || bound <= 0 || bound > 1) {
+    stop("The phantom coefficients' bound must be in (0, 1].")
+  }
+  if (!is.finite(alpha) || alpha <= 0 || alpha >= 0.5) {
+    stop("The significance level must be in (0, 0.5).")
+  }
   # (jsonlite reads [[from, to], ...] as a matrix)
-  paths <- if (is.matrix(o$paths)) lapply(seq_len(nrow(o$paths)), function(i) as.character(o$paths[i, ])) else lapply(o$paths, function(p) as.character(unlist(p)))
-  if (!length(paths) || length(paths) > 200 || any(lengths(paths) != 2)) stop("Choose the paths of interest.")
+  paths <- ps_string_rows(o$paths)
+  if (!length(paths) || length(paths) > 200 || any(lengths(paths) != 2)) {
+    stop("Choose the paths of interest.")
+  }
   drawn <- vapply(req$model$paths, function(p) paste(p$from, p$to, sep = "\r"), "")
   for (p in paths) if (!paste(p[1], p[2], sep = "\r") %in% drawn) stop(sprintf("%s -> %s is not a path of the model.", p[1], p[2]))
   phantoms <- as.character(unlist(o$phantoms))
-  if (length(phantoms) < 2 || anyDuplicated(phantoms)) stop("Choose at least two constructs the phantom variable affects.")
+  if (length(phantoms) < 2 || anyDuplicated(phantoms)) {
+    stop("Choose at least two constructs the phantom variable affects.")
+  }
   # (sa.aco substitutes phantom1, phantom2, ... as text: phantom10 would be read as phantom1 followed by 0)
   if (length(phantoms) > 9) stop("The phantom variable can affect at most nine constructs.")
   if (!all(phantoms %in% b$n$cname)) stop("Unknown construct for the phantom variable.")
   lv <- unname(b$lname[phantoms])
-  if (any(grepl("phantom", c(unname(b$lname), unname(b$n$iv)), fixed = TRUE))) stop("Rename the variables whose names contain \"phantom\": SEMsens reserves the word.")
+  if (any(grepl("phantom", c(unname(b$lname), unname(b$n$iv)), fixed = TRUE))) {
+    stop("Rename the variables whose names contain \"phantom\": SEMsens reserves the word.")
+  }
   plines <- unique(vapply(paths, function(p) sprintf("%s ~ %s", b$lname[[p[2]]], b$lname[[p[1]]]), ""))
   args <- sub("^fit <- sem\\(model, (.*)\\)$", "\\1", b$call)
   body <- c(
@@ -65,10 +85,34 @@ ps_semsens <- function(req_json, export = FALSE) {
     sprintf("of_interest <- %s", ps_q(plines)),
     "std0 <- standardizedSolution(fit)",
     "path_rows <- which(paste(std0$lhs, std0$op, std0$rhs) %in% of_interest)",
-    sprintf("# Ant colony optimisation (Leite et al. 2022): objective %d, an archive of %d solutions, %d ants, at most %d", opt, k, ants, iter),
-    sprintf("# evaluations, each phantom coefficient in [-%s, %s]; the model refitted with lavaan at each evaluation", format(bound), format(bound)),
-    sprintf("sa <- SEMsens::sa.aco(model = model, sens.model = sens_model, %s, opt.fun = %d, paths = path_rows, k = %d, n.of.ants = %d,", args, opt, k, ants),
-    sprintf("  max.iter = %d, d = list(rep(c(%s, %s), %d)), sig.level = %s, seed = %d, verbose = FALSE)", iter, format(-bound), format(bound), length(lv), format(alpha), seed),
+    sprintf(
+      "# Ant colony optimisation (Leite et al. 2022): objective %d, an archive of %d solutions, %d ants, at most %d",
+      opt,
+      k,
+      ants,
+      iter
+    ),
+    sprintf(
+      "# evaluations, each phantom coefficient in [-%s, %s]; the model refitted with lavaan at each evaluation",
+      format(bound),
+      format(bound)
+    ),
+    sprintf(
+      "sa <- SEMsens::sa.aco(model = model, sens.model = sens_model, %s, opt.fun = %d, paths = path_rows, k = %d, n.of.ants = %d,",
+      args,
+      opt,
+      k,
+      ants
+    ),
+    sprintf(
+      "  max.iter = %d, d = list(rep(c(%s, %s), %d)), sig.level = %s, seed = %d, verbose = FALSE)",
+      iter,
+      format(-bound),
+      format(bound),
+      length(lv),
+      format(alpha),
+      seed
+    ),
     "# (the paths' rows are the same in the sensitivity model's solution)",
     "first <- sa$model.results[sa$model.results$evals == 1, ]",
     "stopifnot(identical(paste(first$lhs, first$op, first$rhs)[path_rows], paste(std0$lhs, std0$op, std0$rhs)[path_rows]))",
@@ -76,7 +120,10 @@ ps_semsens <- function(req_json, export = FALSE) {
   )
   if (export) {
     return(ps_script(
-      sprintf("Sensitivity analysis for an unmeasured confounder (SEMsens, objective %d)", opt), c("lavaan", "SEMsens"), b$inputs, body,
+      sprintf("Sensitivity analysis for an unmeasured confounder (SEMsens, objective %d)", opt),
+      c("lavaan", "SEMsens"),
+      b$inputs,
+      body,
       c(
         "tables$sens.summary   # each path: the model's standardised estimate and p, and its mean, minimum and maximum over the evaluations",
         "tables$phan.paths     # the phantom coefficients (standardised): mean, minimum, maximum",
@@ -111,11 +158,24 @@ ps_semsens <- function(req_json, export = FALSE) {
     }, 0)
   }
   ps_json(list(
-    n = unname(lavaan::lavInspect(env$fit, "nobs")), optFun = opt, k = k, ants = ants, maxIter = iter, bound = bound, alpha = alpha, seed = seed,
-    evaluations = env$sa$n.eval, tried = env$sa$n.iter, maxObjective = env$sa$max.y,
-    phantoms = I(phantoms), interest = lapply(paths, function(p) list(from = p[1], to = p[2])),
-    summary = rowsOf(t$sens.summary), phantom = lapply(seq_along(lv), function(i) list(construct = phantoms[i], values = I(unname(as.numeric(t$phan.paths[ph[i], ]))))),
-    atMin = rowsOf(t$phan.min), atMax = rowsOf(t$phan.max), flip = rowsOf(t$p.paths),
+    n = unname(lavaan::lavInspect(env$fit, "nobs")),
+    optFun = opt,
+    k = k,
+    ants = ants,
+    maxIter = iter,
+    bound = bound,
+    alpha = alpha,
+    seed = seed,
+    evaluations = env$sa$n.eval,
+    tried = env$sa$n.iter,
+    maxObjective = env$sa$max.y,
+    phantoms = I(phantoms),
+    interest = lapply(paths, function(p) list(from = p[1], to = p[2])),
+    summary = rowsOf(t$sens.summary),
+    phantom = lapply(seq_along(lv), function(i) list(construct = phantoms[i], values = I(unname(as.numeric(t$phan.paths[ph[i], ]))))),
+    atMin = rowsOf(t$phan.min),
+    atMax = rowsOf(t$phan.max),
+    flip = rowsOf(t$p.paths),
     draws = list(
       path = lapply(regs, function(r) {
         x <- nm(r)
@@ -143,12 +203,16 @@ ps_medsens <- function(req_json, export = FALSE) {
   m <- id(req$m)
   y <- id(req$y)
   covs <- id(as.character(unlist(req$covariates)))
-  if (length(unique(c(x, m, y, covs))) != 3 + length(covs)) stop("X, the mediator, the outcome and the covariates must be different variables.")
+  if (length(unique(c(x, m, y, covs))) != 3 + length(covs)) {
+    stop("X, the mediator, the outcome and the covariates must be different variables.")
+  }
   rho_by <- ps_number(req$rhoBy %||% 0.1, "rho step")
   eps <- ps_number(req$eps %||% sqrt(.Machine$double.eps), "tolerance")
   level <- ps_number(req$confidence %||% 0.95, "confidence level")
   seed <- as.integer(ps_number(req$seed %||% 1, "seed"))
-  if (!is.finite(rho_by) || rho_by < 0.001 || rho_by > 0.25 || abs(1 / rho_by - round(1 / rho_by)) > 1e-8) stop("The step of rho must divide 1 (e.g. 0.1, 0.05, 0.01).")
+  if (!is.finite(rho_by) || rho_by < 0.001 || rho_by > 0.25 || abs(1 / rho_by - round(1 / rho_by)) > 1e-8) {
+    stop("The step of rho must divide 1 (e.g. 0.1, 0.05, 0.01).")
+  }
   if (!is.finite(eps) || eps <= 0 || eps > 0.1) stop("The tolerance must be in (0, 0.1].")
   if (!is.finite(level) || level <= 0.5 || level >= 1) stop("Invalid confidence level.")
   if (is.na(seed)) stop("Invalid seed.")
@@ -167,10 +231,19 @@ ps_medsens <- function(req_json, export = FALSE) {
     "# mediate(): the causal mediation object medsens() reads, for X from 0 to 1 (with two linear models",
     "# medsens() computes its curves and their confidence intervals analytically, not from these simulations)",
     sprintf("set.seed(%d)", seed),
-    sprintf("med <- mediate(fit_m, fit_y, treat = %s, mediator = %s, sims = 100, conf.level = %s)", encodeString(x, quote = '"'), encodeString(m, quote = '"'), format(level)),
+    sprintf(
+      "med <- mediate(fit_m, fit_y, treat = %s, mediator = %s, sims = 100, conf.level = %s)",
+      encodeString(x, quote = '"'),
+      encodeString(m, quote = '"'),
+      format(level)
+    ),
     "# Sensitivity to an unmeasured pre-treatment confounder (Imai, Keele & Yamamoto 2010): the ACME and ADE as functions",
     "# of rho, the correlation of the two equations' residuals",
-    sprintf("sens <- medsens(med, rho.by = %s, eps = %s, effect.type = \"both\")", format(rho_by), format(eps, digits = 15))
+    sprintf(
+      "sens <- medsens(med, rho.by = %s, eps = %s, effect.type = \"both\")",
+      format(rho_by),
+      format(eps, digits = 15)
+    )
   )
   inputs <- list(data = ps_frame(req, n))
   if (export) {
@@ -180,13 +253,27 @@ ps_medsens <- function(req_json, export = FALSE) {
   s <- env$sens
   v <- function(z) I(unname(as.numeric(z)))
   ps_json(list(
-    n = stats::nobs(env$fit_y), rhoBy = rho_by, eps = eps, confidence = level, x = req$x, m = req$m, y = req$y, covariates = I(as.character(unlist(req$covariates))),
-    a = unname(stats::coef(env$fit_m)[[x]]), b = unname(stats::coef(env$fit_y)[[m]]), r2m = s$r.square.m, r2y = s$r.square.y,
-    rho = v(s$rho), acme = list(est = v(s$d0), lo = v(s$lower.d0), hi = v(s$upper.d0)), ade = list(est = v(s$z0), lo = v(s$lower.z0), hi = v(s$upper.z0)),
-    r2starProd = v(s$R2star.prod), r2tildeProd = v(s$R2tilde.prod),
+    n = stats::nobs(env$fit_y),
+    rhoBy = rho_by,
+    eps = eps,
+    confidence = level,
+    x = req$x,
+    m = req$m,
+    y = req$y,
+    covariates = I(as.character(unlist(req$covariates))),
+    a = unname(stats::coef(env$fit_m)[[x]]),
+    b = unname(stats::coef(env$fit_y)[[m]]),
+    r2m = s$r.square.m,
+    r2y = s$r.square.y,
+    rho = v(s$rho),
+    acme = list(est = v(s$d0), lo = v(s$lower.d0), hi = v(s$upper.d0)),
+    ade = list(est = v(s$z0), lo = v(s$lower.z0), hi = v(s$upper.z0)),
+    r2starProd = v(s$R2star.prod),
+    r2tildeProd = v(s$R2tilde.prod),
     acmeZero = list(rho = s$err.cr.d, r2star = s$R2star.d.thresh, r2tilde = s$R2tilde.d.thresh),
     adeZero = list(rho = s$err.cr.z, r2star = s$R2star.z.thresh, r2tilde = s$R2tilde.z.thresh),
-    printed = I(ps_flat_lines(utils::capture.output(summary(s)))), warnings = env$.warnings,
+    printed = I(ps_flat_lines(utils::capture.output(summary(s)))),
+    warnings = env$.warnings,
     engine = ps_engine("mediation")
   ))
 }

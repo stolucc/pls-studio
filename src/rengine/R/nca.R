@@ -118,7 +118,9 @@ ps_nca <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   xs <- unlist(req$x)
   yn <- req$y
-  if (!length(xs) || !length(yn) || yn %in% xs) stop("Choose the outcome Y and at least one condition X (different columns).")
+  if (!length(xs) || !length(yn) || yn %in% xs) {
+    stop("Choose the outcome Y and at least one condition X (different columns).")
+  }
   rep <- as.integer(req$permutations %||% 1000)
   if (rep < 0 || rep > 20000) stop("Invalid number of permutations.")
   outliers <- isTRUE(req$outliers)
@@ -135,9 +137,16 @@ ps_nca <- function(req_json, export = FALSE) {
     "  r <- nca_one(x, y)",
     if (rep > 0) {
       c(
-        sprintf("  sims <- lapply(nca_samples(length(y), %d), function(sm) { q <- nca_one(x, y[sm]); c(q$ce, q$cr) })", rep),
+        sprintf(
+          "  sims <- lapply(nca_samples(length(y), %d), function(sm) { q <- nca_one(x, y[sm]); c(q$ce, q$cr) })",
+          rep
+        ),
         "  sims <- do.call(rbind, sims)",
-        sprintf("  r$p <- c(ce_fdh = nca_p(r$ce, sims[, 1][!is.na(sims[, 1])], %d), cr_fdh = nca_p(r$cr, sims[, 2][!is.na(sims[, 2])], %d))", rep, rep)
+        sprintf(
+          "  r$p <- c(ce_fdh = nca_p(r$ce, sims[, 1][!is.na(sims[, 1])], %d), cr_fdh = nca_p(r$cr, sims[, 2][!is.na(sims[, 2])], %d))",
+          rep,
+          rep
+        )
       )
     },
     "  r$bottleneck <- nca_bottleneck(r); r$n <- length(y); r$x <- x; r$y <- y",
@@ -162,12 +171,20 @@ ps_nca <- function(req_json, export = FALSE) {
   env <- ps_run(body, inputs)
   out <- lapply(env$res, function(r) {
     list(
-      n = r$n, scope = r$scope, ceFdh = r$ce, crFdh = r$cr, intercept = if (is.na(r$intercept)) NULL else r$intercept, slope = if (is.na(r$slope)) NULL else r$slope,
+      n = r$n,
+      scope = r$scope,
+      ceFdh = r$ce,
+      crFdh = r$cr,
+      intercept = if (is.na(r$intercept)) NULL else r$intercept,
+      slope = if (is.na(r$slope)) NULL else r$slope,
       accuracy = if (is.nan(r$above)) NULL else 100 * (r$n - r$above) / r$n,
       p = if (is.null(r$p)) NULL else as.list(r$p),
       peers = list(x = unname(r$peers[, 1]), y = unname(r$peers[, 2])),
       points = list(x = utils::head(r$x, 3000), y = utils::head(r$y, 3000)),
-      bottleneck = lapply(seq_len(nrow(r$bottleneck)), function(i) list(y = r$bottleneck$y[i], ceFdh = r$bottleneck$ce_fdh[i], crFdh = r$bottleneck$cr_fdh[i])),
+      bottleneck = lapply(
+        seq_len(nrow(r$bottleneck)),
+        function(i) list(y = r$bottleneck$y[i], ceFdh = r$bottleneck$ce_fdh[i], crFdh = r$bottleneck$cr_fdh[i])
+      ),
       robustness = if (outliers) ps_nca_robustness_json(r)
     )
   })

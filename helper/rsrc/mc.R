@@ -15,8 +15,19 @@ ps_mc_body <- function(req) {
   # Estimation models: PLS keeps factors (=~) and composites (<~); CB-SEM treats every construct as a common factor.
   ind <- function(j) unname(n$iv[n$inds[[j]]])
   ends <- unique(vapply(spec$paths, `[[`, "", "to"))
-  reg <- vapply(ends, function(t) paste(cv[[t]], "~", paste(cv[vapply(Filter(function(p) p$to == t, spec$paths), `[[`, "", "from")], collapse = " + ")), "")
-  plsm <- c(vapply(seq_along(spec$constructs), function(j) paste(cv[[j]], if (identical(spec$constructs[[j]]$type, "composite")) "<~" else "=~", paste(ind(j), collapse = " + ")), ""), reg)
+  reg <- vapply(
+    ends,
+    function(t) paste(cv[[t]], "~", paste(cv[vapply(Filter(function(p) p$to == t, spec$paths), `[[`, "", "from")], collapse = " + ")),
+    ""
+  )
+  plsm <- c(
+    vapply(
+      seq_along(spec$constructs),
+      function(j) paste(cv[[j]], if (identical(spec$constructs[[j]]$type, "composite")) "<~" else "=~", paste(ind(j), collapse = " + ")),
+      ""
+    ),
+    reg
+  )
   cbm <- c(vapply(seq_along(spec$constructs), function(j) paste(cv[[j]], "=~", ps_marked(ind(j))), ""), reg)
   req$params <- lapply(req$params, function(p) {
     if (p$kind != "fit") {
@@ -31,26 +42,49 @@ ps_mc_body <- function(req) {
   est_lines <- unlist(lapply(seq_along(req$estimators), function(ei) {
     e <- req$estimators[[ei]]
     if (e$method == "pls") {
-      boot <- if (req$bootSamples > 0) sprintf(", .resample_method = \"bootstrap\", .R = %d, .seed = boot_seed", as.integer(req$bootSamples)) else ""
+      boot <- if (req$bootSamples > 0) {
+        sprintf(", .resample_method = \"bootstrap\", .R = %d, .seed = boot_seed", as.integer(req$bootSamples))
+      } else {
+        ""
+      }
       sprintf(
         "  res[[%d]] <- tryCatch(pls_stats(csem(data, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"path\"%s)), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
-        ei, if (isTRUE(e$consistent)) "TRUE" else "FALSE", boot
+        ei,
+        if (isTRUE(e$consistent)) "TRUE" else "FALSE",
+        boot
       )
     } else {
-      sprintf("  res[[%d]] <- tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\"), mc_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })", ei, e$estimator)
+      sprintf(
+        "  res[[%d]] <- tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\"), mc_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
+        ei,
+        e$estimator
+      )
     }
   }))
   c(
     "suppressPackageStartupMessages({ library(lavaan); library(cSEM) })",
     sprintf("vars <- %s", ps_q(vars)),
     "pop_model <- '", paste0("  ", pop), "'",
-    sprintf("skew <- %s; kurt <- %s", paste(deparse(as.numeric(req$population$skew)), collapse = ""), paste(deparse(as.numeric(req$population$kurtosis)), collapse = "")),
-    "pls_model <- '", paste0("  ", plsm), "'",
-    "cb_model <- '", paste0("  ", cbm), "'",
+    sprintf(
+      "skew <- %s; kurt <- %s",
+      paste(deparse(as.numeric(req$population$skew)), collapse = ""),
+      paste(deparse(as.numeric(req$population$kurtosis)), collapse = "")
+    ),
+    "pls_model <- '",
+    paste0("  ", plsm),
+    "'",
+    "cb_model <- '",
+    paste0("  ", cbm),
+    "'",
     sprintf("alpha <- %s; mc_draws <- %d", format(ps_number(req$alpha, "significance level")), as.integer(req$mcDraws)),
     "# Parameters to evaluate: standardised paths, indirect effects and correlations of exogenous constructs.",
-    "params <- data.frame(kind = ", ps_q(vapply(req$params, `[[`, "", "kind")), ", from = ", ps_q(vapply(req$params, `[[`, "", "from")),
-    ", to = ", ps_q(vapply(req$params, `[[`, "", "to")), ")",
+    "params <- data.frame(kind = ",
+    ps_q(vapply(req$params, `[[`, "", "kind")),
+    ", from = ",
+    ps_q(vapply(req$params, `[[`, "", "from")),
+    ", to = ",
+    ps_q(vapply(req$params, `[[`, "", "to")),
+    ")",
     "effects <- function(B) { Tm <- solve(diag(nrow(B)) - B) - diag(nrow(B)); dimnames(Tm) <- dimnames(B); list(direct = B, indirect = Tm - B) }",
     "# PLS: path and indirect estimates; with bootstrap draws, percentile CIs and a t test.",
     "pls_stats <- function(fit) {",
@@ -142,7 +176,9 @@ ps_mc <- function(req_json, export = FALSE) {
     est_ids <- vapply(req$estimators, `[[`, "", "id")
     report <- c(
       sprintf("estimators <- %s", ps_q(est_ids)),
-      "truth <- c(", paste0("  ", vapply(req$params, function(p) ps_num(p$value), ""), c(rep(",", length(req$params) - 1), "")), ")",
+      "truth <- c(",
+      paste0("  ", vapply(req$params, function(p) ps_num(p$value), ""), c(rep(",", length(req$params) - 1), "")),
+      ")",
       "# Summary: mean, bias, SD, RMSE (standardised); coverage and rejection rate (power, or Type I error when the truth is 0).",
       "summary_rows <- do.call(rbind, lapply(sort(unique(seeds$n)), function(n) do.call(rbind, lapply(seq_along(estimators), function(e) do.call(rbind, lapply(seq_len(nrow(params)), function(k) {",
       "  vals <- do.call(rbind, lapply(results[seeds$n == n], function(r) if (is.null(r[[e]])) c(NA, NA, NA, NA) else r[[e]]$values[k, ]))",
@@ -158,10 +194,20 @@ ps_mc <- function(req_json, export = FALSE) {
   env <- ps_run(c(body, run), list(seeds = sd))
   E <- length(req$estimators)
   K <- length(req$params)
-  pick <- function(col) lapply(seq_len(E), function(e) lapply(seq_len(K), function(k) vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$values[k, col], 0)))
+  # One column of the results (est, lo, hi, sig) per estimator e and parameter k, over the replications (NA where
+  # an estimator failed)
+  pick <- function(col) {
+    over_replications <- function(e, k) {
+      vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$values[k, col], 0)
+    }
+    lapply(seq_len(E), function(e) lapply(seq_len(K), function(k) over_replications(e, k)))
+  }
   ps_json(list(
     est = pick(1), lo = pick(2), hi = pick(3), sig = pick(4),
-    proper = lapply(seq_len(E), function(e) vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$proper, 0)),
+    proper = lapply(
+      seq_len(E),
+      function(e) vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$proper, 0)
+    ),
     warnings = env$.warnings
   ))
 }

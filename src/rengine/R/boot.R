@@ -72,7 +72,9 @@ ps_boot_chunked <- function(req) !is.null(req$boot$chunkR)
 ps_boot_draw_lines <- function(req, chunk_fn) {
   R <- as.integer(req$boot$chunkR)
   seeds <- as.integer(req$boot$chunkSeed)
-  if (!length(R) || length(R) != length(seeds) || anyNA(R) || anyNA(seeds) || any(R < 1)) stop("Invalid bootstrap chunks in the request.")
+  if (!length(R) || length(R) != length(seeds) || anyNA(R) || anyNA(seeds) || any(R < 1)) {
+    stop("Invalid bootstrap chunks in the request.")
+  }
   part <- req$boot$part
   if (!is.null(req$boot$draws)) {
     return(c(
@@ -88,7 +90,11 @@ ps_boot_draw_lines <- function(req, chunk_fn) {
   }
   c(
     chunk_fn,
-    sprintf("# Parallel bootstrap: the samples in %d chunk%s, chunk k drawn with its own seed, so the draws", length(R), if (length(R) > 1) "s" else ""),
+    sprintf(
+      "# Parallel bootstrap: the samples in %d chunk%s, chunk k drawn with its own seed, so the draws",
+      length(R),
+      if (length(R) > 1) "s" else ""
+    ),
     "# do not depend on the number of R sessions; the chunks can run in parallel (e.g. parallel::mclapply).",
     sprintf("chunks <- data.frame(R = c(%s), seed = c(%s))", paste(R, collapse = ", "), paste(seeds, collapse = ", ")),
     "parts <- lapply(seq_len(nrow(chunks)), function(k) draw_chunk(chunks$R[k], chunks$seed[k]))",
@@ -103,21 +109,30 @@ ps_boot_inputs <- function(req, inputs) {
   }
   v <- d$values
   # (a JSON array of rows arrives as a matrix, or as a list of rows when they contain nulls)
-  m <- if (is.matrix(v)) v else do.call(rbind, lapply(v, function(r) as.numeric(vapply(r, function(x) if (is.null(x)) NA_real_ else as.numeric(x), 0))))
+  row_values <- function(r) as.numeric(vapply(r, function(x) if (is.null(x)) NA_real_ else as.numeric(x), 0))
+  m <- if (is.matrix(v)) v else do.call(rbind, lapply(v, row_values))
   m <- matrix(as.numeric(m), nrow = nrow(m), dimnames = list(NULL, d$names))
   c(inputs, list(boot_draws = m, boot_original = setNames(as.numeric(unlist(d$original)), d$names)))
 }
 #' The draws of one chunk as JSON (in-app parallel calls).
 ps_boot_part_json <- function(env) {
   D <- env$draws
-  ps_json(list(names = colnames(D), values = unname(lapply(seq_len(nrow(D)), function(i) unname(D[i, ]))), original = unname(env$original[colnames(D)]), warnings = ps_quiet_2ndorder(env$.warnings)))
+  draw_rows <- unname(lapply(seq_len(nrow(D)), function(i) unname(D[i, ])))
+  ps_json(list(
+    names = colnames(D),
+    values = draw_rows,
+    original = unname(env$original[colnames(D)]),
+    warnings = ps_quiet_2ndorder(env$.warnings)
+  ))
 }
 
 ps_pls_boot <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_pls_build(req, allow_hoc = TRUE, allow_mi = TRUE, allow_ord = TRUE) # (ordinal: cSEM resamples the ordered factors)
   mi <- identical(req$missing, "mi")
-  if (mi && ps_boot_chunked(req)) stop("With multiple imputation the bootstrap runs in one piece per imputed data set.")
+  if (mi && ps_boot_chunked(req)) {
+    stop("With multiple imputation the bootstrap runs in one piece per imputed data set.")
+  }
   B <- as.integer(req$boot$samples)
   seed <- as.integer(req$boot$seed)
   conf <- ps_number(req$boot$confidence, "confidence level")
@@ -128,7 +143,9 @@ ps_pls_boot <- function(req_json, export = FALSE) {
     stop("seminr's bootstrap needs worker processes, which R in the browser cannot start. Bootstrap with cSEM, or export the seminr bootstrap script and run it in R.")
   }
   bca <- ps_boot_bca(req)
-  if (bca && (mi || b$pkg != "cSEM")) stop("BCa intervals need a jackknife, available here with cSEM (not with seminr or multiple imputation); choose percentile intervals.")
+  if (bca && (mi || b$pkg != "cSEM")) {
+    stop("BCa intervals need a jackknife, available here with cSEM (not with seminr or multiple imputation); choose percentile intervals.")
+  }
   if (b$pkg == "cSEM") {
     # Same call with cSEM's resampling; R² per draw via a user function.
     body <- c(ps_cores_csem(req), body)
@@ -161,7 +178,12 @@ ps_pls_boot <- function(req_json, export = FALSE) {
       body <- c(body, extract)
       if (bca) {
         # BCa: cSEM's jackknife (each observation left out once) gives the acceleration.
-        jk <- sub(", .R = %s, .seed = %s", "", sub("\"bootstrap\"", "\"jackknife\"", resample, fixed = TRUE), fixed = TRUE)
+        jk <- sub(
+          ", .R = %s, .seed = %s",
+          "",
+          sub("\"bootstrap\"", "\"jackknife\"", resample, fixed = TRUE),
+          fixed = TRUE
+        )
         jx <- gsub("fit$", "fit_jack$", extract, fixed = TRUE)
         jx <- sub("^draws <- ", "jack <- ", jx[!grepl("^original <- ", jx)])
         body <- c(
@@ -185,11 +207,22 @@ ps_pls_boot <- function(req_json, export = FALSE) {
       "original <- c(orig(P, \"path\", kp), orig(TE, \"total\", kt), orig(TE - P, \"indirect\", ki), orig(fit$outer_loadings, \"loading\", kl), orig(fit$outer_weights, \"weight\", kw))"
     )
   }
-  body <- c(body, PS_BOOT_SUMMARY, sprintf("result <- boot_summary(draws, original[colnames(draws)], confidence = %s, tails = %d%s)", format(conf), ps_boot_tails(req), if (bca) ", jack = jack" else ""))
+  body <- c(
+    body,
+    PS_BOOT_SUMMARY,
+    sprintf(
+      "result <- boot_summary(draws, original[colnames(draws)], confidence = %s, tails = %d%s)",
+      format(conf),
+      ps_boot_tails(req),
+      if (bca) ", jack = jack" else ""
+    )
+  )
   title <- sprintf("Bootstrap, %d samples (%s)", B, b$pkg)
   if (mi) {
     # Multiple imputation: the bootstrap in every imputed data set (same seed), pooled by Rubin's rules.
-    if (export) stop("The bootstrap with multiple imputation runs per imputed data set and is not exported as one script; export the estimation script.")
+    if (export) {
+      stop("The bootstrap with multiple imputation runs per imputed data set and is not exported as one script; export the estimation script.")
+    }
     imp <- ps_impute(req, b$inputs)
     envs <- lapply(seq_len(imp$m), function(k) ps_run(body, list(data = mice::complete(imp, k))))
     pooled <- ps_rubin(lapply(envs, function(e) e$result), conf)
@@ -207,8 +240,13 @@ ps_pls_boot <- function(req_json, export = FALSE) {
   }
   env <- ps_run(body, ps_boot_inputs(req, b$inputs))
   ps_json(list(
-    stats = ps_boot_keys(env$result, b, req), samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0), tails = ps_boot_tails(req), interval = if (bca) "bca" else "percentile",
-    confidence = conf, warnings = ps_quiet_2ndorder(env$.warnings)
+    stats = ps_boot_keys(env$result, b, req),
+    samples = B,
+    failed = B - sum(rowSums(is.finite(env$draws)) > 0),
+    tails = ps_boot_tails(req),
+    interval = if (bca) "bca" else "percentile",
+    confidence = conf,
+    warnings = ps_quiet_2ndorder(env$.warnings)
   ))
 }
 
@@ -249,7 +287,16 @@ ps_boot_keys <- function(r, b, req) {
           key = sprintf("%s:%s:%s", if (g == "loading") "hoLoading" else "hoWeight", lv[[lhs]], lv[[rhs]]),
           label = if (g == "loading") sprintf("%s → %s", lv[[lhs]], lv[[rhs]]) else sprintf("%s → %s", lv[[rhs]], lv[[lhs]])
         ),
-        list(group = g, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i])
+        list(
+          group = g,
+          original = r$original[i],
+          mean = r$mean[i],
+          sd = r$sd[i],
+          t = r$t[i],
+          p = r$p[i],
+          ciLow = r$ci_low[i],
+          ciHigh = r$ci_high[i]
+        )
       )
       next
     }
@@ -265,7 +312,16 @@ ps_boot_keys <- function(r, b, req) {
       weight = list(key = sprintf("weight:%s", ind[[rhs]]), label = sprintf("%s → %s", ind[[rhs]], lv[[lhs]])),
       r2 = list(key = sprintf("r2:%s", lv[[lhs]]), label = lv[[lhs]])
     )
-    out[[length(out) + 1]] <- c(key, list(group = g, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
+    out[[length(out) + 1]] <- c(key, list(
+      group = g,
+      original = r$original[i],
+      mean = r$mean[i],
+      sd = r$sd[i],
+      t = r$t[i],
+      p = r$p[i],
+      ciLow = r$ci_low[i],
+      ciHigh = r$ci_high[i]
+    ))
   }
   out
 }
@@ -286,17 +342,25 @@ ps_cb_draws <- function(req, setup, expr, B, seed) {
 ps_cb_boot <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
-  if (isTRUE(b$robust)) stop("Robust ML (rsem) has its own robust standard errors; the bootstrap resamples the raw data with ML or MLR.")
-  if (isTRUE(b$mi)) stop("With multiple imputation the standard errors are pooled by Rubin's rules; the bootstrap is not combined with it.")
+  if (isTRUE(b$robust)) {
+    stop("Robust ML (rsem) has its own robust standard errors; the bootstrap resamples the raw data with ML or MLR.")
+  }
+  if (isTRUE(b$mi)) {
+    stop("With multiple imputation the standard errors are pooled by Rubin's rules; the bootstrap is not combined with it.")
+  }
   if (b$matrix_input) stop("Bootstrapping needs raw data; this dataset is a covariance matrix.")
   # (lavaan refits a bifactor rotation in each sample without aligning it to the original: the specific
   #  factors swap and flip between samples, and many refits fail, so the intervals would mean nothing)
-  if (isTRUE(b$bifactor)) stop("A bifactor rotation cannot be bootstrapped: lavaan does not align the rotated factors across samples. Use the standard errors of the estimates.")
+  if (isTRUE(b$bifactor)) {
+    stop("A bifactor rotation cannot be bootstrapped: lavaan does not align the rotated factors across samples. Use the standard errors of the estimates.")
+  }
   B <- as.integer(req$boot$samples)
   seed <- as.integer(req$boot$seed)
   conf <- ps_number(req$boot$confidence, "confidence level")
   bca <- ps_boot_bca(req)
-  if (bca && (!is.null(b$modsem) || !is.null(b$cluster_var))) stop("BCa intervals need a jackknife, which is not available here for LMS / QML or two-level models; choose percentile intervals.")
+  if (bca && (!is.null(b$modsem) || !is.null(b$cluster_var))) {
+    stop("BCa intervals need a jackknife, which is not available here for LMS / QML or two-level models; choose percentile intervals.")
+  }
   if (!is.null(b$modsem)) {
     return(ps_cb_boot_modsem(b, B, seed, conf, export, req))
   }
@@ -357,12 +421,18 @@ ps_cb_boot <- function(req_json, export = FALSE) {
         ps_cb_draws(req, "set.seed(seed)", c(
           "t(vapply(seq_len(R), function(r) {",
           "  s <- unlist(lapply(strata, function(ids) ids[sample.int(length(ids), replace = TRUE)]), use.names = FALSE)",
-          sprintf("  d <- do.call(rbind, lapply(seq_along(s), function(k) { x <- data[cl == s[k], , drop = FALSE]; x[[\"%s\"]] <- k; x }))", b$cluster_var),
+          sprintf(
+            "  d <- do.call(rbind, lapply(seq_along(s), function(k) { x <- data[cl == s[k], , drop = FALSE]; x[[\"%s\"]] <- k; x }))",
+            b$cluster_var
+          ),
           "  tryCatch(std_stats(refit(d), names(original)),",
           "    error = function(e) { boot_errors <<- c(boot_errors, conditionMessage(e)); rep(NA_real_, length(original)) })",
           "}, numeric(length(original))))"
         ), B, seed),
-        sprintf("if (length(boot_errors)) warning(sprintf(\"%%d of %d cluster resamples failed, e.g.: %%s\", length(boot_errors), boot_errors[1]))", B)
+        sprintf(
+          "if (length(boot_errors)) warning(sprintf(\"%%d of %d cluster resamples failed, e.g.: %%s\", length(boot_errors), boot_errors[1]))",
+          B
+        )
       )
     } else {
       c(
@@ -384,7 +454,12 @@ ps_cb_boot <- function(req_json, export = FALSE) {
       )
     },
     PS_BOOT_SUMMARY,
-    sprintf("result <- boot_summary(draws, original, confidence = %s, tails = %d%s)", format(conf), ps_boot_tails(req), if (bca) ", jack = jack" else "")
+    sprintf(
+      "result <- boot_summary(draws, original, confidence = %s, tails = %d%s)",
+      format(conf),
+      ps_boot_tails(req),
+      if (bca) ", jack = jack" else ""
+    )
   )
   if (export) {
     return(ps_script(sprintf("Bootstrap, %d samples (lavaan)", B), "lavaan", b$inputs, body, "print(result, digits = 4)"))
@@ -409,7 +484,11 @@ ps_cb_boot <- function(req_json, export = FALSE) {
     a <- ps_back(parts[1], back, FALSE)
     z <- if (length(parts) > 1) ps_back(parts[2], back, FALSE) else NA
     # (an unstandardised parameter: "estimate: lhs|op|rhs" in lavaan's names, shown in the app's)
-    est <- if (g == "estimate") strsplit(sub("^estimate: ", "", par), "|", fixed = TRUE)[[1]] else NULL
+    est <- if (g == "estimate") {
+      strsplit(sub("^estimate: ", "", par), "|", fixed = TRUE)[[1]]
+    } else {
+      NULL
+    }
     if (length(est) == 2) est <- c(est, "")
     k <- switch(g,
       path = ,
@@ -418,13 +497,29 @@ ps_cb_boot <- function(req_json, export = FALSE) {
       estimate = if (est[2] == ":=") {
         list(key = sprintf("estimate:%s", est[1]), label = sprintf("%s := %s", est[1], est[3]))
       } else {
-        list(key = sprintf("estimate:%s %s %s", ps_back(est[1], back), est[2], ps_back(est[3], back)), label = trimws(sprintf("%s %s %s", ps_back(est[1], back), est[2], ps_back(est[3], back))))
+        list(
+          key = sprintf("estimate:%s %s %s", ps_back(est[1], back), est[2], ps_back(est[3], back)),
+          label = trimws(sprintf("%s %s %s", ps_back(est[1], back), est[2], ps_back(est[3], back)))
+        )
       },
       loading = list(key = sprintf("loading:%s", z), label = sprintf("%s → %s", a, z)),
       weight = list(key = sprintf("weight:%s", z), label = sprintf("%s → %s", z, a)),
       r2 = list(key = sprintf("r2:%s", a), label = a)
     )
-    c(k, list(group = g, block = block, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
+    c(
+      k,
+      list(
+        group = g,
+        block = block,
+        original = r$original[i],
+        mean = r$mean[i],
+        sd = r$sd[i],
+        t = r$t[i],
+        p = r$p[i],
+        ciLow = r$ci_low[i],
+        ciHigh = r$ci_high[i]
+      )
+    )
   })
   ps_json(list(stats = stats, samples = B, blocks = blocks, failed = B - sum(rowSums(is.finite(env$draws)) > 0), confidence = conf, tails = ps_boot_tails(req), interval = if (bca) "bca" else "percentile", warnings = ps_quiet_2ndorder(env$.warnings)))
 }
@@ -471,7 +566,10 @@ ps_cb_boot_modsem <- function(b, B, seed, conf, export, req) {
       "    warning = function(w) { boot_warnings <<- c(boot_warnings, conditionMessage(w)); invokeRestart(\"muffleWarning\") })",
       "}, numeric(length(original))))"
     ), B, seed),
-    sprintf("if (length(boot_errors)) warning(sprintf(\"%%d of %d bootstrap refits failed, e.g.: %%s\", length(boot_errors), boot_errors[1]))", B),
+    sprintf(
+      "if (length(boot_errors)) warning(sprintf(\"%%d of %d bootstrap refits failed, e.g.: %%s\", length(boot_errors), boot_errors[1]))",
+      B
+    ),
     "if (length(boot_warnings)) warning(sprintf(\"%d warnings in the bootstrap refits, e.g.: %s\", length(boot_warnings), boot_warnings[1]))",
     "colnames(draws) <- names(original)",
     PS_BOOT_SUMMARY,
@@ -504,11 +602,28 @@ ps_cb_boot_modsem <- function(b, B, seed, conf, export, req) {
       loading = list(key = sprintf("loading:%s", z), label = sprintf("%s → %s", a, z)),
       r2 = list(key = sprintf("r2:%s", a), label = a)
     )
-    c(k, list(group = g, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
+    c(
+      k,
+      list(
+        group = g,
+        original = r$original[i],
+        mean = r$mean[i],
+        sd = r$sd[i],
+        t = r$t[i],
+        p = r$p[i],
+        ciLow = r$ci_low[i],
+        ciHigh = r$ci_high[i]
+      )
+    )
   })
   ps_json(list(
-    stats = Filter(Negate(is.null), stats), samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0), tails = ps_boot_tails(req), interval = "percentile",
-    confidence = conf, warnings = ps_quiet_2ndorder(env$.warnings)
+    stats = Filter(Negate(is.null), stats),
+    samples = B,
+    failed = B - sum(rowSums(is.finite(env$draws)) > 0),
+    tails = ps_boot_tails(req),
+    interval = "percentile",
+    confidence = conf,
+    warnings = ps_quiet_2ndorder(env$.warnings)
   ))
 }
 
@@ -535,7 +650,16 @@ ps_rubin <- function(rs, confidence) {
     df <- if (!is.finite(rr) || rr <= 0) Inf else (m - 1) * (1 + 1 / rr)^2
     t <- qbar / sqrt(Tv)
     h <- stats::qt((1 + confidence) / 2, df) * sqrt(Tv)
-    data.frame(parameter = p, original = qbar, mean = mean(bm), sd = sqrt(Tv), t = t, p = 2 * stats::pt(-abs(t), df), ci_low = qbar - h, ci_high = qbar + h)
+    data.frame(
+      parameter = p,
+      original = qbar,
+      mean = mean(bm),
+      sd = sqrt(Tv),
+      t = t,
+      p = 2 * stats::pt(-abs(t), df),
+      ci_low = qbar - h,
+      ci_high = qbar + h
+    )
   })
   do.call(rbind, rows)
 }

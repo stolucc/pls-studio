@@ -18,6 +18,7 @@ out <- list(
   rows = rownames(phi),
   columns = colnames(phi),
   coefficients = unname(phi),
-  loadings = unname(unclass(ml$loadings)))
+  loadings = unname(unclass(ml$loadings))
+)
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/efa/congruence.json")
 cat("written\n")

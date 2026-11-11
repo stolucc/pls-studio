@@ -4,7 +4,10 @@
 # omitted) and fitted on its own, as a user would; the app's search fixes the left-out arrows at zero in the full
 # model's parameter table instead, which must give the same fit.
 # Run: Rscript scripts/validation/specsearch.R  (writes src/engine/__fixtures__/search/specsearch.json)
-suppressPackageStartupMessages({ library(lavaan); library(jsonlite) })
+suppressPackageStartupMessages({
+  library(lavaan)
+  library(jsonlite)
+})
 base <- c("ind60 =~ x1 + x2 + x3", "dem60 =~ y1 + y2 + y3 + y4", "dem65 =~ y5 + y6 + y7 + y8", "dem60 ~ ind60")
 optional <- c(path = "dem65 ~ ind60", cov1 = "y1 ~~ y5", cov2 = "y4 ~~ y8")
 out <- list(versions = list(lavaan = as.character(packageVersion("lavaan")), R = R.version.string), models = list())

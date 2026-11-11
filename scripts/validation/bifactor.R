@@ -12,7 +12,11 @@
 # each test's loading on its own specific factor only, so with ESEM's cross-loadings its omega
 # (.9326 against .9332) and omega hierarchical (.785 against .789) differ slightly).
 
-suppressMessages({ library(lavaan); library(psych); library(jsonlite) })
+suppressMessages({
+  library(lavaan)
+  library(psych)
+  library(jsonlite)
+})
 root <- "src/engine/__fixtures__/esem"
 S <- psych::Thurstone
 v <- colnames(S)
@@ -21,7 +25,13 @@ m <- sprintf('efa("b1")*c1 + efa("b1")*c2 + efa("b1")*c3 + efa("b1")*c4 =~ %s', 
 
 one <- function(rot, orth) {
   # (gpa.tol as the app: at lavaan's default the bifactor loadings vary in the third decimal with the random starts)
-  f <- sem(m, sample.cov = S, sample.nobs = 213, rotation = rot, rotation.args = list(orthogonal = orth, gpa.tol = 1e-8))
+  f <- sem(
+    m,
+    sample.cov = S,
+    sample.nobs = 213,
+    rotation = rot,
+    rotation.args = list(orthogonal = orth, gpa.tol = 1e-8)
+  )
   std <- lavInspect(f, "std")
   L <- std$lambda
   ss <- colSums(L^2)
@@ -30,7 +40,8 @@ one <- function(rot, orth) {
   name <- c(setNames("g", gen))
   for (s in names(groups)) {
     col <- rest[which.max(colSums(L[groups[[s]], rest, drop = FALSE]^2))]
-    name[col] <- s; rest <- setdiff(rest, col)
+    name[col] <- s
+    rest <- setdiff(rest, col)
   }
   colnames(L) <- name[colnames(L)]
   L <- L[, c("g", names(groups))]
@@ -39,21 +50,43 @@ one <- function(rot, orth) {
   P <- P[colnames(L), colnames(L)]
   C <- L %*% P %*% t(L)
   Sig <- C + std$theta
-  part <- function(ii, k) { tot <- sum(Sig[ii, ii]); c(omega = sum(C[ii, ii]) / tot, omegaH = sum(L[ii, k])^2 * P[k, k] / tot) }
+  part <- function(ii, k) {
+    tot <- sum(Sig[ii, ii])
+    c(omega = sum(C[ii, ii]) / tot, omegaH = sum(L[ii, k])^2 * P[k, k] / tot)
+  }
   all <- part(v, "g")
-  list(fit = as.list(fitMeasures(f, c("chisq", "df"))),
+  list(
+    fit = as.list(fitMeasures(f, c("chisq", "df"))),
     loadings = lapply(colnames(L), function(k) list(factor = k, std = unname(L[, k]))),
     factorCor = unname(P),
-    bifactor = list(general = "g", items = length(v), ecv = sum(L[, "g"]^2) / sum(L^2), omega = unname(all["omega"]), omegaH = unname(all["omegaH"]),
-      specific = lapply(names(groups), function(s) { x <- part(groups[[s]], s); list(factor = s, omega = unname(x["omega"]), omegaHS = unname(x["omegaH"]), items = 3L) })))
+    bifactor = list(
+      general = "g",
+      items = length(v),
+      ecv = sum(L[, "g"]^2) / sum(L^2),
+      omega = unname(all["omega"]),
+      omegaH = unname(all["omegaH"]),
+      specific = lapply(names(groups), function(s) {
+        x <- part(groups[[s]], s)
+        list(factor = s, omega = unname(x["omega"]), omegaHS = unname(x["omegaH"]), items = 3L)
+      })
+    )
+  )
 }
 
-out <- list(lavaan = as.character(packageVersion("lavaan")), indicators = v, S = unname(S), groups = groups,
+out <- list(
+  lavaan = as.character(packageVersion("lavaan")), indicators = v, S = unname(S), groups = groups,
   bigeomin = one("bigeomin", FALSE), bigeomin_orthogonal = one("bigeomin", TRUE),
-  biquartimin = one("biquartimin", FALSE), biquartimin_orthogonal = one("biquartimin", TRUE))
+  biquartimin = one("biquartimin", FALSE), biquartimin_orthogonal = one("biquartimin", TRUE)
+)
 
 # psych's own computation for the orthogonal bi-geomin solution
-f <- sem(m, sample.cov = S, sample.nobs = 213, rotation = "bigeomin", rotation.args = list(orthogonal = TRUE, gpa.tol = 1e-8))
+f <- sem(
+  m,
+  sample.cov = S,
+  sample.nobs = 213,
+  rotation = "bigeomin",
+  rotation.args = list(orthogonal = TRUE, gpa.tol = 1e-8)
+)
 o <- suppressWarnings(psych::omegaFromSem(f, m, plot = FALSE))
 out$psych <- list(omegaH = o$omega, omega = o$omega.tot)
 
