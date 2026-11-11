@@ -194,7 +194,14 @@ ps_mc <- function(req_json, export = FALSE) {
   env <- ps_run(c(body, run), list(seeds = sd))
   E <- length(req$estimators)
   K <- length(req$params)
-  pick <- function(col) lapply(seq_len(E), function(e) lapply(seq_len(K), function(k) vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$values[k, col], 0)))
+  # One column of the results (est, lo, hi, sig) per estimator e and parameter k, over the replications (NA where
+  # an estimator failed)
+  pick <- function(col) {
+    over_replications <- function(e, k) {
+      vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$values[k, col], 0)
+    }
+    lapply(seq_len(E), function(e) lapply(seq_len(K), function(k) over_replications(e, k)))
+  }
   ps_json(list(
     est = pick(1), lo = pick(2), hi = pick(3), sig = pick(4),
     proper = lapply(

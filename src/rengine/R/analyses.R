@@ -215,7 +215,16 @@ ps_miiv <- function(req_json, export = FALSE) {
   n <- if (b$matrix_input) b$inputs$N else nrow(env$data)
   # Marker loadings (fixed to 1) have no 2SLS estimate, but a standardised value.
   # Markers: the first indicator (or component) of each factor.
-  markers <- unlist(lapply(seq_along(b$comps), function(j) if (b$is_cov[j]) NULL else if (length(b$comps[[j]])) unname(b$lname[[b$comps[[j]][1]]]) else unname(b$n$iv[[b$n$inds[[j]][1]]])))
+  marker_of <- function(j) {
+    if (b$is_cov[j]) {
+      NULL
+    } else if (length(b$comps[[j]])) {
+      unname(b$lname[[b$comps[[j]][1]]])
+    } else {
+      unname(b$n$iv[[b$n$inds[[j]][1]]])
+    }
+  }
+  markers <- unlist(lapply(seq_along(b$comps), marker_of))
   fixed_std <- if (std_ok) {
     s <- env$std[env$std$op == "=~" & env$std$rhs %in% markers, ]
     as.list(setNames(s$est.std, nm(s$rhs)))

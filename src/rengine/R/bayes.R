@@ -1102,7 +1102,15 @@ ps_bsem <- function(req_json, export = FALSE) {
   if (ncol(d) != nrow(rows) + nrow(defs)) {
     stop("The posterior draws do not match the parameter table.")
   }
-  summ <- function(x) list(median = stats::median(x), mean = mean(x), sd = stats::sd(x), low = unname(stats::quantile(x, q[1])), high = unname(stats::quantile(x, q[2])))
+  summ <- function(x) {
+    list(
+      median = stats::median(x),
+      mean = mean(x),
+      sd = stats::sd(x),
+      low = unname(stats::quantile(x, q[1])),
+      high = unname(stats::quantile(x, q[2]))
+    )
+  }
   pars <- lapply(seq_len(nrow(rows)), function(k) {
     r <- rows[k, ]
     x <- d[, k]

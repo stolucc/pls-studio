@@ -101,7 +101,12 @@ ps_customml <- function(req_json, export = FALSE) {
       setNames(
         lapply(
           seq_len(nrow(pairs)),
-          function(k) if (nzchar(trimws(cv[k]))) ex(cv[k], sprintf("the covariance of %s and %s", ys[pairs[k, 1]], ys[pairs[k, 2]])) else "0"
+          function(k) {
+            if (!nzchar(trimws(cv[k]))) {
+              return("0")
+            }
+            ex(cv[k], sprintf("the covariance of %s and %s", ys[pairs[k, 1]], ys[pairs[k, 2]]))
+          }
         ),
         if (nrow(pairs)) sprintf("Covariance %s, %s", ys[pairs[, 1]], ys[pairs[, 2]]) else character(0)
       )
@@ -271,7 +276,16 @@ ps_customml <- function(req_json, export = FALSE) {
   nparts <- length(parts)
   d0 <- env$d0
   sd0 <- env$se_derived
-  item <- function(i, kind) list(name = names(d0)[i], kind = kind, est = if (is.na(d0[i])) NULL else unname(d0[i]), se = if (is.na(d0[i])) NULL else unname(sd0[i]), expr = if (kind == "part") parts[[i]] else dexpr[i - nparts])
+  item <- function(i, kind) {
+    missing_value <- is.na(d0[i])
+    list(
+      name = names(d0)[i],
+      kind = kind,
+      est = if (missing_value) NULL else unname(d0[i]),
+      se = if (missing_value) NULL else unname(sd0[i]),
+      expr = if (kind == "part") parts[[i]] else dexpr[i - nparts]
+    )
+  }
   ps_json(list(
     type = type, outcomes = I(ys), n = env$n, converged = conv,
     parameters = lapply(

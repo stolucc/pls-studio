@@ -406,7 +406,11 @@ ps_cb_regsem <- function(req_json, export = FALSE) {
     reg <- grepl("^[^ ]+ ~ ", lines) & !grepl("^[^ ]+ ~ *1$", lines)
     lines[reg] <- vapply(
       strsplit(sub("^([^ ]+) ~ ", "\\1\t", lines[reg]), "\t"),
-      function(p) paste(p[1], "~", paste(vapply(strsplit(p[2], " + ", fixed = TRUE)[[1]], function(t) if (grepl("*", t, fixed = TRUE)) t else paste0("pen()*", t), ""), collapse = " + ")),
+      function(p) {
+        terms <- strsplit(p[2], " + ", fixed = TRUE)[[1]]
+        penalised <- vapply(terms, function(t) if (grepl("*", t, fixed = TRUE)) t else paste0("pen()*", t), "")
+        paste(p[1], "~", paste(penalised, collapse = " + "))
+      },
       ""
     )
     if (!any(reg)) stop("The model has no structural paths to penalise.")

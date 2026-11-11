@@ -481,7 +481,17 @@ mix_candidates <- function(start, scale, starts, seed, given = NULL) {
 # so the result does not depend on the number of sessions): `only` the short runs of those starts; `stage` given,
 # continue them (`cont`) to convergence; `finals` given, finish from the best. Without any: all three in turn.
 mix_phase <- function(phase, starts, final) {
-  sl <- function(x) lapply(x, function(o) list(i = as.integer(o$i), par = as.numeric(unlist(o$par)), value = as.numeric(o$value), convergence = if (is.null(o$convergence)) NULL else as.integer(o$convergence)))
+  # The given starts or finals (from JSON) with typed fields
+  sl <- function(x) {
+    lapply(x, function(o) {
+      list(
+        i = as.integer(o$i),
+        par = as.numeric(unlist(o$par)),
+        value = as.numeric(o$value),
+        convergence = if (is.null(o$convergence)) NULL else as.integer(o$convergence)
+      )
+    })
+  }
   list(
     idx = if (length(phase$only)) as.integer(unlist(phase$only)) else NULL,
     stage = if (length(phase$stage)) sl(phase$stage) else NULL,
@@ -1124,7 +1134,18 @@ mixq_dld <- function(bk, v, rows, VV, fr) {
   } else {
     c(1, 1 + seq_len(q), bk$latcols)
   }
-  reg <- function(r) if (r %in% bk$latcols) VV[, match(r, bk$latcols)] else if (bk$type == "cat") X[, r - (K - 1)] else if (r == 1) 1 else X[, r - 1]
+  # The regressor in column r: a latent variable's values, or a covariate (after the intercepts)
+  reg <- function(r) {
+    if (r %in% bk$latcols) {
+      VV[, match(r, bk$latcols)]
+    } else if (bk$type == "cat") {
+      X[, r - (K - 1)]
+    } else if (r == 1) {
+      1
+    } else {
+      X[, r - 1]
+    }
+  }
   off0 <- offOf(v)
   if (is.null(off0)) off0 <- 0
   ge <- NULL

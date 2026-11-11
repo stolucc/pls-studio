@@ -5,7 +5,10 @@ ps_net_data <- function(req) {
   cols <- req$data$cols
   nm <- unlist(req$data$names)
   # jsonlite turns equal-length columns into a (variables x rows) matrix (as in ps_frame).
-  col <- function(i) as.numeric(if (is.matrix(cols)) cols[i, ] else unlist(lapply(cols[[i]], function(v) if (is.null(v)) NA else v)))
+  col <- function(i) {
+    values <- if (is.matrix(cols)) cols[i, ] else unlist(lapply(cols[[i]], function(v) if (is.null(v)) NA else v))
+    as.numeric(values)
+  }
   d <- as.data.frame(lapply(seq_along(nm), col), col.names = nm, check.names = FALSE)
   vars <- unlist(req$vars)
   if (length(vars) < 3) stop("Choose at least three variables.")

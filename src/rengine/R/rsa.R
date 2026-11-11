@@ -171,7 +171,16 @@ ps_rsa <- function(req_json, export = FALSE) {
   }
   # The surface over the observed range of X and Y (controls at their means), for the plot.
   b <- env$b
-  cf <- function(k) if (est == "OLS") stats::coef(env$fit)[[k]] else env$pe$est[(env$pe$op == "~" & env$pe$rhs == k) | (k == "(Intercept)" & env$pe$op == "~1" & env$pe$lhs == Z)][1]
+  # A coefficient by name: from lm, or from lavaan's estimates (the intercept being Z's ~1 row)
+  cf <- function(k) {
+    if (est == "OLS") {
+      return(stats::coef(env$fit)[[k]])
+    }
+    pe <- env$pe
+    is_slope <- pe$op == "~" & pe$rhs == k
+    is_intercept <- k == "(Intercept)" & pe$op == "~1" & pe$lhs == Z
+    pe$est[is_slope | is_intercept][1]
+  }
   b0 <- cf("(Intercept)")
   cadj <- sum(vapply(C, function(k) cf(k) * mean(d[[k]]), 0))
   rng <- range(c(d$rsaX, d$rsaY))

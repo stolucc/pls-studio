@@ -312,7 +312,16 @@ ps_boot_keys <- function(r, b, req) {
       weight = list(key = sprintf("weight:%s", ind[[rhs]]), label = sprintf("%s → %s", ind[[rhs]], lv[[lhs]])),
       r2 = list(key = sprintf("r2:%s", lv[[lhs]]), label = lv[[lhs]])
     )
-    out[[length(out) + 1]] <- c(key, list(group = g, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
+    out[[length(out) + 1]] <- c(key, list(
+      group = g,
+      original = r$original[i],
+      mean = r$mean[i],
+      sd = r$sd[i],
+      t = r$t[i],
+      p = r$p[i],
+      ciLow = r$ci_low[i],
+      ciHigh = r$ci_high[i]
+    ))
   }
   out
 }

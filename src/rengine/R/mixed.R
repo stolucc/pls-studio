@@ -430,7 +430,11 @@ ps_lmm_ext <- function(req, export) {
   }
   idv <- function(x) unname(id_of[x])
   # ---- the levels, lowest first: units nested in the units above (unique ids) ----
-  base <- if (wide) list(col = Pi, name = "Person", slopes = slopes, occasions = FALSE) else list(col = fr$v[[cl]], name = cl, slopes = if (stacked) NULL else slopes, occasions = FALSE)
+  base <- if (wide) {
+    list(col = Pi, name = "Person", slopes = slopes, occasions = FALSE)
+  } else {
+    list(col = fr$v[[cl]], name = cl, slopes = if (stacked) NULL else slopes, occasions = FALSE)
+  }
   levs <- c(
     list(base),
     lapply(lv, function(l) list(col = fr$v[[l$cluster]], name = l$cluster, slopes = l$slopes, occasions = l$occasions))
@@ -662,13 +666,29 @@ ps_lmm_ext <- function(req, export) {
     q <- ncol(B$Z)
     grp <- if (resid_b) "Residual" else lev_name[[B$level]]
     for (u in seq_len(q)) {
-      a <- if (resid_b) (if (q > 1) (if (stacked) allout[[as.integer(B$names[u])]]$outcome else ms[as.integer(B$names[u])]) else NULL) else disp(B$names[u])
-      random[[length(random) + 1]] <- list(group = grp, a = a, b = NULL, variance = B$G[u, u], sd = sqrt(max(B$G[u, u], 0)), se = th_se(b, u, u))
+      # What the variance belongs to: a random effect's term; for the residual, its outcome when there are several
+      a <- if (!resid_b) {
+        disp(B$names[u])
+      } else if (q <= 1) {
+        NULL
+      } else if (stacked) {
+        allout[[as.integer(B$names[u])]]$outcome
+      } else {
+        ms[as.integer(B$names[u])]
+      }
+      random[[length(random) + 1]] <- list(
+        group = grp, a = a, b = NULL,
+        variance = B$G[u, u], sd = sqrt(max(B$G[u, u], 0)), se = th_se(b, u, u)
+      )
     }
     if (B$type == "symm" && q > 1) {
       for (v in seq_len(q - 1)) {
         for (u in (v + 1):q) {
-          random[[length(random) + 1]] <- list(group = grp, a = disp(B$names[v]), b = disp(B$names[u]), variance = B$G[u, v], sd = B$G[u, v] / sqrt(B$G[u, u] * B$G[v, v]), se = th_se(b, u, v))
+          # (sd: the correlation)
+          random[[length(random) + 1]] <- list(
+            group = grp, a = disp(B$names[v]), b = disp(B$names[u]),
+            variance = B$G[u, v], sd = B$G[u, v] / sqrt(B$G[u, u] * B$G[v, v]), se = th_se(b, u, v)
+          )
         }
       }
     }

@@ -1687,7 +1687,11 @@ ps_cb <- function(req_json, export = FALSE) {
     # Means and intercepts: all of them with the mean structure on (a fixed marker intercept
     # included); otherwise the latent means estimated in groups after the first under scalar invariance.
     # (A two-level model always has its mean structure: the free intercepts and means are listed.)
-    pe <- pe[pe$op %in% c("=~", "<~", "~", "~~", "|", ":=") | (pe$op == "~*~" & !is.na(pe$free) & pe$free > 0) | (pe$op == "~1" & (isTRUE(b$means) | ((pe$lhs %in% lv_lname | levels2) & !is.na(pe$free) & pe$free > 0))), ]
+    is_free <- !is.na(pe$free) & pe$free > 0
+    reported_op <- pe$op %in% c("=~", "<~", "~", "~~", "|", ":=")
+    free_scale <- pe$op == "~*~" & is_free
+    shown_mean <- pe$op == "~1" & (isTRUE(b$means) | ((pe$lhs %in% lv_lname | levels2) & is_free))
+    pe <- pe[reported_op | free_scale | shown_mean, ]
     est <- lapply(seq_len(nrow(pe)), function(i) {
       r <- pe[i, ]
       free <- r$free > 0
@@ -1939,7 +1943,9 @@ ps_cb <- function(req_json, export = FALSE) {
     # HTMT on the measurement blocks (semTools), classic and HTMT2.
     htmt <- function(two) {
       out <- matrix(NA_real_, K, K)
-      blocks <- which(vapply(seq_len(K), function(j) sum(ind_con == j - 1) >= 2 && !(j <= k0 && b$is_cov[j]) && !constructs[j] %in% b$composites, TRUE))
+      # (constructs with two or more indicators, other than covariates and composites)
+      in_htmt <- function(j) sum(ind_con == j - 1) >= 2 && !(j <= k0 && b$is_cov[j]) && !constructs[j] %in% b$composites
+      blocks <- which(vapply(seq_len(K), in_htmt, TRUE))
       if (length(blocks) < 2) {
         return(out)
       }
