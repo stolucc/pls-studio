@@ -6,6 +6,7 @@ import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
 import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
+import { emmRequest, parseEmm, type EmmOptions, type EmmResult } from './emm';
 
 export type Alternative = 'two.sided' | 'greater' | 'less';
 export interface HTest {
@@ -67,6 +68,8 @@ export interface AnovaInput {
   ssType: 'I' | 'III';
   interactions: boolean;
   confidence: number;
+  /** Estimated marginal means, post hoc tests, simple effects, contrasts (emmeans); absent: none. */
+  emm?: EmmOptions | null;
 }
 export interface AnovaRow {
   term: string;
@@ -96,6 +99,7 @@ export interface AnovaResult {
   /** One factor: pairwise Wilcoxon rank-sum tests after Kruskal-Wallis, p adjusted by Holm (absent in results from before they were added). */
   pairwiseRank?: { comparison: string; pHolm: number }[] | null;
   cells: (Desc & { cell: string })[];
+  emm?: EmmResult | null;
   warnings: string[];
   engine: REngineInfo;
 }
@@ -117,6 +121,10 @@ export interface RmAnovaInput {
   cells?: string[];
   /** Further between-subjects factors, crossed with `between` (car::Anova, type II); absent with one or none. */
   moreBetween?: string[];
+  /** Estimated marginal means (emmeans on the multivariate model of the cells); absent: none. */
+  emm?: EmmOptions | null;
+  /** The confidence level of the marginal means' intervals (default 0.95). */
+  confidence?: number;
 }
 /** Several within factors: the design's columns (otherwise the levels). */
 export const rmColumns = (
@@ -179,6 +187,7 @@ export interface RmAnovaResult {
   /** Several between factors: their names, and the type of the tests (II, car::Anova). */
   betweenFactors?: string[];
   ssType?: 'II';
+  emm?: EmmResult | null;
 }
 
 export interface ManovaInput {
@@ -350,10 +359,17 @@ export async function ttestR(d: Dataset, i: TTestInput): Promise<TTestResult> {
 export const ttestScriptR = (d: Dataset, i: TTestInput) =>
   rScript('ps_ttest', ttestRequest(d, i), 'stats');
 
-export const anovaRequest = (d: Dataset, i: AnovaInput) =>
-  testRequest(d, 'anova', [i.dependent, ...i.factors, ...i.covariates], i);
+/** A request's `emm` field: present only when marginal means are asked for. */
+const emmField = (e: EmmOptions | null | undefined, mixed = false) =>
+  e ? { emm: emmRequest(e, mixed) } : {};
+export const anovaRequest = (d: Dataset, i: AnovaInput) => {
+  const { emm, ...rest } = i;
+  const fields = { ...rest, ...emmField(emm) };
+  return testRequest(d, 'anova', [i.dependent, ...i.factors, ...i.covariates], fields);
+};
+const anovaPackage = (i: AnovaInput) => (i.emm ? 'emmeans' : 'stats');
 export async function anovaR(d: Dataset, i: AnovaInput): Promise<AnovaResult> {
-  const r = await rCall<Record<string, any>>('ps_anova', anovaRequest(d, i), 'stats');
+  const r = await rCall<Record<string, any>>('ps_anova', anovaRequest(d, i), anovaPackage(i));
   return {
     ...r,
     factors: rList<string>(r.factors),
@@ -365,20 +381,25 @@ export async function anovaR(d: Dataset, i: AnovaInput): Promise<AnovaResult> {
     tukey: r.tukey ? rList(r.tukey) : null,
     pairwiseRank: r.pairwiseRank ? rList(r.pairwiseRank) : null,
     cells: rList(r.cells),
+    emm: parseEmm(r.emm),
     warnings: rStrings(r.warnings),
   } as AnovaResult;
 }
 export const anovaScriptR = (d: Dataset, i: AnovaInput) =>
-  rScript('ps_anova', anovaRequest(d, i), 'stats');
+  rScript('ps_anova', anovaRequest(d, i), anovaPackage(i));
 
-export const rmAnovaRequest = (d: Dataset, i: RmAnovaInput) =>
-  testRequest(d, 'rmanova', rmColumns(i), i);
+export const rmAnovaRequest = (d: Dataset, i: RmAnovaInput) => {
+  const { emm, ...rest } = i;
+  return testRequest(d, 'rmanova', rmColumns(i), { ...rest, ...emmField(emm) });
+};
+/** The R packages of a repeated-measures request: car for several between factors, emmeans for marginal means. */
+function rmPackage(i: RmAnovaInput) {
+  const car = !!i.moreBetween?.length;
+  if (i.emm) return car ? 'carEmmeans' : 'emmeans';
+  return car ? 'car' : 'stats';
+}
 export async function rmAnovaR(d: Dataset, i: RmAnovaInput): Promise<RmAnovaResult> {
-  const r = await rCall<Record<string, any>>(
-    'ps_rmanova',
-    rmAnovaRequest(d, i),
-    i.moreBetween?.length ? 'car' : 'stats',
-  );
+  const r = await rCall<Record<string, any>>('ps_rmanova', rmAnovaRequest(d, i), rmPackage(i));
   return {
     ...r,
     levels: rList<string>(r.levels),
@@ -399,11 +420,12 @@ export async function rmAnovaR(d: Dataset, i: RmAnovaInput): Promise<RmAnovaResu
           sphericityTable: rList<RmSphericity>(r.sphericityTable),
         }
       : {}),
+    emm: parseEmm(r.emm),
     warnings: rStrings(r.warnings),
   } as RmAnovaResult;
 }
 export const rmAnovaScriptR = (d: Dataset, i: RmAnovaInput) =>
-  rScript('ps_rmanova', rmAnovaRequest(d, i), i.moreBetween?.length ? 'car' : 'stats');
+  rScript('ps_rmanova', rmAnovaRequest(d, i), rmPackage(i));
 
 export const manovaRequest = (d: Dataset, i: ManovaInput) =>
   testRequest(d, 'manova', [...i.dependents, ...i.factors], i);

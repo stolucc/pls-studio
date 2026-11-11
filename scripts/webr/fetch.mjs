@@ -94,6 +94,8 @@ const ROOTS = [
   'poLCA',
   'lme4',
   'lmerTest',
+  'emmeans',
+  'pbkrtest',
   'lcmm',
   'plspm',
   'ivreg',

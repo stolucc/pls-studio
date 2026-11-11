@@ -27,7 +27,16 @@ import {
   oneOf,
   rawData,
 } from './common';
-import type { AnalysisType, OptionsProps } from './types';
+import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
+import {
+  columnLevels,
+  emmBlocked,
+  EmmFields,
+  emmFingerprint,
+  emmPart,
+  EmmView,
+  withEmm,
+} from './emm';
 
 /** Cluster-specific regression lines of the focal predictor (other predictors at 0). */
 function ClusterLines({ l }: { l: NonNullable<LmmResult['lines']> }) {
@@ -245,6 +254,7 @@ export function LmmView({ r }: { r: LmmResult }) {
           structure is probably more complex than the data support; consider fewer random slopes.
         </div>
       )}
+      {r.emm && <EmmView e={r.emm} dependent="the outcome" />}
       {r.lines && <ClusterLines l={r.lines} />}
       {r.lines && (
         <div className="hint">
@@ -254,6 +264,75 @@ export function LmmView({ r }: { r: LmmResult }) {
       )}
     </div>
   );
+}
+
+/** One row per observation, one cluster level, none of the further options: what lme4's basic fit (and emmeans) covers. */
+export const basicModel = (o: LmmInput): boolean =>
+  !o.repeated &&
+  !o.outcomes?.length &&
+  !o.levels?.length &&
+  !o.interactions?.length &&
+  !o.independent?.length &&
+  !o.residuals &&
+  !o.se;
+
+/** Options without the categorical predictors' fields when none are left. */
+function withFactors(o: LmmInput, factors: string[]): LmmInput {
+  if (factors.length)
+    return { ...o, factors, slopes: o.slopes.filter((s) => !factors.includes(s)) };
+  const { factors: _f, emm: _e, ...rest } = o;
+  return rest;
+}
+
+/** Categorical predictors and their marginal means (the basic model). */
+function CategoricalFields({ o, set }: { o: LmmInput; set: (o: LmmInput) => void }) {
+  if (!o.predictors.length) return null;
+  const factors = o.factors ?? [];
+  return (
+    <>
+      <div className="field">
+        <label>Categorical predictors (factors)</label>
+        <div className="chips">
+          {o.predictors.map((p) => (
+            <label key={p} className="check">
+              <input
+                type="checkbox"
+                checked={factors.includes(p)}
+                onChange={(e) => {
+                  const next = e.target.checked ? [...factors, p] : factors.filter((x) => x !== p);
+                  set(
+                    withFactors(
+                      o,
+                      o.predictors.filter((x) => next.includes(x)),
+                    ),
+                  );
+                }}
+              />{' '}
+              {p}
+            </label>
+          ))}
+        </div>
+        <div className="hint">
+          Each level against the first (dummy coding); text columns and numeric codes alike.
+        </div>
+      </div>
+      <EmmFields value={o.emm} factors={factors} mixed set={(emm) => set(withEmm(o, emm))} />
+    </>
+  );
+}
+
+/** Why the categorical predictors or the marginal means cannot run (null: they can). */
+function lmmEmmBlocked(o: LmmInput, ctx: AnalysisCtx): string | null {
+  const factors = o.factors ?? [];
+  if (!factors.length && !o.emm) return null;
+  if (!basicModel(o))
+    return 'Categorical predictors and marginal means are for one row per observation and one cluster level, without interaction terms, uncorrelated slopes or robust standard errors.';
+  if (factors.some((f) => !o.predictors.includes(f)))
+    return 'A categorical predictor must be one of the predictors.';
+  if (factors.some((f) => o.slopes.includes(f)))
+    return 'Random slopes are for numeric predictors, not categorical ones.';
+  if (!o.emm) return null;
+  return emmBlocked(o.emm, factors, (f) => columnLevels(rawData(ctx), f));
 }
 
 /** A group of options (an outcome, a level, a time-varying covariate). */
@@ -622,9 +701,10 @@ function LmmOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<LmmInpu
           </div>
         </div>
       )}
+      {basicModel(o) && <CategoricalFields o={o} set={set} />}
       <SlopeChecks
         label={`Random slopes across ${first}s`}
-        predictors={o.predictors}
+        predictors={o.predictors.filter((p) => !(o.factors ?? []).includes(p))}
         slopes={o.slopes}
         independent={independent}
         onChange={(slopes) => set({ ...o, slopes })}
@@ -822,6 +902,19 @@ export function lmmRequestOptions(o: LmmInput): LmmInput {
   };
 }
 
+/** The request with the settings' confidence level when marginal means are asked for. */
+const lmmInput = (o: LmmInput, ctx: Pick<AnalysisCtx, 'settings'>): LmmInput => {
+  const base = lmmRequestOptions(o);
+  return o.emm ? { ...base, confidence: ctx.settings.confidence } : base;
+};
+
+/** The categorical predictors and marginal means of a project file (factors among the predictors). */
+function lmmFactorsPart(raw: Record<string, unknown>, predictors: string[]) {
+  const factors = names(raw.factors).filter((f) => predictors.includes(f));
+  if (!factors.length) return {};
+  return { factors, ...emmPart(raw) };
+}
+
 const parseLevels = (v: unknown, predictors: string[]): LmmLevel[] =>
   (Array.isArray(v) ? v.slice(0, 5) : []).filter(isObj).map((l) => ({
     cluster: name(l.cluster),
@@ -936,6 +1029,7 @@ export const lmmAnalysis: AnalysisType<LmmInput, LmmResult> = {
       ...(raw.residuals === 'occasion' ? { residuals: 'occasion' as const } : {}),
       ...(outcomes.length ? { outcomes } : {}),
       ...(raw.se === 'robust' ? { se: 'robust' as const } : {}),
+      ...lmmFactorsPart(raw, predictors),
     };
   },
   Options: LmmOptionsForm,
@@ -955,6 +1049,8 @@ export const lmmAnalysis: AnalysisType<LmmInput, LmmResult> = {
       return 'The outcome cannot be a predictor.';
     const ext = lmmBlockedExt(o);
     if (ext) return ext;
+    const emm = lmmEmmBlocked(o, ctx);
+    if (emm) return emm;
     // (names the long data create are not data columns)
     return missingColumns(
       ctx,
@@ -962,11 +1058,14 @@ export const lmmAnalysis: AnalysisType<LmmInput, LmmResult> = {
       'Multilevel regression',
     );
   },
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, lmmColumns(o)),
-  run: async (o, ctx) =>
-    (await import('../rengine/mixed')).lmmR(rawData(ctx)!, lmmRequestOptions(o)),
+  fingerprint: (o, ctx) =>
+    columnsFingerprint(ctx, lmmColumns(o), [
+      ...(o.factors?.length ? ['factors', ...o.factors] : []),
+      ...(o.emm ? [emmFingerprint(o.emm), ctx.settings.confidence] : []),
+    ]),
+  run: async (o, ctx) => (await import('../rengine/mixed')).lmmR(rawData(ctx)!, lmmInput(o, ctx)),
   script: async (o, ctx) =>
-    (await import('../rengine/mixed')).lmmScriptR(rawData(ctx)!, lmmRequestOptions(o)),
+    (await import('../rengine/mixed')).lmmScriptR(rawData(ctx)!, lmmInput(o, ctx)),
   summary: (o) => {
     if (!o.outcome) return 'not set up yet';
     const levels = [

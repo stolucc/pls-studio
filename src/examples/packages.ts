@@ -108,7 +108,8 @@ export type ExamplePackage =
   | 'restriktor'
   | 'bain'
   | 'piecewiseSEM'
-  | 'Bayesrel';
+  | 'Bayesrel'
+  | 'emmeans';
 export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'lavaan',
   'did',
@@ -172,6 +173,7 @@ export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'bain',
   'piecewiseSEM',
   'Bayesrel',
+  'emmeans',
 ];
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */

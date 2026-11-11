@@ -97,6 +97,22 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     examples: ['stats-rmanova-rounding', 'cardata-rmanova-obrienkaiser'],
     features: ['rengine/tests::repeated measures'],
   },
+  'anova:emmeans': {
+    title: 'Estimated marginal means, post hoc tests, simple effects and contrasts (emmeans)',
+    examples: ['emmeans-warpbreaks'],
+    features: ['rengine/emm::marginal means after ANOVA'],
+    note: 'Against emmeans on lm fits and emmeans::joint_tests (scripts/validation/emm.R).',
+  },
+  'anova:gameshowell': {
+    title: 'Games–Howell comparisons',
+    features: ['rengine/emm::Games–Howell'],
+    note: 'Own formula against rstatix::games_howell_test (scripts/validation/emm.R).',
+  },
+  'rmanova:emmeans': {
+    title: 'Estimated marginal means of repeated measures (emmeans, multivariate model)',
+    features: ['rengine/emm::marginal means after repeated measures'],
+    note: 'Against afex::aov_car with emmeans, afex’s default multivariate model (scripts/validation/emm.R).',
+  },
   manova: { examples: ['stats-manova-plastic'], features: ['rengine/tests::MANOVA'] },
   correlation: {},
   'correlation:pearson': {
@@ -603,6 +619,11 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     title: 'Heckman selection',
     examples: ['sampleselection-mroz'],
     features: ['rengine/endo::Heckman'],
+  },
+  'lmm:emmeans': {
+    title: 'Categorical predictors and their estimated marginal means (emmeans on lmer)',
+    features: ['rengine/emm::marginal means after a multilevel regression'],
+    note: 'Kenward–Roger, Satterthwaite and asymptotic df against emmeans on lmerTest::lmer (scripts/validation/emm.R).',
   },
   lmm: {
     examples: [

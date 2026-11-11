@@ -46,6 +46,15 @@ import {
 import { clampStrict } from '../parse';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 import {
+  columnLevels,
+  emmBlocked,
+  EmmFields,
+  emmFingerprint,
+  emmPart,
+  EmmView,
+  withEmm,
+} from './emm';
+import {
   designColumns,
   isMulti,
   parseWithinDesign,
@@ -519,6 +528,7 @@ function AnovaForm({ options: o, set, ctx, disabled }: OptionsProps<AnovaOptions
         for unbalanced designs. With one factor and no covariates the card adds Welch’s ANOVA,
         Kruskal–Wallis and Tukey’s comparisons.
       </div>
+      <EmmFields value={o.emm} factors={o.factors} games set={(emm) => set(withEmm(o, emm))} />
     </fieldset>
   );
 }
@@ -613,6 +623,7 @@ function AnovaView({ r, conf }: { r: AnovaResult; conf: number }) {
           note="Normal approximation; p-values adjusted for the number of comparisons by Holm’s method."
         />
       )}
+      {r.emm && <EmmView e={r.emm} dependent={r.dependent} />}
       <Table
         title="Descriptives by cell"
         file="anova-cells"
@@ -677,6 +688,7 @@ export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidenc
           covariates: names(raw.covariates),
           ssType: oneOf(raw.ssType, ['III', 'I'] as const, 'III'),
           interactions: raw.interactions !== false,
+          ...emmPart(raw),
         }
       : null,
   Options: AnovaForm,
@@ -686,6 +698,11 @@ export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidenc
     if (!o.factors.length) return 'Choose at least one factor.';
     if (o.factors.includes(o.dependent) || o.covariates.includes(o.dependent))
       return 'The dependent variable cannot also be a factor or covariate.';
+    if (o.emm) {
+      const levels = (f: string) => columnLevels(rawData(ctx), f);
+      const emm = emmBlocked(o.emm, o.factors, levels);
+      if (emm) return emm;
+    }
     return missingColumns(ctx, anovaCols(o), 'ANOVA');
   },
   fingerprint: (o, ctx) =>
@@ -696,6 +713,7 @@ export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidenc
       '|',
       ...o.covariates,
       ctx.settings.confidence,
+      emmFingerprint(o.emm),
     ]),
   run: async (o, ctx) => ({
     ...(await (
@@ -737,6 +755,7 @@ function RmForm({ options: o, set, ctx, disabled }: OptionsProps<RmAnovaOptions>
           onChange={(more) => set(more.length ? { ...o, moreBetween: more } : withoutMore(o))}
         />
       )}
+      <EmmFields value={o.emm} factors={rmFactors(o)} set={(emm) => set(withEmm(o, emm))} />
     </fieldset>
   );
 }
@@ -864,6 +883,7 @@ function RmView({ r }: { r: RmAnovaResult }) {
           note="Each within factor on every subject’s mean of its levels over the other factors’ levels."
         />
       )}
+      {r.emm && <EmmView e={r.emm} dependent="the repeated measures" />}
       <Table
         title="Descriptives"
         file="rmanova-cells"
@@ -882,11 +902,30 @@ function RmView({ r }: { r: RmAnovaResult }) {
   );
 }
 
+/** The request: the settings' confidence level when marginal means are asked for (an older card's request is unchanged). */
+const rmInput = (o: RmAnovaOptions, ctx: Pick<AnalysisCtx, 'settings'>): RmAnovaInput =>
+  o.emm ? { ...o, confidence: ctx.settings.confidence } : o;
 const rmCols = (o: RmAnovaOptions) => [...designColumns(o), ...(o.moreBetween ?? [])];
 const withoutMore = (o: RmAnovaOptions): RmAnovaOptions => {
   const { moreBetween: _m, ...rest } = o;
   return rest;
 };
+/** The factors of the marginal means: the within factors, then the between factors. */
+function rmFactors(o: RmAnovaOptions): string[] {
+  const within = isMulti(o) ? o.factors!.map((f) => f.name) : [o.factorName];
+  const between = o.between ? [o.between, ...(o.moreBetween ?? [])] : [];
+  return [...within, ...between].filter(Boolean);
+}
+/** The number of levels of a factor of the marginal means. */
+function rmLevels(o: RmAnovaOptions, ctx: AnalysisCtx, f: string): number | undefined {
+  if (isMulti(o)) {
+    const w = o.factors!.find((x) => x.name === f);
+    if (w) return w.levels.length;
+  } else if (f === o.factorName) {
+    return o.levels.length;
+  }
+  return columnLevels(rawData(ctx), f);
+}
 /** The within factors' names, for titles and summaries. */
 const rmName = (o: RmAnovaOptions) =>
   isMulti(o) ? o.factors!.map((f) => f.name || '…').join(' × ') : o.factorName || '…';
@@ -900,7 +939,11 @@ export const rmAnovaAnalysis: AnalysisType<RmAnovaOptions, RmAnovaResult> = {
   parseOptions: (raw) => {
     if (!isObj(raw)) return null;
     const more = names(raw.moreBetween, 3);
-    return { ...parseWithinDesign(raw), ...(more.length ? { moreBetween: more } : {}) };
+    return {
+      ...parseWithinDesign(raw),
+      ...(more.length ? { moreBetween: more } : {}),
+      ...emmPart(raw),
+    };
   },
   Options: RmForm,
   View: ({ result }) => <RmView r={result} />,
@@ -923,6 +966,10 @@ export const rmAnovaAnalysis: AnalysisType<RmAnovaOptions, RmAnovaResult> = {
       )
         return 'The between-subjects factors must be different columns, none of them a within-subject column.';
     }
+    if (o.emm) {
+      const emm = emmBlocked(o.emm, rmFactors(o), (f) => rmLevels(o, ctx, f));
+      if (emm) return emm;
+    }
     return missingColumns(ctx, rmCols(o), 'Repeated-measures ANOVA');
   },
   fingerprint: (o, ctx) =>
@@ -931,9 +978,10 @@ export const rmAnovaAnalysis: AnalysisType<RmAnovaOptions, RmAnovaResult> = {
       o.between,
       ...withinFingerprint(o),
       ...(o.moreBetween?.length ? ['|', ...o.moreBetween] : []),
+      ...(o.emm ? [emmFingerprint(o.emm), ctx.settings.confidence] : []),
     ]),
-  run: async (o, ctx) => (await engine()).rmAnovaR(rawData(ctx)!, o),
-  script: async (o, ctx) => (await engine()).rmAnovaScriptR(rawData(ctx)!, o),
+  run: async (o, ctx) => (await engine()).rmAnovaR(rawData(ctx)!, rmInput(o, ctx)),
+  script: async (o, ctx) => (await engine()).rmAnovaScriptR(rawData(ctx)!, rmInput(o, ctx)),
   summary: (o) =>
     (isMulti(o)
       ? `${rmName(o)}: ${(o.cells ?? []).filter(Boolean).length} cells`

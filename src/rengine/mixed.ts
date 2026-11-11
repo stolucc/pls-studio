@@ -5,6 +5,7 @@ import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
 import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
+import { emmRequest, parseEmm, type EmmOptions, type EmmResult } from './emm';
 
 /** A cluster level above the first, nesting it (e.g. schools above classes), with its random slopes. */
 export interface LmmLevel {
@@ -51,6 +52,12 @@ export interface LmmInput {
   outcomes?: LmmOutcome[];
   /** Robust standard errors as Mplus's MLR: the sandwich over the top-level clusters, for every parameter (ML only). */
   se?: 'robust';
+  /** Predictors treated as categorical (factors, dummy-coded against the first level); the basic model only. */
+  factors?: string[];
+  /** Estimated marginal means of the categorical predictors (emmeans); the basic model only. */
+  emm?: EmmOptions | null;
+  /** The confidence level of the marginal means' intervals (default 0.95). */
+  confidence?: number;
 }
 export interface LmmResult {
   n: number;
@@ -97,6 +104,7 @@ export interface LmmResult {
     slopes: number[];
     fixed: [number, number];
   } | null;
+  emm?: EmmResult | null;
   warnings: string[];
   engine: REngineInfo;
 }
@@ -170,10 +178,20 @@ export function lmmColumns(i: LmmInput): string[] {
     ),
   ];
 }
-export const lmmRequest = (data: Dataset, i: LmmInput) => ({
-  ...i,
-  data: rColumns(data, lmmColumns(i)),
-});
+export const lmmRequest = (data: Dataset, i: LmmInput) => {
+  const { emm, ...rest } = i;
+  const categories = Object.fromEntries(
+    (i.factors ?? []).filter((c) => data.categories?.[c]).map((c) => [c, data.categories![c]]),
+  );
+  return {
+    ...rest,
+    ...(emm ? { emm: emmRequest(emm, true) } : {}),
+    ...(i.factors?.length ? { categories } : {}),
+    data: rColumns(data, lmmColumns(i)),
+  };
+};
+/** lme4 with emmeans (and pbkrtest) when marginal means are asked for. */
+const lmmPackage = (i: LmmInput) => (i.emm ? 'lme4Emmeans' : 'lme4');
 export const gmmRequest = (data: Dataset, i: GmmInput) => ({
   ...i,
   data: rColumns(data, [
@@ -189,7 +207,11 @@ const gmmBridge = (i: GmmInput) =>
     : (['ps_gmm', 'lcmm'] as const);
 
 export async function lmmR(data: Dataset, input: LmmInput): Promise<LmmResult> {
-  const raw = await rCall<Record<string, any>>('ps_lmm', lmmRequest(data, input), 'lme4');
+  const raw = await rCall<Record<string, any>>(
+    'ps_lmm',
+    lmmRequest(data, input),
+    lmmPackage(input),
+  );
   return {
     ...raw,
     icc: n0(raw.icc),
@@ -210,11 +232,12 @@ export async function lmmR(data: Dataset, input: LmmInput): Promise<LmmResult> {
           slopes: rList<number>(raw.lines.slopes),
         }
       : null,
+    emm: parseEmm(raw.emm),
     warnings: rStrings(raw.warnings),
   } as LmmResult;
 }
 export const lmmScriptR = (data: Dataset, input: LmmInput) =>
-  rScript('ps_lmm', lmmRequest(data, input), 'lme4');
+  rScript('ps_lmm', lmmRequest(data, input), lmmPackage(input));
 
 export async function gmmR(data: Dataset, input: GmmInput): Promise<GmmResult> {
   const [fn, pkg] = gmmBridge(input);

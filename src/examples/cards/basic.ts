@@ -12,6 +12,10 @@ const DATA = (name: string) => ({
   label: `?${name}`,
   url: `https://rdrr.io/r/datasets/${name}.html`,
 });
+const EMMEANS = (page: string) => ({
+  label: `emmeans, ?${page}`,
+  url: `https://rdrr.io/cran/emmeans/man/${page}.html`,
+});
 const PSYCH = (page: string) => ({
   label: `psych, ?${page}`,
   url: `https://rdrr.io/cran/psych/man/${page}.html`,
@@ -152,6 +156,47 @@ export const CARD_BASIC: PackageExample[] = [
       covariates: [],
       ssType: 'I',
       interactions: true,
+    },
+    settings: CB('ML'),
+  },
+  {
+    id: 'emmeans-warpbreaks',
+    package: 'emmeans',
+    title: 'Marginal means and post hoc tests: breaks in yarn',
+    source: 'emmeans, ?emmeans (warp.lm)',
+    links: [
+      EMMEANS('emmeans'),
+      EMMEANS('joint_tests'),
+      {
+        label: 'emmeans vignette: basics',
+        url: 'https://cran.r-project.org/web/packages/emmeans/vignettes/basics.html',
+      },
+      DATA('warpbreaks'),
+    ],
+    description:
+      'The help page of emmeans fits warp.lm <- lm(breaks ~ wool * tension, data = warpbreaks) and asks for its estimated marginal means. The card fits the same two-way ANOVA and adds the marginal means of tension (36.39, 26.39 and 21.67 breaks, averaged over the wools), Tukey-adjusted pairwise comparisons (L − M: p = 0.0229; L − H: p = 0.0006), the simple effects of tension within each wool (emmeans::joint_tests) and the profile plot of the vignette’s emmip(warp.lm, wool ~ tension). Opens its card on the Analyses tab.',
+    shows:
+      'Low tension gives the most breaks: its marginal mean of 36.4 is 10.0 above medium (Tukey p = 0.023) and 14.7 above high (p = 0.0006), while medium and high do not differ (p = 0.40). The simple effects show why the interaction matters: tension changes the breaks of wool A (F(2, 48) = 10.31, p = 0.0002) but not clearly of wool B (F = 2.38, p = 0.10), which the profile plot draws as two lines that are far from parallel.',
+    data: { package: 'datasets', name: 'warpbreaks' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'anova',
+      dependent: 'breaks',
+      factors: ['wool', 'tension'],
+      covariates: [],
+      ssType: 'III',
+      interactions: true,
+      emm: {
+        terms: [['tension'], ['wool', 'tension']],
+        posthoc: [['tension']],
+        adjust: ['tukey'],
+        gamesHowell: false,
+        simple: { factor: 'tension', by: 'wool' },
+        contrasts: [],
+        plot: { x: 'tension', lines: 'wool' },
+        df: 'kenward-roger',
+      },
     },
     settings: CB('ML'),
   },

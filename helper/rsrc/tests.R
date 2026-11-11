@@ -24,6 +24,18 @@ ps_bt_factor_line <- function(req, fr, n) {
   )
 }
 
+#' The level names of a factor made by ps_bt_factor_line (in its level order).
+ps_bt_labels <- function(req, fr, n) {
+  x <- fr$data[[fr$v[[n]]]]
+  codes <- sort(unique(x[!is.na(x)]))
+  l <- unlist(req$categories[[n]])
+  if (!is.null(l) && length(codes) && all(codes %in% seq_along(l))) {
+    l[codes]
+  } else {
+    format(codes, trim = TRUE)
+  }
+}
+
 #' A column's own name from its R name (other text, e.g. a factor name, as it is).
 
 ps_bt_alt <- function(req) {
@@ -254,6 +266,11 @@ ps_anova <- function(req_json, export = FALSE) {
   )
   fml <- sprintf("%s ~ %s", v[[y]], rhs)
   oneway <- length(fac) == 1 && !length(cov)
+  conf <- ps_bt_conf(req)
+  # Marginal means, post hoc tests, simple effects, contrasts (emmeans; R/emm.R).
+  fac_levels <- setNames(lapply(fac, function(n) ps_bt_labels(req, fr, n)), fac)
+  emm <- ps_emm_options(req, fac_levels, games = TRUE)
+  emm_rn <- setNames(vapply(fac, function(n) v[[n]], ""), fac)
   body <- c(
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(y, fac, cov)])))),
     "# Factors (their levels as the groups).",
@@ -273,7 +290,7 @@ ps_anova <- function(req_json, export = FALSE) {
       c(
         sprintf("welch <- oneway.test(%s, data = data, var.equal = FALSE)  # Welch's ANOVA", fml),
         sprintf("kruskal <- kruskal.test(%s, data = data)", fml),
-        sprintf("tukey <- TukeyHSD(aov(%s, data = data), conf.level = %s)", fml, format(ps_bt_conf(req))),
+        sprintf("tukey <- TukeyHSD(aov(%s, data = data), conf.level = %s)", fml, format(conf)),
         "# After Kruskal-Wallis: pairwise Wilcoxon rank-sum tests, p adjusted by Holm's method.",
         sprintf(
           "pwRank <- pairwise.wilcox.test(data$%s, data$%s, p.adjust.method = \"holm\", exact = FALSE)",
@@ -281,11 +298,18 @@ ps_anova <- function(req_json, export = FALSE) {
           v[[fac[1]]]
         )
       )
-    }
+    },
+    ps_emm_lines(emm, "fit", emm_rn, conf, y = v[[y]])
   )
   inputs <- list(data = fr$data)
   if (export) {
-    return(ps_script(if (length(cov)) "ANCOVA" else "ANOVA", character(0), inputs, body, c("tab", "shapiro", "levene", if (oneway) c("welch", "kruskal", "tukey", "pwRank"))))
+    return(ps_script(
+      if (length(cov)) "ANCOVA" else "ANOVA",
+      if (is.null(emm)) character(0) else "emmeans",
+      inputs,
+      body,
+      c("tab", "shapiro", "levene", if (oneway) c("welch", "kruskal", "tukey", "pwRank"), ps_emm_report(emm))
+    ))
   }
   env <- ps_run(body, inputs)
   fit <- env$fit
@@ -352,6 +376,7 @@ ps_anova <- function(req_json, export = FALSE) {
       NULL
     },
     cells = lapply(names(cells), function(k) c(list(cell = k), ps_desc(cells[[k]]))),
+    emm = ps_emm_result(env, emm, emm_rn, conf),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
   ))
 }
@@ -428,9 +453,20 @@ ps_rmanova <- function(req_json, export = FALSE) {
     "posthoc <- lapply(pairs, function(p) t.test(Y[, p[1]], Y[, p[2]], paired = TRUE))",
     "pHolm <- p.adjust(vapply(posthoc, function(h) h$p.value, 0), method = \"holm\")"
   )
+  emm <- ps_rm_emm(req, fr, fname, list(within), if (bt) between else character(0))
+  body <- c(body, emm$lines)
   inputs <- list(data = fr$data)
   if (export) {
-    return(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) "friedman", "data.frame(pair = vapply(pairs, paste, \"\", collapse = \" - \"), p = vapply(posthoc, function(h) h$p.value, 0), pHolm)")))
+    report <- c(
+      "summary(fit)",
+      "mauchly",
+      "spher",
+      if (!bt) "friedman",
+      "data.frame(pair = vapply(pairs, paste, \"\", collapse = \" - \"), p = vapply(posthoc, function(h) h$p.value, 0), pHolm)",
+      ps_emm_report(emm$o)
+    )
+    packages <- if (is.null(emm$o)) character(0) else "emmeans"
+    return(ps_script("Repeated-measures ANOVA", packages, inputs, body, report))
   }
   env <- ps_run(body, inputs)
   sm <- summary(env$fit)
@@ -495,8 +531,33 @@ ps_rmanova <- function(req_json, export = FALSE) {
       )
     }),
     cells = lapply(within, function(l) c(list(cell = l), ps_desc(env$Y[, v[[l]]]))),
+    emm = ps_emm_result(env, emm$o, emm$rn, ps_bt_conf(req)),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
   ))
+}
+
+#' Marginal means of a repeated-measures design (R/emm.R) on the multivariate linear model of
+#' the wide columns, as afex's default for emmeans: lm(Y ~ between factors), the within factors
+#' read from the response's columns (`mult.levs`; the last factor varies fastest, so the list is
+#' reversed for expand.grid). `wnames`, `wlevels`: the within factors; `betweens`: the between
+#' factors' names. Returns the options, the names map and the script lines (none without options).
+ps_rm_emm <- function(req, fr, wnames, wlevels, betweens) {
+  bvars <- vapply(betweens, function(b) fr$v[[b]], "", USE.NAMES = FALSE)
+  levels <- c(
+    setNames(wlevels, wnames),
+    setNames(lapply(betweens, function(b) ps_bt_labels(req, fr, b)), betweens)
+  )
+  o <- ps_emm_options(req, levels)
+  rn <- c(setNames(wnames, wnames), setNames(bvars, betweens))
+  k <- rev(seq_along(wnames))
+  mult <- sprintf(
+    "list(%s)",
+    paste(sprintf("%s = %s", wnames[k], vapply(wlevels[k], ps_q, "")), collapse = ", ")
+  )
+  rhs <- if (length(bvars)) paste(bvars, collapse = " * ") else "1"
+  fit <- sprintf("lm(Y ~ %s, data = data)  # the multivariate model of the cells", rhs)
+  lines <- ps_emm_lines(o, fit, rn, ps_bt_conf(req), extra = sprintf(", mult.levs = %s", mult))
+  list(o = o, rn = rn, lines = lines)
 }
 
 #' Several within-subject factors (SPSS's and JASP's "define factors"): `factors`, each
@@ -595,9 +656,13 @@ ps_rmanova_multi <- function(req, design, export) {
     "mauchly <- lapply(effects, function(e) mauchly.test(mlm, M = e$M, X = e$X, idata = idata))  # (an effect with one degree of freedom is spherical)",
     PS_RM_LEVEL_TESTS[c(1, if (!bt) 2, 3)]
   )
+  emm <- ps_rm_emm(req, fr, design$names, design$levels, if (bt) between else character(0))
+  body <- c(body, emm$lines)
   inputs <- list(data = fr$data)
   if (export) {
-    return(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) "friedman", "posthoc")))
+    report <- c("summary(fit)", "mauchly", "spher", if (!bt) "friedman", "posthoc", ps_emm_report(emm$o))
+    packages <- if (is.null(emm$o)) character(0) else "emmeans"
+    return(ps_script("Repeated-measures ANOVA", packages, inputs, body, report))
   }
   env <- ps_run(body, inputs)
   sm <- summary(env$fit)
@@ -663,6 +728,7 @@ ps_rmanova_multi <- function(req, design, export) {
       seq_along(design$cells),
       function(i) c(list(cell = sprintf("%s (%s)", unname(labels[i]), design$cells[i])), ps_desc(env$Y[, i]))
     ),
+    emm = ps_emm_result(env, emm$o, emm$rn, ps_bt_conf(req)),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
   ))
 }
@@ -731,9 +797,12 @@ ps_rmanova_car <- function(req, design, betweens, export) {
     "uni <- summary(av, multivariate = FALSE)",
     PS_RM_LEVEL_TESTS[c(1, 3)]
   )
+  emm <- ps_rm_emm(req, fr, design$names, design$levels, betweens)
+  body <- c(body, emm$lines)
   inputs <- list(data = fr$data)
   if (export) {
-    return(ps_script("Repeated-measures ANOVA", "car", inputs, body, c("uni", "posthoc")))
+    packages <- c("car", if (!is.null(emm$o)) "emmeans")
+    return(ps_script("Repeated-measures ANOVA", packages, inputs, body, c("uni", "posthoc", ps_emm_report(emm$o))))
   }
   env <- ps_run(body, inputs)
   ut <- env$uni$univariate.tests
@@ -814,6 +883,7 @@ ps_rmanova_car <- function(req, design, betweens, export) {
     corrected = corr,
     friedman = NULL,
     posthoc = ps_rm_posthoc_out(env$posthoc),
+    emm = ps_emm_result(env, emm$o, emm$rn, ps_bt_conf(req)),
     cells = lapply(
       seq_along(design$cells),
       function(i) c(list(cell = if (single) design$cells[i] else sprintf("%s (%s)", unname(labels[i]), design$cells[i])), ps_desc(env$Y[, i]))

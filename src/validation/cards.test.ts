@@ -29,6 +29,7 @@ import {
 import { CMB_TYPES } from '../analyses/validity';
 import { HYP_MODES } from '../analyses/hypotheses';
 import { APIM_MODES } from '../analyses/apim';
+import { EMM_MODES } from '../analyses/emm';
 import { EXAMPLES } from '../components/HomeScreen';
 import { examplePanels, PACKAGE_EXAMPLES } from '../examples/packages';
 import { EFA_METHODS } from '../model/efa';
@@ -87,6 +88,9 @@ const CARD_MODES: Record<string, readonly string[]> = {
   glmm: GLMM_FAMILIES,
   hypotheses: HYP_MODES,
   apim: APIM_MODES,
+  anova: EMM_MODES,
+  rmanova: ['emmeans'],
+  lmm: ['emmeans'],
   // MatchIt's methods (nearest, optimal, full, …) share one code path; weighting is WeightIt's.
   match: [...new Set(MATCH_METHODS.map((m) => (m === 'weighting' ? 'weighting' : 'matchit')))],
 };
