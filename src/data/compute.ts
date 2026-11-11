@@ -9,6 +9,7 @@ import type { DataInfo } from '../model/project';
 
 export type Node =
   | { t: 'num'; v: number }
+  | { t: 'str'; v: string }
   | { t: 'col'; name: string }
   | { t: 'un'; op: '-' | '!'; e: Node }
   | { t: 'bin'; op: string; a: Node; b: Node }
@@ -45,7 +46,14 @@ export const FUNCTIONS: Record<string, { arity: [number, number]; doc: string }>
 export const MAX_FORMULA = 500;
 export const MAX_NAME = 64;
 
-type Tok = { k: 'num'; v: number } | { k: 'name'; v: string } | { k: 'op'; v: string };
+type Tok =
+  | { k: 'num'; v: number }
+  | { k: 'str'; v: string }
+  | { k: 'name'; v: string }
+  | { k: 'op'; v: string };
+
+/** Words that read as the logical operators: `age >= 18 and group == 2`. */
+const WORD_OPS: Record<string, string> = { and: '&', or: '|', not: '!' };
 const OPS = [
   '<=',
   '>=',
@@ -84,6 +92,14 @@ function tokenize(src: string): Tok[] {
       i = j + 1;
       continue;
     }
+    if (ch === '"' || ch === "'") {
+      // A category of a text column, compared with == or != (no escapes: a quote ends it).
+      const j = src.indexOf(ch, i + 1);
+      if (j < 0) throw new Error(`A text opened with ${ch} is not closed.`);
+      out.push({ k: 'str', v: src.slice(i + 1, j) });
+      i = j + 1;
+      continue;
+    }
     const num = /^(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?/.exec(src.slice(i));
     if (num) {
       out.push({ k: 'num', v: Number(num[0]) });
@@ -92,7 +108,9 @@ function tokenize(src: string): Tok[] {
     }
     const name = /^[A-Za-z_][A-Za-z0-9_.]*/.exec(src.slice(i));
     if (name) {
-      out.push({ k: 'name', v: name[0] });
+      const word = WORD_OPS[name[0]];
+      if (word) out.push({ k: 'op', v: word });
+      else out.push({ k: 'name', v: name[0] });
       i += name[0].length;
       continue;
     }
@@ -203,6 +221,10 @@ export function parseFormula(src: string): Node {
       p++;
       return { t: 'num', v: t.v };
     }
+    if (t.k === 'str') {
+      p++;
+      return { t: 'str', v: t.v };
+    }
     if (t.k === 'name') {
       p++;
       if (isOp('(')) {
@@ -257,6 +279,33 @@ function bool(v: number): number {
   return v !== 0 ? 1 : 0;
 }
 
+/**
+ * A text column compared with a category in quotes (`country == "Ireland"`): 1 where the row's
+ * category is (or for != is not) the one named, missing where the row is missing. Null when the
+ * node is not such a comparison.
+ */
+function categoryComparison(nd: Extract<Node, { t: 'bin' }>, data: Dataset): Float64Array | null {
+  if (nd.op !== '==' && nd.op !== '!=') return null;
+  let column: Node = nd.a;
+  let text: Node = nd.b;
+  if (nd.a.t === 'str') {
+    column = nd.b;
+    text = nd.a;
+  }
+  if (text.t !== 'str') return null;
+  if (column.t !== 'col' || !data.categories?.[column.name])
+    throw new Error(`“${text.v}”: text in quotes can only be compared with a text column.`);
+  const j = data.names.indexOf(column.name);
+  if (j < 0) throw new Error(`“${column.name}” is not a column of the dataset.`);
+  // Codes are 1-based positions in the column's categories; an unknown category matches no row.
+  const code = data.categories[column.name].indexOf(text.v) + 1;
+  const equal = nd.op === '==';
+  return data.cols[j].map((v) => {
+    if (Number.isNaN(v)) return NaN;
+    return (v === code) === equal ? 1 : 0;
+  });
+}
+
 /** Evaluate a formula over the rows of `data`; missing values give missing results. */
 export function evaluate(node: Node, data: Dataset): Float64Array {
   const n = data.cols[0]?.length ?? 0;
@@ -271,6 +320,10 @@ export function evaluate(node: Node, data: Dataset): Float64Array {
     switch (nd.t) {
       case 'num':
         return new Float64Array(n).fill(nd.v);
+      case 'str':
+        throw new Error(
+          `“${nd.v}”: text in quotes can only be compared with a text column (== or !=).`,
+        );
       case 'col':
         return col(nd.name);
       case 'un': {
@@ -282,6 +335,8 @@ export function evaluate(node: Node, data: Dataset): Float64Array {
         });
       }
       case 'bin': {
+        const category = categoryComparison(nd, data);
+        if (category) return category;
         const a = ev(nd.a),
           b = ev(nd.b),
           out = new Float64Array(n);
@@ -539,6 +594,8 @@ export function removeComputed(
   const j = data.names.indexOf(name);
   if (j < 0 || !(info.computed ?? []).some((c) => c.name === name))
     throw new Error(`“${name}” is not a computed column.`);
+  if (info.filter && columnsIn(parseFormula(info.filter.expr)).includes(name))
+    throw new Error(`“${name}” is used by the data filter; change or remove the filter first.`);
   const used = (info.computed ?? [])
     .filter((c) => c.name !== name && columnsIn(parseFormula(c.expr)).includes(name))
     .map((c) => c.name);

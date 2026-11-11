@@ -47,8 +47,9 @@ async function exclude(rows: number[], reason: string) {
   if (!ok) return;
   const s = useStore.getState();
   if (!s.data || !s.dataInfo) return;
-  const { excludeRows } = await import('../model/rows');
-  const r = excludeRows(s.data, s.dataInfo, rows, reason);
+  // (rows of the analysed data; with a filter they are mapped to the unfiltered data)
+  const { excludeCases } = await import('../data/pipeline');
+  const r = excludeCases(s.data, s.dataInfo, rows, reason);
   s.setData(r.data, r.info);
   s.toast(
     'success',

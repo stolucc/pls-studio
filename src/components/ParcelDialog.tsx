@@ -3,6 +3,7 @@
 
 import { useMemo, useState } from 'react';
 import { computeColumn, nameError } from '../data/compute';
+import { transformData } from '../data/pipeline';
 import {
   balanceParcels,
   itemLoadings,
@@ -64,20 +65,24 @@ export function ParcelDialog({ c, onClose }: { c: Construct; onClose: () => void
       setError('Every item must be in exactly one parcel.');
       return;
     }
-    let d = data;
-    let i2 = info;
+    let next: ReturnType<typeof transformData>;
     try {
-      for (let p = 0; p < groups.length; p++) {
-        const clash = nameError(names[p], d, i2);
-        if (clash) throw new Error(`${names[p]}: ${clash}`);
-        ({ data: d, info: i2 } = computeColumn(d, i2, names[p], parcelExpr(groups[p])));
-      }
+      // Computed over every case (the data filter applies afterwards).
+      next = transformData(data, info, (base, baseInfo) => {
+        let out = { data: base, info: baseInfo };
+        for (let p = 0; p < groups.length; p++) {
+          const clash = nameError(names[p], out.data, out.info);
+          if (clash) throw new Error(`${names[p]}: ${clash}`);
+          out = computeColumn(out.data, out.info, names[p], parcelExpr(groups[p]));
+        }
+        return out;
+      });
     } catch (e) {
       setError((e as Error).message);
       return;
     }
     const s = useStore.getState();
-    s.setData(d, i2);
+    s.setData(next.data, next.info);
     s.updateConstruct(c.id, { indicators: names });
     s.toast(
       'success',

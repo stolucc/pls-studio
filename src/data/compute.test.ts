@@ -158,3 +158,27 @@ describe('computed columns in the dataset', () => {
     expect(recomputeAll(gone, r1.info).data).toBe(gone);
   });
 });
+
+describe('words and categories in formulas', () => {
+  const coded: Dataset = {
+    names: ['x', 'country'],
+    cols: [Float64Array.from([1, 2, 3]), Float64Array.from([2, NaN, 1])],
+    categories: { country: ['Ireland', 'Spain'] },
+  };
+  it('reads and, or, not as &, |, !', () => {
+    expect(ev('x >= 2 and y < 40')).toEqual(ev('x >= 2 & y < 40'));
+    expect(ev('x >= 2 or y > 45')).toEqual(ev('x >= 2 | y > 45'));
+    expect(ev('not g')).toEqual(ev('!g'));
+  });
+  it('compares a text column with a category in quotes', () => {
+    expect(ev('country == "Spain"', coded)).toEqual([1, NaN, 0]);
+    expect(ev("'Ireland' != country", coded)).toEqual([1, NaN, 0]);
+    expect(ev('country == "Peru"', coded)).toEqual([0, NaN, 0]);
+    expect(columnsIn(parseFormula('country == "Spain" and x > 1'))).toEqual(['country', 'x']);
+  });
+  it('refuses text in quotes anywhere else', () => {
+    expect(() => ev('x == "a"', coded)).toThrow(/text column/);
+    expect(() => ev('"a" + 1', coded)).toThrow(/text in quotes/);
+    expect(() => parseFormula('country == "Spain')).toThrow(/not closed/);
+  });
+});

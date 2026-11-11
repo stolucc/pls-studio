@@ -220,10 +220,20 @@ function readme(o: {
         '',
         `Reverse-coded in PLS Studio (x → min + max − x): ${o.info.reversed.map((r) => `${r.name} (${r.min}–${r.max})`).join(', ')}. The CSV contains the recoded values.`,
       );
-    if (o.info.droppedRows?.length)
+    const exclusions = (o.info.droppedRows ?? []).filter((d) => !d.filter);
+    if (exclusions.length) {
+      const count = exclusions.reduce((n, d) => n + d.at.length, 0);
+      const reasons = exclusions.map((d) => d.reason).join('; ');
       L.push(
         '',
-        `Cases excluded in PLS Studio before the analyses: ${o.info.droppedRows.reduce((n, d) => n + d.at.length, 0)} (${o.info.droppedRows.map((d) => d.reason).join('; ')}; see the project file); the CSV contains the remaining cases.`,
+        `Cases excluded in PLS Studio before the analyses: ${count} (${reasons}; see the project file); the CSV contains the remaining cases.`,
+      );
+    }
+    const filtered = o.info.droppedRows?.find((d) => d.filter);
+    if (o.info.filter)
+      L.push(
+        '',
+        `Data filter: only the cases where \`${o.info.filter.expr}\` holds are analysed (${filtered?.at.length ?? 0} cases left out); the CSV contains the cases the filter keeps.`,
       );
     if (o.info.excluded.length)
       L.push(

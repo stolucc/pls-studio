@@ -12,6 +12,8 @@ export interface RowExclusion {
   at: number[];
   /** The removed values by column name (null for missing). */
   values: Record<string, (number | null)[]>;
+  /** The rows the dataset filter leaves out (always the last exclusion; data/pipeline.ts). */
+  filter?: true;
 }
 
 const missingCells = (cols: Float64Array[]) =>
@@ -89,6 +91,8 @@ export function parseDroppedRows(raw: unknown, names: string[]): RowExclusion[] 
       ? r.at.filter((i): i is number => Number.isInteger(i) && (i as number) >= 0).slice(0, 100000)
       : [];
     if (!at.length || !r.values || typeof r.values !== 'object') continue;
+    // Positions must be strictly ascending, as excludeRows writes them (restoring relies on it).
+    if (at.some((i, k) => k > 0 && i <= at[k - 1])) continue;
     const values: Record<string, (number | null)[]> = {};
     for (const name of names) {
       const v = (r.values as Record<string, unknown>)[name];
@@ -99,6 +103,7 @@ export function parseDroppedRows(raw: unknown, names: string[]): RowExclusion[] 
       reason: typeof r.reason === 'string' ? r.reason.slice(0, 200) : 'excluded',
       at,
       values,
+      ...(r.filter === true ? { filter: true as const } : {}),
     });
   }
   return out.length ? out : undefined;

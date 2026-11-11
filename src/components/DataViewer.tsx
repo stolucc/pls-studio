@@ -3,6 +3,7 @@ import { columnSummary } from '../data/summary';
 import { fmt } from '../format';
 import { useStore } from '../store';
 import { c, Table } from './results/Table';
+import { FilterBadge } from './FilterBadge';
 
 const PAGE = 100;
 const num = (v: number, d?: number) => c(Number.isFinite(v) ? v : null, undefined, d);
@@ -58,6 +59,7 @@ export function DataWorkspace() {
           <b>Data</b>
           <span className="muted">{datasetLine}</span>
         </div>
+        <FilterBadge />
       </header>
       {!data ? (
         <div className="empty-results">
