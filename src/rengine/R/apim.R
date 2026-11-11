@@ -200,7 +200,10 @@ ps_apim <- function(req_json, export = FALSE) {
   )
   inputs <- list(data = fr$data)
   if (export) {
-    title <- sprintf("Actor-partner interdependence model, %s dyads (lavaan)", if (dist) "distinguishable" else "indistinguishable")
+    title <- sprintf(
+      "Actor-partner interdependence model, %s dyads (lavaan)",
+      if (dist) "distinguishable" else "indistinguishable"
+    )
     report <- c(
       "summary(fit, fit.measures = TRUE, standardized = TRUE)", "distinguishability",
       if (B > 0) "subset(boot_ci, op %in% c(\"~\", \":=\"))"

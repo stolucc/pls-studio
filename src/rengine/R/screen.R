@@ -85,14 +85,21 @@ ps_influence <- function(req_json, export = FALSE) {
     } else {
       c(
         "# Leave-one-out: the model refitted without each case (semfindr), then the influence statistics.",
-        sprintf("rerun <- lavaan_rerun(fit, parallel = %s, progress = FALSE%s)", if (par) "TRUE" else "FALSE", if (par) sprintf(", ncores = %d", cores) else ""),
+        sprintf(
+          "rerun <- lavaan_rerun(fit, parallel = %s, progress = FALSE%s)",
+          if (par) "TRUE" else "FALSE",
+          if (par) sprintf(", ncores = %d", cores) else ""
+        ),
         "infl <- influence_stat(rerun)"
       )
     },
     "rows <- as.integer(rownames(data))[as.integer(rownames(infl))]",
     "# Each case's contribution to Mardia's multivariate kurtosis b2,p of the model's indicators (as psych::mardia:",
     "# complete cases, the sample covariance matrix): d_i^4 / n, with d_i^2 the case's Mahalanobis distance; they sum to b2,p.",
-    sprintf("Xk <- as.matrix(data[, %s, drop = FALSE]); okk <- complete.cases(Xk); Xk <- Xk[okk, , drop = FALSE]", ps_q(unname(b$n$iv[b$n$all_inds]))),
+    sprintf(
+      "Xk <- as.matrix(data[, %s, drop = FALSE]); okk <- complete.cases(Xk); Xk <- Xk[okk, , drop = FALSE]",
+      ps_q(unname(b$n$iv[b$n$all_inds]))
+    ),
     "kurt_d2 <- mahalanobis(Xk, colMeans(Xk), cov(Xk))",
     "kurt_i <- kurt_d2^2 / nrow(Xk)",
     "kurt_rows <- as.integer(rownames(data))[okk]"
@@ -204,7 +211,10 @@ ps_missing <- function(req_json, export = FALSE) {
       "# Jamshidian & Jalal's (2010) tests (misty::na.test, after MissMech::TestMCARNormality): the data imputed 20 times",
       "# (nonparametric), the patterns' covariance matrices compared by Hawkins's test of homoscedasticity, and the",
       "# patterns' distributions by a k-sample Anderson-Darling test; patterns with fewer than 6 cases are left out",
-      sprintf("jj <- tryCatch(misty::na.test(as.data.frame(X), print = \"jamjal\", seed = %d, output = FALSE)$result, error = function(e) conditionMessage(e))", seed)
+      sprintf(
+        "jj <- tryCatch(misty::na.test(as.data.frame(X), print = \"jamjal\", seed = %d, output = FALSE)$result, error = function(e) conditionMessage(e))",
+        seed
+      )
     )
   }
   if (length(meas)) {
@@ -249,7 +259,17 @@ ps_missing <- function(req_json, export = FALSE) {
   if (export) {
     return(ps_script(
       sprintf("Missing data (patterns, coverage, EM estimates, dropout%s)", if (mcar || jamjal) ", MCAR tests" else ""), c("lavaan", if (mcar || jamjal) c("misty", "mvnmle")), inputs, body,
-      c("patterns", "coverage", "em_mean", "em_cov", "loglik_h1", if (mcar) c("little", "little_patterns"), if (jamjal) "jj[c(\"hawkins\", \"anderson\")]", if (length(meas)) c("table(out_at, useNA = \"ifany\")", "set1"), if (length(desc)) "set2")
+      c(
+        "patterns",
+        "coverage",
+        "em_mean",
+        "em_cov",
+        "loglik_h1",
+        if (mcar) c("little", "little_patterns"),
+        if (jamjal) "jj[c(\"hawkins\", \"anderson\")]",
+        if (length(meas)) c("table(out_at, useNA = \"ifany\")", "set1"),
+        if (length(desc)) "set2"
+      )
     ))
   }
   env <- ps_run(body, inputs)
@@ -257,7 +277,13 @@ ps_missing <- function(req_json, export = FALSE) {
   em_cor <- stats::cov2cor(env$em_cov)
   res <- list(
     variables = I(vars), n = env$n, patterns = env$patterns, coverage = sym(env$coverage),
-    em = list(means = I(unname(env$em_mean)), cov = sym(env$em_cov), cor = sym(em_cor), loglik = if (is.finite(env$loglik_h1) && !env$singular) env$loglik_h1 else NULL, singular = env$singular),
+    em = list(
+      means = I(unname(env$em_mean)),
+      cov = sym(env$em_cov),
+      cor = sym(em_cor),
+      loglik = if (is.finite(env$loglik_h1) && !env$singular) env$loglik_h1 else NULL,
+      singular = env$singular
+    ),
     warnings = env$.warnings, engine = ps_engine("lavaan")
   )
   if (mcar) {

@@ -9,7 +9,21 @@
 # reproducible without a seed from the app.
 
 #' The dynamic functions the card can call, and what each takes besides the fit.
-.ps_dfi_fns <- c("cfaOne", "cfaHB", "catOne", "catHB", "likertOne", "likertHB", "nnorOne", "nnorHB", "hier1HB", "hier2", "exactFit", "equivTest", "DDDFI")
+.ps_dfi_fns <- c(
+  "cfaOne",
+  "cfaHB",
+  "catOne",
+  "catHB",
+  "likertOne",
+  "likertHB",
+  "nnorOne",
+  "nnorHB",
+  "hier1HB",
+  "hier2",
+  "exactFit",
+  "equivTest",
+  "DDDFI"
+)
 .ps_dfi_with_data <- c("likertOne", "likertHB", "nnorOne", "nnorHB")
 .ps_dfi_estimators <- c("ML", "MLR", "MLM", "MLMV", "WLSMV", "ULSMV", "DWLS", "WLS", "ULS", "GLS")
 
@@ -129,7 +143,10 @@ ps_dfi <- function(req_json, export = FALSE) {
   body <- c(
     body,
     "suppressPackageStartupMessages(library(dynamic))",
-    sprintf("# Dynamic fit index cutoffs (Wolf & McNeish, dynamic::%s): the package simulates this model's fit-index", fn),
+    sprintf(
+      "# Dynamic fit index cutoffs (Wolf & McNeish, dynamic::%s): the package simulates this model's fit-index",
+      fn
+    ),
     "# distributions, correctly specified and under graded misspecifications, with its own fixed seeds.",
     sprintf("dfi <- dynamic::%s(%s)", fn, paste(args, collapse = ", ")),
     "printed <- capture.output(print(dfi))"
@@ -141,7 +158,10 @@ ps_dfi <- function(req_json, export = FALSE) {
   # lavaan's warnings about single simulated replications (a negative residual variance, a fit that did not
   # converge) concern the package's simulation, not the user's model: reported as notes, as the package itself
   # muffles most of them.
-  sim <- grepl("ov variances are negative|could not compute standard errors|not positive definite|did not converge|optimizer warning", env$.warnings)
+  sim <- grepl(
+    "ov variances are negative|could not compute standard errors|not positive definite|did not converge|optimizer warning",
+    env$.warnings
+  )
   for (m in env$.warnings[sim]) ps_note(sprintf("In dynamic's simulated replications: %s", m))
   env$.warnings <- env$.warnings[!sim]
   dfi <- env$dfi

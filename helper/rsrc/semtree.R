@@ -30,7 +30,11 @@ ps_semtree_nodes <- function(node, back, fr, parent = NULL, edge = NULL) {
   if (leaf) {
     return(list(me))
   }
-  c(list(me), ps_semtree_nodes(node$left_child, back, fr, node$node_id, 0L), ps_semtree_nodes(node$right_child, back, fr, node$node_id, 1L))
+  c(
+    list(me),
+    ps_semtree_nodes(node$left_child, back, fr, node$node_id, 0L),
+    ps_semtree_nodes(node$right_child, back, fr, node$node_id, 1L)
+  )
 }
 
 ps_semtree <- function(req_json, export = FALSE) {
@@ -83,7 +87,13 @@ ps_semtree <- function(req_json, export = FALSE) {
       categorical = sprintf("data$%s <- factor(data$%s)", idents[i], idents[i])
     )
   }, "")
-  ctrl <- sprintf("semtree.control(method = \"%s\", alpha = %s, max.depth = %d, min.N = %d, verbose = FALSE, progress.bar = FALSE)", method, format(alpha), as.integer(depth), as.integer(minn))
+  ctrl <- sprintf(
+    "semtree.control(method = \"%s\", alpha = %s, max.depth = %d, min.N = %d, verbose = FALSE, progress.bar = FALSE)",
+    method,
+    format(alpha),
+    as.integer(depth),
+    as.integer(minn)
+  )
   fo <- o$forest
   trees <- if (is.null(fo)) 0L else as.integer(ps_number(fo$trees %||% 50, "number of trees"))
   if (!is.null(fo) && (is.na(trees) || trees < 2 || trees > 1000)) {
@@ -102,9 +112,17 @@ ps_semtree <- function(req_json, export = FALSE) {
     sprintf("tree <- semtree(model = fit, data = data, predictors = %s, control = %s)", ps_q(idents), ctrl),
     if (trees > 0) {
       c(
-        sprintf("# A SEM forest of %d trees on subsamples, and the covariates' permutation importance (the seed makes both reproducible)", trees),
+        sprintf(
+          "# A SEM forest of %d trees on subsamples, and the covariates' permutation importance (the seed makes both reproducible)",
+          trees
+        ),
         sprintf("set.seed(%d)", seed),
-        sprintf("forest <- semforest(model = fit, data = data, predictors = %s, control = semforest.control(num.trees = %d, control = %s))", ps_q(idents), trees, ctrl),
+        sprintf(
+          "forest <- semforest(model = fit, data = data, predictors = %s, control = semforest.control(num.trees = %d, control = %s))",
+          ps_q(idents),
+          trees,
+          ctrl
+        ),
         "vim <- varimp(forest)",
         "importance <- colMeans(vim$importance, na.rm = TRUE)"
       )

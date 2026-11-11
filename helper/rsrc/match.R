@@ -52,7 +52,13 @@ ps_match <- function(req_json, export = FALSE) {
     if (is.null(l)) {
       NULL
     } else {
-      sprintf("data$%s <- factor(data$%s, levels = seq_len(%d), labels = %s)", v[[cv]], v[[cv]], length(unlist(l)), ps_q(unlist(l)))
+      sprintf(
+        "data$%s <- factor(data$%s, levels = seq_len(%d), labels = %s)",
+        v[[cv]],
+        v[[cv]],
+        length(unlist(l)),
+        ps_q(unlist(l))
+      )
     }
   }))
   glm_ps <- method %in% c("nearest", "optimal", "full", "subclass") && distance == "glm"
@@ -65,10 +71,16 @@ ps_match <- function(req_json, export = FALSE) {
   dr <- !is.null(Y) && match_effect == "dr"
   focal <- c(ATT = "md[md$%s == 1, ]", ATC = "md[md$%s == 0, ]", ATE = "md")[[estimand]]
   body <- c(
-    sprintf("suppressPackageStartupMessages({ library(MatchIt); library(cobalt); library(sandwich); library(lmtest)%s })", if (dr) "; library(marginaleffects)" else ""),
+    sprintf(
+      "suppressPackageStartupMessages({ library(MatchIt); library(cobalt); library(sandwich); library(lmtest)%s })",
+      if (dr) "; library(marginaleffects)" else ""
+    ),
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(c(T, X))),
     sprintf("# Treatment: the higher of the two values of %s is \"treated\".", ps_comment(treat)),
-    sprintf("vals <- sort(unique(data$%s)); if (length(vals) != 2) stop(\"The treatment must have exactly two values.\")", T),
+    sprintf(
+      "vals <- sort(unique(data$%s)); if (length(vals) != 2) stop(\"The treatment must have exactly two values.\")",
+      T
+    ),
     sprintf("data$%s <- as.integer(data$%s == vals[2])", T, T),
     if (length(fac)) c("# Text (categorical) covariates as factors.", fac),
     sprintf("set.seed(%d)", seed),
@@ -78,7 +90,10 @@ ps_match <- function(req_json, export = FALSE) {
     "md <- match.data(m)",
     if (dr) {
       c(
-        sprintf("# Treatment effect (%s): the weighted outcome model with the covariates and their interactions with treatment,", estimand),
+        sprintf(
+          "# Treatment effect (%s): the weighted outcome model with the covariates and their interactions with treatment,",
+          estimand
+        ),
         sprintf(
           "# averaged over the %s by g-computation; %s.", c(ATT = "treated", ATC = "controls", ATE = "whole matched sample")[[estimand]],
           if (replace) "HC3 robust standard errors (matching with replacement)" else "standard errors clustered by matched set (HC3 without matched sets)"
@@ -97,7 +112,10 @@ ps_match <- function(req_json, export = FALSE) {
           if (replace) "HC3 robust standard errors (matching with replacement)" else "standard errors clustered by matched set (HC3 without matched sets)"
         ),
         sprintf("fit <- lm(%s ~ %s, data = md, weights = weights)", Y, T),
-        sprintf("vc <- %s", if (replace) "vcovHC(fit, type = \"HC3\")" else "if (\"subclass\" %in% names(md)) vcovCL(fit, cluster = ~subclass) else vcovHC(fit, type = \"HC3\")"),
+        sprintf(
+          "vc <- %s",
+          if (replace) "vcovHC(fit, type = \"HC3\")" else "if (\"subclass\" %in% names(md)) vcovCL(fit, cluster = ~subclass) else vcovHC(fit, type = \"HC3\")"
+        ),
         "effect <- coeftest(fit, vcov. = vc)",
         sprintf("effect_ci <- coefci(fit, vcov. = vc, level = %s)", format(conf))
       )
@@ -107,7 +125,12 @@ ps_match <- function(req_json, export = FALSE) {
   if (export) {
     return(ps_script(
       sprintf("Matching (MatchIt, %s)", method), c("MatchIt", "cobalt", "sandwich", "lmtest"), inputs, body,
-      c("summary(m)", "bal", "love.plot(bal, abs = TRUE, thresholds = c(m = .1))", if (dr) "est" else if (!is.null(Y)) c("effect", "effect_ci"))
+      c(
+        "summary(m)",
+        "bal",
+        "love.plot(bal, abs = TRUE, thresholds = c(m = .1))",
+        if (dr) "est" else if (!is.null(Y)) c("effect", "effect_ci")
+      )
     ))
   }
   env <- ps_run(body, inputs)
@@ -173,7 +196,13 @@ ps_weight <- function(req, export = FALSE) {
     if (is.null(l)) {
       NULL
     } else {
-      sprintf("data$%s <- factor(data$%s, levels = seq_len(%d), labels = %s)", v[[cv]], v[[cv]], length(unlist(l)), ps_q(unlist(l)))
+      sprintf(
+        "data$%s <- factor(data$%s, levels = seq_len(%d), labels = %s)",
+        v[[cv]],
+        v[[cv]],
+        length(unlist(l)),
+        ps_q(unlist(l))
+      )
     }
   }))
   focal <- c(ATT = "data[data$%s == 1, ]", ATC = "data[data$%s == 0, ]", ATE = "data")[[estimand]]
@@ -181,15 +210,27 @@ ps_weight <- function(req, export = FALSE) {
     "suppressPackageStartupMessages({ library(WeightIt); library(cobalt); library(marginaleffects) })",
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(c(T, X, Y))),
     sprintf("# Treatment: the higher of the two values of %s is \"treated\".", ps_comment(treat)),
-    sprintf("vals <- sort(unique(data$%s)); if (length(vals) != 2) stop(\"The treatment must have exactly two values.\")", T),
+    sprintf(
+      "vals <- sort(unique(data$%s)); if (length(vals) != 2) stop(\"The treatment must have exactly two values.\")",
+      T
+    ),
     sprintf("data$%s <- as.integer(data$%s == vals[2])", T, T),
     if (length(fac)) c("# Text (categorical) covariates as factors.", fac),
     if (wmethod == "ebal") {
-      sprintf("# Entropy balancing (Hainmueller 2012): weights that balance the covariates' means exactly, for the %s.", estimand)
+      sprintf(
+        "# Entropy balancing (Hainmueller 2012): weights that balance the covariates' means exactly, for the %s.",
+        estimand
+      )
     } else {
       sprintf("# Propensity scores by logistic regression; weights for the %s.", estimand)
     },
-    sprintf("W <- weightit(%s ~ %s, data = data, method = \"%s\", estimand = \"%s\")", T, paste(X, collapse = " + "), wmethod, estimand),
+    sprintf(
+      "W <- weightit(%s ~ %s, data = data, method = \"%s\", estimand = \"%s\")",
+      T,
+      paste(X, collapse = " + "),
+      wmethod,
+      estimand
+    ),
     "ess <- summary(W)$effective.sample.size",
     "# Balance before and after weighting: standardised mean differences (|d| < .1) and variance ratios.",
     "bal <- bal.tab(W, un = TRUE, stats = c(\"mean.diffs\", \"variance.ratios\"), binary = \"std\", continuous = \"std\")",
@@ -206,7 +247,12 @@ ps_weight <- function(req, export = FALSE) {
             "# Effect (doubly robust): the weighted outcome model with the covariates and their interactions with",
             "# treatment, averaged over the target population by g-computation; SEs account for the estimated weights.",
             sprintf("fit <- lm_weightit(%s ~ %s * (%s), data = data, weightit = W)", Y, T, paste(X, collapse = " + ")),
-            sprintf("est <- avg_comparisons(fit, variables = \"%s\", newdata = %s, conf_level = %s)", T, sprintf(focal, T), format(conf))
+            sprintf(
+              "est <- avg_comparisons(fit, variables = \"%s\", newdata = %s, conf_level = %s)",
+              T,
+              sprintf(focal, T),
+              format(conf)
+            )
           )
         },
         "effect <- as.data.frame(est)"
@@ -227,14 +273,21 @@ ps_weight <- function(req, export = FALSE) {
   e <- env$effect
   ps_json(list(
     method = "weighting", estimand = estimand, effectModel = effect_model, weightMethod = wmethod,
-    counts = lapply(seq_len(nrow(ess)), function(i) list(row = if (rownames(ess)[i] == "Weighted") "Effective sample size" else rownames(ess)[i], control = ess[i, "Control"], treated = ess[i, "Treated"])),
+    counts = lapply(
+      seq_len(nrow(ess)),
+      function(i) list(row = if (rownames(ess)[i] == "Weighted") "Effective sample size" else rownames(ess)[i], control = ess[i, "Control"], treated = ess[i, "Treated"])
+    ),
     balance = lapply(seq_len(nrow(b)), function(i) {
       list(
         variable = if (rownames(b)[i] == "prop.score") "Propensity score" else nm(rownames(b)[i]), type = b$Type[i],
         diffBefore = b$Diff.Un[i], diffAfter = b$Diff.Adj[i], ratioBefore = if (is.null(b$V.Ratio.Un)) NULL else b$V.Ratio.Un[i], ratioAfter = if (is.null(b$V.Ratio.Adj)) NULL else b$V.Ratio.Adj[i]
       )
     }),
-    weights = list(max = max(env$W$weights), treatedRange = range(env$W$weights[env$data[[T]] == 1]), controlRange = range(env$W$weights[env$data[[T]] == 0])),
+    weights = list(
+      max = max(env$W$weights),
+      treatedRange = range(env$W$weights[env$data[[T]] == 1]),
+      controlRange = range(env$W$weights[env$data[[T]] == 0])
+    ),
     effect = if (is.null(Y)) {
       NULL
     } else {

@@ -80,7 +80,13 @@ ps_bttest <- function(req_json, export = FALSE) {
     )
   }
   if (robust) {
-    body <- c(body, sprintf("widths <- sort(unique(c(seq(0.05, 1.5, by = 0.05), %s)))  # prior widths for the robustness check", format(r, digits = 15)))
+    body <- c(
+      body,
+      sprintf(
+        "widths <- sort(unique(c(seq(0.05, 1.5, by = 0.05), %s)))  # prior widths for the robustness check",
+        format(r, digits = 15)
+      )
+    )
   }
   for (k in seq_along(items)) {
     b <- sprintf("b%d", k)
@@ -94,19 +100,34 @@ ps_bttest <- function(req_json, export = FALSE) {
       p <- items[[k]]
       body <- c(
         body, sprintf("# %s - %s", ps_comment(p[1]), ps_comment(p[2])),
-        sprintf("ok <- complete.cases(data$%s, data$%s); x <- data$%s[ok]; y <- data$%s[ok]", v[[p[1]]], v[[p[2]]], v[[p[1]]], v[[p[2]]]),
+        sprintf(
+          "ok <- complete.cases(data$%s, data$%s); x <- data$%s[ok]; y <- data$%s[ok]",
+          v[[p[1]]],
+          v[[p[2]]],
+          v[[p[1]]],
+          v[[p[2]]]
+        ),
         sprintf("%s <- ttestBF(x, y, paired = TRUE, %s)", b, args)
       )
     } else {
       body <- c(
         body, sprintf("# %s", ps_comment(items[[k]])),
-        sprintf("ok <- !is.na(data$%s) & !is.na(g); yy <- data$%s[ok]; gg <- droplevels(g[ok]); x <- yy[gg == levels(gg)[1]]; y <- yy[gg == levels(gg)[2]]", v[[items[[k]]]], v[[items[[k]]]]),
+        sprintf(
+          "ok <- !is.na(data$%s) & !is.na(g); yy <- data$%s[ok]; gg <- droplevels(g[ok]); x <- yy[gg == levels(gg)[1]]; y <- yy[gg == levels(gg)[2]]",
+          v[[items[[k]]]],
+          v[[items[[k]]]]
+        ),
         sprintf("%s <- ttestBF(x, y, %s)", b, args)
       )
     }
     body <- c(
       body, sprintf("post%d <- posterior(%s[1], iterations = %d, progress = FALSE)  # the standardised effect delta under H1", k, b, iter),
-      sprintf("delta%d <- quantile(as.numeric(post%d[, \"delta\"]), %s)", k, k, paste0("c(", paste(format(q, digits = 15), collapse = ", "), ")"))
+      sprintf(
+        "delta%d <- quantile(as.numeric(post%d[, \"delta\"]), %s)",
+        k,
+        k,
+        paste0("c(", paste(format(q, digits = 15), collapse = ", "), ")")
+      )
     )
     if (robust) {
       body <- c(body, sprintf("robust%d <- vapply(widths, function(w) bfAt(x, y, w), 0)", k))
@@ -119,12 +140,20 @@ ps_bttest <- function(req_json, export = FALSE) {
           c(
             "idx <- seq_along(yy); first <- max(vapply(levels(gg), function(l) which(gg == l)[2], 0))",
             "steps <- unique(round(seq(first, length(yy), length.out = min(150, length(yy) - first + 1))))",
-            sprintf("seq%d <- vapply(steps, function(n) { s <- yy[1:n]; h <- gg[1:n]; bfAt(s[h == levels(gg)[1]], s[h == levels(gg)[2]], %s) }, 0)", k, format(r, digits = 15))
+            sprintf(
+              "seq%d <- vapply(steps, function(n) { s <- yy[1:n]; h <- gg[1:n]; bfAt(s[h == levels(gg)[1]], s[h == levels(gg)[2]], %s) }, 0)",
+              k,
+              format(r, digits = 15)
+            )
           )
         } else {
           c(
             "steps <- unique(round(seq(2, length(x), length.out = min(150, length(x) - 1))))",
-            sprintf("seq%d <- vapply(steps, function(n) bfAt(x[1:n], if (is.null(y)) NULL else y[1:n], %s), 0)", k, format(r, digits = 15))
+            sprintf(
+              "seq%d <- vapply(steps, function(n) bfAt(x[1:n], if (is.null(y)) NULL else y[1:n], %s), 0)",
+              k,
+              format(r, digits = 15)
+            )
           )
         },
         sprintf("steps%d <- steps", k)
@@ -186,14 +215,21 @@ ps_bcorrelation <- function(req_json, export = FALSE) {
       "bfs <- lapply(pairs, function(p) { ok <- complete.cases(data[[p[1]]], data[[p[2]]]); correlationBF(data[[p[1]]][ok], data[[p[2]]][ok], rscale = %s, nullInterval = %s) })",
       format(kappa, digits = 15), ps_bayes_interval(alt, "1")
     ),
-    sprintf("rho <- lapply(bfs, function(b) quantile(as.numeric(posterior(b[1], iterations = %d, progress = FALSE)[, \"rho\"]), %s))", iter, paste0("c(", paste(format(q, digits = 15), collapse = ", "), ")")),
+    sprintf(
+      "rho <- lapply(bfs, function(b) quantile(as.numeric(posterior(b[1], iterations = %d, progress = FALSE)[, \"rho\"]), %s))",
+      iter,
+      paste0("c(", paste(format(q, digits = 15), collapse = ", "), ")")
+    ),
     "n <- vapply(pairs, function(p) sum(complete.cases(data[[p[1]]], data[[p[2]]])), 0)",
     "r <- vapply(pairs, function(p) cor(data[[p[1]]], data[[p[2]]], use = \"complete.obs\"), 0)",
     if (isTRUE(req$robustness) || isTRUE(req$sequential)) {
       c(
         "# The Bayes factor of x and y for a prior width w: for the robustness check and the sequential analysis.",
         "# (NA where no Bayes factor exists, e.g. the first cases without variance)",
-        sprintf("bfAt <- function(x, y, w) tryCatch({ b <- exp(extractBF(correlationBF(x, y, rscale = w, nullInterval = %s), logbf = TRUE)$bf[1]); if (is.finite(b) && b > 0) b else NA_real_ }, error = function(e) NA_real_)", ps_bayes_interval(alt, "1")),
+        sprintf(
+          "bfAt <- function(x, y, w) tryCatch({ b <- exp(extractBF(correlationBF(x, y, rscale = w, nullInterval = %s), logbf = TRUE)$bf[1]); if (is.finite(b) && b > 0) b else NA_real_ }, error = function(e) NA_real_)",
+          ps_bayes_interval(alt, "1")
+        ),
         "xy <- lapply(pairs, function(p) { ok <- complete.cases(data[[p[1]]], data[[p[2]]]); list(x = data[[p[1]]][ok], y = data[[p[2]]][ok]) })"
       )
     },
@@ -205,7 +241,10 @@ ps_bcorrelation <- function(req_json, export = FALSE) {
     },
     # (the first n cases in row order, from 3; at most 150 steps)
     if (isTRUE(req$sequential)) {
-      sprintf("sequential <- lapply(xy, function(d) { steps <- unique(round(seq(3, length(d$x), length.out = min(150, length(d$x) - 2)))); list(n = steps, bf10 = vapply(steps, function(n) bfAt(d$x[1:n], d$y[1:n], %s), 0)) })", format(kappa, digits = 15))
+      sprintf(
+        "sequential <- lapply(xy, function(d) { steps <- unique(round(seq(3, length(d$x), length.out = min(150, length(d$x) - 2)))); list(n = steps, bf10 = vapply(steps, function(n) bfAt(d$x[1:n], d$y[1:n], %s), 0)) })",
+        format(kappa, digits = 15)
+      )
     }
   )
   inputs <- list(data = fr$data)
@@ -259,7 +298,11 @@ ps_bbinomial <- function(req_json, export = FALSE) {
       less = "logBF <- function(k) lbeta(k + a, n - k + b) - lbeta(a, b) + pbeta(p0, k + a, n - k + b, log.p = TRUE) - pbeta(p0, a, b, log.p = TRUE) - (k * log(p0) + (n - k) * log1p(-p0))"
     ),
     "bf10 <- exp(vapply(as.numeric(counts), logBF, 0))",
-    sprintf("cri <- t(vapply(as.numeric(counts), function(k) qbeta(c(%s, 0.5, %s), k + a, n - k + b), numeric(3)))  # posterior (beta) median and central interval, unrestricted", format((1 - conf) / 2, digits = 15), format(1 - (1 - conf) / 2, digits = 15))
+    sprintf(
+      "cri <- t(vapply(as.numeric(counts), function(k) qbeta(c(%s, 0.5, %s), k + a, n - k + b), numeric(3)))  # posterior (beta) median and central interval, unrestricted",
+      format((1 - conf) / 2, digits = 15),
+      format(1 - (1 - conf) / 2, digits = 15)
+    )
   )
   inputs <- list(data = fr$data)
   if (export) {
@@ -269,7 +312,10 @@ ps_bbinomial <- function(req_json, export = FALSE) {
   ct <- env$counts
   ps_json(list(
     variable = x, levels = names(ct), counts = unname(as.numeric(ct)), n = sum(ct), alternative = alt, testValue = p0, priorA = a, priorB = b, confidence = conf,
-    rows = lapply(seq_along(ct), function(i) list(bf10 = env$bf10[i], median = env$cri[i, 2], low = env$cri[i, 1], high = env$cri[i, 3])),
+    rows = lapply(
+      seq_along(ct),
+      function(i) list(bf10 = env$bf10[i], median = env$cri[i, 2], low = env$cri[i, 1], high = env$cri[i, 3])
+    ),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
   ))
 }
@@ -296,7 +342,11 @@ ps_bbinomial_logistic <- function(req, fr, x, alt, conf, p0, export) {
     sprintf("data <- data[!is.na(data$%s), , drop = FALSE]", v[[x]]), ps_bt_factor_line(req, fr, x), sprintf("counts <- table(data$%s); n <- sum(counts)", v[[x]]),
     sprintf("p0 <- %s", format(p0, digits = 15)),
     "# Each category against the rest: logistic prior on the log odds under H1 (restricted to the alternative's side).",
-    sprintf("bfs <- lapply(as.numeric(counts), function(k) proportionBF(y = k, N = n, p = p0, rscale = %s, nullInterval = %s))", format(r, digits = 15), ni),
+    sprintf(
+      "bfs <- lapply(as.numeric(counts), function(k) proportionBF(y = k, N = n, p = p0, rscale = %s, nullInterval = %s))",
+      format(r, digits = 15),
+      ni
+    ),
     "bf10 <- exp(vapply(bfs, function(b) extractBF(b, logbf = TRUE)$bf[1], 0))",
     sprintf(
       "cri <- t(vapply(bfs, function(b) quantile(as.numeric(suppressMessages(posterior(b[1], iterations = %d, progress = FALSE))[, \"p\"]), c(%s, 0.5, %s)), numeric(3)))  # posterior median and central interval of the proportion",
@@ -312,7 +362,10 @@ ps_bbinomial_logistic <- function(req, fr, x, alt, conf, p0, export) {
   ps_json(list(
     variable = x, levels = names(ct), counts = unname(as.numeric(ct)), n = sum(ct), alternative = alt, testValue = p0, prior = "logistic", priorScale = r,
     seed = seed, iterations = iter, confidence = conf,
-    rows = lapply(seq_along(ct), function(i) list(bf10 = env$bf10[i], error = BayesFactor::extractBF(env$bfs[[i]])$error[1], median = unname(env$cri[i, 2]), low = unname(env$cri[i, 1]), high = unname(env$cri[i, 3]))),
+    rows = lapply(
+      seq_along(ct),
+      function(i) list(bf10 = env$bf10[i], error = BayesFactor::extractBF(env$bfs[[i]])$error[1], median = unname(env$cri[i, 2]), low = unname(env$cri[i, 1]), high = unname(env$cri[i, 3]))
+    ),
     warnings = env$.warnings, engine = ps_engine("BayesFactor")
   ))
 }
@@ -343,7 +396,12 @@ ps_bayes_models <- function(names, lbf, errors, back, prior = NULL, terms_of = f
   incl <- lapply(effects, function(t) {
     has <- vapply(terms, function(x) t %in% x, TRUE)
     pi <- sum(prior[has])
-    list(effect = back(t), priorInclusion = pi, posteriorInclusion = sum(post[has]), bfInclusion = exp(lse(lp[has]) - lse(lp[!has]) - log(pi / (1 - pi))))
+    list(
+      effect = back(t),
+      priorInclusion = pi,
+      posteriorInclusion = sum(post[has]),
+      bfInclusion = exp(lse(lp[has]) - lse(lp[!has]) - log(pi / (1 - pi)))
+    )
   })
   list(models = models, effects = incl)
 }
@@ -376,7 +434,13 @@ ps_banova <- function(req_json, export = FALSE) {
   rhs <- if (withCov) {
     paste(vapply(c(fac, cov), function(n) v[[n]], ""), collapse = " * ")
   } else {
-    paste(c(paste(vapply(fac, function(n) v[[n]], ""), collapse = if (full) " * " else " + "), vapply(cov, function(n) v[[n]], "")), collapse = " + ")
+    paste(
+      c(
+        paste(vapply(fac, function(n) v[[n]], ""), collapse = if (full) " * " else " + "),
+        vapply(cov, function(n) v[[n]], "")
+      ),
+      collapse = " + "
+    )
   }
   body <- c(
     "suppressPackageStartupMessages(library(BayesFactor))", sprintf("set.seed(%d)", seed),
@@ -510,7 +574,11 @@ ps_brmanova <- function(req_json, export = FALSE) {
       "bf <- generalTestBF(y ~ %s%s + subject, data = long, whichRandom = \"subject\", whichModels = \"withmain\", neverExclude = \"^subject$\", rscaleFixed = %s, rscaleRandom = %s, iterations = %d, progress = FALSE)",
       fname, if (bt) sprintf(" * %s", v[[between]]) else "", format(rf, digits = 15), format(rr, digits = 15), iter
     ),
-    sprintf("null <- lmBF(y ~ subject, data = long, whichRandom = \"subject\", rscaleRandom = %s, iterations = %d, progress = FALSE)", format(rr, digits = 15), iter),
+    sprintf(
+      "null <- lmBF(y ~ subject, data = long, whichRandom = \"subject\", rscaleRandom = %s, iterations = %d, progress = FALSE)",
+      format(rr, digits = 15),
+      iter
+    ),
     "rel <- bf / null"
   )
   inputs <- list(data = fr$data)
@@ -525,7 +593,12 @@ ps_brmanova <- function(req_json, export = FALSE) {
   names_ <- c("Null model (subjects)", vapply(rownames(e)[keep], function(m) paste(strip(m), collapse = " + "), ""))
   back <- function(t) ps_back_term(trimws(t), fr$back)
   # (errors of the two Bayes factors combine as proportional errors do)
-  mc <- ps_bayes_models(names_, c(0, e$bf[keep] - e0$bf[1]), c(e0$error[1], sqrt(e$error[keep]^2 + e0$error[1]^2)), back)
+  mc <- ps_bayes_models(
+    names_,
+    c(0, e$bf[keep] - e0$bf[1]),
+    c(e0$error[1], sqrt(e$error[keep]^2 + e0$error[1]^2)),
+    back
+  )
   ps_json(list(
     factorName = if (is.null(design)) fname else paste(design$names, collapse = " \u00d7 "), levels = within, between = between, n = nrow(env$Y),
     factors = if (!is.null(design)) lapply(seq_along(design$names), function(i) list(name = design$names[i], levels = I(design$levels[[i]]))), priorFixed = rf, priorRandom = rr, seed = seed, iterations = iter,
@@ -561,10 +634,17 @@ ps_bregression <- function(req_json, export = FALSE) {
   body <- c(
     "suppressPackageStartupMessages(library(BayesFactor))", sprintf("set.seed(%d)", seed),
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(y, preds)])))),
-    sprintf("bf <- regressionBF(%s, data = data, whichModels = \"all\", rscaleCont = %s, progress = FALSE)", fml, format(r, digits = 15)),
+    sprintf(
+      "bf <- regressionBF(%s, data = data, whichModels = \"all\", rscaleCont = %s, progress = FALSE)",
+      fml,
+      format(r, digits = 15)
+    ),
     "# The most probable model (under the model prior below) and its coefficients' posterior.",
     "lbf <- c(0, extractBF(bf, logbf = TRUE)$bf); sizes <- c(0, vapply(strsplit(rownames(extractBF(bf)), \"+\", fixed = TRUE), length, 0))",
-    sprintf("prior <- %s", if (mp == "uniform") "rep(1 / length(lbf), length(lbf))" else sprintf("1 / ((%d + 1) * choose(%d, sizes))  # beta-binomial(1, 1): each model size equally likely", length(preds), length(preds))),
+    sprintf(
+      "prior <- %s",
+      if (mp == "uniform") "rep(1 / length(lbf), length(lbf))" else sprintf("1 / ((%d + 1) * choose(%d, sizes))  # beta-binomial(1, 1): each model size equally likely", length(preds), length(preds))
+    ),
     "best <- which.max(lbf + log(prior))",
     sprintf("post <- if (best > 1) posterior(bf[best - 1], iterations = %d, progress = FALSE)", iter)
   )
@@ -577,14 +657,27 @@ ps_bregression <- function(req_json, export = FALSE) {
   back <- function(t) ps_back(trimws(t), fr$back)
   mc <- ps_bayes_models(c("Null model", rownames(e)), c(0, e$bf), c(0, e$error), back, prior = env$prior)
   # R2 of each model (lm), for reading the comparison.
-  r2 <- c(0, vapply(rownames(e), function(m) summary(stats::lm(stats::as.formula(paste(v[[y]], "~", m)), data = env$data))$r.squared, 0))
+  r2 <- c(
+    0,
+    vapply(
+      rownames(e),
+      function(m) summary(stats::lm(stats::as.formula(paste(v[[y]], "~", m)), data = env$data))$r.squared,
+      0
+    )
+  )
   for (i in seq_along(mc$models)) mc$models[[i]]$r2 <- r2[i]
   coefs <- if (!is.null(env$post)) {
     pm <- as.matrix(env$post)
     keep <- colnames(pm) %in% unname(unlist(v[preds]))
     lapply(colnames(pm)[keep], function(cn) {
       x <- pm[, cn]
-      list(term = back(cn), mean = mean(x), sd = stats::sd(x), low = unname(stats::quantile(x, q[1])), high = unname(stats::quantile(x, q[2])))
+      list(
+        term = back(cn),
+        mean = mean(x),
+        sd = stats::sd(x),
+        low = unname(stats::quantile(x, q[1])),
+        high = unname(stats::quantile(x, q[2]))
+      )
     })
   } else {
     list()
@@ -661,10 +754,19 @@ ps_bsem <- function(req_json, export = FALSE) {
   # structure, and the diagram's own residual covariances (auto.cov.y = FALSE). (Written by ps_cb_build from
   # validated names: group and ordered are syntactic names, the rest fixed words.)
   carried <- function(arg) {
-    m <- regmatches(b$call, regexpr(sprintf(", %s = (c\\([^()]*\\)|\"[A-Za-z0-9_.]*\"|TRUE|FALSE)", gsub(".", "\\.", arg, fixed = TRUE)), b$call))
+    m <- regmatches(
+      b$call,
+      regexpr(
+        sprintf(", %s = (c\\([^()]*\\)|\"[A-Za-z0-9_.]*\"|TRUE|FALSE)", gsub(".", "\\.", arg, fixed = TRUE)),
+        b$call
+      )
+    )
     if (length(m)) m else ""
   }
-  args <- paste0(vapply(c("group", "group.equal", "group.partial", "ordered", "meanstructure", "auto.cov.y"), carried, ""), collapse = "")
+  args <- paste0(
+    vapply(c("group", "group.equal", "group.partial", "ordered", "meanstructure", "auto.cov.y"), carried, ""),
+    collapse = ""
+  )
   ordered <- unname(b$n$iv[intersect(unlist(req$model$ordered), b$n$all_inds)])
   n_groups <- if (!is.null(b$group_var)) {
     length(unique(b$inputs$data[[b$group_var]][is.finite(b$inputs$data[[b$group_var]])]))
@@ -680,7 +782,14 @@ ps_bsem <- function(req_json, export = FALSE) {
     m <- ps_number(p$mean, "prior mean")
     v <- ps_number(p$variance, "prior variance")
     if (v <= 0) stop("A prior variance must be positive.")
-    sprintf("pt$prior[pt$label %%in%% %s] <- \"normal(%s,%s)\"   # Mplus N(%s, %s)", ps_q(labs), format(m, digits = 15), format(sqrt(v), digits = 15), format(m, digits = 15), format(v, digits = 15))
+    sprintf(
+      "pt$prior[pt$label %%in%% %s] <- \"normal(%s,%s)\"   # Mplus N(%s, %s)",
+      ps_q(labs),
+      format(m, digits = 15),
+      format(sqrt(v), digits = 15),
+      format(m, digits = 15),
+      format(v, digits = 15)
+    )
   }))
   # Approximate invariance (blavaan's wiggle): parameters held equal across groups become approximately equal.
   wg <- req$wiggle
@@ -722,7 +831,12 @@ ps_bsem <- function(req_json, export = FALSE) {
     stop("Priors on labelled parameters cannot be combined with approximate invariance (blavaan's wiggle) here.")
   }
   via_pt <- (mplus || length(lp_lines) > 0) && !length(wiggle)
-  pre_args <- sprintf("%s%s, std.lv = %s", args, if (isTRUE(b$means) && !grepl("meanstructure", args)) ", meanstructure = TRUE" else "", if (ident == "unit") "TRUE" else "FALSE")
+  pre_args <- sprintf(
+    "%s%s, std.lv = %s",
+    args,
+    if (isTRUE(b$means) && !grepl("meanstructure", args)) ", meanstructure = TRUE" else "",
+    if (ident == "unit") "TRUE" else "FALSE"
+  )
   q <- c((1 - conf) / 2, 1 - (1 - conf) / 2)
   if (!is.null(req$defaultPriors) && !inla) {
     stop("Default priors by parameter type are set here for INLAvaan only.")
@@ -771,18 +885,32 @@ ps_bsem <- function(req_json, export = FALSE) {
         )
       )
     },
-    sprintf("# MCMC by Stan%s: %d chains, %d burn-in and %d draws each%s.", if (mplus) " (Mplus's default priors)" else if (via_pt) "" else " (blavaan's default priors)", chains, burnin, sample, if (ident == "unit") "; factors with unit variances (std.lv)" else ""),
+    sprintf(
+      "# MCMC by Stan%s: %d chains, %d burn-in and %d draws each%s.",
+      if (mplus) " (Mplus's default priors)" else if (via_pt) "" else " (blavaan's default priors)",
+      chains,
+      burnin,
+      sample,
+      if (ident == "unit") "; factors with unit variances (std.lv)" else ""
+    ),
     if (length(wiggle)) sprintf("# Approximate invariance (%s): groups 2..%d centred on group 1 with SD %s, Mplus DIFF priors of variance %s.", paste(wiggle, collapse = ", "), n_groups, format(signif(wsd, 4)), format(ps_number(wg$variance))),
     if (via_pt) {
       c(
-        sprintf("pt <- parTable(bsem(model, data = data%s%s, do.fit = FALSE))", pre_args, if (mplus) ", dp = dp" else ""),
+        sprintf(
+          "pt <- parTable(bsem(model, data = data%s%s, do.fit = FALSE))",
+          pre_args,
+          if (mplus) ", dp = dp" else ""
+        ),
         if (mplus) {
           c(
             "free <- pt$free > 0",
             "cv <- free & pt$op == \"~~\" & pt$lhs != pt$rhs",
             "for (i in which(free & pt$op == \"~~\" & pt$lhs == pt$rhs)) pt$prior[i] <- sprintf(\"gamma(%s,1e-4)[var]\", 1 + sum(cv & pt$group == pt$group[i] & (pt$lhs == pt$lhs[i] | pt$rhs == pt$lhs[i])) / 2)",
             if (length(ordered)) {
-              sprintf("pt$prior[free & pt$op == \"=~\" & pt$rhs %%in%% %s] <- \"normal(0,2.2360680)\"   # Mplus N(0, 5)", ps_q(ordered))
+              sprintf(
+                "pt$prior[free & pt$op == \"=~\" & pt$rhs %%in%% %s] <- \"normal(0,2.2360680)\"   # Mplus N(0, 5)",
+                ps_q(ordered)
+              )
             }
           )
         },
@@ -799,15 +927,35 @@ ps_bsem <- function(req_json, export = FALSE) {
     "fm <- tryCatch(blavaan:::blav_fit_measures(fit), error = function(e) NULL)",
     if (!is.null(loop)) {
       c(
-        sprintf("# %s = %s over %s from %s to %s by %s (Mplus MODEL CONSTRAINT: LOOP), from the draws of the labelled parameters", lname, lexpr, lvar, format(from), format(to), format(by)),
+        sprintf(
+          "# %s = %s over %s from %s to %s by %s (Mplus MODEL CONSTRAINT: LOOP), from the draws of the labelled parameters",
+          lname,
+          lexpr,
+          lvar,
+          format(from),
+          format(to),
+          format(by)
+        ),
         sprintf("loop_at <- function(%s) with(as.data.frame(draws), %s)", lvar, lexpr),
-        sprintf("loop_x <- seq(%s, %s, by = %s)", format(from, digits = 15), format(to, digits = 15), format(by, digits = 15)),
-        sprintf("loop <- t(vapply(loop_x, function(v) { d <- loop_at(v); c(median = stats::median(d), mean = mean(d), sd = stats::sd(d), stats::quantile(d, %s)) }, numeric(5)))", ps_num_vec(q))
+        sprintf(
+          "loop_x <- seq(%s, %s, by = %s)",
+          format(from, digits = 15),
+          format(to, digits = 15),
+          format(by, digits = 15)
+        ),
+        sprintf(
+          "loop <- t(vapply(loop_x, function(v) { d <- loop_at(v); c(median = stats::median(d), mean = mean(d), sd = stats::sd(d), stats::quantile(d, %s)) }, numeric(5)))",
+          ps_num_vec(q)
+        )
       )
     },
     if (npv > 0) {
       c(
-        sprintf("# Plausible values: %d draws of every case's factor scores, evenly spaced over the saved draws (Mplus FSCORES(%d))", npv, npv),
+        sprintf(
+          "# Plausible values: %d draws of every case's factor scores, evenly spaced over the saved draws (Mplus FSCORES(%d))",
+          npv,
+          npv
+        ),
         "lv <- blavPredict(fit, type = \"lv\")",
         "# (blavaan 0.6's draws of a factor explained by other factors lack the part of its mean that comes from theirs, e.g.",
         "#  a growth model's occasion factors the slope's mean: it is added back, at the posterior means of the parameters)",
@@ -856,7 +1004,10 @@ ps_bsem <- function(req_json, export = FALSE) {
       )
     )
   })
-  defined <- lapply(seq_len(nrow(defs)), function(k) c(list(name = defs$lhs[k], expr = defs$rhs[k]), summ(d[, nrow(rows) + k])))
+  defined <- lapply(
+    seq_len(nrow(defs)),
+    function(k) c(list(name = defs$lhs[k], expr = defs$rhs[k]), summ(d[, nrow(rows) + k]))
+  )
   fm <- env$fm
   fmv <- function(k) if (!is.null(fm) && k %in% names(fm)) unname(as.numeric(fm[[k]])) else NULL
   rh <- env$rhat[is.finite(env$rhat)]
@@ -868,7 +1019,16 @@ ps_bsem <- function(req_json, export = FALSE) {
     identification = ident, chains = chains, burnin = burnin, sample = sample, seed = seed, confidence = conf, n = sum(lavaan::lavInspect(env$fit, "nobs")),
     priors = priors, groups = if (n_groups > 1) I(glab) else NULL, wiggleSd = wsd,
     parameters = pars, defined = defined, maxRhat = maxr, minNeff = min(env$neff, na.rm = TRUE), converged = is.finite(maxr) && maxr < 1.05,
-    fit = list(ppp = fmv("ppp"), dic = fmv("dic"), pDic = fmv("p_dic"), waic = fmv("waic"), looic = fmv("looic"), seLooic = fmv("se_loo"), margLogLik = fmv("margloglik"), bic = fmv("bic")),
+    fit = list(
+      ppp = fmv("ppp"),
+      dic = fmv("dic"),
+      pDic = fmv("p_dic"),
+      waic = fmv("waic"),
+      looic = fmv("looic"),
+      seLooic = fmv("se_loo"),
+      margLogLik = fmv("margloglik"),
+      bic = fmv("bic")
+    ),
     loop = loop_out, plausible = pv_out,
     warnings = env$.warnings, engine = ps_engine("blavaan")
   ))
@@ -879,7 +1039,11 @@ ps_bsem_loop_check <- function(b, at, close, lexpr, lvar) {
   labs <- unique(c(
     unlist(regmatches(model_lines, gregexpr("[A-Za-z][A-Za-z0-9_]*(?=\\*)", model_lines, perl = TRUE))),
     # (no variable-length lookbehind: webR's PCRE2 has none)
-    sub("^[(,] ?", "", unlist(regmatches(model_lines, gregexpr("[(,] ?[A-Za-z][A-Za-z0-9_]*(?=[,)])", model_lines, perl = TRUE)))),
+    sub(
+      "^[(,] ?",
+      "",
+      unlist(regmatches(model_lines, gregexpr("[(,] ?[A-Za-z][A-Za-z0-9_]*(?=[,)])", model_lines, perl = TRUE)))
+    ),
     sub(" :=.*$", "", trimws(grep(":=", model_lines, value = TRUE, fixed = TRUE)))
   ))
   bad <- setdiff(all.vars(parse(text = lexpr)), c(lvar, labs))
@@ -925,7 +1089,16 @@ ps_inla_prior <- function(x, family) {
   }
   sprintf("%s(%s,%s)%s", family, format(a, digits = 15), format(b, digits = 15), m[5])
 }
-PS_INLA_FAMILY <- c(nu = "normal", alpha = "normal", lambda = "normal", beta = "normal", tau = "normal", theta = "gamma", psi = "gamma", rho = "beta")
+PS_INLA_FAMILY <- c(
+  nu = "normal",
+  alpha = "normal",
+  lambda = "normal",
+  beta = "normal",
+  tau = "normal",
+  theta = "gamma",
+  psi = "gamma",
+  rho = "beta"
+)
 
 #' Bayesian SEM by INLAvaan (Jamil & Rue): the model of ps_bsem fitted by approximate Bayesian inference (the
 #' posterior mode, a Laplace approximation with a variational-Bayes correction of the mean, skew-normal marginals),
@@ -973,7 +1146,10 @@ ps_bsem_inla <- function(s, export) {
         "# Mplus's default priors: N(0, 1000^2) for loadings, regressions, intercepts and means (Mplus: flat); N(0, 5) for the",
         "# loadings and thresholds of ordinal indicators; a variance with k free covariances gets Gamma(1 + k/2, 1e-4) on the",
         "# variance with uniform correlations, flat on the covariance matrix for k = 1 as Mplus's IW(0, -p-1) (as for blavaan).",
-        sprintf("dp <- priors_for(nu = \"normal(0,1000)\", alpha = \"normal(0,1000)\", lambda = \"normal(0,1000)\", beta = \"normal(0,1000)\"%s)", if (length(ordered)) ", tau = \"normal(0,2.2360680)\"" else "")
+        sprintf(
+          "dp <- priors_for(nu = \"normal(0,1000)\", alpha = \"normal(0,1000)\", lambda = \"normal(0,1000)\", beta = \"normal(0,1000)\"%s)",
+          if (length(ordered)) ", tau = \"normal(0,2.2360680)\"" else ""
+        )
       )
     } else if (length(dp_args)) {
       c(
@@ -981,9 +1157,15 @@ ps_bsem_inla <- function(s, export) {
         sprintf("dp <- priors_for(%s)", paste(sprintf("%s = \"%s\"", names(dp_args), dp_args), collapse = ", "))
       )
     } else {
-      c("# INLAvaan's default priors (blavaan's): N(0, 10) for loadings and regressions, N(0, 32) for intercepts, Gamma(1, 0.5) on the SDs, uniform correlations", "dp <- priors_for()")
+      c(
+        "# INLAvaan's default priors (blavaan's): N(0, 10) for loadings and regressions, N(0, 32) for intercepts, Gamma(1, 0.5) on the SDs, uniform correlations",
+        "dp <- priors_for()"
+      )
     },
-    sprintf("# Approximate Bayesian inference by INLAvaan (Laplace approximation at the posterior mode, VB-corrected mean, skew-normal marginals)%s;", if (s$ident == "unit") ", factors with unit variances (std.lv)" else ""),
+    sprintf(
+      "# Approximate Bayesian inference by INLAvaan (Laplace approximation at the posterior mode, VB-corrected mean, skew-normal marginals)%s;",
+      if (s$ident == "unit") ", factors with unit variances (std.lv)" else ""
+    ),
     sprintf("# %d posterior draws for PPP, DIC and the defined parameters.", nsamp),
     if (via_pt) {
       c(
@@ -996,7 +1178,10 @@ ps_bsem_inla <- function(s, export) {
             "cv <- free & pt$op == \"~~\" & pt$lhs != pt$rhs",
             "for (i in which(free & pt$op == \"~~\" & pt$lhs == pt$rhs)) pt$prior[i] <- sprintf(\"gamma(%s,1e-4)\", 1 + sum(cv & pt$group == pt$group[i] & (pt$lhs == pt$lhs[i] | pt$rhs == pt$lhs[i])) / 2)",
             if (length(ordered)) {
-              sprintf("pt$prior[free & pt$op == \"=~\" & pt$rhs %%in%% %s] <- \"normal(0,2.2360680)\"   # Mplus N(0, 5)", ps_q(ordered))
+              sprintf(
+                "pt$prior[free & pt$op == \"=~\" & pt$rhs %%in%% %s] <- \"normal(0,2.2360680)\"   # Mplus N(0, 5)",
+                ps_q(ordered)
+              )
             }
           )
         },
@@ -1017,21 +1202,44 @@ ps_bsem_inla <- function(s, export) {
     if (!marg || !is.null(loop)) {
       c(
         sprintf("set.seed(%d)", seed),
-        sprintf("draws <- as.data.frame(sampling(fit, nsamp = %d))   # posterior draws of the free parameters (a labelled one by its label)", nsamp),
+        sprintf(
+          "draws <- as.data.frame(sampling(fit, nsamp = %d))   # posterior draws of the free parameters (a labelled one by its label)",
+          nsamp
+        ),
         "for (k in which(pt$op == \":=\")) draws[[pt$lhs[k]]] <- eval(parse(text = pt$rhs[k]), draws)   # the defined parameters, draw by draw"
       )
     },
     if (!is.null(loop)) {
       c(
-        sprintf("# %s = %s over %s from %s to %s by %s (Mplus MODEL CONSTRAINT: LOOP), from the posterior draws", loop$name, loop$expr, loop$variable, format(loop$from), format(loop$to), format(loop$by)),
+        sprintf(
+          "# %s = %s over %s from %s to %s by %s (Mplus MODEL CONSTRAINT: LOOP), from the posterior draws",
+          loop$name,
+          loop$expr,
+          loop$variable,
+          format(loop$from),
+          format(loop$to),
+          format(loop$by)
+        ),
         sprintf("loop_at <- function(%s) with(draws, %s)", loop$variable, loop$expr),
-        sprintf("loop_x <- seq(%s, %s, by = %s)", format(loop$from, digits = 15), format(loop$to, digits = 15), format(loop$by, digits = 15)),
-        sprintf("loop <- t(vapply(loop_x, function(v) { d <- loop_at(v); c(median = stats::median(d), mean = mean(d), sd = stats::sd(d), stats::quantile(d, %s)) }, numeric(5)))", ps_num_vec(q))
+        sprintf(
+          "loop_x <- seq(%s, %s, by = %s)",
+          format(loop$from, digits = 15),
+          format(loop$to, digits = 15),
+          format(loop$by, digits = 15)
+        ),
+        sprintf(
+          "loop <- t(vapply(loop_x, function(v) { d <- loop_at(v); c(median = stats::median(d), mean = mean(d), sd = stats::sd(d), stats::quantile(d, %s)) }, numeric(5)))",
+          ps_num_vec(q)
+        )
       )
     },
     if (npv > 0) {
       c(
-        sprintf("# Plausible values: %d draws of every case's factor scores from their posterior (Mplus FSCORES(%d))", npv, npv),
+        sprintf(
+          "# Plausible values: %d draws of every case's factor scores from their posterior (Mplus FSCORES(%d))",
+          npv,
+          npv
+        ),
         sprintf("set.seed(%d)", seed), sprintf("pv <- predict(fit, nsamp = %d)", npv)
       )
     }
@@ -1079,7 +1287,10 @@ ps_bsem_inla <- function(s, export) {
       )
     )
   })
-  defined <- lapply(seq_len(nrow(defs)), function(j) c(list(name = defs$lhs[j], expr = defs$rhs[j]), summ(nfree + j, defs$lhs[j])))
+  defined <- lapply(
+    seq_len(nrow(defs)),
+    function(j) c(list(name = defs$lhs[j], expr = defs$rhs[j]), summ(nfree + j, defs$lhs[j]))
+  )
   fm <- env$fm
   dg <- env$dg
   fmv <- function(k) if (k %in% names(fm)) fin(fm[[k]]) else NULL

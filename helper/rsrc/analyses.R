@@ -53,8 +53,15 @@ ps_ipma <- function(req_json, export = FALSE) {
   resc <- if (isTRUE(io$rescale)) {
     c(
       "# Rescale every indicator to 0-100 (Ringle & Sarstedt 2016) before estimating.",
-      sprintf("lo <- %s; hi <- %s", if (is.null(io$min)) "NULL" else format(ps_number(io$min, "scale minimum")), if (is.null(io$max)) "NULL" else format(ps_number(io$max, "scale maximum"))),
-      sprintf("for (v in %s) { a <- if (is.null(lo)) min(data[[v]]) else lo; z <- if (is.null(hi)) max(data[[v]]) else hi; data[[v]] <- (data[[v]] - a) / (z - a) * 100 }", ps_q(vars))
+      sprintf(
+        "lo <- %s; hi <- %s",
+        if (is.null(io$min)) "NULL" else format(ps_number(io$min, "scale minimum")),
+        if (is.null(io$max)) "NULL" else format(ps_number(io$max, "scale maximum"))
+      ),
+      sprintf(
+        "for (v in %s) { a <- if (is.null(lo)) min(data[[v]]) else lo; z <- if (is.null(hi)) max(data[[v]]) else hi; data[[v]] <- (data[[v]] - a) / (z - a) * 100 }",
+        ps_q(vars)
+      )
     )
   }
   fitline <- length(b$body)
@@ -62,7 +69,12 @@ ps_ipma <- function(req_json, export = FALSE) {
   if (export) {
     return(ps_script(
       sprintf("Importance-performance map analysis for %s (cSEM)", io$target), "cSEM", b$inputs, body,
-      c(sprintf("ipma$Construct$Importance[\"%s\", ]", tl), "ipma$Construct$Performance", sprintf("ipma$Indicator$Importance[\"%s\", ]", tl), "ipma$Indicator$Performance")
+      c(
+        sprintf("ipma$Construct$Importance[\"%s\", ]", tl),
+        "ipma$Construct$Performance",
+        sprintf("ipma$Indicator$Importance[\"%s\", ]", tl),
+        "ipma$Indicator$Performance"
+      )
     ))
   }
   env <- ps_run(body, b$inputs)
@@ -73,7 +85,10 @@ ps_ipma <- function(req_json, export = FALSE) {
   owner <- vapply(vars, function(v) b$cv[which(vapply(b$n$inds, function(x) inm[[v]] %in% x, TRUE))[1]], "")
   ps_json(list(
     target = io$target, targetPerformance = unname(ip$Construct$Performance[[tl]]),
-    constructs = lapply(setdiff(colnames(ip$Construct$Importance), tl), function(k) list(name = cn[[k]], importance = ip$Construct$Importance[tl, k], performance = unname(ip$Construct$Performance[[k]]))),
+    constructs = lapply(
+      setdiff(colnames(ip$Construct$Importance), tl),
+      function(k) list(name = cn[[k]], importance = ip$Construct$Importance[tl, k], performance = unname(ip$Construct$Performance[[k]]))
+    ),
     indicators = lapply(colnames(ip$Indicator$Importance), function(v) {
       list(
         name = inm[[v]], construct = cn[[owner[[v]]]], weight = W[owner[[v]], v],
@@ -163,7 +178,16 @@ ps_miiv <- function(req_json, export = FALSE) {
     } else {
       numeric(0)
     }
-    list(lhs = if (op == "~") nmc(lhs) else nm(lhs), op = op, rhs = if (op == "~") nmc(rhs) else nm(rhs), est = r$est, se = r$se, z = r$z, p = r$pvalue, std = if (length(s)) s[1] else NULL)
+    list(
+      lhs = if (op == "~") nmc(lhs) else nm(lhs),
+      op = op,
+      rhs = if (op == "~") nmc(rhs) else nm(rhs),
+      est = r$est,
+      se = r$se,
+      z = r$z,
+      p = r$pvalue,
+      std = if (length(s)) s[1] else NULL
+    )
   }
   lv <- unname(b$lname[constructs])
   eqs <- lapply(fit$eqn, function(e) {

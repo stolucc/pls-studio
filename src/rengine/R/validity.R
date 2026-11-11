@@ -68,7 +68,13 @@ ps_cmb <- function(req_json, export = FALSE) {
       loadings = lapply(seq_along(vars), function(i) list(variable = vars[i], loading = ld[i]))
     )
   } else {
-    list(rows = lapply(seq_along(vars), function(i) list(variable = vars[i], vif = unname(env$vif[i]), r2 = unname(env$r2[i]))), maxVif = max(env$vif))
+    list(
+      rows = lapply(
+        seq_along(vars),
+        function(i) list(variable = vars[i], vif = unname(env$vif[i]), r2 = unname(env$r2[i]))
+      ),
+      maxVif = max(env$vif)
+    )
   }
   ps_json(c(list(type = type, vars = I(vars), n = n), out, list(
     warnings = env$.warnings,
@@ -96,7 +102,11 @@ ps_cvi <- function(req_json, export = FALSE) {
   body <- c(
     sprintf("X <- data[, %s, drop = FALSE]  # one row per item, one column per expert", ps_q(v)),
     "X <- X[rowSums(!is.na(X)) > 0, , drop = FALSE]  # (items nobody rated are dropped)",
-    sprintf("rel <- X >= %s  # relevant: rated %s or higher", format(threshold, digits = 15), format(threshold, digits = 15)),
+    sprintf(
+      "rel <- X >= %s  # relevant: rated %s or higher",
+      format(threshold, digits = 15),
+      format(threshold, digits = 15)
+    ),
     "N <- rowSums(!is.na(rel))  # experts who rated the item",
     "A <- rowSums(rel, na.rm = TRUE)  # experts who found it relevant",
     "icvi <- A / N  # item-level CVI (Lynn 1986)",
@@ -125,9 +135,15 @@ ps_cvi <- function(req_json, export = FALSE) {
   }
   ps_json(list(
     experts = I(experts), threshold = threshold, nItems = nrow(env$X),
-    items = lapply(seq_len(nrow(env$X)), function(i) list(item = labels[i], n = unname(env$N[i]), agree = unname(env$A[i]), icvi = unname(env$icvi[i]), pc = unname(env$pc[i]), kappa = unname(env$kappa[i]))),
+    items = lapply(
+      seq_len(nrow(env$X)),
+      function(i) list(item = labels[i], n = unname(env$N[i]), agree = unname(env$A[i]), icvi = unname(env$icvi[i]), pc = unname(env$pc[i]), kappa = unname(env$kappa[i]))
+    ),
     scviAve = env$scviAve, scviUA = env$scviUA,
-    expertProportions = lapply(seq_along(experts), function(j) list(expert = experts[j], proportion = unname(env$expertProportion[j]), rated = sum(!is.na(env$X[[j]])))),
+    expertProportions = lapply(
+      seq_along(experts),
+      function(j) list(expert = experts[j], proportion = unname(env$expertProportion[j]), rated = sum(!is.na(env$X[[j]])))
+    ),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
   ))
 }

@@ -121,7 +121,10 @@ ps_dsem_spec <- function(req) {
       lag = ps_dsem_int(t$lag %||% 0, 0, 2, "lag"), load = isTRUE(t$load), c = coef(t$c, "coefficient")
     )
   })
-  wblocks <- lapply(s$wblocks, function(b) list(members = vapply(b$members, function(m) ps_dsem_int(m, 0, nn - 1, "block member") + 1L, 1L), c = coef(b$c, "block")))
+  wblocks <- lapply(
+    s$wblocks,
+    function(b) list(members = vapply(b$members, function(m) ps_dsem_int(m, 0, nn - 1, "block member") + 1L, 1L), c = coef(b$c, "block"))
+  )
   bt <- lapply(s$btargets, function(t) {
     k <- t$kind
     if (!(is.character(k) && length(k) == 1 && k %in% c("re", "bf", "z"))) {
@@ -151,9 +154,15 @@ ps_dsem_spec <- function(req) {
     }
     out
   })
-  bblocks <- lapply(s$bblocks, function(b) list(members = vapply(b$members, function(m) ps_dsem_int(m, 0, nb - 1, "block member") + 1L, 1L), c = coef(b$c, "block")))
+  bblocks <- lapply(
+    s$bblocks,
+    function(b) list(members = vapply(b$members, function(m) ps_dsem_int(m, 0, nb - 1, "block member") + 1L, 1L), c = coef(b$c, "block"))
+  )
   for (b in bblocks) if (length(unique(vapply(b$members, function(m) bt[[m]]$level, 1L))) != 1) stop("A block of between-level residuals must stay at one level.")
-  report <- lapply(s$report, function(r) list(lhs = as.character(r$lhs), op = as.character(r$op), rhs = as.character(r$rhs %||% ""), block = as.character(r$block %||% ""), c = coef(r$c, "reported value")))
+  report <- lapply(
+    s$report,
+    function(r) list(lhs = as.character(r$lhs), op = as.character(r$op), rhs = as.character(r$rhs %||% ""), block = as.character(r$block %||% ""), c = coef(r$c, "reported value"))
+  )
   levels <- lapply(s$levels, function(l) {
     if (!(is.character(l$column) && length(l$column) == 1)) {
       stop("Invalid cluster column in the request.")
@@ -240,7 +249,14 @@ ps_dsem_data <- function(req, s) {
     t <- pos - lag
     ifelse(t >= 1, 2L * S + seq_len(N) - lag, (sid - 1L) * 2L + (1L - t))
   }
-  sd <- list(N = N, S = S, sid = as.integer(sid), first = as.array(as.integer(match(seq_len(S), sid))), lag1 = as.integer(at(1)), lag2 = as.integer(at(2)))
+  sd <- list(
+    N = N,
+    S = S,
+    sid = as.integer(sid),
+    first = as.array(as.integer(match(seq_len(S), sid))),
+    lag1 = as.integer(at(1)),
+    lag2 = as.integer(at(2))
+  )
   J <- integer(L)
   for (l in seq_len(L)) {
     f <- factor(as.character(cid[[l]]), levels = unique(as.character(cid[[l]])))
@@ -346,7 +362,10 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
   for (i in seq_along(s$params)) {
     p <- s$params[[i]]
     if (!is.null(p$prior)) {
-      M <- c(M, sprintf("  p%d ~ normal(%s, %s);", i, format(p$prior[1], digits = 15), format(sqrt(p$prior[2]), digits = 15)))
+      M <- c(
+        M,
+        sprintf("  p%d ~ normal(%s, %s);", i, format(p$prior[1], digits = 15), format(sqrt(p$prior[2]), digits = 15))
+      )
     }
     if (p$type == "real") {
       P <- c(P, sprintf("  real p%d;", i))
@@ -372,7 +391,11 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
         sprintf("    p%d[{%s}, {%s}] = saa;", i, ia, ia)
       )
       if (length(B)) {
-        P <- c(P, sprintf("  matrix[%d, %d] p%d_c;", length(B), length(A), i), sprintf("  cov_matrix[%d] p%d_s;", length(B), i))
+        P <- c(
+          P,
+          sprintf("  matrix[%d, %d] p%d_c;", length(B), length(A), i),
+          sprintf("  cov_matrix[%d] p%d_s;", length(B), i)
+        )
         TP <- c(
           TP, sprintf("    p%d[{%s}, {%s}] = p%d_c;", i, ib, ia, i), sprintf("    p%d[{%s}, {%s}] = p%d_c';", i, ia, ib, i),
           sprintf("    p%d[{%s}, {%s}] = p%d_s + quad_form_sym(saa, mdivide_left_spd(saa, p%d_c'));", i, ib, ib, i, i)
@@ -424,13 +447,30 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
       M <- c(M, if (single) {
         sprintf("  to_vector(zb%d) ~ normal(0, %s);", b, sdb)
       } else {
-        sprintf("  { matrix[%d, %d] Lb = cholesky_decompose(p%d); for (j in 1:J%d) zb%d[j]' ~ multi_normal_cholesky(rep_vector(0, %d), Lb); }", k, k, bl$c$p, l, b, k)
+        sprintf(
+          "  { matrix[%d, %d] Lb = cholesky_decompose(p%d); for (j in 1:J%d) zb%d[j]' ~ multi_normal_cholesky(rep_vector(0, %d), Lb); }",
+          k,
+          k,
+          bl$c$p,
+          l,
+          b,
+          k
+        )
       })
       TP <- c(TP, sprintf("  matrix[J%d, %d] eb%d = zb%d;", l, k, b, b))
     } else {
       # few observations per cluster: standardised residuals (non-centred)
       M <- c(M, sprintf("  to_vector(zb%d) ~ std_normal();", b))
-      TP <- c(TP, sprintf("  matrix[J%d, %d] eb%d = %s;", l, k, b, if (single) sprintf("zb%d * %s", b, sdb) else sprintf("zb%d * cholesky_decompose(p%d)'", b, bl$c$p)))
+      TP <- c(
+        TP,
+        sprintf(
+          "  matrix[J%d, %d] eb%d = %s;",
+          l,
+          k,
+          b,
+          if (single) sprintf("zb%d * %s", b, sdb) else sprintf("zb%d * cholesky_decompose(p%d)'", b, bl$c$p)
+        )
+      )
     }
   }
   for (i in ordr) {
@@ -441,7 +481,11 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
     for (j in seq_along(s$bterms)) {
       tm <- s$bterms[[j]]
       if (tm$t == i) {
-        rhs <- paste(rhs, "+", if (!is.null(tm$b)) sprintf("%s * bt%d", cval(tm$c), tm$b) else sprintf("%s * bx%d", cval(tm$c), j))
+        rhs <- paste(
+          rhs,
+          "+",
+          if (!is.null(tm$b)) sprintf("%s * bt%d", cval(tm$c), tm$b) else sprintf("%s * bx%d", cval(tm$c), j)
+        )
       }
     }
     if (blockof[i]) {
@@ -453,12 +497,21 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
   for (i in seq_len(nb)) {
     t <- bt[[i]]
     if (t$kind != "z") next
-    D <- c(D, sprintf("  int<lower=0> nz%d;", i), sprintf("  array[nz%d] int iz%d;", i, i), sprintf("  vector[nz%d] z%d;", i, i))
+    D <- c(
+      D,
+      sprintf("  int<lower=0> nz%d;", i),
+      sprintf("  array[nz%d] int iz%d;", i, i),
+      sprintf("  vector[nz%d] z%d;", i, i)
+    )
     mu <- sprintf("rep_vector(%s, J%d)", cval(t$mean), t$level)
     for (j in seq_along(s$bterms)) {
       tm <- s$bterms[[j]]
       if (tm$t == i) {
-        mu <- paste(mu, "+", if (!is.null(tm$b)) sprintf("%s * bt%d", cval(tm$c), tm$b) else sprintf("%s * bx%d", cval(tm$c), j))
+        mu <- paste(
+          mu,
+          "+",
+          if (!is.null(tm$b)) sprintf("%s * bt%d", cval(tm$c), tm$b) else sprintf("%s * bx%d", cval(tm$c), j)
+        )
       }
     }
     if (!blockof[i] || length(s$bblocks[[blockof[i]]]$members) != 1) {
@@ -473,7 +526,10 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
       i <- which(vapply(bt, function(t) t$kind == "re" && t$re == r && t$level == l, TRUE))
       if (length(i)) sprintf("bt%d[cl%d]", i, l)
     }))
-    M <- c(M, sprintf("  vector[N] re%d = %s;", r, if (length(parts)) paste(parts, collapse = " + ") else "rep_vector(0, N)"))
+    M <- c(
+      M,
+      sprintf("  vector[N] re%d = %s;", r, if (length(parts)) paste(parts, collapse = " + ") else "rep_vector(0, N)")
+    )
   }
   # ---- within level ----
   nodes <- s$nodes
@@ -484,21 +540,51 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
     n <- nodes[[k]]
     if (k %in% kf) next
     if (n$kind == "y") {
-      D <- c(D, sprintf("  vector[N] y%d;", k), sprintf("  int<lower=0> nm%d;", k), sprintf("  array[nm%d] int mi%d;", k, k))
+      D <- c(
+        D,
+        sprintf("  vector[N] y%d;", k),
+        sprintf("  int<lower=0> nm%d;", k),
+        sprintf("  array[nm%d] int mi%d;", k, k)
+      )
       if (k %in% ky) {
         # (a series filtered by the Kalman filter below: its missing values are skipped, not sampled)
-        base <- c(if (!is.null(n$int)) sprintf("rep_vector(%s, N)", cval(n$int)), if (!is.null(n$part)) sprintf("re%d", n$part))
-        M <- c(M, sprintf("  vector[N] B%d = %s;", k, if (length(base)) paste(base, collapse = " + ") else "rep_vector(0, N)"))
+        base <- c(
+          if (!is.null(n$int)) sprintf("rep_vector(%s, N)", cval(n$int)),
+          if (!is.null(n$part)) sprintf("re%d", n$part)
+        )
+        M <- c(
+          M,
+          sprintf("  vector[N] B%d = %s;", k, if (length(base)) paste(base, collapse = " + ") else "rep_vector(0, N)")
+        )
         next
       }
       P <- c(P, sprintf("  vector[nm%d] ym%d;", k, k))
       M <- c(M, sprintf("  vector[N] Y%d = y%d;", k, k), sprintf("  Y%d[mi%d] = ym%d;", k, k, k))
-      base <- c(if (!is.null(n$int)) sprintf("rep_vector(%s, N)", cval(n$int)), if (!is.null(n$part)) sprintf("re%d", n$part))
-      M <- c(M, sprintf("  vector[N] B%d = %s;", k, if (length(base)) paste(base, collapse = " + ") else "rep_vector(0, N)"), sprintf("  vector[N] W%d = Y%d - B%d;", k, k, k))
+      base <- c(
+        if (!is.null(n$int)) sprintf("rep_vector(%s, N)", cval(n$int)),
+        if (!is.null(n$part)) sprintf("re%d", n$part)
+      )
+      M <- c(
+        M,
+        sprintf("  vector[N] B%d = %s;", k, if (length(base)) paste(base, collapse = " + ") else "rep_vector(0, N)"),
+        sprintf("  vector[N] W%d = Y%d - B%d;", k, k, k)
+      )
     } else if (n$kind == "u") {
-      D <- c(D, sprintf("  int<lower=0> n1_%d;", k), sprintf("  array[n1_%d] int i1_%d;", k, k), sprintf("  int<lower=0> n0_%d;", k), sprintf("  array[n0_%d] int i0_%d;", k, k))
-      base <- c(if (!is.null(n$thr)) sprintf("rep_vector(-%s, N)", cval(n$thr)), if (!is.null(n$part)) sprintf("re%d", n$part))
-      M <- c(M, sprintf("  vector[N] B%d = %s;", k, if (length(base)) paste(base, collapse = " + ") else "rep_vector(0, N)"))
+      D <- c(
+        D,
+        sprintf("  int<lower=0> n1_%d;", k),
+        sprintf("  array[n1_%d] int i1_%d;", k, k),
+        sprintf("  int<lower=0> n0_%d;", k),
+        sprintf("  array[n0_%d] int i0_%d;", k, k)
+      )
+      base <- c(
+        if (!is.null(n$thr)) sprintf("rep_vector(-%s, N)", cval(n$thr)),
+        if (!is.null(n$part)) sprintf("re%d", n$part)
+      )
+      M <- c(
+        M,
+        sprintf("  vector[N] B%d = %s;", k, if (length(base)) paste(base, collapse = " + ") else "rep_vector(0, N)")
+      )
     } else if (n$kind == "f") {
       P <- c(P, sprintf("  vector[N] W%d;", k))
       M <- c(M, sprintf("  vector[N] F%d = W%d%s;", k, k, if (!is.null(n$part)) sprintf(" + re%d", n$part) else ""))
@@ -519,14 +605,24 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
     if (lag == 0) v else sprintf("append_row(%s, %s)[lag%d]", if (n$kind == "x") "rep_vector(0, 2 * S)" else sprintf("pre%d", k), v, lag)
   }
   # values before each series' first occasion: parameters, drawn from the variable's residual distribution
-  lagnodes <- setdiff(unique(unlist(lapply(s$wterms, function(t) if (t$lag > 0 && !is.na(t$p) && nodes[[t$p]]$kind != "x") t$p))), kf)
+  lagnodes <- setdiff(
+    unique(unlist(lapply(s$wterms, function(t) if (t$lag > 0 && !is.na(t$p) && nodes[[t$p]]$kind != "x") t$p))),
+    kf
+  )
   inblock0 <- integer(length(nodes))
   for (b in seq_along(s$wblocks)) inblock0[s$wblocks[[b]]$members] <- b
   for (k in lagnodes) {
     P <- c(P, sprintf("  vector[2 * S] pre%d;", k))
     res <- nodes[[k]]$resid
     if (!inblock0[k] && !is.null(res$r)) {
-      M <- c(M, sprintf("  { vector[S] sf = exp(0.5 * re%d[first]); vector[2 * S] sp; for (j in 1:S) { sp[2 * j - 1] = sf[j]; sp[2 * j] = sf[j]; } pre%d ~ normal(0, sp); }", res$r, k))
+      M <- c(
+        M,
+        sprintf(
+          "  { vector[S] sf = exp(0.5 * re%d[first]); vector[2 * S] sp; for (j in 1:S) { sp[2 * j - 1] = sf[j]; sp[2 * j] = sf[j]; } pre%d ~ normal(0, sp); }",
+          res$r,
+          k
+        )
+      )
       next
     }
     sdp <- if (inblock0[k]) {
@@ -565,7 +661,18 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
     res <- n$resid %||% list(v = if (n$kind == "u") 1 else 0)
     if (n$kind == "u") {
       eta <- sprintf("(B%d + %s)", k, mu[[k]])
-      M <- c(M, sprintf("  target += std_normal_lcdf(%s[i1_%d] / %s) + std_normal_lccdf(%s[i0_%d] / %s);", eta, k, sdv(res), eta, k, sdv(res)))
+      M <- c(
+        M,
+        sprintf(
+          "  target += std_normal_lcdf(%s[i1_%d] / %s) + std_normal_lccdf(%s[i0_%d] / %s);",
+          eta,
+          k,
+          sdv(res),
+          eta,
+          k,
+          sdv(res)
+        )
+      )
       next
     }
     if (!is.null(res$v) && res$v == 0) {
@@ -596,13 +703,22 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
     M <- c(
       M, "  {",
       sprintf("    array[N] int ob = rep_array(1, N); ob[mi%d] = rep_array(0, nm%d);", m, m),
-      sprintf("    real vf = %s; real ve = %s; real lam = %s;", cval(nodes[[k]]$resid), cval(nodes[[m]]$resid), cval(q$load)),
+      sprintf(
+        "    real vf = %s; real ve = %s; real lam = %s;",
+        cval(nodes[[k]]$resid),
+        cval(nodes[[m]]$resid),
+        cval(q$load)
+      ),
       "    real mk = 0; real Pk = vf;",
       "    for (i in 1:N) {",
       "      if (i == first[sid[i]]) { mk = 0; Pk = vf; }",
       sprintf("      real ph = %s; real mp = ph * mk; real Pp = square(ph) * Pk + vf;", ph),
       "      if (ob[i]) {",
-      sprintf("        real e = y%d[i] - B%d[i] - lam * mp; real Sv = square(lam) * Pp + ve; real K = Pp * lam / Sv;", m, m),
+      sprintf(
+        "        real e = y%d[i] - B%d[i] - lam * mp; real Sv = square(lam) * Pp + ve; real K = Pp * lam / Sv;",
+        m,
+        m
+      ),
       "        target += normal_lpdf(e | 0, sqrt(Sv)); mk = mp + K * e; Pk = Pp - K * lam * Pp;",
       "      } else { mk = mp; Pk = Pp; }",
       "    }",
@@ -702,7 +818,10 @@ ps_dsem <- function(req_json, export = FALSE) {
   if (!(is.character(par) && length(par) == 1 && par %in% c("auto", "noncentred"))) {
     stop("Invalid parametrization in the request.")
   }
-  code <- ps_dsem_stan(s, centered = vapply(seq_along(s$levels), function(l) par == "auto" && sdat$N / sdat$J[l] >= 20, TRUE))
+  code <- ps_dsem_stan(
+    s,
+    centered = vapply(seq_along(s$levels), function(l) par == "auto" && sdat$N / sdat$J[l] >= 20, TRUE)
+  )
   keep <- unique(c(sprintf("p%d", seq_along(s$params))))
   q <- c((1 - conf) / 2, 1 - (1 - conf) / 2)
   body <- c(

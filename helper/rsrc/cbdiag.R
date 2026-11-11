@@ -9,14 +9,31 @@ PS_LOCALFIT_TESTS <- c(
   "mean.var.adjusted", "scaled.shifted", "mean.var.adjusted.corrected", "scaled.shifted.corrected", "peba4", "pols3", "pall"
 )
 #' The tests that rescale (or, FMG, take the p-value of) a base statistic: lavTest's scaled_test applies to them.
-PS_LOCALFIT_SCALED <- c("satorra.bentler", "yuan.bentler", "mean.var.adjusted", "scaled.shifted", "mean.var.adjusted.corrected", "scaled.shifted.corrected", "peba4", "pols3", "pall")
+PS_LOCALFIT_SCALED <- c(
+  "satorra.bentler",
+  "yuan.bentler",
+  "mean.var.adjusted",
+  "scaled.shifted",
+  "mean.var.adjusted.corrected",
+  "scaled.shifted.corrected",
+  "peba4",
+  "pols3",
+  "pall"
+)
 
 #' Script lines: functions that refit the model by update() (semTools, nonnest2) evaluate its call elsewhere, where
 #' `data` (or `S`, `N`) would not be this script's objects: the call is given the objects themselves.
 ps_call_objects <- function(f = "fit") {
   c(
     "# (the model is refitted by update() outside this script: its call takes the data objects themselves)",
-    sprintf("for (a in names(%s@call)[-1]) if (is.name(%s@call[[a]]) && exists(as.character(%s@call[[a]]), inherits = FALSE)) %s@call[[a]] <- get(as.character(%s@call[[a]]))", f, f, f, f, f)
+    sprintf(
+      "for (a in names(%s@call)[-1]) if (is.name(%s@call[[a]]) && exists(as.character(%s@call[[a]]), inherits = FALSE)) %s@call[[a]] <- get(as.character(%s@call[[a]]))",
+      f,
+      f,
+      f,
+      f,
+      f
+    )
   )
 }
 
@@ -80,7 +97,12 @@ ps_cb_localfit <- function(req_json, export = FALSE) {
     col <- if ("cov" %in% names(s)) "cov" else names(s)[1]
     sm <- function(k) if (k %in% rownames(s)) unname(s[k, col]) else NULL
     mz <- if (!is.null(r$mean.z) && any(abs(r$mean) > 1e-10)) {
-      list(names = I(nm(names(r$mean))), residual = I(unname(as.numeric(r$mean))), se = I(unname(as.numeric(r$mean.se))), z = I(unname(as.numeric(r$mean.z))))
+      list(
+        names = I(nm(names(r$mean))),
+        residual = I(unname(as.numeric(r$mean))),
+        se = I(unname(as.numeric(r$mean.se))),
+        z = I(unname(as.numeric(r$mean.z)))
+      )
     } else {
       NULL
     }
@@ -138,7 +160,10 @@ ps_cb_discriminant <- function(req_json, export = FALSE) {
     "# model with each correlation fixed at the classification's cutoffs .8, .9 and 1, one at a time (chi2(sys)).",
     "suppressPackageStartupMessages(library(semTools))",
     ps_call_objects(),
-    sprintf("dv <- lapply(c(cut_0.8 = 0.8, cut_0.9 = 0.9, cut_1 = 1), function(k) discriminantValidity(fit, cutoff = k, level = %s))", format(level)),
+    sprintf(
+      "dv <- lapply(c(cut_0.8 = 0.8, cut_0.9 = 0.9, cut_1 = 1), function(k) discriminantValidity(fit, cutoff = k, level = %s))",
+      format(level)
+    ),
     if (merge) {
       c(
         "# ... and against the model with the two factors merged into one (chi2(merge)).",
@@ -262,19 +287,41 @@ ps_cb_compare_models <- function(req_json, export = FALSE) {
   }
   lrt <- env$lrt
   lrtOut <- if (is.data.frame(lrt)) {
-    list(chisq = ps_num1(lrt[["Chisq diff"]][2]), df = ps_num1(lrt[["Df diff"]][2]), p = ps_num1(lrt[["Pr(>Chisq)"]][2]), method = ps_flat(attr(lrt, "heading")[1] %||% ""))
+    list(
+      chisq = ps_num1(lrt[["Chisq diff"]][2]),
+      df = ps_num1(lrt[["Df diff"]][2]),
+      p = ps_num1(lrt[["Pr(>Chisq)"]][2]),
+      method = ps_flat(attr(lrt, "heading")[1] %||% "")
+    )
   } else {
     NULL
   }
   vt <- env$vt
   vtOut <- if (is.list(vt)) {
-    list(nested = isTRUE(vt$nested), omega = ps_num1(vt$omega), pOmega = ps_num1(vt$p_omega), stat = ps_num1(vt$LRTstat), pA = ps_num1(vt$p_LRT$A), pB = ps_num1(vt$p_LRT$B))
+    list(
+      nested = isTRUE(vt$nested),
+      omega = ps_num1(vt$omega),
+      pOmega = ps_num1(vt$p_omega),
+      stat = ps_num1(vt$LRTstat),
+      pA = ps_num1(vt$p_LRT$A),
+      pB = ps_num1(vt$p_LRT$B)
+    )
   } else {
     NULL
   }
   ic <- env$ic
   icOut <- if (is.list(ic)) {
-    list(aic1 = ps_num1(ic$AIC$AIC1), aic2 = ps_num1(ic$AIC$AIC2), aicLow = ps_num1(ic$AICci[1]), aicHigh = ps_num1(ic$AICci[2]), bic1 = ps_num1(ic$BIC$BIC1), bic2 = ps_num1(ic$BIC$BIC2), bicLow = ps_num1(ic$BICci[1]), bicHigh = ps_num1(ic$BICci[2]), level = ps_num1(ic$confLevel))
+    list(
+      aic1 = ps_num1(ic$AIC$AIC1),
+      aic2 = ps_num1(ic$AIC$AIC2),
+      aicLow = ps_num1(ic$AICci[1]),
+      aicHigh = ps_num1(ic$AICci[2]),
+      bic1 = ps_num1(ic$BIC$BIC1),
+      bic2 = ps_num1(ic$BIC$BIC2),
+      bicLow = ps_num1(ic$BICci[1]),
+      bicHigh = ps_num1(ic$BICci[2]),
+      level = ps_num1(ic$confLevel)
+    )
   } else {
     NULL
   }
@@ -342,7 +389,16 @@ ps_cb_epcequiv <- function(req_json, export = FALSE) {
     mi = I(col("mi")), epc = I(col("epc")), stdEpc = I(col("std.epc")), sesoi = I(col("sesoi")), stdSesoi = I(col("std.sesoi")),
     significant = I(lg("significant.mi")), highPower = I(lg("high.power")), power = I(col("pow")), decisionPow = I(chr("decision.pow")),
     seEpc = I(col("se.epc")), lowStd = I(col("lower.std.epc")), highStd = I(col("upper.std.epc")), decisionCi = I(chr("decision.ci")),
-    settings = list(stdLoad = std_load, cor = cor, stdBeta = std_beta, stdIntcept = std_int, cilevel = cilevel, mialpha = mialpha, mipower = mipower, adjust = adjust),
+    settings = list(
+      stdLoad = std_load,
+      cor = cor,
+      stdBeta = std_beta,
+      stdIntcept = std_int,
+      cilevel = cilevel,
+      mialpha = mialpha,
+      mipower = mipower,
+      adjust = adjust
+    ),
     groups = if (!is.null(b$group_var)) I(as.character(lavInspect(env$fit, "group.label"))) else NULL, warnings = env$.warnings,
     engine = ps_engine("semTools")
   ))

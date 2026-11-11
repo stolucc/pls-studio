@@ -127,7 +127,10 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE, allow_ord = F
     lines <- vapply(seq_len(k0), function(j) {
       paste(
         cv[j], if (type[j] == "composite") "<~" else "=~",
-        paste(if (hoc[j] && repeated) paste0(rep_items(j), "_rep") else if (hoc[j]) comp_cv(j) else ivs(j), collapse = " + ")
+        paste(
+          if (hoc[j] && repeated) paste0(rep_items(j), "_rep") else if (hoc[j]) comp_cv(j) else ivs(j),
+          collapse = " + "
+        )
       )
     }, "")
     # (Repeated indicators: the dimensions predict the second-order construct, as on cSEM's help page.)
@@ -139,7 +142,14 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE, allow_ord = F
     # Mode A, Mode B, or sum scores ("unit": equal weights on the standardised indicators).
     # (A second-order construct is weighted in cSEM's second stage by its type: Mode A for a common factor, Mode B for a composite.)
     keep <- if (repeated) rep(TRUE, k0) else !hoc
-    modes <- paste0("list(", paste(sprintf("%s = \"%s\"", cv[keep], ifelse(mode == "unit", "unit", paste0("mode", mode))[keep]), collapse = ", "), ")")
+    modes <- paste0(
+      "list(",
+      paste(
+        sprintf("%s = \"%s\"", cv[keep], ifelse(mode == "unit", "unit", paste0("mode", mode))[keep]),
+        collapse = ", "
+      ),
+      ")"
+    )
     scheme <- c(path = "path", centroid = "centroid", factor = "factorial")[[o$scheme]]
     # Dominant indicators: each such construct's sign is set so that this indicator loads positively.
     dom <- unlist(lapply(seq_len(k0), function(j) {
@@ -157,7 +167,10 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE, allow_ord = F
       "suppressPackageStartupMessages(library(cSEM))", ps_missing_code(req$missing),
       if (length(ord)) {
         c(
-          sprintf("# Ordinal indicators: OrdPLS%s (Schuberth, Henseler & Dijkstra 2018). As ordered factors they make cSEM use", if (isTRUE(o$consistent)) "c" else ""),
+          sprintf(
+            "# Ordinal indicators: OrdPLS%s (Schuberth, Henseler & Dijkstra 2018). As ordered factors they make cSEM use",
+            if (isTRUE(o$consistent)) "c" else ""
+          ),
           "# polychoric (two ordinal) and polyserial (ordinal and continuous) correlations instead of Pearson's.",
           sprintf("ordinal <- c(%s)", paste(ps_q(unname(n$iv[ord])), collapse = ", ")),
           "data[ordinal] <- lapply(data[ordinal], ordered)"
@@ -195,7 +208,10 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE, allow_ord = F
       sprintf(
         "fit <- csem(data, model, %s.PLS_weight_scheme_inner = \"%s\", .disattenuate = %s, .tolerance = %s, .iter_max = %d%s)",
         if (gsca) sprintf(".approach_weights = \"%s\", ", approach) else sprintf(".PLS_modes = %s, ", modes), scheme, if (isTRUE(o$consistent)) "TRUE" else "FALSE", format(ps_number(o$tolerance, "tolerance"), scientific = TRUE), as.integer(o$maxIter),
-        paste0(if (two) sprintf(", .approach_2ndorder = \"%s\"", if (hoc_approach == "embedded") "mixed" else "2stage") else "", dom_arg)
+        paste0(
+          if (two) sprintf(", .approach_2ndorder = \"%s\"", if (hoc_approach == "embedded") "mixed" else "2stage") else "",
+          dom_arg
+        )
       )
     )
   } else if (pkg == "seminr") {
@@ -221,10 +237,22 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE, allow_ord = F
       if (repeated) {
         sprintf("composite(\"%s\", %s, weights = %s)", cv[j], ps_q(rep_items(j)), weights_of(j))
       } else {
-        sprintf("higher_composite(\"%s\", dimensions = %s, method = two_stage, weights = %s)", cv[j], ps_q(comp_cv(j)), weights_of(j))
+        sprintf(
+          "higher_composite(\"%s\", dimensions = %s, method = two_stage, weights = %s)",
+          cv[j],
+          ps_q(comp_cv(j)),
+          weights_of(j)
+        )
       }
     }, ""))
-    mm <- c(mm, vapply(seq_along(mods), function(q) sprintf("interaction_term(iv = \"%s\", moderator = \"%s\", method = %s)", n$cv[[mods[[q]]$from]], n$cv[[mods[[q]]$moderator]], int_method[q]), ""))
+    mm <- c(
+      mm,
+      vapply(
+        seq_along(mods),
+        function(q) sprintf("interaction_term(iv = \"%s\", moderator = \"%s\", method = %s)", n$cv[[mods[[q]]$from]], n$cv[[mods[[q]]$moderator]], int_method[q]),
+        ""
+      )
+    )
     sm <- vapply(if (repeated) union(ends, n$cname[hoc]) else ends, function(t) {
       extra <- int_l[vapply(mods, function(m) m$to == t, TRUE)]
       dims <- if (repeated && hoc[match(t, n$cname)]) comp_cv(match(t, n$cname)) else character(0) # (repeated indicators: the dimensions predict the construct)
@@ -248,7 +276,25 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE, allow_ord = F
   } else {
     stop("Unknown PLS package: ", pkg)
   }
-  list(pkg = pkg, n = n, cv = cv, k0 = k0, type = type, mode = mode, mods = mods, int_l = int_l, inputs = inputs, body = body, o = o, hoc = hoc, comps = comps, two = two, repeated = repeated, hoc_approach = hoc_approach, ord = ord)
+  list(
+    pkg = pkg,
+    n = n,
+    cv = cv,
+    k0 = k0,
+    type = type,
+    mode = mode,
+    mods = mods,
+    int_l = int_l,
+    inputs = inputs,
+    body = body,
+    o = o,
+    hoc = hoc,
+    comps = comps,
+    two = two,
+    repeated = repeated,
+    hoc_approach = hoc_approach,
+    ord = ord
+  )
 }
 
 ps_pls <- function(req_json, export = FALSE) {
@@ -264,7 +310,11 @@ ps_pls <- function(req_json, export = FALSE) {
       ms <- ps_mi_settings(req)
       body <- c(
         "suppressPackageStartupMessages(library(mice))",
-        sprintf("imp <- mice(data, m = %d, seed = %d, printFlag = FALSE)  # multiple imputation (predictive mean matching)", ms$m, ms$seed),
+        sprintf(
+          "imp <- mice(data, m = %d, seed = %d, printFlag = FALSE)  # multiple imputation (predictive mean matching)",
+          ms$m,
+          ms$seed
+        ),
         "fits <- lapply(seq_len(imp$m), function(k) {", "  data <- complete(imp, k)", paste0("  ", b$body), "  fit", "})",
         "# Estimates averaged over the imputed data sets (Rubin's point estimate), e.g. the path coefficients:"
       )
@@ -356,13 +406,19 @@ ps_pls_out <- function(req, b, env) {
     }
     linear <- !length(mods)
     a <- if (linear) {
-      safe(cSEM::assess(fit1, .quality_criterion = c("reliability", "ave")), "Reliability and AVE (cSEM::assess; computed one by one instead)")
+      safe(
+        cSEM::assess(fit1, .quality_criterion = c("reliability", "ave")),
+        "Reliability and AVE (cSEM::assess; computed one by one instead)"
+      )
     } else {
       NULL
     }
     # Second-order constructs: their reliability and AVE from stage 2 (components as indicators).
     a2 <- if (two && linear) {
-      safe(cSEM::assess(fit2, .quality_criterion = c("reliability", "ave")), "Reliability and AVE of the second-order constructs (cSEM::assess)")
+      safe(
+        cSEM::assess(fit2, .quality_criterion = c("reliability", "ave")),
+        "Reliability and AVE of the second-order constructs (cSEM::assess)"
+      )
     } else {
       NULL
     }
@@ -371,10 +427,19 @@ ps_pls_out <- function(req, b, env) {
       if (two && !is.null(v2)) out[b$hoc] <- unname(v2[cv[b$hoc]])
       out
     }
-    alpha <- pick(if (!is.null(a)) a$Reliability$Cronbachs_alpha else safe(cSEM::calculateRhoT(fit1, .only_common_factors = FALSE), "Cronbach's alpha (cSEM::calculateRhoT)"), a2$Reliability$Cronbachs_alpha)
+    alpha <- pick(
+      if (!is.null(a)) a$Reliability$Cronbachs_alpha else safe(cSEM::calculateRhoT(fit1, .only_common_factors = FALSE), "Cronbach's alpha (cSEM::calculateRhoT)"),
+      a2$Reliability$Cronbachs_alpha
+    )
     # (cSEM's composite reliability and overall fit need the model-implied correlations, which nonlinear models do not have.)
-    rhoC <- pick(if (!is.null(a)) a$Reliability$Joereskogs_rho else if (!linear) NULL else safe(cSEM::calculateRhoC(fit1, .only_common_factors = FALSE), "Composite reliability (cSEM::calculateRhoC)"), a2$Reliability$Joereskogs_rho)
-    rhoA <- pick(if (!is.null(a)) a$Reliability$`Dijkstra-Henselers_rho_A` else NULL, a2$Reliability$`Dijkstra-Henselers_rho_A`)
+    rhoC <- pick(
+      if (!is.null(a)) a$Reliability$Joereskogs_rho else if (!linear) NULL else safe(cSEM::calculateRhoC(fit1, .only_common_factors = FALSE), "Composite reliability (cSEM::calculateRhoC)"),
+      a2$Reliability$Joereskogs_rho
+    )
+    rhoA <- pick(
+      if (!is.null(a)) a$Reliability$`Dijkstra-Henselers_rho_A` else NULL,
+      a2$Reliability$`Dijkstra-Henselers_rho_A`
+    )
     # Without disattenuation cSEM treats every construct as a composite and reports
     # rho_A = 1 for all of them. seminr, SmartPLS and the built-in engine report
     # Dijkstra & Henseler's (2015) rho_A for Mode A blocks regardless (it depends on
@@ -390,7 +455,10 @@ ps_pls_out <- function(req, b, env) {
         rhoA[j] <- as.numeric(sum(w^2)^2 * (t(w) %*% (Sj - diag(diag(Sj))) %*% w) / (t(w) %*% (ww - diag(diag(ww))) %*% w))
       }
     }
-    ave <- pick(if (!is.null(a)) a$AVE else safe(cSEM::calculateAVE(fit1, .only_common_factors = FALSE), "AVE (cSEM::calculateAVE)"), a2$AVE)
+    ave <- pick(
+      if (!is.null(a)) a$AVE else safe(cSEM::calculateAVE(fit1, .only_common_factors = FALSE), "AVE (cSEM::calculateAVE)"),
+      a2$AVE
+    )
     # The HTMT assumes that the items of a construct correlate positively with each other
     # and that the items of two constructs correlate all with the same sign. cSEM warns
     # about violations without naming the constructs and, for mixed-sign blocks, returns
@@ -478,7 +546,10 @@ ps_pls_out <- function(req, b, env) {
     # (Second-order models: the dimensions' scores are the first stage's.)
     sc <- fit$construct_scores
     if (two) {
-      sc <- cbind(sc, fit$first_stage_model$construct_scores[, setdiff(colnames(fit$first_stage_model$construct_scores), colnames(sc)), drop = FALSE])
+      sc <- cbind(
+        sc,
+        fit$first_stage_model$construct_scores[, setdiff(colnames(fit$first_stage_model$construct_scores), colnames(sc)), drop = FALSE]
+      )
     }
     scores <- sc[, all_l, drop = FALSE]
     ccor <- stats::cor(scores)
@@ -544,10 +615,20 @@ ps_pls_out <- function(req, b, env) {
         lapply(b$comps[[j]], function(k) {
           ck <- cv[match(k, n$cname)]
           if (b$pkg == "cSEM") {
-            list(construct = j - 1L, component = match(k, n$cname) - 1L, loading = e$Loading_estimates[cv[j], ck], weight = e$Weight_estimates[cv[j], ck])
+            list(
+              construct = j - 1L,
+              component = match(k, n$cname) - 1L,
+              loading = e$Loading_estimates[cv[j], ck],
+              weight = e$Weight_estimates[cv[j], ck]
+            )
           } # seminr: the dimensions are the second-order construct's items.
           else {
-            list(construct = j - 1L, component = match(k, n$cname) - 1L, loading = fit$outer_loadings[ck, cv[j]], weight = fit$outer_weights[ck, cv[j]])
+            list(
+              construct = j - 1L,
+              component = match(k, n$cname) - 1L,
+              loading = fit$outer_loadings[ck, cv[j]],
+              weight = fit$outer_weights[ck, cv[j]]
+            )
           }
         })
       }), recursive = FALSE)
@@ -555,7 +636,12 @@ ps_pls_out <- function(req, b, env) {
     else if (isTRUE(b$repeated)) {
       unlist(lapply(which(b$hoc), function(j) {
         lapply(match(b$comps[[j]], n$cname), function(k) {
-          list(construct = j - 1L, component = k - 1L, loading = unname(stats::cor(scores[, k], scores[, j])), weight = B[k, j])
+          list(
+            construct = j - 1L,
+            component = k - 1L,
+            loading = unname(stats::cor(scores[, k], scores[, j])),
+            weight = B[k, j]
+          )
         })
       }), recursive = FALSE)
     } else {
@@ -567,7 +653,10 @@ ps_pls_out <- function(req, b, env) {
     } else {
       NULL
     },
-    quality = lapply(seq_len(K), function(j) list(alpha = q4(alpha)[j], rhoC = q4(rhoC)[j], rhoA = q4(rhoA)[j], ave = q4(ave)[j])),
+    quality = lapply(
+      seq_len(K),
+      function(j) list(alpha = q4(alpha)[j], rhoC = q4(rhoC)[j], rhoA = q4(rhoA)[j], ave = q4(ave)[j])
+    ),
     htmt = htmt1, htmt2 = htmt2, htmtFlags = htmt_flags,
     fit = list(estimated = fitm(FALSE), saturated = fitm(TRUE)),
     consistent = isTRUE(b$o$consistent), types = c(b$type, rep("composite", length(mods))),
@@ -628,6 +717,10 @@ ps_pls_mi <- function(req, b) {
   res$imputations <- imp$m
   # (the sign diagnostics over all imputations, reported once; a pair undefined in any is NA in the average)
   flags <- lapply(outs, `[[`, "htmtFlags")
-  res$htmtFlags <- list(within = unique(unlist(lapply(flags, `[[`, "within"))), undefined = unique(unlist(lapply(flags, `[[`, "undefined"))), mixed = unique(unlist(lapply(flags, `[[`, "mixed"))))
+  res$htmtFlags <- list(
+    within = unique(unlist(lapply(flags, `[[`, "within"))),
+    undefined = unique(unlist(lapply(flags, `[[`, "undefined"))),
+    mixed = unique(unlist(lapply(flags, `[[`, "mixed")))
+  )
   ps_htmt_notes(res)
 }

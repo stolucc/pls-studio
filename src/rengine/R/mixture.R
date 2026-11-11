@@ -206,7 +206,14 @@ mix_ld <- function(bk, v) {
     nominal = {
       K <- bk$K
       y <- bk$code
-      E <- cbind(vapply(seq_len(K - 1), function(j) rep(v[j], n) + (if (q) drop(bk$X %*% v[K - 1 + (j - 1) * q + seq_len(q)]) else 0), numeric(n)), 0)
+      E <- cbind(
+        vapply(
+          seq_len(K - 1),
+          function(j) rep(v[j], n) + (if (q) drop(bk$X %*% v[K - 1 + (j - 1) * q + seq_len(q)]) else 0),
+          numeric(n)
+        ),
+        0
+      )
       E <- matrix(E, n)
       lp <- E - mix_lse(E)
       out <- numeric(n)
@@ -240,7 +247,11 @@ mix_ld <- function(bk, v) {
       out <- dpois(y, lam, log = TRUE)
       if (bk$type == "zip") {
         lz <- v[q + 2] + (if (q) drop(bk$X %*% v[q + 2 + seq_len(q)]) else 0)
-        out <- ifelse(y == 0, log(plogis(lz) + plogis(lz, lower.tail = FALSE) * exp(-lam)), plogis(lz, lower.tail = FALSE, log.p = TRUE) + out)
+        out <- ifelse(
+          y == 0,
+          log(plogis(lz) + plogis(lz, lower.tail = FALSE) * exp(-lam)),
+          plogis(lz, lower.tail = FALSE, log.p = TRUE) + out
+        )
       }
       out[is.na(y)] <- 0
       out
@@ -560,7 +571,10 @@ mix_newton <- function(M, th, f, g, steps = 20) {
 mix_reorder <- function(M, th, order, f, g, X) {
   phi <- drop(M$b + M$A %*% th)
   if (is.matrix(order)) order <- lapply(seq_len(nrow(order)), function(i) order[i, ])
-  perm <- lapply(seq_along(M$cls), function(v) if (length(order) >= v && length(order[[v]])) as.integer(unlist(order[[v]])) else seq_len(M$ks[v]))
+  perm <- lapply(
+    seq_along(M$cls),
+    function(v) if (length(order) >= v && length(order[[v]])) as.integer(unlist(order[[v]])) else seq_len(M$ks[v])
+  )
   if (all(vapply(seq_along(perm), function(v) identical(perm[[v]], seq_len(M$ks[v])), TRUE))) {
     return(th)
   }
@@ -683,7 +697,18 @@ mix_estimate <- function(spec, data) {
   X <- mix_eta(M)
   fe <- function(e) f(X$to_th(e))
   ge <- function(e) X$chain(e, g(X$to_th(e)))
-  fit <- mix_fit(M, fe, ge, X$to_eta(start), scale, as.integer(spec$starts %||% 20), as.integer(spec$final %||% 4), as.integer(spec$seed %||% 1), if (is.null(given)) NULL else X$to_eta(given), spec$phase %||% list())
+  fit <- mix_fit(
+    M,
+    fe,
+    ge,
+    X$to_eta(start),
+    scale,
+    as.integer(spec$starts %||% 20),
+    as.integer(spec$final %||% 4),
+    as.integer(spec$seed %||% 1),
+    if (is.null(given)) NULL else X$to_eta(given),
+    spec$phase %||% list()
+  )
   if (!is.null(fit$stage) || !is.null(fit$finals)) {
     return(fit)
   }
@@ -740,7 +765,18 @@ mix_report <- function(spec, est) {
   se[fixed] <- 0
   lapply(seq_along(est0), function(i) {
     r <- spec$report[[i]]
-    c(list(lhs = r$lhs, op = r$op, rhs = r$rhs %||% "", at = as.integer(unlist(r$at)), est = est0[i], se = if (is.finite(se[i])) se[i] else NULL, fixed = fixed[i]), if (!is.null(r$level)) list(level = r$level))
+    c(
+      list(
+        lhs = r$lhs,
+        op = r$op,
+        rhs = r$rhs %||% "",
+        at = as.integer(unlist(r$at)),
+        est = est0[i],
+        se = if (is.finite(se[i])) se[i] else NULL,
+        fixed = fixed[i]
+      ),
+      if (!is.null(r$level)) list(level = r$level)
+    )
   })
 }
 
@@ -750,7 +786,10 @@ mix_shares <- function(est) {
   w <- M$w / sum(M$w)
   pz <- colSums(est$post * w)
   list(
-    classes = lapply(seq_along(M$cls), function(v) list(name = M$cls[[v]]$name, k = M$ks[v], shares = vapply(seq_len(M$ks[v]), function(j) sum(pz[M$Z[, v] == j]), 1))),
+    classes = lapply(
+      seq_along(M$cls),
+      function(v) list(name = M$cls[[v]]$name, k = M$ks[v], shares = vapply(seq_len(M$ks[v]), function(j) sum(pz[M$Z[, v] == j]), 1))
+    ),
     patterns = lapply(seq_len(M$nz), function(z) list(classes = as.integer(M$Z[z, ]), share = pz[z])),
     entropy = if (M$nz > 1) 1 - sum(-est$post * log(pmax(est$post, 1e-300)) * M$w) / (sum(M$w) * log(M$nz)) else NULL
   )
@@ -911,7 +950,11 @@ mixq_ld <- function(bk, v, rows, off = NULL) {
       }
       if (bk$type == "zip") {
         lz <- v[q + 2] + (if (q) drop(X %*% v[q + 2 + seq_len(q)]) else 0)
-        out <- ifelse(y == 0, log(stats::plogis(lz) + stats::plogis(lz, lower.tail = FALSE) * exp(-lam)), stats::plogis(lz, lower.tail = FALSE, log.p = TRUE) + out)
+        out <- ifelse(
+          y == 0,
+          log(stats::plogis(lz) + stats::plogis(lz, lower.tail = FALSE) * exp(-lam)),
+          stats::plogis(lz, lower.tail = FALSE, log.p = TRUE) + out
+        )
       }
       out[is.na(y)] <- 0
       out
@@ -922,7 +965,14 @@ mixq_ld <- function(bk, v, rows, off = NULL) {
       }
       K <- bk$K
       y <- bk$code[rows]
-      E <- cbind(vapply(seq_len(K - 1), function(j) rep(v[j], nr) + (if (q) drop(X %*% v[K - 1 + (j - 1) * q + seq_len(q)]) else 0), numeric(nr)), 0)
+      E <- cbind(
+        vapply(
+          seq_len(K - 1),
+          function(j) rep(v[j], nr) + (if (q) drop(X %*% v[K - 1 + (j - 1) * q + seq_len(q)]) else 0),
+          numeric(nr)
+        ),
+        0
+      )
       E <- matrix(E, nr)
       lp <- E - mix_lse(E)
       out <- numeric(nr)
@@ -1823,7 +1873,16 @@ mixq_converge <- function(M, e, X, fe, budget = 5000, newton = TRUE) {
   while (used < budget) {
     it <- min(maxit, budget - used)
     # (BFGS to a moderate tolerance: Newton steps finish)
-    o <- tryCatch(stats::optim(e, function(x) fe(x, A), function(x) ge(x, A), method = "BFGS", control = list(maxit = it, reltol = if (newton) 1e-10 else 1e-12)), error = function(err) NULL)
+    o <- tryCatch(
+      stats::optim(
+        e,
+        function(x) fe(x, A),
+        function(x) ge(x, A),
+        method = "BFGS",
+        control = list(maxit = it, reltol = if (newton) 1e-10 else 1e-12)
+      ),
+      error = function(err) NULL
+    )
     used <- used + it
     if (is.null(o)) break
     A2 <- mixq_adapt(M, X$to_th(o$par), A, 2)
@@ -1916,7 +1975,10 @@ mixq_estimate <- function(spec, data) {
 mixq_reorder <- function(M, th, order, X, A) {
   phi <- drop(M$b + M$A %*% mix_full(M, th))
   if (is.matrix(order)) order <- lapply(seq_len(nrow(order)), function(i) order[i, ])
-  perm <- lapply(seq_along(M$cls), function(v) if (length(order) >= v && length(order[[v]])) as.integer(unlist(order[[v]])) else seq_len(M$ks[v]))
+  perm <- lapply(
+    seq_along(M$cls),
+    function(v) if (length(order) >= v && length(order[[v]])) as.integer(unlist(order[[v]])) else seq_len(M$ks[v])
+  )
   if (all(vapply(seq_along(perm), function(v) identical(perm[[v]], seq_len(M$ks[v])), TRUE))) {
     return(list(theta = th, A = A))
   }

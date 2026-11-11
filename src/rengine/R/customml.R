@@ -77,7 +77,10 @@ ps_customml <- function(req_json, export = FALSE) {
   if (type == "nominal") {
     lg <- as.character(unlist(req$logits))
     if (!length(lg)) stop("Give the logit of each category but the last.")
-    parts <- setNames(lapply(seq_along(lg), function(k) ex(lg[k], sprintf("the logit of category %d", k))), sprintf("%s#%d", ys, seq_along(lg)))
+    parts <- setNames(
+      lapply(seq_along(lg), function(k) ex(lg[k], sprintf("the logit of category %d", k))),
+      sprintf("%s#%d", ys, seq_along(lg))
+    )
   } else {
     mu <- as.character(unlist(req$means))
     vv <- as.character(unlist(req$variances))
@@ -87,10 +90,19 @@ ps_customml <- function(req_json, export = FALSE) {
     }
     loc <- if (type == "probit") "threshold" else "mean"
     parts <- c(
-      setNames(lapply(seq_len(p), function(j) ex(mu[j], sprintf("the %s of %s", loc, ys[j]))), sprintf("%s %s", if (type == "probit") "Threshold" else "Mean", ys)),
-      setNames(lapply(seq_len(p), function(j) ex(vv[j], sprintf("the variance of %s", ys[j]))), sprintf("Variance %s", ys)),
       setNames(
-        lapply(seq_len(nrow(pairs)), function(k) if (nzchar(trimws(cv[k]))) ex(cv[k], sprintf("the covariance of %s and %s", ys[pairs[k, 1]], ys[pairs[k, 2]])) else "0"),
+        lapply(seq_len(p), function(j) ex(mu[j], sprintf("the %s of %s", loc, ys[j]))),
+        sprintf("%s %s", if (type == "probit") "Threshold" else "Mean", ys)
+      ),
+      setNames(
+        lapply(seq_len(p), function(j) ex(vv[j], sprintf("the variance of %s", ys[j]))),
+        sprintf("Variance %s", ys)
+      ),
+      setNames(
+        lapply(
+          seq_len(nrow(pairs)),
+          function(k) if (nzchar(trimws(cv[k]))) ex(cv[k], sprintf("the covariance of %s and %s", ys[pairs[k, 1]], ys[pairs[k, 2]])) else "0"
+        ),
         if (nrow(pairs)) sprintf("Covariance %s, %s", ys[pairs[, 1]], ys[pairs[, 2]]) else character(0)
       )
     )
@@ -101,7 +113,11 @@ ps_customml <- function(req_json, export = FALSE) {
   if (any(dn %in% c(pn, defcols)) || anyDuplicated(dn)) {
     stop("A defined parameter needs a name of its own.")
   }
-  dexpr <- vapply(seq_along(defs), function(i) ps_cml_expr(defs[[i]]$expr, c(pn, dn[seq_len(i - 1)]), sprintf("the defined parameter %s", dn[i])), "")
+  dexpr <- vapply(
+    seq_along(defs),
+    function(i) ps_cml_expr(defs[[i]]$expr, c(pn, dn[seq_len(i - 1)]), sprintf("the defined parameter %s", dn[i])),
+    ""
+  )
   used <- unique(c(ys, intersect(defcols, unlist(lapply(parts, function(s) all.vars(str2lang(s)))))))
   fr <- ps_long_frame(req, used)
   # (the expressions name the columns as they are; plain names are their own R names)
@@ -125,7 +141,10 @@ ps_customml <- function(req_json, export = FALSE) {
       body,
       sprintf("y <- data[[%s]]", encodeString(ys, quote = '"')),
       "cats <- sort(unique(y))",
-      sprintf("if (length(cats) != %d) stop(\"The outcome has \", length(cats), \" categories: give \", length(cats) - 1, \" logits, one for each category but the last (the reference).\")", length(parts) + 1),
+      sprintf(
+        "if (length(cats) != %d) stop(\"The outcome has \", length(cats), \" categories: give \", length(cats) - 1, \" logits, one for each category but the last (the reference).\")",
+        length(parts) + 1
+      ),
       "loglik_v <- function(v) {   # (the cases' log-likelihoods, given the parts)",
       "  eta <- cbind(do.call(cbind, v), 0)   # the last category is the reference",
       "  m <- apply(eta, 1, max); lse <- m + log(rowSums(exp(eta - m)))",
@@ -136,7 +155,10 @@ ps_customml <- function(req_json, export = FALSE) {
     body <- c(
       body,
       "Y <- as.matrix(data[outcomes])",
-      sprintf("pairs <- matrix(c(%s), ncol = 2)", if (nrow(pairs)) paste(c(pairs[, 1], pairs[, 2]), collapse = ", ") else "integer(0)"),
+      sprintf(
+        "pairs <- matrix(c(%s), ncol = 2)",
+        if (nrow(pairs)) paste(c(pairs[, 1], pairs[, 2]), collapse = ", ") else "integer(0)"
+      ),
       "p <- length(outcomes)",
       "loglik_v <- function(v) {   # (the cases' log-likelihoods, given the parts)",
       "  M <- do.call(cbind, v[seq_len(p)]); V <- do.call(cbind, v[p + seq_len(p)]); C <- if (nrow(pairs)) do.call(cbind, v[-seq_len(2 * p)]) else matrix(0, n, 0)",
@@ -236,7 +258,11 @@ ps_customml <- function(req_json, export = FALSE) {
   if (export) {
     return(ps_script(
       sprintf("Custom likelihood (%s model, maximum likelihood)", type), pk, inputs, body,
-      c("cbind(estimate = theta, se = sqrt(diag(V)))", "cbind(estimate = d0, se = se_derived)", "c(logLik = logl, npar = npar, AIC = -2 * logl + 2 * npar, BIC = -2 * logl + log(n) * npar)")
+      c(
+        "cbind(estimate = theta, se = sqrt(diag(V)))",
+        "cbind(estimate = d0, se = se_derived)",
+        "c(logLik = logl, npar = npar, AIC = -2 * logl + 2 * npar, BIC = -2 * logl + log(n) * npar)"
+      )
     ))
   }
   env <- ps_run(body, inputs)
@@ -248,11 +274,19 @@ ps_customml <- function(req_json, export = FALSE) {
   item <- function(i, kind) list(name = names(d0)[i], kind = kind, est = if (is.na(d0[i])) NULL else unname(d0[i]), se = if (is.na(d0[i])) NULL else unname(sd0[i]), expr = if (kind == "part") parts[[i]] else dexpr[i - nparts])
   ps_json(list(
     type = type, outcomes = I(ys), n = env$n, converged = conv,
-    parameters = lapply(seq_along(pn), function(k) list(name = pn[k], est = unname(env$theta[k]), se = unname(se[k]), start = start[k])),
+    parameters = lapply(
+      seq_along(pn),
+      function(k) list(name = pn[k], est = unname(env$theta[k]), se = unname(se[k]), start = start[k])
+    ),
     parts = lapply(seq_len(nparts), function(i) item(i, "part")),
     defined = lapply(seq_along(dn), function(i) item(nparts + i, "defined")),
     categories = if (type == "nominal") I(env$cats) else NULL,
-    fit = list(logLik = env$logl, npar = env$npar, aic = -2 * env$logl + 2 * env$npar, bic = -2 * env$logl + log(env$n) * env$npar),
+    fit = list(
+      logLik = env$logl,
+      npar = env$npar,
+      aic = -2 * env$logl + 2 * env$npar,
+      bic = -2 * env$logl + log(env$n) * env$npar
+    ),
     se = se_type, scaling = if (se_type == "mplus") env$scaling else NULL, warnings = c(env$.warnings, if (!conv) "The optimiser did not report convergence: check the start values."),
     engine = list(package = "R (stats::nlminb)", version = as.character(getRversion()))
   ))
@@ -318,7 +352,10 @@ ps_bmvreg <- function(req_json, export = FALSE) {
   P <- env$post
   ps_json(list(
     n = env$N, k = env$k, df = env$nu, draws = draws, seed = seed, outcomes = I(ys), predictors = I(xs),
-    parameters = lapply(seq_len(nrow(P)), function(i) list(name = back(P$parameter[i]), median = P$median[i], mean = P$mean[i], sd = P$sd[i], lower = P$lower[i], upper = P$upper[i], pOne = P$p_one[i], exact = P$exact[i])),
+    parameters = lapply(
+      seq_len(nrow(P)),
+      function(i) list(name = back(P$parameter[i]), median = P$median[i], mean = P$mean[i], sd = P$sd[i], lower = P$lower[i], upper = P$upper[i], pOne = P$p_one[i], exact = P$exact[i])
+    ),
     warnings = env$.warnings, engine = list(package = "R (stats::rWishart)", version = as.character(getRversion()))
   ))
 }

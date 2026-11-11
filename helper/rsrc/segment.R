@@ -63,7 +63,10 @@ ps_rebus <- function(req_json, export = FALSE) {
     "  cbind(outer, S[, endo, drop = FALSE] - S %*% t(g$path_coefs[endo, , drop = FALSE]))",
     "}",
     "hc <- hclust(dist(rebus_residuals(global)), method = \"ward.D\")",
-    sprintf("# Step 2: REBUS iterations from the hierarchical solution with %s classes; permutation tests between the classes.", paste(ks, collapse = ", ")),
+    sprintf(
+      "# Step 2: REBUS iterations from the hierarchical solution with %s classes; permutation tests between the classes.",
+      paste(ks, collapse = ", ")
+    ),
     sprintf("set.seed(%d)", seed),
     "# Each number of classes on its own: one that cannot be estimated (a class that becomes empty or",
     "# too small for its local model) is reported, and the others still run.",
@@ -108,14 +111,23 @@ ps_rebus <- function(req_json, export = FALSE) {
     if (!is.null(tests_error)) t <- list()
     row <- function(prefix) {
       i <- startsWith(rownames(q), paste0(prefix, "."))
-      setNames(lapply(which(i), function(j) unname(q[j, ])), ps_back(sub("^[A-Za-z0-9]+\\.", "", rownames(q)[i]), back_lv, FALSE))
+      setNames(
+        lapply(which(i), function(j) unname(q[j, ])),
+        ps_back(sub("^[A-Za-z0-9]+\\.", "", rownames(q)[i]), back_lv, FALSE)
+      )
     }
     list(
       k = as.integer(k), gqi = r$aux[[7]], iterations = r$aux[[6]], changeRate = r$aux[[3]],
       sizes = as.integer(table(factor(r$segments, levels = seq_len(as.integer(k))))),
       segments = unname(as.integer(r$segments)),
-      paths = lapply(seq_len(nrow(r$path.coef)), function(i) c(path_name(rownames(r$path.coef)[i]), list(byClass = unname(r$path.coef[i, ])))),
-      loadings = lapply(seq_len(nrow(r$loadings)), function(i) list(indicator = ps_back(rownames(r$loadings)[i], back_mv, FALSE), byClass = unname(r$loadings[i, ]))),
+      paths = lapply(
+        seq_len(nrow(r$path.coef)),
+        function(i) c(path_name(rownames(r$path.coef)[i]), list(byClass = unname(r$path.coef[i, ])))
+      ),
+      loadings = lapply(
+        seq_len(nrow(r$loadings)),
+        function(i) list(indicator = ps_back(rownames(r$loadings)[i], back_mv, FALSE), byClass = unname(r$loadings[i, ]))
+      ),
       communality = row("Com"), r2 = row("R2"), gof = unname(q["GoF", ]),
       testsError = tests_error,
       tests = lapply(names(t), function(nm) {
@@ -123,7 +135,10 @@ ps_rebus <- function(req_json, export = FALSE) {
         cls <- as.integer(strsplit(sub("^test_", "", nm), "_")[[1]])
         list(
           classes = cls,
-          paths = lapply(seq_len(nrow(x$paths)), function(i) c(path_name(rownames(x$paths)[i]), list(diff = x$paths[i, 3], p = x$paths[i, 4]))),
+          paths = lapply(
+            seq_len(nrow(x$paths)),
+            function(i) c(path_name(rownames(x$paths)[i]), list(diff = x$paths[i, 3], p = x$paths[i, 4]))
+          ),
           gof = list(diff = x$gof[1, 3], p = x$gof[1, 4])
         )
       })
@@ -237,8 +252,14 @@ ps_pathmox <- function(req_json, export = FALSE) {
         }
       )
     }),
-    terminal = list(nodes = colnames(tp), rows = lapply(seq_len(nrow(tp)), function(i) list(name = nm(rownames(tp)[i]), values = unname(tp[i, ])))),
-    importance = lapply(seq_len(nrow(p$var_imp)), function(i) list(variable = unname(fr$back[p$var_imp$variable[i]] %|NA|% p$var_imp$variable[i]), ranking = p$var_imp$ranking[i])),
+    terminal = list(
+      nodes = colnames(tp),
+      rows = lapply(seq_len(nrow(tp)), function(i) list(name = nm(rownames(tp)[i]), values = unname(tp[i, ])))
+    ),
+    importance = lapply(
+      seq_len(nrow(p$var_imp)),
+      function(i) list(variable = unname(fr$back[p$var_imp$variable[i]] %|NA|% p$var_imp$variable[i]), ranking = p$var_imp$ranking[i])
+    ),
     warnings = env$.warnings, engine = ps_engine("genpathmox")
   ))
 }
@@ -280,7 +301,11 @@ ps_fimix <- function(req_json, export = FALSE) {
     },
     sprintf("equations <- list(%s)", paste(eqs, collapse = ", ")),
     sprintf("set.seed(%d)", seed),
-    sprintf("fits <- stepFlexmix(~ 1, data = scores, k = %s, model = equations, nrep = %d, verbose = FALSE, control = list(minprior = 0))", paste(deparse(ks), collapse = ""), nrep),
+    sprintf(
+      "fits <- stepFlexmix(~ 1, data = scores, k = %s, model = equations, nrep = %d, verbose = FALSE, control = list(minprior = 0))",
+      paste(deparse(ks), collapse = ""),
+      nrep
+    ),
     "if (inherits(fits, \"flexmix\")) fits <- list(fits) else fits <- lapply(as.character(sort(unique(fits@k))), function(k) getModel(fits, k))",
     "# Fit criteria (Sarstedt et al. 2011): AIC3 and CAIC together, BIC; EN: normed entropy (separation of the segments).",
     "criteria <- function(m) {",
@@ -306,7 +331,10 @@ ps_fimix <- function(req_json, export = FALSE) {
         pr <- flexmix::parameters(m, component = s, model = j)
         co <- pr[grepl("^coef\\.", rownames(pr)), 1]
         names(co) <- sub("^coef\\.", "", names(co))
-        lapply(names(co), function(f) list(from = if (f == "(Intercept)") "Intercept" else ps_back(f, back, FALSE), to = ends[j], est = unname(co[[f]])))
+        lapply(
+          names(co),
+          function(f) list(from = if (f == "(Intercept)") "Intercept" else ps_back(f, back, FALSE), to = ends[j], est = unname(co[[f]]))
+        )
       }), recursive = FALSE)
       r2 <- lapply(seq_along(ends), function(j) {
         y <- env$scores[[cv[[ends[j]]]]][cl == s]
@@ -384,10 +412,16 @@ ps_pos <- function(req_json, export = FALSE) {
   body <- c(
     b$body[-length(b$body)],
     "# The global model (for comparison).", fit_line,
-    sprintf("pos_estimate <- function(d) %s", sub("^fit <- ", "", sub("csem(data,", "csem(d,", fit_line, fixed = TRUE))),
+    sprintf(
+      "pos_estimate <- function(d) %s",
+      sub("^fit <- ", "", sub("csem(data,", "csem(d,", fit_line, fixed = TRUE))
+    ),
     PS_POS_FUNCTIONS,
     "X <- as.matrix(data)",
-    sprintf("min_size <- max(%d, ceiling(0.05 * nrow(X)))  # smallest segment: 5%% of the sample (at least the number of indicators)", ncol(b$inputs$data) + 1),
+    sprintf(
+      "min_size <- max(%d, ceiling(0.05 * nrow(X)))  # smallest segment: 5%% of the sample (at least the number of indicators)",
+      ncol(b$inputs$data) + 1
+    ),
     sprintf("set.seed(%d)", seed),
     sprintf("runs <- lapply(seq_len(%d), function(r) pos_run(X, %d, min_size, %d, %d))", nrep, K, max_moves, cands),
     "best <- runs[[which.max(sapply(runs, `[[`, \"objective\"))]]"
@@ -408,7 +442,10 @@ ps_pos <- function(req_json, export = FALSE) {
       g <- best$fits[[k]]
       list(
         segment = k, size = sum(best$assignment == k),
-        paths = lapply(req$model$paths, function(p) list(from = p$from, to = p$to, est = g$B[cv[[p$to]], cv[[p$from]]])),
+        paths = lapply(
+          req$model$paths,
+          function(p) list(from = p$from, to = p$to, est = g$B[cv[[p$to]], cv[[p$from]]])
+        ),
         r2 = as.list(setNames(unname(g$r2), ps_back(names(g$r2), back, FALSE)))
       )
     }),

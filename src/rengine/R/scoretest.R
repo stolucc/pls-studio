@@ -56,8 +56,20 @@ ps_sc_lines <- function(zv, scale, fn, sets, seed, nrep) {
       DM = "fun <- maxBB  # double maximum",
       CvM = "fun <- meanL2BB  # Cramer-von Mises",
       maxLM = "fun <- supLM(from = 0.1)  # maximum Lagrange multiplier, 10% trimmed at either end",
-      WDMo = c("fun <- ordwmax(z)  # weighted double maximum, ordinal", sprintf("set.seed(%d)  # (its p-value is a multivariate normal probability by randomised quadrature, mvtnorm)", seed)),
-      maxLMo = c(sprintf("set.seed(%d)", seed), sprintf("fun <- ordL2BB(z, nproc = NCOL(scus$process), nrep = %d)  # maximum LM, ordinal (critical values simulated)", nrep)),
+      WDMo = c(
+        "fun <- ordwmax(z)  # weighted double maximum, ordinal",
+        sprintf(
+          "set.seed(%d)  # (its p-value is a multivariate normal probability by randomised quadrature, mvtnorm)",
+          seed
+        )
+      ),
+      maxLMo = c(
+        sprintf("set.seed(%d)", seed),
+        sprintf(
+          "fun <- ordL2BB(z, nproc = NCOL(scus$process), nrep = %d)  # maximum LM, ordinal (critical values simulated)",
+          nrep
+        )
+      ),
       LMuo = "fun <- catL2BB(z)  # unordered LM, categorical"
     ),
     "test <- sctest(scus, functional = fun)"
@@ -159,7 +171,11 @@ ps_scoretest <- function(req_json, export = FALSE) {
   zv <- ps_ident(c(names(b$inputs$data), cov))[ncol(b$inputs$data) + 1L]
   inputs <- b$inputs
   inputs$data[[zv]] <- z
-  drop <- sprintf("data <- data[!is.na(data$%s)%s, , drop = FALSE]", zv, if (!is.null(b$group_var)) sprintf(" & !is.na(data$%s)", b$group_var) else "")
+  drop <- sprintf(
+    "data <- data[!is.na(data$%s)%s, , drop = FALSE]",
+    zv,
+    if (!is.null(b$group_var)) sprintf(" & !is.na(data$%s)", b$group_var) else ""
+  )
   body <- c(
     b$body[1], sprintf("# The covariate %s: rows without it%s are left out", ps_comment(cov), if (!is.null(b$group_var)) " (or without a group)" else ""), drop,
     b$body[-1], "suppressPackageStartupMessages(library(strucchange))",

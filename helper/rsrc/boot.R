@@ -90,7 +90,11 @@ ps_boot_draw_lines <- function(req, chunk_fn) {
   }
   c(
     chunk_fn,
-    sprintf("# Parallel bootstrap: the samples in %d chunk%s, chunk k drawn with its own seed, so the draws", length(R), if (length(R) > 1) "s" else ""),
+    sprintf(
+      "# Parallel bootstrap: the samples in %d chunk%s, chunk k drawn with its own seed, so the draws",
+      length(R),
+      if (length(R) > 1) "s" else ""
+    ),
     "# do not depend on the number of R sessions; the chunks can run in parallel (e.g. parallel::mclapply).",
     sprintf("chunks <- data.frame(R = c(%s), seed = c(%s))", paste(R, collapse = ", "), paste(seeds, collapse = ", ")),
     "parts <- lapply(seq_len(nrow(chunks)), function(k) draw_chunk(chunks$R[k], chunks$seed[k]))",
@@ -167,7 +171,12 @@ ps_pls_boot <- function(req_json, export = FALSE) {
       body <- c(body, extract)
       if (bca) {
         # BCa: cSEM's jackknife (each observation left out once) gives the acceleration.
-        jk <- sub(", .R = %s, .seed = %s", "", sub("\"bootstrap\"", "\"jackknife\"", resample, fixed = TRUE), fixed = TRUE)
+        jk <- sub(
+          ", .R = %s, .seed = %s",
+          "",
+          sub("\"bootstrap\"", "\"jackknife\"", resample, fixed = TRUE),
+          fixed = TRUE
+        )
         jx <- gsub("fit$", "fit_jack$", extract, fixed = TRUE)
         jx <- sub("^draws <- ", "jack <- ", jx[!grepl("^original <- ", jx)])
         body <- c(
@@ -191,7 +200,16 @@ ps_pls_boot <- function(req_json, export = FALSE) {
       "original <- c(orig(P, \"path\", kp), orig(TE, \"total\", kt), orig(TE - P, \"indirect\", ki), orig(fit$outer_loadings, \"loading\", kl), orig(fit$outer_weights, \"weight\", kw))"
     )
   }
-  body <- c(body, PS_BOOT_SUMMARY, sprintf("result <- boot_summary(draws, original[colnames(draws)], confidence = %s, tails = %d%s)", format(conf), ps_boot_tails(req), if (bca) ", jack = jack" else ""))
+  body <- c(
+    body,
+    PS_BOOT_SUMMARY,
+    sprintf(
+      "result <- boot_summary(draws, original[colnames(draws)], confidence = %s, tails = %d%s)",
+      format(conf),
+      ps_boot_tails(req),
+      if (bca) ", jack = jack" else ""
+    )
+  )
   title <- sprintf("Bootstrap, %d samples (%s)", B, b$pkg)
   if (mi) {
     # Multiple imputation: the bootstrap in every imputed data set (same seed), pooled by Rubin's rules.
@@ -257,7 +275,16 @@ ps_boot_keys <- function(r, b, req) {
           key = sprintf("%s:%s:%s", if (g == "loading") "hoLoading" else "hoWeight", lv[[lhs]], lv[[rhs]]),
           label = if (g == "loading") sprintf("%s → %s", lv[[lhs]], lv[[rhs]]) else sprintf("%s → %s", lv[[rhs]], lv[[lhs]])
         ),
-        list(group = g, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i])
+        list(
+          group = g,
+          original = r$original[i],
+          mean = r$mean[i],
+          sd = r$sd[i],
+          t = r$t[i],
+          p = r$p[i],
+          ciLow = r$ci_low[i],
+          ciHigh = r$ci_high[i]
+        )
       )
       next
     }
@@ -373,12 +400,18 @@ ps_cb_boot <- function(req_json, export = FALSE) {
         ps_cb_draws(req, "set.seed(seed)", c(
           "t(vapply(seq_len(R), function(r) {",
           "  s <- unlist(lapply(strata, function(ids) ids[sample.int(length(ids), replace = TRUE)]), use.names = FALSE)",
-          sprintf("  d <- do.call(rbind, lapply(seq_along(s), function(k) { x <- data[cl == s[k], , drop = FALSE]; x[[\"%s\"]] <- k; x }))", b$cluster_var),
+          sprintf(
+            "  d <- do.call(rbind, lapply(seq_along(s), function(k) { x <- data[cl == s[k], , drop = FALSE]; x[[\"%s\"]] <- k; x }))",
+            b$cluster_var
+          ),
           "  tryCatch(std_stats(refit(d), names(original)),",
           "    error = function(e) { boot_errors <<- c(boot_errors, conditionMessage(e)); rep(NA_real_, length(original)) })",
           "}, numeric(length(original))))"
         ), B, seed),
-        sprintf("if (length(boot_errors)) warning(sprintf(\"%%d of %d cluster resamples failed, e.g.: %%s\", length(boot_errors), boot_errors[1]))", B)
+        sprintf(
+          "if (length(boot_errors)) warning(sprintf(\"%%d of %d cluster resamples failed, e.g.: %%s\", length(boot_errors), boot_errors[1]))",
+          B
+        )
       )
     } else {
       c(
@@ -400,7 +433,12 @@ ps_cb_boot <- function(req_json, export = FALSE) {
       )
     },
     PS_BOOT_SUMMARY,
-    sprintf("result <- boot_summary(draws, original, confidence = %s, tails = %d%s)", format(conf), ps_boot_tails(req), if (bca) ", jack = jack" else "")
+    sprintf(
+      "result <- boot_summary(draws, original, confidence = %s, tails = %d%s)",
+      format(conf),
+      ps_boot_tails(req),
+      if (bca) ", jack = jack" else ""
+    )
   )
   if (export) {
     return(ps_script(sprintf("Bootstrap, %d samples (lavaan)", B), "lavaan", b$inputs, body, "print(result, digits = 4)"))
@@ -438,13 +476,29 @@ ps_cb_boot <- function(req_json, export = FALSE) {
       estimate = if (est[2] == ":=") {
         list(key = sprintf("estimate:%s", est[1]), label = sprintf("%s := %s", est[1], est[3]))
       } else {
-        list(key = sprintf("estimate:%s %s %s", ps_back(est[1], back), est[2], ps_back(est[3], back)), label = trimws(sprintf("%s %s %s", ps_back(est[1], back), est[2], ps_back(est[3], back))))
+        list(
+          key = sprintf("estimate:%s %s %s", ps_back(est[1], back), est[2], ps_back(est[3], back)),
+          label = trimws(sprintf("%s %s %s", ps_back(est[1], back), est[2], ps_back(est[3], back)))
+        )
       },
       loading = list(key = sprintf("loading:%s", z), label = sprintf("%s → %s", a, z)),
       weight = list(key = sprintf("weight:%s", z), label = sprintf("%s → %s", z, a)),
       r2 = list(key = sprintf("r2:%s", a), label = a)
     )
-    c(k, list(group = g, block = block, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
+    c(
+      k,
+      list(
+        group = g,
+        block = block,
+        original = r$original[i],
+        mean = r$mean[i],
+        sd = r$sd[i],
+        t = r$t[i],
+        p = r$p[i],
+        ciLow = r$ci_low[i],
+        ciHigh = r$ci_high[i]
+      )
+    )
   })
   ps_json(list(stats = stats, samples = B, blocks = blocks, failed = B - sum(rowSums(is.finite(env$draws)) > 0), confidence = conf, tails = ps_boot_tails(req), interval = if (bca) "bca" else "percentile", warnings = ps_quiet_2ndorder(env$.warnings)))
 }
@@ -491,7 +545,10 @@ ps_cb_boot_modsem <- function(b, B, seed, conf, export, req) {
       "    warning = function(w) { boot_warnings <<- c(boot_warnings, conditionMessage(w)); invokeRestart(\"muffleWarning\") })",
       "}, numeric(length(original))))"
     ), B, seed),
-    sprintf("if (length(boot_errors)) warning(sprintf(\"%%d of %d bootstrap refits failed, e.g.: %%s\", length(boot_errors), boot_errors[1]))", B),
+    sprintf(
+      "if (length(boot_errors)) warning(sprintf(\"%%d of %d bootstrap refits failed, e.g.: %%s\", length(boot_errors), boot_errors[1]))",
+      B
+    ),
     "if (length(boot_warnings)) warning(sprintf(\"%d warnings in the bootstrap refits, e.g.: %s\", length(boot_warnings), boot_warnings[1]))",
     "colnames(draws) <- names(original)",
     PS_BOOT_SUMMARY,
@@ -524,7 +581,19 @@ ps_cb_boot_modsem <- function(b, B, seed, conf, export, req) {
       loading = list(key = sprintf("loading:%s", z), label = sprintf("%s → %s", a, z)),
       r2 = list(key = sprintf("r2:%s", a), label = a)
     )
-    c(k, list(group = g, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
+    c(
+      k,
+      list(
+        group = g,
+        original = r$original[i],
+        mean = r$mean[i],
+        sd = r$sd[i],
+        t = r$t[i],
+        p = r$p[i],
+        ciLow = r$ci_low[i],
+        ciHigh = r$ci_high[i]
+      )
+    )
   })
   ps_json(list(
     stats = Filter(Negate(is.null), stats), samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0), tails = ps_boot_tails(req), interval = "percentile",
@@ -555,7 +624,16 @@ ps_rubin <- function(rs, confidence) {
     df <- if (!is.finite(rr) || rr <= 0) Inf else (m - 1) * (1 + 1 / rr)^2
     t <- qbar / sqrt(Tv)
     h <- stats::qt((1 + confidence) / 2, df) * sqrt(Tv)
-    data.frame(parameter = p, original = qbar, mean = mean(bm), sd = sqrt(Tv), t = t, p = 2 * stats::pt(-abs(t), df), ci_low = qbar - h, ci_high = qbar + h)
+    data.frame(
+      parameter = p,
+      original = qbar,
+      mean = mean(bm),
+      sd = sqrt(Tv),
+      t = t,
+      p = 2 * stats::pt(-abs(t), df),
+      ci_low = qbar - h,
+      ci_high = qbar + h
+    )
   })
   do.call(rbind, rows)
 }

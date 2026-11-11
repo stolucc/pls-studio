@@ -23,7 +23,11 @@ ps_long_options <- function(req) {
     stop("Invalid information in the request: observed information is an option for ML.")
   }
   # (`extra`: the further lavaan arguments of the call: standard errors from the observed information, as Mplus)
-  list(est = est, fiml = !is.null(PS_LAVAAN_MISSING[[req$missing %||% ""]]), extra = if (!is.null(info)) ", information = \"observed\"" else "")
+  list(
+    est = est,
+    fiml = !is.null(PS_LAVAAN_MISSING[[req$missing %||% ""]]),
+    extra = if (!is.null(info)) ", information = \"observed\"" else ""
+  )
 }
 
 ps_long_fit <- function(fit) {
@@ -181,7 +185,12 @@ ps_growth <- function(req_json, export = FALSE) {
   ps_json(list(
     n = lavaan::lavInspect(fit, "nobs"), fit = ps_long_fit(fit),
     # (with the occasions' residual variances, as lavaan's and Mplus's output list them)
-    estimates = ps_long_estimates(fit, fr$back, c("i", "s", "q"), also = c(list(list(op = "~~", lhs = y)), if (length(tvc)) list(list(op = "~", lhs = y)))),
+    estimates = ps_long_estimates(
+      fit,
+      fr$back,
+      c("i", "s", "q"),
+      also = c(list(list(op = "~~", lhs = y)), if (length(tvc)) list(list(op = "~", lhs = y)))
+    ),
     r2 = as.list(lavaan::lavInspect(fit, "r2")[intersect(c("i", "s", "q"), names(lavaan::lavInspect(fit, "r2")))]),
     impliedMeans = unname(implied), observedMeans = unname(colMeans(env$data[, y, drop = FALSE], na.rm = TRUE)),
     measures = measures, times = times,
@@ -244,7 +253,11 @@ ps_riclpm <- function(req_json, export = FALSE) {
   ps_json(list(
     n = lavaan::lavInspect(env$fit, "nobs"), waves = T, equal = equal, fit = ps_long_fit(env$fit), clpmFit = ps_long_fit(env$fit_clpm),
     estimates = ps_long_estimates(env$fit, fr$back, lvs),
-    comparison = list(chisqDiff = unname(cmp[["Chisq diff"]][2]), dfDiff = unname(cmp[["Df diff"]][2]), p = unname(cmp[["Pr(>Chisq)"]][2])),
+    comparison = list(
+      chisqDiff = unname(cmp[["Chisq diff"]][2]),
+      dfDiff = unname(cmp[["Df diff"]][2]),
+      p = unname(cmp[["Pr(>Chisq)"]][2])
+    ),
     warnings = env$.warnings, engine = ps_engine("lavaan")
   ))
 }
@@ -282,7 +295,10 @@ ps_lcs_uni_lines <- function(T, v, m, g) {
     },
     if (isTRUE(m$proportional)) c("# Proportional change: each change depends on the previous true score", sprintf("%s ~ beta_%s * %s", d(t2), v, lv(t2 - 1))),
     if (isTRUE(m$autoregressive)) {
-      c("# Autoregression of the changes: each change depends on the previous change", sprintf("%s ~ phi_%s * %s", d(t3), v, d(t3 - 1)))
+      c(
+        "# Autoregression of the changes: each change depends on the previous change",
+        sprintf("%s ~ phi_%s * %s", d(t3), v, d(t3 - 1))
+      )
     }
   )
 }
@@ -299,7 +315,10 @@ ps_lcs_bi_lines <- function(T, mx, my, cp) {
     if (isTRUE(cp$deltaYX)) c("# Coupling: the change in y depends on the previous true score of x", sprintf("dy%d ~ delta_lag_yx * lx%d", t2, t2 - 1)),
     if (isTRUE(cp$xiXY)) c("# Coupling: the change in x depends on the previous change in y", sprintf("dx%d ~ xi_lag_xy * dy%d", t3, t3 - 1)),
     if (isTRUE(cp$xiYX)) {
-      c("# Coupling: the change in y depends on the previous change in x", sprintf("dy%d ~ xi_lag_yx * dx%d", t3, t3 - 1))
+      c(
+        "# Coupling: the change in y depends on the previous change in x",
+        sprintf("dy%d ~ xi_lag_yx * dx%d", t3, t3 - 1)
+      )
     }
   )
 }
@@ -332,9 +351,18 @@ ps_lcs <- function(req_json, export = FALSE) {
     sprintf("# The occasions as x1 ... x%d: %s", T, ps_comment(paste(xs, collapse = ", "))),
     if (bi) sprintf("# and y1 ... y%d: %s", T, ps_comment(paste(ys, collapse = ", "))),
     if (!o$fiml) ps_missing_code(req$missing),
-    sprintf("# %s latent change score model (McArdle; the specification of lcsm::specify_%s_lcsm)", if (bi) "Bivariate" else "Univariate", if (bi) "bi" else "uni"),
+    sprintf(
+      "# %s latent change score model (McArdle; the specification of lcsm::specify_%s_lcsm)",
+      if (bi) "Bivariate" else "Univariate",
+      if (bi) "bi" else "uni"
+    ),
     "model <- '", paste0("  ", lines), "'",
-    sprintf("fit <- lavaan(model, data = data, meanstructure = TRUE, fixed.x = FALSE, control = list(iter.max = 10000), estimator = \"%s\"%s%s)", o$est, ps_lavaan_missing(req$missing), o$extra)
+    sprintf(
+      "fit <- lavaan(model, data = data, meanstructure = TRUE, fixed.x = FALSE, control = list(iter.max = 10000), estimator = \"%s\"%s%s)",
+      o$est,
+      ps_lavaan_missing(req$missing),
+      o$extra
+    )
   )
   inputs <- list(data = fr$data)
   if (export) {

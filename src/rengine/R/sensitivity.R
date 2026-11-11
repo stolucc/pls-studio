@@ -85,10 +85,34 @@ ps_semsens <- function(req_json, export = FALSE) {
     sprintf("of_interest <- %s", ps_q(plines)),
     "std0 <- standardizedSolution(fit)",
     "path_rows <- which(paste(std0$lhs, std0$op, std0$rhs) %in% of_interest)",
-    sprintf("# Ant colony optimisation (Leite et al. 2022): objective %d, an archive of %d solutions, %d ants, at most %d", opt, k, ants, iter),
-    sprintf("# evaluations, each phantom coefficient in [-%s, %s]; the model refitted with lavaan at each evaluation", format(bound), format(bound)),
-    sprintf("sa <- SEMsens::sa.aco(model = model, sens.model = sens_model, %s, opt.fun = %d, paths = path_rows, k = %d, n.of.ants = %d,", args, opt, k, ants),
-    sprintf("  max.iter = %d, d = list(rep(c(%s, %s), %d)), sig.level = %s, seed = %d, verbose = FALSE)", iter, format(-bound), format(bound), length(lv), format(alpha), seed),
+    sprintf(
+      "# Ant colony optimisation (Leite et al. 2022): objective %d, an archive of %d solutions, %d ants, at most %d",
+      opt,
+      k,
+      ants,
+      iter
+    ),
+    sprintf(
+      "# evaluations, each phantom coefficient in [-%s, %s]; the model refitted with lavaan at each evaluation",
+      format(bound),
+      format(bound)
+    ),
+    sprintf(
+      "sa <- SEMsens::sa.aco(model = model, sens.model = sens_model, %s, opt.fun = %d, paths = path_rows, k = %d, n.of.ants = %d,",
+      args,
+      opt,
+      k,
+      ants
+    ),
+    sprintf(
+      "  max.iter = %d, d = list(rep(c(%s, %s), %d)), sig.level = %s, seed = %d, verbose = FALSE)",
+      iter,
+      format(-bound),
+      format(bound),
+      length(lv),
+      format(alpha),
+      seed
+    ),
     "# (the paths' rows are the same in the sensitivity model's solution)",
     "first <- sa$model.results[sa$model.results$evals == 1, ]",
     "stopifnot(identical(paste(first$lhs, first$op, first$rhs)[path_rows], paste(std0$lhs, std0$op, std0$rhs)[path_rows]))",
@@ -191,10 +215,19 @@ ps_medsens <- function(req_json, export = FALSE) {
     "# mediate(): the causal mediation object medsens() reads, for X from 0 to 1 (with two linear models",
     "# medsens() computes its curves and their confidence intervals analytically, not from these simulations)",
     sprintf("set.seed(%d)", seed),
-    sprintf("med <- mediate(fit_m, fit_y, treat = %s, mediator = %s, sims = 100, conf.level = %s)", encodeString(x, quote = '"'), encodeString(m, quote = '"'), format(level)),
+    sprintf(
+      "med <- mediate(fit_m, fit_y, treat = %s, mediator = %s, sims = 100, conf.level = %s)",
+      encodeString(x, quote = '"'),
+      encodeString(m, quote = '"'),
+      format(level)
+    ),
     "# Sensitivity to an unmeasured pre-treatment confounder (Imai, Keele & Yamamoto 2010): the ACME and ADE as functions",
     "# of rho, the correlation of the two equations' residuals",
-    sprintf("sens <- medsens(med, rho.by = %s, eps = %s, effect.type = \"both\")", format(rho_by), format(eps, digits = 15))
+    sprintf(
+      "sens <- medsens(med, rho.by = %s, eps = %s, effect.type = \"both\")",
+      format(rho_by),
+      format(eps, digits = 15)
+    )
   )
   inputs <- list(data = ps_frame(req, n))
   if (export) {

@@ -102,9 +102,16 @@ ps_endo <- function(req_json, export = FALSE) {
       ),
       "fit <- fit_copula(data)",
       sprintf("set.seed(%d)", seed),
-      sprintf("boots <- sapply(seq_len(%d), function(i) coef(fit_copula(data[sample.int(nrow(data), replace = TRUE), , drop = FALSE])))", B),
+      sprintf(
+        "boots <- sapply(seq_len(%d), function(i) coef(fit_copula(data[sample.int(nrow(data), replace = TRUE), , drop = FALSE])))",
+        B
+      ),
       "se <- apply(boots, 1, sd)",
-      sprintf("ci <- t(apply(boots, 1, stats::quantile, probs = c(%s, %s)))", format((1 - conf) / 2), format(1 - (1 - conf) / 2)),
+      sprintf(
+        "ci <- t(apply(boots, 1, stats::quantile, probs = c(%s, %s)))",
+        format((1 - conf) / 2),
+        format(1 - (1 - conf) / 2)
+      ),
       "est <- coef(fit); z <- est / se",
       "res <- cbind(Estimate = est, `Std. Error` = se, `z value` = z, `Pr(>|z|)` = 2 * stats::pnorm(-abs(z)))",
       "# The method needs non-normal endogenous regressors (otherwise P* is collinear with P): Shapiro-Wilk tests.",
@@ -124,7 +131,11 @@ ps_endo <- function(req_json, export = FALSE) {
       "# residuals of the endogenous regressor on the exogenous ones; they work only if those residuals are heteroskedastic.",
       sprintf("e <- residuals(lm(%s ~ %s, data = data))", p, rhs(x)),
       sprintf("data$IIV.%s <- (data$%s - mean(data$%s)) * e", hx, hx, hx),
-      sprintf("bp <- sapply(%s, function(v) lmtest::bptest(stats::reformulate(v, \"%s\"), studentize = TRUE, data = data)$p.value[[1]])", ps_q(hx), p),
+      sprintf(
+        "bp <- sapply(%s, function(v) lmtest::bptest(stats::reformulate(v, \"%s\"), studentize = TRUE, data = data)$p.value[[1]])",
+        ps_q(hx),
+        p
+      ),
       sprintf("fit <- ivreg(%s ~ %s | %s, data = data)", y, rhs(x, p), rhs(x, paste0("IIV.", hx))),
       "res <- summary(fit, diagnostics = TRUE)",
       sprintf("ci <- confint(fit, level = %s)", format(conf))
@@ -143,8 +154,18 @@ ps_endo <- function(req_json, export = FALSE) {
     lines <- unlist(lapply(types, function(t) {
       switch(t,
         g = sprintf("data$IIV.isg.gisx2.regis%s <- %s", hx, dm(sprintf("data$%s^2", hx))),
-        gp = sprintf("data$IIV.isgp.gisx2.regis%s <- %s * %s", hx, dm(sprintf("data$%s^2", hx)), dm(sprintf("data$%s", p))),
-        gy = sprintf("data$IIV.isgy.gisx2.regis%s <- %s * %s", hx, dm(sprintf("data$%s^2", hx)), dm(sprintf("data$%s", y))),
+        gp = sprintf(
+          "data$IIV.isgp.gisx2.regis%s <- %s * %s",
+          hx,
+          dm(sprintf("data$%s^2", hx)),
+          dm(sprintf("data$%s", p))
+        ),
+        gy = sprintf(
+          "data$IIV.isgy.gisx2.regis%s <- %s * %s",
+          hx,
+          dm(sprintf("data$%s^2", hx)),
+          dm(sprintf("data$%s", y))
+        ),
         yp = sprintf("data$IIV.isyp <- %s * %s", dm(sprintf("data$%s", y)), dm(sprintf("data$%s", p))),
         p2 = sprintf("data$IIV.isp2 <- %s^2", dm(sprintf("data$%s", p))),
         y2 = sprintf("data$IIV.isy2 <- %s^2", dm(sprintf("data$%s", y)))
@@ -181,7 +202,14 @@ ps_endo <- function(req_json, export = FALSE) {
       "  -sum(m + log(pt * exp(l1 - m) + (1 - pt) * exp(l2 - m)))",
       "}",
       "# Start: the OLS coefficients and REndo's starting values for the mixture.",
-      sprintf("start <- c(coef(lm(%s ~ %s, data = data)), pi1 = mean(data$%s), pi2 = mean(data$%s) + sd(data$%s), theta5 = 0.5, theta6 = 1, theta7 = 0.5, theta8 = 1)", y, p, p, p, p),
+      sprintf(
+        "start <- c(coef(lm(%s ~ %s, data = data)), pi1 = mean(data$%s), pi2 = mean(data$%s) + sd(data$%s), theta5 = 0.5, theta6 = 1, theta7 = 0.5, theta8 = 1)",
+        y,
+        p,
+        p,
+        p,
+        p
+      ),
       "opt <- optimx(par = start, fn = liv_ll, method = \"Nelder-Mead\", hessian = TRUE, itnmax = 10000, control = list(trace = 0, dowarn = FALSE))",
       "raw <- unlist(coef(opt)[1, ]); est <- raw; est[\"theta5\"] <- exp(raw[\"theta5\"]) / (1 + exp(raw[\"theta5\"]))",
       "H <- attr(opt, \"details\")[, \"nhatend\"][[1]]",
@@ -190,8 +218,15 @@ ps_endo <- function(req_json, export = FALSE) {
       "V <- D %*% corpcor::pseudoinverse(H) %*% D",
       "se <- sqrt(diag(V)); z <- est / se",
       "res <- cbind(Estimate = est, `Std. Error` = se, `z-score` = z, `Pr(>|z|)` = 2 * pt(-abs(z), df = nrow(data) - 1))",
-      sprintf("rownames(res) <- c(\"(Intercept)\", \"%s\", \"pi1\", \"pi2\", \"theta5\", \"theta6\", \"theta7\", \"theta8\")", p),
-      sprintf("ci <- cbind(est - stats::qnorm(%s) * se, est + stats::qnorm(%s) * se)", format(1 - (1 - conf) / 2), format(1 - (1 - conf) / 2)),
+      sprintf(
+        "rownames(res) <- c(\"(Intercept)\", \"%s\", \"pi1\", \"pi2\", \"theta5\", \"theta6\", \"theta7\", \"theta8\")",
+        p
+      ),
+      sprintf(
+        "ci <- cbind(est - stats::qnorm(%s) * se, est + stats::qnorm(%s) * se)",
+        format(1 - (1 - conf) / 2),
+        format(1 - (1 - conf) / 2)
+      ),
       "converged <- opt$convcode[1] == 0"
     )
   } else {

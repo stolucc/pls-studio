@@ -50,7 +50,10 @@ ps_network <- function(req_json, export = FALSE) {
       c(
         "# Stability of the centrality indices: the network re-estimated on subsets of the cases (case-dropping bootstrap).",
         sprintf("set.seed(%d)", seed),
-        sprintf("boot <- bootnet(net, nBoots = %d, type = \"case\", statistics = c(\"strength\", \"expectedInfluence\", \"closeness\", \"betweenness\"), nCores = 1, verbose = FALSE)", B),
+        sprintf(
+          "boot <- bootnet(net, nBoots = %d, type = \"case\", statistics = c(\"strength\", \"expectedInfluence\", \"closeness\", \"betweenness\"), nCores = 1, verbose = FALSE)",
+          B
+        ),
         "cs <- corStability(boot, verbose = FALSE)"
       )
     }
@@ -63,7 +66,12 @@ ps_network <- function(req_json, export = FALSE) {
   ce <- env$central
   ps_json(list(
     names = I(colnames(W)), weights = lapply(seq_len(nrow(W)), function(i) I(unname(W[i, ]))),
-    centrality = list(strength = I(unname(ce$Strength)), expectedInfluence = I(unname(ce$ExpectedInfluence)), closeness = I(unname(ce$Closeness)), betweenness = I(unname(ce$Betweenness))),
+    centrality = list(
+      strength = I(unname(ce$Strength)),
+      expectedInfluence = I(unname(ce$ExpectedInfluence)),
+      closeness = I(unname(ce$Closeness)),
+      betweenness = I(unname(ce$Betweenness))
+    ),
     layout = lapply(seq_len(nrow(env$layout)), function(i) I(unname(env$layout[i, ]))),
     n = nrow(inputs$data), nComplete = sum(stats::complete.cases(inputs$data)),
     cs = if (B > 0) as.list(env$cs) else NULL, samples = B, warnings = env$.warnings,
@@ -98,7 +106,12 @@ ps_ega <- function(req_json, export = FALSE) {
     if (B > 0) {
       c(
         "# Stability: EGA on bootstrap samples (bootEGA); how often each number of dimensions and each item's dimension recurs.",
-        sprintf("boot <- bootEGA(data, iter = %d, seed = %d, %s, ncores = 1, plot.itemStability = FALSE, plot.typicalStructure = FALSE, verbose = FALSE)", B, seed, args),
+        sprintf(
+          "boot <- bootEGA(data, iter = %d, seed = %d, %s, ncores = 1, plot.itemStability = FALSE, plot.typicalStructure = FALSE, verbose = FALSE)",
+          B,
+          seed,
+          args
+        ),
         "items <- itemStability(boot, IS.plot = FALSE)"
       )
     }

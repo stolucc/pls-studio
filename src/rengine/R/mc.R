@@ -15,8 +15,19 @@ ps_mc_body <- function(req) {
   # Estimation models: PLS keeps factors (=~) and composites (<~); CB-SEM treats every construct as a common factor.
   ind <- function(j) unname(n$iv[n$inds[[j]]])
   ends <- unique(vapply(spec$paths, `[[`, "", "to"))
-  reg <- vapply(ends, function(t) paste(cv[[t]], "~", paste(cv[vapply(Filter(function(p) p$to == t, spec$paths), `[[`, "", "from")], collapse = " + ")), "")
-  plsm <- c(vapply(seq_along(spec$constructs), function(j) paste(cv[[j]], if (identical(spec$constructs[[j]]$type, "composite")) "<~" else "=~", paste(ind(j), collapse = " + ")), ""), reg)
+  reg <- vapply(
+    ends,
+    function(t) paste(cv[[t]], "~", paste(cv[vapply(Filter(function(p) p$to == t, spec$paths), `[[`, "", "from")], collapse = " + ")),
+    ""
+  )
+  plsm <- c(
+    vapply(
+      seq_along(spec$constructs),
+      function(j) paste(cv[[j]], if (identical(spec$constructs[[j]]$type, "composite")) "<~" else "=~", paste(ind(j), collapse = " + ")),
+      ""
+    ),
+    reg
+  )
   cbm <- c(vapply(seq_along(spec$constructs), function(j) paste(cv[[j]], "=~", ps_marked(ind(j))), ""), reg)
   req$params <- lapply(req$params, function(p) {
     if (p$kind != "fit") {
@@ -41,14 +52,22 @@ ps_mc_body <- function(req) {
         ei, if (isTRUE(e$consistent)) "TRUE" else "FALSE", boot
       )
     } else {
-      sprintf("  res[[%d]] <- tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\"), mc_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })", ei, e$estimator)
+      sprintf(
+        "  res[[%d]] <- tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\"), mc_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
+        ei,
+        e$estimator
+      )
     }
   }))
   c(
     "suppressPackageStartupMessages({ library(lavaan); library(cSEM) })",
     sprintf("vars <- %s", ps_q(vars)),
     "pop_model <- '", paste0("  ", pop), "'",
-    sprintf("skew <- %s; kurt <- %s", paste(deparse(as.numeric(req$population$skew)), collapse = ""), paste(deparse(as.numeric(req$population$kurtosis)), collapse = "")),
+    sprintf(
+      "skew <- %s; kurt <- %s",
+      paste(deparse(as.numeric(req$population$skew)), collapse = ""),
+      paste(deparse(as.numeric(req$population$kurtosis)), collapse = "")
+    ),
     "pls_model <- '", paste0("  ", plsm), "'",
     "cb_model <- '", paste0("  ", cbm), "'",
     sprintf("alpha <- %s; mc_draws <- %d", format(ps_number(req$alpha, "significance level")), as.integer(req$mcDraws)),
@@ -165,7 +184,10 @@ ps_mc <- function(req_json, export = FALSE) {
   pick <- function(col) lapply(seq_len(E), function(e) lapply(seq_len(K), function(k) vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$values[k, col], 0)))
   ps_json(list(
     est = pick(1), lo = pick(2), hi = pick(3), sig = pick(4),
-    proper = lapply(seq_len(E), function(e) vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$proper, 0)),
+    proper = lapply(
+      seq_len(E),
+      function(e) vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$proper, 0)
+    ),
     warnings = env$.warnings
   ))
 }

@@ -103,9 +103,19 @@ ps_metasem <- function(req_json, export = FALSE) {
   for (k in seq_along(studies$R)) inputs[[sprintf("R%d", k)]] <- studies$R[[k]]
   body <- c(
     "suppressPackageStartupMessages(library(metaSEM))",
-    sprintf("R <- list(%s)", paste(sprintf("Study%d = R%d", seq_along(studies$R), seq_along(studies$R)), collapse = ", ")),
-    sprintf("# Stage 1: the studies' correlation matrices pooled (%s)", if (method == "FEM") "fixed effects: one common matrix, its homogeneity tested" else sprintf("random effects, heterogeneity variances %s", c(Diag = "of each correlation (diagonal)", Symm = "and their covariances (symmetric)", Zero = "fixed at zero")[[re_type]])),
-    sprintf("stage1 <- tssem1(R, n, method = \"%s\"%s)", method, if (method == "REM") sprintf(", RE.type = \"%s\"", re_type) else ""),
+    sprintf(
+      "R <- list(%s)",
+      paste(sprintf("Study%d = R%d", seq_along(studies$R), seq_along(studies$R)), collapse = ", ")
+    ),
+    sprintf(
+      "# Stage 1: the studies' correlation matrices pooled (%s)",
+      if (method == "FEM") "fixed effects: one common matrix, its homogeneity tested" else sprintf("random effects, heterogeneity variances %s", c(Diag = "of each correlation (diagonal)", Symm = "and their covariances (symmetric)", Zero = "fixed at zero")[[re_type]])
+    ),
+    sprintf(
+      "stage1 <- tssem1(R, n, method = \"%s\"%s)",
+      method,
+      if (method == "REM") sprintf(", RE.type = \"%s\"", re_type) else ""
+    ),
     "s1 <- summary(stage1)",
     if (method == "FEM") "pooled <- coef(stage1)" else c("pooled <- vec2symMat(coef(stage1, select = \"fixed\"), diag = FALSE)", "dimnames(pooled) <- list(colnames(R[[1]]), colnames(R[[1]]))"),
     "# Stage 2: the model on the canvas, its RAM matrices from its lavaan syntax, fitted to the pooled matrix (WLS)",

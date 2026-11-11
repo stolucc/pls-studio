@@ -44,7 +44,10 @@ ps_rsa <- function(req_json, export = FALSE) {
       "# X and Y centred at their common (pooled) mean, so that the line of congruence keeps X = Y.",
       sprintf("m <- mean(c(data$%s, data$%s))", X, Y), sprintf("data$rsaX <- data$%s - m; data$rsaY <- data$%s - m", X, Y)
     ),
-    midpoint = c(sprintf("# X and Y centred at the scale midpoint (%s).", format(mid)), sprintf("data$rsaX <- data$%s - %s; data$rsaY <- data$%s - %s", X, format(mid), Y, format(mid)))
+    midpoint = c(
+      sprintf("# X and Y centred at the scale midpoint (%s).", format(mid)),
+      sprintf("data$rsaX <- data$%s - %s; data$rsaY <- data$%s - %s", X, format(mid), Y, format(mid))
+    )
   )
   if (center == "none") ctr <- c(ctr, sprintf("data$rsaX <- data$%s; data$rsaY <- data$%s", X, Y))
   body <- c(
@@ -70,7 +73,11 @@ ps_rsa <- function(req_json, export = FALSE) {
       "K <- rbind(a1 = c(1, 1, 0, 0, 0), a2 = c(0, 0, 1, 1, 1), a3 = c(1, -1, 0, 0, 0), a4 = c(0, 0, 1, -1, 1), a5 = c(0, 0, 1, 0, -1))",
       "a <- drop(K %*% b); se <- sqrt(diag(K %*% V %*% t(K))); t <- a / se",
       "surface <- cbind(est = a, se = se, t = t, p = 2 * pt(-abs(t), df.residual(fit)))",
-      sprintf("ci <- cbind(a - qt(%s, df.residual(fit)) * se, a + qt(%s, df.residual(fit)) * se)", format(1 - (1 - conf) / 2), format(1 - (1 - conf) / 2))
+      sprintf(
+        "ci <- cbind(a - qt(%s, df.residual(fit)) * se, a + qt(%s, df.residual(fit)) * se)",
+        format(1 - (1 - conf) / 2),
+        format(1 - (1 - conf) / 2)
+      )
     )
   } else {
     lab <- paste0("b", 1:5, "*", terms)
@@ -85,7 +92,11 @@ ps_rsa <- function(req_json, export = FALSE) {
       body,
       sprintf("# The full polynomial model as the RSA package fits it (lavaan, %s, fixed.x).", est),
       "model <- '", paste0("  ", model), "'",
-      sprintf("fit <- sem(model, data = data, estimator = \"%s\", se = \"%s\", fixed.x = TRUE, meanstructure = TRUE)", est, if (est == "MLR") "robust" else "standard"),
+      sprintf(
+        "fit <- sem(model, data = data, estimator = \"%s\", se = \"%s\", fixed.x = TRUE, meanstructure = TRUE)",
+        est,
+        if (est == "MLR") "robust" else "standard"
+      ),
       sprintf("pe <- parameterEstimates(fit, level = %s)", format(conf)),
       "b <- setNames(pe$est[match(paste0(\"b\", 1:5), pe$label)], c(\"rsaX\", \"rsaY\", \"rsaX2\", \"rsaXY\", \"rsaY2\"))"
     )
@@ -104,14 +115,27 @@ ps_rsa <- function(req_json, export = FALSE) {
   }
   env <- ps_run(body, inputs)
   d <- env$data
-  back <- c(fr$back, rsaX = paste(xn), rsaY = paste(yn), rsaX2 = paste0(xn, "\u00b2"), rsaXY = paste(xn, "\u00d7", yn), rsaY2 = paste0(yn, "\u00b2"))
+  back <- c(
+    fr$back,
+    rsaX = paste(xn),
+    rsaY = paste(yn),
+    rsaX2 = paste0(xn, "\u00b2"),
+    rsaXY = paste(xn, "\u00d7", yn),
+    rsaY2 = paste0(yn, "\u00b2")
+  )
   nm <- function(x) ifelse(x == "(Intercept)", "Intercept", ps_back(x, back))
   if (est == "OLS") {
     co <- stats::coef(summary(env$fit))
     cc <- stats::confint(env$fit, level = conf)
-    coefs <- lapply(seq_len(nrow(co)), function(i) list(term = unname(nm(rownames(co)[i])), est = co[i, 1], se = co[i, 2], stat = co[i, 3], p = co[i, 4], ciLow = cc[i, 1], ciHigh = cc[i, 2]))
+    coefs <- lapply(
+      seq_len(nrow(co)),
+      function(i) list(term = unname(nm(rownames(co)[i])), est = co[i, 1], se = co[i, 2], stat = co[i, 3], p = co[i, 4], ciLow = cc[i, 1], ciHigh = cc[i, 2])
+    )
     s <- env$surface
-    surface <- lapply(rownames(s), function(k) list(name = k, est = s[k, "est"], se = s[k, "se"], stat = s[k, "t"], p = s[k, "p"], ciLow = env$ci[k, 1], ciHigh = env$ci[k, 2]))
+    surface <- lapply(
+      rownames(s),
+      function(k) list(name = k, est = s[k, "est"], se = s[k, "se"], stat = s[k, "t"], p = s[k, "p"], ciLow = env$ci[k, 1], ciHigh = env$ci[k, 2])
+    )
     r2 <- vapply(list(env$m0, env$m1, env$fit), function(m) summary(m)$r.squared, 0)
     st <- env$steps
     steps <- lapply(1:3, function(i) {
@@ -125,9 +149,15 @@ ps_rsa <- function(req_json, export = FALSE) {
   } else {
     pe <- env$pe
     reg <- pe[pe$op %in% c("~", "~1") & pe$lhs == Z, ]
-    coefs <- lapply(seq_len(nrow(reg)), function(i) list(term = if (reg$op[i] == "~1") "Intercept" else unname(nm(reg$rhs[i])), est = reg$est[i], se = reg$se[i], stat = reg$z[i], p = reg$pvalue[i], ciLow = reg$ci.lower[i], ciHigh = reg$ci.upper[i]))
+    coefs <- lapply(
+      seq_len(nrow(reg)),
+      function(i) list(term = if (reg$op[i] == "~1") "Intercept" else unname(nm(reg$rhs[i])), est = reg$est[i], se = reg$se[i], stat = reg$z[i], p = reg$pvalue[i], ciLow = reg$ci.lower[i], ciHigh = reg$ci.upper[i])
+    )
     dp <- pe[pe$op == ":=", ]
-    surface <- lapply(seq_len(nrow(dp)), function(i) list(name = dp$lhs[i], est = dp$est[i], se = dp$se[i], stat = dp$z[i], p = dp$pvalue[i], ciLow = dp$ci.lower[i], ciHigh = dp$ci.upper[i]))
+    surface <- lapply(
+      seq_len(nrow(dp)),
+      function(i) list(name = dp$lhs[i], est = dp$est[i], se = dp$se[i], stat = dp$z[i], p = dp$pvalue[i], ciLow = dp$ci.lower[i], ciHigh = dp$ci.upper[i])
+    )
     steps <- list()
     fitstats <- list(r2 = unname(lavaan::lavInspect(env$fit, "r2")[[Z]]), n = lavaan::lavInspect(env$fit, "nobs"))
   }
@@ -138,7 +168,11 @@ ps_rsa <- function(req_json, export = FALSE) {
   cadj <- sum(vapply(C, function(k) cf(k) * mean(d[[k]]), 0))
   rng <- range(c(d$rsaX, d$rsaY))
   gx <- seq(rng[1], rng[2], length.out = 21)
-  zz <- outer(gx, gx, function(x, y) b0 + cadj + b[["rsaX"]] * x + b[["rsaY"]] * y + b[["rsaX2"]] * x^2 + b[["rsaXY"]] * x * y + b[["rsaY2"]] * y^2)
+  zz <- outer(
+    gx,
+    gx,
+    function(x, y) b0 + cadj + b[["rsaX"]] * x + b[["rsaY"]] * y + b[["rsaX2"]] * x^2 + b[["rsaXY"]] * x * y + b[["rsaY2"]] * y^2
+  )
   pts <- utils::head(d[, c("rsaX", "rsaY")], 2000)
   ps_json(list(
     estimation = est, center = center, coefficients = coefs, surface = surface, steps = steps, fit = fitstats,

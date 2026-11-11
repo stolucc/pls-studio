@@ -170,7 +170,13 @@ ps_efa <- function(req_json, export = FALSE) {
     if (iter > 0) {
       c(
         sprintf("set.seed(%d)", seed),
-        sprintf("parallel <- fa.parallel(X, fm = \"%s\", fa = \"%s\", n.iter = %d%s, plot = FALSE)", fm, if (pca) "pc" else "fa", iter, carg)
+        sprintf(
+          "parallel <- fa.parallel(X, fm = \"%s\", fa = \"%s\", n.iter = %d%s, plot = FALSE)",
+          fm,
+          if (pca) "pc" else "fa",
+          iter,
+          carg
+        )
       )
     },
     sprintf("map <- VSS(X, n = %d, fm = \"%s\"%s, plot = FALSE)$map", min(8L, length(v) - 1L), fm, carg),
@@ -179,9 +185,15 @@ ps_efa <- function(req_json, export = FALSE) {
     if (criterion != "fixed") sprintf("k <- max(%dL, min(k, ncol(X) - 1L), na.rm = TRUE)", if (lav && rotation %in% c("bigeomin", "biquartimin")) 2L else 1L),
     if (lav) {
       c(
-        sprintf("# lavaan: every number of factors from %d to k, the last one the solution (standardised loadings, delta-method standard errors).", from),
+        sprintf(
+          "# lavaan: every number of factors from %d to k, the last one the solution (standardised loadings, delta-method standard errors).",
+          from
+        ),
         sprintf("fits <- %s", call), if (mplus_se) ps_mplus_se_lines("fits"), "fit <- fits[[length(fits)]]", "std <- standardizedSolution(fit)",
-        sprintf("comparison <- t(sapply(fits, fitMeasures, %s))", if (poly) "c(\"npar\", \"chisq.scaled\", \"df.scaled\", \"pvalue.scaled\")" else "c(\"npar\", \"logl\", \"chisq\", \"df\", \"pvalue\", \"aic\", \"bic\")")
+        sprintf(
+          "comparison <- t(sapply(fits, fitMeasures, %s))",
+          if (poly) "c(\"npar\", \"chisq.scaled\", \"df.scaled\", \"pvalue.scaled\")" else "c(\"npar\", \"logl\", \"chisq\", \"df\", \"pvalue\", \"aic\", \"bic\")"
+        )
       )
     } else {
       sprintf("fit <- %s", call)

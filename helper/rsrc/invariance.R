@@ -27,7 +27,13 @@ ps_inv_fit <- function(fit) {
   m <- lavaan::fitMeasures(fit)
   robust <- !is.na(m["chisq.scaled"])
   pick <- function(a, b) unname(if (robust && !is.na(m[b])) m[b] else m[a])
-  list(chisq = pick("chisq", "chisq.scaled"), df = unname(m["df"]), cfi = pick("cfi", "cfi.robust"), rmsea = pick("rmsea", "rmsea.robust"), srmr = unname(m["srmr"]))
+  list(
+    chisq = pick("chisq", "chisq.scaled"),
+    df = unname(m["df"]),
+    cfi = pick("cfi", "cfi.robust"),
+    rmsea = pick("rmsea", "rmsea.robust"),
+    srmr = unname(m["srmr"])
+  )
 }
 
 #' Alignment optimisation (Asparouhov & Muthen 2014) with sirt::invariance.alignment, following sirt's
@@ -50,9 +56,18 @@ ps_alignment <- function(req_json, export = FALSE) {
     if (v < lo || v > hi) stop(sprintf("The %s must be between %s and %s.", what, lo, hi))
     format(v, digits = 15)
   }
-  pow <- c(num(req$power$lambda %||% 0.5, "alignment power for loadings", 0, 2), num(req$power$nu %||% 0.5, "alignment power for intercepts", 0, 2))
-  scl <- c(num(req$scale$lambda %||% 1, "alignment scale for loadings", 0.01, 10), num(req$scale$nu %||% 1, "alignment scale for intercepts", 0.01, 10))
-  tol <- c(num(req$tolerance$lambda %||% 0.2, "tolerance for loadings", 0.001, 10), num(req$tolerance$nu %||% 0.4, "tolerance for intercepts", 0.001, 10))
+  pow <- c(
+    num(req$power$lambda %||% 0.5, "alignment power for loadings", 0, 2),
+    num(req$power$nu %||% 0.5, "alignment power for intercepts", 0, 2)
+  )
+  scl <- c(
+    num(req$scale$lambda %||% 1, "alignment scale for loadings", 0.01, 10),
+    num(req$scale$nu %||% 1, "alignment scale for intercepts", 0.01, 10)
+  )
+  tol <- c(
+    num(req$tolerance$lambda %||% 0.2, "tolerance for loadings", 0.001, 10),
+    num(req$tolerance$nu %||% 0.4, "tolerance for intercepts", 0.001, 10)
+  )
   weights <- req$weights %||% "sqrtN"
   if (!weights %in% c("sqrtN", "equal")) stop("Invalid group weights in the request.")
   gv <- unname(f$fr$v[group])
@@ -63,7 +78,13 @@ ps_alignment <- function(req_json, export = FALSE) {
     "model <- '", f$lines, "'",
     "# Configural model: loadings and intercepts free in every group, each factor standardised within each group",
     "# (std.lv = TRUE: mean 0 and variance 1), as the alignment takes them (sirt, ?invariance.alignment, example 2).",
-    sprintf("fit <- cfa(model, data = data, group = \"%s\", std.lv = TRUE, meanstructure = TRUE, estimator = \"%s\"%s%s)", gv, o$est, ps_lavaan_missing(req$missing), o$extra),
+    sprintf(
+      "fit <- cfa(model, data = data, group = \"%s\", std.lv = TRUE, meanstructure = TRUE, estimator = \"%s\"%s%s)",
+      gv,
+      o$est,
+      ps_lavaan_missing(req$missing),
+      o$extra
+    ),
     "est <- lavInspect(fit, \"est\"); N <- lavInspect(fit, \"nobs\"); groups <- lavInspect(fit, \"group.label\")",
     "if (length(groups) < 2) stop(\"The grouping column has one group: alignment compares two or more.\")"
   )
@@ -72,18 +93,41 @@ ps_alignment <- function(req_json, export = FALSE) {
     items <- ps_q(f$iv[[k]])
     body <- c(
       body, "",
-      sprintf("# Factor %s: its loadings and intercepts in each group (groups x items), aligned", ps_comment(f$names[k])),
+      sprintf(
+        "# Factor %s: its loadings and intercepts in each group (groups x items), aligned",
+        ps_comment(f$names[k])
+      ),
       sprintf("lambda_%s <- do.call(rbind, lapply(est, function(g) g$lambda[%s, \"%s\"]))", s, items, s),
       sprintf("nu_%s <- do.call(rbind, lapply(est, function(g) g$nu[%s, 1]))", s, items),
       sprintf("rownames(lambda_%s) <- rownames(nu_%s) <- groups", s, s),
       if (weights == "sqrtN") {
-        sprintf("wgt_%s <- matrix(sqrt(N), length(N), ncol(nu_%s))  # each pair of groups weighted by sqrt(N1 * N2) (Asparouhov & Muthen 2014)", s, s)
+        sprintf(
+          "wgt_%s <- matrix(sqrt(N), length(N), ncol(nu_%s))  # each pair of groups weighted by sqrt(N1 * N2) (Asparouhov & Muthen 2014)",
+          s,
+          s
+        )
       } else {
         sprintf("wgt_%s <- NULL  # every group weighted equally", s)
       },
-      sprintf("align_%s <- invariance.alignment(lambda_%s, nu_%s, wgt = wgt_%s, align.pow = c(%s, %s), align.scale = c(%s, %s))", s, s, s, s, pow[1], pow[2], scl[1], scl[2]),
+      sprintf(
+        "align_%s <- invariance.alignment(lambda_%s, nu_%s, wgt = wgt_%s, align.pow = c(%s, %s), align.scale = c(%s, %s))",
+        s,
+        s,
+        s,
+        s,
+        pow[1],
+        pow[2],
+        scl[1],
+        scl[2]
+      ),
       sprintf("# Approximately invariant parameters: aligned values within the tolerance of a joint value"),
-      sprintf("cons_%s <- invariance_alignment_constraints(align_%s, lambda_parm_tol = %s, nu_parm_tol = %s)", s, s, tol[1], tol[2])
+      sprintf(
+        "cons_%s <- invariance_alignment_constraints(align_%s, lambda_parm_tol = %s, nu_parm_tol = %s)",
+        s,
+        s,
+        tol[1],
+        tol[2]
+      )
     )
   }
   inputs <- list(data = f$fr$data)
@@ -199,7 +243,12 @@ ps_mnlfa <- function(req_json, export = FALSE) {
     }
     c(
       sprintf("formula_%s <- mnlfa_expand_to_list(x = ~1, names_list = items)", what),
-      sprintf("for (i in %s) formula_%s[[i]] <- %s  # the moderated items", ps_q(unname(fr$v[moderated])), what, fml(x, TRUE))
+      sprintf(
+        "for (i in %s) formula_%s[[i]] <- %s  # the moderated items",
+        ps_q(unname(fr$v[moderated])),
+        what,
+        fml(x, TRUE)
+      )
     )
   }
   body <- c(
@@ -212,8 +261,15 @@ ps_mnlfa <- function(req_json, export = FALSE) {
     item_fml(int, "int"), item_fml(slo, "slo"),
     "# The factor's mean (0 where the covariates are 0) and log SD",
     sprintf("formula_mean <- %s", fml(mu, FALSE)),
-    sprintf("formula_sd <- %s%s", fml(sdv, type == "1PL"), if (type == "1PL") "  # (1PL: slopes fixed at 1, the SD free)" else "  # (2PL: the SD is 1 where the covariates are 0)"),
-    sprintf("mod <- mnlfa(dat = data, items = items, item_type = \"%s\", formula_int = formula_int, formula_slo = formula_slo, formula_mean = formula_mean, formula_sd = formula_sd, verbose = FALSE)", type)
+    sprintf(
+      "formula_sd <- %s%s",
+      fml(sdv, type == "1PL"),
+      if (type == "1PL") "  # (1PL: slopes fixed at 1, the SD free)" else "  # (2PL: the SD is 1 where the covariates are 0)"
+    ),
+    sprintf(
+      "mod <- mnlfa(dat = data, items = items, item_type = \"%s\", formula_int = formula_int, formula_slo = formula_slo, formula_mean = formula_mean, formula_sd = formula_sd, verbose = FALSE)",
+      type
+    )
   )
   inputs <- list(data = d)
   if (export) {
@@ -227,13 +283,30 @@ ps_mnlfa <- function(req_json, export = FALSE) {
     p <- as.character(it$parm[i])
     nm <- as.character(it$item[i])
     rest <- substring(p, nchar(nm) + 2)
-    list(item = ps_back(nm, fr$back), kind = substr(rest, 1, 1), term = substring(rest, 3), est = it$est[i], free = it$estim[i] == 1)
+    list(
+      item = ps_back(nm, fr$back),
+      kind = substr(rest, 1, 1),
+      term = substring(rest, 3),
+      est = it$est[i],
+      free = it$estim[i] == 1
+    )
   })
-  trait_rows <- lapply(seq_len(nrow(tr)), function(i) list(kind = as.character(tr$type[i]), term = sub("^(mu|sigma)_", "", as.character(tr$par[i])), est = tr$est[i]))
+  trait_rows <- lapply(
+    seq_len(nrow(tr)),
+    function(i) list(kind = as.character(tr$type[i]), term = sub("^(mu|sigma)_", "", as.character(tr$par[i])), est = tr$est[i])
+  )
   ic <- m$ic
   ps_json(list(
     itemType = type, n = nrow(env$data), items = item_rows, trait = trait_rows, terms = terms,
-    fit = list(deviance = ic$deviance, logLik = -ic$deviance / 2, npar = ic$np, aic = ic$AIC, bic = ic$BIC, caic = ic$CAIC, aicc = ic$AICc),
+    fit = list(
+      deviance = ic$deviance,
+      logLik = -ic$deviance / 2,
+      npar = ic$np,
+      aic = ic$AIC,
+      bic = ic$BIC,
+      caic = ic$CAIC,
+      aicc = ic$AICc
+    ),
     iterations = m$iter, converged = isTRUE(m$converged), warnings = env$.warnings,
     engine = ps_engine("mnlfa")
   ))
@@ -270,7 +343,12 @@ ps_long_invariance <- function(req_json, export = FALSE) {
   iv <- lapply(occ, function(x) unname(fr$v[x]))
   items <- lapply(seq_len(k), function(i) vapply(iv, `[`, "", i))
   levels <- c("configural", "metric", "scalar", "strict")
-  equal <- list(configural = "\"\"", metric = "\"loadings\"", scalar = "c(\"loadings\", \"intercepts\")", strict = "c(\"loadings\", \"intercepts\", \"residuals\")")
+  equal <- list(
+    configural = "\"\"",
+    metric = "\"loadings\"",
+    scalar = "c(\"loadings\", \"intercepts\")",
+    strict = "c(\"loadings\", \"intercepts\", \"residuals\")"
+  )
   opts <- sprintf("estimator = \"%s\"%s%s", o$est, ps_lavaan_missing(req$missing), o$extra)
   body <- c(
     "suppressPackageStartupMessages({ library(lavaan); library(semTools) })",
@@ -279,7 +357,10 @@ ps_long_invariance <- function(req_json, export = FALSE) {
     "model <- '", sprintf("  %s =~ %s", fv, vapply(iv, paste, "", collapse = " + ")), "'",
     sprintf("longFacNames <- list(%s = %s)  # the same factor at each occasion", base, ps_q(fv)),
     "# The same item at each occasion (its residuals are correlated across occasions)",
-    sprintf("longIndNames <- list(%s)", paste(sprintf("%s = %s", vapply(items, `[`, "", 1), vapply(items, ps_q, "")), collapse = ", ")),
+    sprintf(
+      "longIndNames <- list(%s)",
+      paste(sprintf("%s = %s", vapply(items, `[`, "", 1), vapply(items, ps_q, "")), collapse = ", ")
+    ),
     "# Each level adds equality constraints across occasions to the one before",
     vapply(levels, function(l) {
       sprintf(
@@ -397,7 +478,13 @@ ps_mimic_dif <- function(req_json, export = FALSE) {
   if (export) {
     return(ps_script(
       "DIF by MIMIC (lavaan)", "lavaan", inputs, body,
-      c("summary(fit0, standardized = TRUE)", "score", "direct", "flagged", if (free) "summary(fit_free, standardized = TRUE)")
+      c(
+        "summary(fit0, standardized = TRUE)",
+        "score",
+        "direct",
+        "flagged",
+        if (free) "summary(fit_free, standardized = TRUE)"
+      )
     ))
   }
   env <- ps_run(body, inputs)
@@ -421,7 +508,10 @@ ps_mimic_dif <- function(req_json, export = FALSE) {
     dd <- pe[pe$op == "~" & pe$rhs == x & pe$lhs %in% env$flagged, ]
     list(
       effect = eff(env$fit_free), fit = ps_inv_fit(env$fit_free),
-      direct = lapply(seq_len(nrow(dd)), function(k) list(item = ps_back(dd$lhs[k], back), est = dd$est[k], se = dd$se[k], z = dd$z[k], p = dd$pvalue[k], std = dd$std.all[k]))
+      direct = lapply(
+        seq_len(nrow(dd)),
+        function(k) list(item = ps_back(dd$lhs[k], back), est = dd$est[k], se = dd$se[k], z = dd$z[k], p = dd$pvalue[k], std = dd$std.all[k])
+      )
     )
   } else {
     NULL
@@ -524,19 +614,33 @@ ps_lsem <- function(req_json, export = FALSE) {
     b$body[seq_len(span[2])],
     "suppressPackageStartupMessages(library(sirt))",
     sprintf("data <- data[!is.na(data$%s), , drop = FALSE]  # (cases without a moderator value are left out)", mv),
-    sprintf("# Focal points of the moderator %s; each fit weights the cases by a %s kernel around the point", ps_comment(mname), kernel),
+    sprintf(
+      "# Focal points of the moderator %s; each fit weights the cases by a %s kernel around the point",
+      ps_comment(mname),
+      kernel
+    ),
     sprintf("# (bandwidth h x SD(moderator) x N^(-1/5), h = %s)", f15(h)),
     sprintf("moderator_grid <- seq(%s, %s, length.out = %d)", f15(from), f15(to), as.integer(points)),
-    sprintf("mod <- lsem.estimate(data, moderator = \"%s\", moderator.grid = moderator_grid, lavmodel = model, %s, verbose = FALSE)", mv, paste(args, collapse = ", ")),
+    sprintf(
+      "mod <- lsem.estimate(data, moderator = \"%s\", moderator.grid = moderator_grid, lavmodel = model, %s, verbose = FALSE)",
+      mv,
+      paste(args, collapse = ", ")
+    ),
     if (R > 0) {
       c(
-        sprintf("# Bootstrap: %d resamples of the cases, each refitted at every focal point (standard errors and intervals)", R),
+        sprintf(
+          "# Bootstrap: %d resamples of the cases, each refitted at every focal point (standard errors and intervals)",
+          R
+        ),
         sprintf("set.seed(%d)", seed), sprintf("boot <- lsem.bootstrap(mod, R = %d, verbose = FALSE)", R)
       )
     },
     if (B > 0) {
       c(
-        sprintf("# Permutation test of invariance: the moderator permuted %d times; how often the parameters vary as much", B),
+        sprintf(
+          "# Permutation test of invariance: the moderator permuted %d times; how often the parameters vary as much",
+          B
+        ),
         sprintf("set.seed(%d)", seed), sprintf("perm <- lsem.permutationTest(mod, B = %d, verbose = FALSE)", B)
       )
     }
@@ -569,7 +673,16 @@ ps_lsem <- function(req_json, export = FALSE) {
       est = I(nn(r$est)), se = I(nn(r$se))
     )
     if (nrow(s)) {
-      out$summary <- list(mean = nn(s$M), sd = nn(s$SD), mad = nn(s$MAD), min = nn(s$Min), max = nn(s$Max), linInt = nn(s$lin_int), linSlope = nn(s$lin_slo), sdNonlin = nn(s$SD_nonlin))
+      out$summary <- list(
+        mean = nn(s$M),
+        sd = nn(s$SD),
+        mad = nn(s$MAD),
+        min = nn(s$Min),
+        max = nn(s$Max),
+        linInt = nn(s$lin_int),
+        linSlope = nn(s$lin_slo),
+        sdNonlin = nn(s$SD_nonlin)
+      )
     }
     if (!is.null(bp)) {
       q <- bp[bp$par == p, , drop = FALSE]

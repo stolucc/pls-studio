@@ -760,11 +760,33 @@ qml_report <- function(spec, est) {
   se[fixed] <- 0
   lapply(seq_along(est0), function(i) {
     r <- spec$report[[i]]
-    list(lhs = r$lhs, op = r$op, rhs = r$rhs %||% "", est = est0[i], se = if (is.finite(se[i])) se[i] else NULL, fixed = fixed[i])
+    list(
+      lhs = r$lhs,
+      op = r$op,
+      rhs = r$rhs %||% "",
+      est = est0[i],
+      se = if (is.finite(se[i])) se[i] else NULL,
+      fixed = fixed[i]
+    )
   })
 }
 
-PS_QML_FUNCTIONS <- c("qml_lse", "qml_rule1", "qml_grid", "qml_model", "qml_gauss", "qml_lin", "qml_ld", "qml_parts", "qml_nodes", "qml_eval", "qml_scores", "qml_hessian", "qml_estimate", "qml_report")
+PS_QML_FUNCTIONS <- c(
+  "qml_lse",
+  "qml_rule1",
+  "qml_grid",
+  "qml_model",
+  "qml_gauss",
+  "qml_lin",
+  "qml_ld",
+  "qml_parts",
+  "qml_nodes",
+  "qml_eval",
+  "qml_scores",
+  "qml_hessian",
+  "qml_estimate",
+  "qml_report"
+)
 
 ps_quadml <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)

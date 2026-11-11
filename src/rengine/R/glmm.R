@@ -94,15 +94,34 @@ ps_glmm <- function(req_json, export = FALSE) {
     prep <- c(
       sprintf("d <- data[complete.cases(data), , drop = FALSE]  # cases with every variable"),
       if (length(categorical)) {
-        sprintf("for (v in %s) d[[v]] <- factor(d[[v]])  # categorical predictors: dummies against the first category", ps_q(unname(fr$v[categorical])))
+        sprintf(
+          "for (v in %s) d[[v]] <- factor(d[[v]])  # categorical predictors: dummies against the first category",
+          ps_q(unname(fr$v[categorical]))
+        )
       }
     )
   }
   if (family %in% c("poisson", "negbin", "zip", "zinb")) {
-    prep <- c(prep, sprintf("if (any(d[[\"%s\"]] < 0 | d[[\"%s\"]] != round(d[[\"%s\"]]))) stop(\"A count outcome takes the values 0, 1, 2, ...\")", yv, yv, yv))
+    prep <- c(
+      prep,
+      sprintf(
+        "if (any(d[[\"%s\"]] < 0 | d[[\"%s\"]] != round(d[[\"%s\"]]))) stop(\"A count outcome takes the values 0, 1, 2, ...\")",
+        yv,
+        yv,
+        yv
+      )
+    )
   }
   if (family == "binomial" && is.null(trials)) {
-    prep <- c(prep, sprintf("u <- sort(unique(d[[\"%s\"]])); if (length(u) != 2) stop(\"A binomial outcome without trials must be binary.\"); d[[\"%s\"]] <- as.integer(d[[\"%s\"]] == u[2])", yv, yv, yv))
+    prep <- c(
+      prep,
+      sprintf(
+        "u <- sort(unique(d[[\"%s\"]])); if (length(u) != 2) stop(\"A binomial outcome without trials must be binary.\"); d[[\"%s\"]] <- as.integer(d[[\"%s\"]] == u[2])",
+        yv,
+        yv,
+        yv
+      )
+    )
   }
   lhs <- if (!is.null(trials)) sprintf("cbind(%s, %s - %s)", yv, fr$v[[trials]], yv) else yv
   rhs <- function(v) if (length(v)) paste(v, collapse = " + ") else "1"
@@ -113,10 +132,17 @@ ps_glmm <- function(req_json, export = FALSE) {
   )
   body <- c(
     "suppressPackageStartupMessages(library(GLMMadaptive))", prep,
-    sprintf("# Adaptive Gauss-Hermite quadrature with %d points per random effect; maximum likelihood (with tighter", as.integer(k)),
+    sprintf(
+      "# Adaptive Gauss-Hermite quadrature with %d points per random effect; maximum likelihood (with tighter",
+      as.integer(k)
+    ),
     "# convergence criteria than GLMMadaptive's defaults, which stop up to 0.001 short of the maximum on flat likelihoods).",
     call,
-    sprintf("V <- vcov(fit%s)  # %s", if (robust) ", sandwich = TRUE" else "", if (robust) "robust (sandwich) standard errors, as Mplus's MLR" else "standard errors from the inverse Hessian"),
+    sprintf(
+      "V <- vcov(fit%s)  # %s",
+      if (robust) ", sandwich = TRUE" else "",
+      if (robust) "robust (sandwich) standard errors, as Mplus's MLR" else "standard errors from the inverse Hessian"
+    ),
     PS_GLMM_DELTA,
     "re <- re_table(fit, V)"
   )

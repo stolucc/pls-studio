@@ -72,11 +72,17 @@ ps_cb_hypotheses <- function(req_json, export = FALSE) {
     b$body, "",
     "# ---- Informative hypotheses on the labelled parameters ----",
     "# One hypothesis per element, its constraints joined by ; (restriktor) or & (bain).",
-    sprintf("hypotheses <- list(%s)", paste(sprintf("%s = %s", hnames, vapply(hs, function(cs) q(paste(cs, collapse = "; ")), "")), collapse = ",\n  ")),
+    sprintf(
+      "hypotheses <- list(%s)",
+      paste(sprintf("%s = %s", hnames, vapply(hs, function(cs) q(paste(cs, collapse = "; ")), "")), collapse = ",\n  ")
+    ),
     sprintf("labels <- %s", ps_q(labels)),
     "unknown <- setdiff(labels, names(coef(fit)))",
     "if (length(unknown)) stop(\"Not free labelled parameters of the model: \", paste(unknown, collapse = \", \"))",
-    sprintf("estimates <- subset(%s, label %%in%% labels & !duplicated(label))", if (std) "standardizedSolution(fit)" else "parameterEstimates(fit)"),
+    sprintf(
+      "estimates <- subset(%s, label %%in%% labels & !duplicated(label))",
+      if (std) "standardizedSolution(fit)" else "parameterEstimates(fit)"
+    ),
     if (gorica) {
       c(
         "",
@@ -85,7 +91,11 @@ ps_cb_hypotheses <- function(req_json, export = FALSE) {
         "# level probabilities); lower is better, and the weights are the relative support.",
         "suppressPackageStartupMessages(library(restriktor))",
         sprintf("set.seed(%d)", seed),
-        sprintf("gorica <- goric(fit, hypotheses = hypotheses, comparison = %s, type = \"gorica\", standardized = %s)", q(comparison), if (std) "TRUE" else "FALSE")
+        sprintf(
+          "gorica <- goric(fit, hypotheses = hypotheses, comparison = %s, type = \"gorica\", standardized = %s)",
+          q(comparison),
+          if (std) "TRUE" else "FALSE"
+        )
       )
     },
     if (bf) {
@@ -95,7 +105,12 @@ ps_cb_hypotheses <- function(req_json, export = FALSE) {
         "# unconstrained (BF.u) and against its complement (BF.c), and the posterior model probabilities.",
         "suppressPackageStartupMessages(library(bain))",
         sprintf("set.seed(%d)", seed),
-        sprintf("bf <- bain(fit, %s, fraction = %d, standardize = %s)", q(paste(vapply(hs, function(cs) paste(cs, collapse = " & "), ""), collapse = "; ")), fraction, if (std) "TRUE" else "FALSE")
+        sprintf(
+          "bf <- bain(fit, %s, fraction = %d, standardize = %s)",
+          q(paste(vapply(hs, function(cs) paste(cs, collapse = " & "), ""), collapse = "; ")),
+          fraction,
+          if (std) "TRUE" else "FALSE"
+        )
       )
     }
   )
@@ -103,7 +118,11 @@ ps_cb_hypotheses <- function(req_json, export = FALSE) {
   if (export) {
     return(ps_script(
       sprintf("Informative hypotheses: %s", c(gorica = "GORICA (restriktor)", bain = "Bayes factors (bain)", both = "GORICA (restriktor) and Bayes factors (bain)")[[method]]), pkgs, b$inputs, body,
-      c("print(estimates)", if (gorica) c("print(gorica)", "summary(gorica)"), if (bf) c("print(bf)", "print(bf$BFmatrix)", "summary(bf)"))
+      c(
+        "print(estimates)",
+        if (gorica) c("print(gorica)", "summary(gorica)"),
+        if (bf) c("print(bf)", "print(bf$BFmatrix)", "summary(bf)")
+      )
     ))
   }
   env <- ps_run(body, b$inputs)
@@ -111,7 +130,11 @@ ps_cb_hypotheses <- function(req_json, export = FALSE) {
   nm <- function(x) ps_back(x, back)
   e <- env$estimates
   what <- ifelse(e$op == "~", paste(nm(e$rhs), "→", nm(e$lhs)), ifelse(e$op == "=~", paste(nm(e$lhs), "→", nm(e$rhs)),
-    ifelse(e$op == "~1", paste("Mean of", nm(e$lhs)), ifelse(e$lhs == e$rhs, paste("Variance of", nm(e$lhs)), paste(nm(e$lhs), "↔", nm(e$rhs))))
+    ifelse(
+      e$op == "~1",
+      paste("Mean of", nm(e$lhs)),
+      ifelse(e$lhs == e$rhs, paste("Variance of", nm(e$lhs)), paste(nm(e$lhs), "↔", nm(e$rhs)))
+    )
   ))
   est <- if (std) e$est.std else e$est
   num <- function(x) I(unname(as.numeric(x)))
@@ -137,6 +160,12 @@ ps_cb_hypotheses <- function(req_json, export = FALSE) {
     hypotheses = I(vapply(hs, function(cs) paste(cs, collapse = " & "), "")),
     estimates = list(label = I(e$label), what = I(what), est = num(est), se = num(e$se)), standardized = std, n = sum(lavInspect(env$fit, "ntotal")),
     gorica = out_g, bain = out_b, warnings = env$.warnings,
-    engine = do.call(ps_engine, c(list(if (gorica) "restriktor" else "bain"), as.list(setNames(setdiff(pkgs, if (gorica) "restriktor" else "bain"), setdiff(pkgs, if (gorica) "restriktor" else "bain")))))
+    engine = do.call(
+      ps_engine,
+      c(
+        list(if (gorica) "restriktor" else "bain"),
+        as.list(setNames(setdiff(pkgs, if (gorica) "restriktor" else "bain"), setdiff(pkgs, if (gorica) "restriktor" else "bain")))
+      )
+    )
   ))
 }

@@ -135,7 +135,13 @@ ps_cb_equivalent <- function(req_json, export = FALSE) {
   body <- c(
     b$body,
     "# ---- The model and its equivalent alternatives (Lee & Hershberger's replacing rules), each fitted alike ----",
-    sprintf("models <- c(%s)", paste(sprintf("%s = %s", names(texts), vapply(texts, function(t) encodeString(paste(trimws(t), collapse = "\n"), quote = '"'), "")), collapse = ",\n  ")),
+    sprintf(
+      "models <- c(%s)",
+      paste(
+        sprintf("%s = %s", names(texts), vapply(texts, function(t) encodeString(paste(trimws(t), collapse = "\n"), quote = '"'), "")),
+        collapse = ",\n  "
+      )
+    ),
     "# Each model from lavaan's default and from simple starting values, the better (lower) minimum kept: a",
     "# reparameterised model can stop at a local minimum from one of them.",
     sprintf("fit_from <- function(m) %s", refit),
@@ -162,7 +168,10 @@ ps_cb_equivalent <- function(req_json, export = FALSE) {
   env <- ps_run(body, b$inputs)
   E <- env$equivalent
   ps_json(list(
-    fits = lapply(seq_len(nrow(E)), function(i) list(converged = isTRUE(E[i, "converged"] == 1), npar = E[i, "npar"], chisq = E[i, "chisq"], df = E[i, "df"], logl = E[i, "logl"])),
+    fits = lapply(
+      seq_len(nrow(E)),
+      function(i) list(converged = isTRUE(E[i, "converged"] == 1), npar = E[i, "npar"], chisq = E[i, "chisq"], df = E[i, "df"], logl = E[i, "logl"])
+    ),
     warnings = env$.warnings, engine = ps_engine("lavaan")
   ))
 }
@@ -227,7 +236,10 @@ ps_cb_lmwald <- function(req_json, export = FALSE) {
         "# ---- Multivariate Wald test, backward stepwise (EQS) ----",
         "# Candidates: the free parameters of the chosen kinds (parameters held equal count once)",
         "pt <- parTable(fit)",
-        sprintf("free <- pt[pt$free > 0 & !duplicated(pt$free) & pt$op %%in%% %s & (pt$op != \"~~\" | pt$lhs != pt$rhs), ]", ps_q(wald_ops)),
+        sprintf(
+          "free <- pt[pt$free > 0 & !duplicated(pt$free) & pt$op %%in%% %s & (pt$op != \"~~\" | pt$lhs != pt$rhs), ]",
+          ps_q(wald_ops)
+        ),
         "free$name <- ifelse(nzchar(free$label), free$label, free$plabel)",
         "se <- sqrt(diag(vcov(fit)))[free$free]",
         "wald_steps <- data.frame()",
@@ -369,17 +381,30 @@ ps_cb_regsem <- function(req_json, export = FALSE) {
   if ("paths" %in% pen_kinds) {
     # every free term of a structural regression penalised (terms with a value or label stay as they are)
     reg <- grepl("^[^ ]+ ~ ", lines) & !grepl("^[^ ]+ ~ *1$", lines)
-    lines[reg] <- vapply(strsplit(sub("^([^ ]+) ~ ", "\\1\t", lines[reg]), "\t"), function(p) paste(p[1], "~", paste(vapply(strsplit(p[2], " + ", fixed = TRUE)[[1]], function(t) if (grepl("*", t, fixed = TRUE)) t else paste0("pen()*", t), ""), collapse = " + ")), "")
+    lines[reg] <- vapply(
+      strsplit(sub("^([^ ]+) ~ ", "\\1\t", lines[reg]), "\t"),
+      function(p) paste(p[1], "~", paste(vapply(strsplit(p[2], " + ", fixed = TRUE)[[1]], function(t) if (grepl("*", t, fixed = TRUE)) t else paste0("pen()*", t), ""), collapse = " + ")),
+      ""
+    )
     if (!any(reg)) stop("The model has no structural paths to penalise.")
   }
   if ("covariances" %in% pen_kinds && length(inds) >= 2) {
-    have <- vapply(strsplit(lines[grepl("^[^ ]+ ~~ ", lines)], " ~~ "), function(p) paste(sort(c(p[1], sub("^.*\\*", "", p[2]))), collapse = "~~"), "")
+    have <- vapply(
+      strsplit(lines[grepl("^[^ ]+ ~~ ", lines)], " ~~ "),
+      function(p) paste(sort(c(p[1], sub("^.*\\*", "", p[2]))), collapse = "~~"),
+      ""
+    )
     pairs <- utils::combn(inds, 2)
     keep <- !(apply(pairs, 2, function(p) paste(sort(p), collapse = "~~")) %in% have)
     added <- c(added, sprintf("%s ~~ pen()*%s", pairs[1, keep], pairs[2, keep]))
   }
   model <- c(lines, added)
-  fit_args <- sprintf("penalty_method = \"%s\", %s%s, verbose = FALSE", PS_LSLX_PENALTY[[method]], grid, if (!length(deltas)) "" else sprintf(", delta_grid = c(%s)", paste(format(deltas, digits = 15), collapse = ", ")))
+  fit_args <- sprintf(
+    "penalty_method = \"%s\", %s%s, verbose = FALSE",
+    PS_LSLX_PENALTY[[method]],
+    grid,
+    if (!length(deltas)) "" else sprintf(", delta_grid = c(%s)", paste(format(deltas, digits = 15), collapse = ", "))
+  )
   # (converged tightly: at lslx's default tolerance, 1e-3, the estimates move in the third decimal with the order of the syntax)
   fit_args <- sub(", verbose = FALSE$", ", tol_out = 1e-08, iter_out_max = 1000, verbose = FALSE", fit_args)
   body <- c(
@@ -409,7 +434,11 @@ ps_cb_regsem <- function(req_json, export = FALSE) {
     ifelse(spec$left %in% inds & spec$right %in% facs, "loading", "path")
   ))
   label <- ifelse(kind == "intercept", paste("Intercept of", nm(spec$left)), ifelse(kind == "variance", paste("Variance of", nm(spec$left)),
-    ifelse(kind == "covariance", paste(nm(spec$right), "\u2194", nm(spec$left)), paste(nm(spec$right), "\u2192", nm(spec$left)))
+    ifelse(
+      kind == "covariance",
+      paste(nm(spec$right), "\u2194", nm(spec$left)),
+      paste(nm(spec$right), "\u2192", nm(spec$left))
+    )
   ))
   pen <- which(spec$type == "pen")
   num_of <- function(key) as.numeric(regmatches(key, regexpr("(?<=lambda=c\\()[^,]+", key, perl = TRUE)))
@@ -429,9 +458,21 @@ ps_cb_regsem <- function(req_json, export = FALSE) {
     penalised = I(label[pen]), penalisedKind = I(kind[pen]),
     estimates = lapply(which(spec$type != "fixed" & kind != "intercept"), function(i) {
       r <- rownames(spec)[i]
-      list(label = label[i], kind = kind[i], type = spec$type[i], est = est[r, "estimate"], se = est[r, "standard_error"], z = est[r, "z_value"], p = est[r, "p_value"])
+      list(
+        label = label[i],
+        kind = kind[i],
+        type = spec$type[i],
+        est = est[r, "estimate"],
+        se = est[r, "standard_error"],
+        z = est[r, "z_value"],
+        p = est[r, "p_value"]
+      )
     }),
-    test = list(chisq = env$lr["unadjusted", "statistic"], df = env$lr["unadjusted", "df"], p = env$lr["unadjusted", "p_value"]),
+    test = list(
+      chisq = env$lr["unadjusted", "statistic"],
+      df = env$lr["unadjusted", "df"],
+      p = env$lr["unadjusted", "p_value"]
+    ),
     fitIndex = as.list(env$fit_index), n = nrow(env$data), warnings = env$.warnings,
     engine = ps_engine("lslx")
   ))

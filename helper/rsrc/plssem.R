@@ -96,7 +96,11 @@ ps_plssem_build <- function(req) {
   }
   back <- c(back, setNames(unname(slab), unname(sname)))
   # Level 1: the canvas model.
-  meas <- vapply(which(!single), function(j) sprintf("%s =~ %s", lv[[j]], paste(unname(n$iv[n$inds[[j]]]), collapse = " + ")), "")
+  meas <- vapply(
+    which(!single),
+    function(j) sprintf("%s =~ %s", lv[[j]], paste(unname(n$iv[n$inds[[j]]]), collapse = " + ")),
+    ""
+  )
   to <- unique(vapply(m$paths, function(p) p$to, ""))
   for (p in m$paths) if (!all(c(p$from, p$to) %in% cname)) stop("A path refers to a removed construct.")
   for (p in m$paths) if (!is.null(p$fixed) || !is.null(p$label)) stop("Multilevel PLS-SEM estimates every path: remove fixed values and labels.")
@@ -120,7 +124,11 @@ ps_plssem_build <- function(req) {
     ws <- vapply(as.character(unlist(ml$betweenCovariates)), column, "")
     fb <- vapply(fac, bname, "")
     level2 <- c(
-      vapply(seq_along(fac), function(k) sprintf("%s =~ %s", fb[k], paste(unname(n$iv[n$inds[[fac[k]]]]), collapse = " + ")), ""),
+      vapply(
+        seq_along(fac),
+        function(k) sprintf("%s =~ %s", fb[k], paste(unname(n$iv[n$inds[[fac[k]]]]), collapse = " + ")),
+        ""
+      ),
       if (length(ws)) sprintf("%s ~ %s", paste(fb, collapse = " + "), paste(ws, collapse = " + ")),
       if (length(ws) && length(sname)) {
         sprintf("%s ~ %s", paste(unname(sname), collapse = " + "), paste(ws, collapse = " + "))
@@ -131,7 +139,11 @@ ps_plssem_build <- function(req) {
     fb <- setNames(lv, cname)
     for (j in which(!single)) fb[[cname[j]]] <- bname(j)
     level2 <- c(
-      vapply(which(!single), function(j) sprintf("%s =~ %s", fb[[j]], paste(unname(n$iv[n$inds[[j]]]), collapse = " + ")), ""),
+      vapply(
+        which(!single),
+        function(j) sprintf("%s =~ %s", fb[[j]], paste(unname(n$iv[n$inds[[j]]]), collapse = " + ")),
+        ""
+      ),
       unname(vapply(to, function(y) sprintf("%s ~ %s", fb[[y]], paste(vapply(Filter(function(p) identical(p$to, y), m$paths), function(p) fb[[p$from]], ""), collapse = " + ")), ""))
     )
   } else {
@@ -252,7 +264,10 @@ ps_plssem <- function(req_json, export = FALSE) {
   rsd <- fit@params$rsd
   ps_json(list(
     levels = list(level(1), level(2)),
-    thresholds = lapply(seq_len(nrow(th)), function(i) list(variable = ps_back(th$lhs[i], c(inds_map, bk)), threshold = th$rhs[i], est = num(th$est[i]), se = num(th$se[i]))),
+    thresholds = lapply(
+      seq_len(nrow(th)),
+      function(i) list(variable = ps_back(th$lhs[i], c(inds_map, bk)), threshold = th$rhs[i], est = num(th$est[i]), se = num(th$se[i]))
+    ),
     icc = list(names = I(ps_back(names(icc), inds_map)), values = I(num(unname(icc)))),
     slopes = lapply(seq_along(rsd), function(i) list(name = nm(names(rsd)[i]), sd = num(unname(rsd[i])))),
     n = fit@info$n, clusters = fit@info$nclusters, iterations = fit@status$iterations, converged = isTRUE(fit@status$converged),

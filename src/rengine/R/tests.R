@@ -15,7 +15,13 @@ ps_bt_factor_line <- function(req, fr, n) {
   } else {
     format(codes, trim = TRUE)
   }
-  sprintf("data$%s <- factor(data$%s, levels = c(%s), labels = %s)", vn, vn, paste(format(codes, digits = 15, trim = TRUE), collapse = ", "), ps_q(labels))
+  sprintf(
+    "data$%s <- factor(data$%s, levels = c(%s), labels = %s)",
+    vn,
+    vn,
+    paste(format(codes, digits = 15, trim = TRUE), collapse = ", "),
+    ps_q(labels)
+  )
 }
 
 #' A column's own name from its R name (other text, e.g. a factor name, as it is).
@@ -48,7 +54,13 @@ ps_shapiro <- function(x) {
 }
 ps_desc <- function(x) {
   x <- x[!is.na(x)]
-  list(n = length(x), mean = mean(x), sd = if (length(x) > 1) stats::sd(x) else NULL, se = if (length(x) > 1) stats::sd(x) / sqrt(length(x)) else NULL, median = stats::median(x))
+  list(
+    n = length(x),
+    mean = mean(x),
+    sd = if (length(x) > 1) stats::sd(x) else NULL,
+    se = if (length(x) > 1) stats::sd(x) / sqrt(length(x)) else NULL,
+    median = stats::median(x)
+  )
 }
 
 #' t-tests: one sample, paired samples, independent samples (Student, Welch), with
@@ -109,7 +121,13 @@ ps_ttest <- function(req_json, export = FALSE) {
         if (student) sprintf("%s$student <- t.test(y, mu = %s, %s)", r, format(mu, digits = 15), a),
         if (rank) sprintf("%s$rank <- wilcox.test(y, mu = %s, alternative = \"%s\", exact = FALSE)", r, format(mu, digits = 15), alt),
         sprintf("%s$d <- (mean(y) - %s) / sd(y)  # Cohen's d", r, format(mu, digits = 15)),
-        sprintf("nz <- sum(y != %s); %s$rb <- if (!is.null(%s$rank)) 2 * unname(%s$rank$statistic) / (nz * (nz + 1) / 2) - 1  # rank-biserial correlation", format(mu, digits = 15), r, r, r),
+        sprintf(
+          "nz <- sum(y != %s); %s$rb <- if (!is.null(%s$rank)) 2 * unname(%s$rank$statistic) / (nz * (nz + 1) / 2) - 1  # rank-biserial correlation",
+          format(mu, digits = 15),
+          r,
+          r,
+          r
+        ),
         sprintf("%s$shapiro <- if (length(y) >= 3 && length(y) <= 5000) shapiro.test(y)", r)
       )
     } else if (type == "paired") {
@@ -119,8 +137,16 @@ ps_ttest <- function(req_json, export = FALSE) {
         if (student) sprintf("%s$student <- t.test(x1, x2, paired = TRUE, %s)", r, a),
         if (rank) sprintf("%s$rank <- wilcox.test(x1, x2, paired = TRUE, alternative = \"%s\", exact = FALSE)", r, alt),
         sprintf("%s$d <- mean(dif) / sd(dif)  # Cohen's d (of the differences)", r),
-        sprintf("nz <- sum(dif != 0); %s$rb <- if (!is.null(%s$rank)) 2 * unname(%s$rank$statistic) / (nz * (nz + 1) / 2) - 1  # rank-biserial correlation", r, r, r),
-        sprintf("%s$shapiro <- if (length(dif) >= 3 && length(dif) <= 5000) shapiro.test(dif)  # normality of the differences", r)
+        sprintf(
+          "nz <- sum(dif != 0); %s$rb <- if (!is.null(%s$rank)) 2 * unname(%s$rank$statistic) / (nz * (nz + 1) / 2) - 1  # rank-biserial correlation",
+          r,
+          r,
+          r
+        ),
+        sprintf(
+          "%s$shapiro <- if (length(dif) >= 3 && length(dif) <= 5000) shapiro.test(dif)  # normality of the differences",
+          r
+        )
       )
     } else {
       body <- c(
@@ -131,11 +157,28 @@ ps_ttest <- function(req_json, export = FALSE) {
         if (welch) sprintf("%s$welch <- t.test(y1, y2, var.equal = FALSE, %s)", r, a),
         if (rank) sprintf("%s$rank <- wilcox.test(y1, y2, alternative = \"%s\", exact = FALSE)", r, alt),
         sprintf("n1 <- length(y1); n2 <- length(y2)"),
-        sprintf("%s$d <- (mean(y1) - mean(y2)) / sqrt(((n1 - 1) * var(y1) + (n2 - 1) * var(y2)) / (n1 + n2 - 2))  # Cohen's d (pooled SD)", r),
-        sprintf("%s$dWelch <- (mean(y1) - mean(y2)) / sqrt((var(y1) + var(y2)) / 2)  # Cohen's d (average variance)", r),
-        sprintf("%s$rb <- if (!is.null(%s$rank)) 2 * unname(%s$rank$statistic) / (n1 * n2) - 1  # rank-biserial correlation", r, r, r),
-        sprintf("%s$levene <- anova(lm(abs(y - ave(y, gg, FUN = median)) ~ gg))  # Levene's test (median-centred, Brown-Forsythe)", r),
-        sprintf("%s$shapiro <- lapply(list(y1, y2), function(z) if (length(z) >= 3 && length(z) <= 5000) shapiro.test(z))", r)
+        sprintf(
+          "%s$d <- (mean(y1) - mean(y2)) / sqrt(((n1 - 1) * var(y1) + (n2 - 1) * var(y2)) / (n1 + n2 - 2))  # Cohen's d (pooled SD)",
+          r
+        ),
+        sprintf(
+          "%s$dWelch <- (mean(y1) - mean(y2)) / sqrt((var(y1) + var(y2)) / 2)  # Cohen's d (average variance)",
+          r
+        ),
+        sprintf(
+          "%s$rb <- if (!is.null(%s$rank)) 2 * unname(%s$rank$statistic) / (n1 * n2) - 1  # rank-biserial correlation",
+          r,
+          r,
+          r
+        ),
+        sprintf(
+          "%s$levene <- anova(lm(abs(y - ave(y, gg, FUN = median)) ~ gg))  # Levene's test (median-centred, Brown-Forsythe)",
+          r
+        ),
+        sprintf(
+          "%s$shapiro <- lapply(list(y1, y2), function(z) if (length(z) >= 3 && length(z) <= 5000) shapiro.test(z))",
+          r
+        )
       )
     }
   }
@@ -196,7 +239,13 @@ ps_anova <- function(req_json, export = FALSE) {
   full <- !identical(req$interactions, FALSE)
   fr <- ps_long_frame(req, unique(c(y, fac, cov)))
   v <- fr$v
-  rhs <- paste(c(paste(vapply(fac, function(n) v[[n]], ""), collapse = if (full) " * " else " + "), vapply(cov, function(n) v[[n]], "")), collapse = " + ")
+  rhs <- paste(
+    c(
+      paste(vapply(fac, function(n) v[[n]], ""), collapse = if (full) " * " else " + "),
+      vapply(cov, function(n) v[[n]], "")
+    ),
+    collapse = " + "
+  )
   fml <- sprintf("%s ~ %s", v[[y]], rhs)
   oneway <- length(fac) == 1 && !length(cov)
   body <- c(
@@ -208,14 +257,22 @@ ps_anova <- function(req_json, export = FALSE) {
     "res <- residuals(fit)",
     "shapiro <- if (length(res) >= 3 && length(res) <= 5000) shapiro.test(res)  # normality of the residuals",
     sprintf("cells <- interaction(data[, %s], drop = TRUE)", ps_q(unname(unlist(v[fac])))),
-    sprintf("levene <- anova(lm(abs(data$%s - ave(data$%s, cells, FUN = median)) ~ cells))  # Levene's test (median-centred)", v[[y]], v[[y]]),
+    sprintf(
+      "levene <- anova(lm(abs(data$%s - ave(data$%s, cells, FUN = median)) ~ cells))  # Levene's test (median-centred)",
+      v[[y]],
+      v[[y]]
+    ),
     if (oneway) {
       c(
         sprintf("welch <- oneway.test(%s, data = data, var.equal = FALSE)  # Welch's ANOVA", fml),
         sprintf("kruskal <- kruskal.test(%s, data = data)", fml),
         sprintf("tukey <- TukeyHSD(aov(%s, data = data), conf.level = %s)", fml, format(ps_bt_conf(req))),
         "# After Kruskal-Wallis: pairwise Wilcoxon rank-sum tests, p adjusted by Holm's method.",
-        sprintf("pwRank <- pairwise.wilcox.test(data$%s, data$%s, p.adjust.method = \"holm\", exact = FALSE)", v[[y]], v[[fac[1]]])
+        sprintf(
+          "pwRank <- pairwise.wilcox.test(data$%s, data$%s, p.adjust.method = \"holm\", exact = FALSE)",
+          v[[y]],
+          v[[fac[1]]]
+        )
       )
     }
   )
@@ -238,12 +295,25 @@ ps_anova <- function(req_json, export = FALSE) {
     df <- tab[t, "Df"]
     f <- if (ss == "III") tab[t, "F value"] else tab[t, "F value"]
     p <- tab[t, "Pr(>F)"]
-    list(term = back(t), ss = s, df = df, ms = s / df, f = f, p = p, eta2 = s / sstot, partialEta2 = s / (s + ssres), omega2 = (s - df * msres) / (sstot + msres))
+    list(
+      term = back(t),
+      ss = s,
+      df = df,
+      ms = s / df,
+      f = f,
+      p = p,
+      eta2 = s / sstot,
+      partialEta2 = s / (s + ssres),
+      omega2 = (s - df * msres) / (sstot + msres)
+    )
   })
   cells <- split(d[[v[[y]]]], interaction(d[fac], drop = TRUE, sep = " · "))
   tk <- if (oneway) {
     m <- env$tukey[[1]]
-    lapply(seq_len(nrow(m)), function(i) list(comparison = rownames(m)[i], diff = m[i, "diff"], ciLow = m[i, "lwr"], ciHigh = m[i, "upr"], p = m[i, "p adj"]))
+    lapply(
+      seq_len(nrow(m)),
+      function(i) list(comparison = rownames(m)[i], diff = m[i, "diff"], ciLow = m[i, "lwr"], ciHigh = m[i, "upr"], p = m[i, "p adj"])
+    )
   } else {
     NULL
   }
@@ -255,7 +325,13 @@ ps_anova <- function(req_json, export = FALSE) {
     kruskal = if (oneway) ps_htest(env$kruskal) else NULL, tukey = tk,
     pairwiseRank = if (oneway) {
       m <- env$pwRank$p.value
-      Filter(Negate(is.null), unlist(lapply(colnames(m), function(a) lapply(rownames(m), function(b) if (!is.na(m[b, a])) list(comparison = paste(b, "-", a), pHolm = m[b, a]))), recursive = FALSE))
+      Filter(
+        Negate(is.null),
+        unlist(
+          lapply(colnames(m), function(a) lapply(rownames(m), function(b) if (!is.na(m[b, a])) list(comparison = paste(b, "-", a), pHolm = m[b, a]))),
+          recursive = FALSE
+        )
+      )
     } else {
       NULL
     },
@@ -318,7 +394,12 @@ ps_rmanova <- function(req_json, export = FALSE) {
       "long <- data.frame(subject = factor(rep(seq_len(nrow(Y)), ncol(Y))), %s = factor(rep(%s, each = nrow(Y)), levels = %s), y = c(Y)%s)",
       fname, ps_q(within), ps_q(within), if (bt) sprintf(", %s = rep(data$%s, ncol(Y))", v[[between]], v[[between]]) else ""
     ),
-    sprintf("fit <- aov(y ~ %s%s + Error(subject/%s), data = long)", fname, if (bt) sprintf(" * %s", v[[between]]) else "", fname),
+    sprintf(
+      "fit <- aov(y ~ %s%s + Error(subject/%s), data = long)",
+      fname,
+      if (bt) sprintf(" * %s", v[[between]]) else "",
+      fname
+    ),
     sprintf("mlm <- lm(Y ~ %s)", if (bt) sprintf("data$%s", v[[between]]) else "1"),
     "mauchly <- mauchly.test(mlm, X = ~ 1)",
     "spher <- anova(mlm, X = ~ 1, test = \"Spherical\")  # Greenhouse-Geisser and Huynh-Feldt corrections",
@@ -337,7 +418,10 @@ ps_rmanova <- function(req_json, export = FALSE) {
   strat <- function(s) {
     t <- s[[1]]
     rn <- trimws(rownames(t))
-    lapply(seq_len(nrow(t)), function(i) list(term = rn[i], ss = t[i, "Sum Sq"], df = t[i, "Df"], ms = t[i, "Mean Sq"], f = if ("F value" %in% colnames(t)) t[i, "F value"] else NULL, p = if ("Pr(>F)" %in% colnames(t)) t[i, "Pr(>F)"] else NULL))
+    lapply(
+      seq_len(nrow(t)),
+      function(i) list(term = rn[i], ss = t[i, "Sum Sq"], df = t[i, "Df"], ms = t[i, "Mean Sq"], f = if ("F value" %in% colnames(t)) t[i, "F value"] else NULL, p = if ("Pr(>F)" %in% colnames(t)) t[i, "Pr(>F)"] else NULL)
+    )
   }
   bs <- strat(sm[[grep(": subject$", names(sm))]])
   ws <- strat(sm[[grep(sprintf(": subject:%s$", fname), names(sm))]])
@@ -370,7 +454,10 @@ ps_rmanova <- function(req_json, export = FALSE) {
   gg <- sum(diag(M))^2 / (k * sum(diag(M %*% M)))
   n <- df.residual(env$mlm)
   hf <- min(1, ((n + 1) * k * gg - 2) / (k * (n - k * gg)))
-  corr <- lapply(seq_len(nrow(sp) - 1), function(i) list(term = if (i == 1) fname else paste(fname, "\u00d7", between), p = sp[i, "Pr(>F)"], pGG = sp[i, "G-G Pr"], pHF = sp[i, "H-F Pr"]))
+  corr <- lapply(
+    seq_len(nrow(sp) - 1),
+    function(i) list(term = if (i == 1) fname else paste(fname, "\u00d7", between), p = sp[i, "Pr(>F)"], pGG = sp[i, "G-G Pr"], pHF = sp[i, "H-F Pr"])
+  )
   ps_json(list(
     factorName = fname, levels = within, between = between, n = nrow(env$Y),
     within = pe(ws, res_w), betweenTable = pe(bs, res_b),
@@ -379,7 +466,14 @@ ps_rmanova <- function(req_json, export = FALSE) {
     posthoc = lapply(seq_along(env$pairs), function(i) {
       p <- env$pairs[[i]]
       h <- env$posthoc[[i]]
-      list(comparison = paste(within[p[1]], "-", within[p[2]]), diff = unname(h$estimate), t = unname(h$statistic), df = unname(h$parameter), p = h$p.value, pHolm = env$pHolm[i])
+      list(
+        comparison = paste(within[p[1]], "-", within[p[2]]),
+        diff = unname(h$estimate),
+        t = unname(h$statistic),
+        df = unname(h$parameter),
+        p = h$p.value,
+        pHolm = env$pHolm[i]
+      )
     }),
     cells = lapply(within, function(l) c(list(cell = l), ps_desc(env$Y[, v[[l]]]))),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
@@ -421,7 +515,11 @@ ps_rm_design <- function(req) {
 #' the cells) and `long` (one row per subject and cell; `bvar`: the between factor's R name or "").
 ps_rm_design_lines <- function(design, cellsR, bvar) {
   k <- length(design$names)
-  fac <- vapply(rev(seq_len(k)), function(i) sprintf("%s = factor(%s, levels = %s)", design$names[i], ps_q(design$levels[[i]]), ps_q(design$levels[[i]])), "")
+  fac <- vapply(
+    rev(seq_len(k)),
+    function(i) sprintf("%s = factor(%s, levels = %s)", design$names[i], ps_q(design$levels[[i]]), ps_q(design$levels[[i]])),
+    ""
+  )
   c(
     "# The within-subject design: one row per cell (wide column), the last factor varying fastest.",
     sprintf("idata <- expand.grid(%s, KEEP.OUT.ATTRS = FALSE)[, %s]", paste(fac, collapse = ", "), ps_q(design$names)),
@@ -524,13 +622,21 @@ ps_rmanova_multi <- function(req, design, export) {
     sp <- env$spher[[i]]
     for (j in seq_len(nrow(sp) - 1)) corr[[length(corr) + 1]] <- list(term = if (j == 1) term else paste(term, "×", between), p = sp[j, "Pr(>F)"], pGG = sp[j, "G-G Pr"], pHF = sp[j, "H-F Pr"])
   }
-  labels <- apply(expand.grid(rev(design$levels), KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)[, rev(seq_along(design$names)), drop = FALSE], 1, paste, collapse = " · ")
+  labels <- apply(
+    expand.grid(rev(design$levels), KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)[, rev(seq_along(design$names)), drop = FALSE],
+    1,
+    paste,
+    collapse = " · "
+  )
   ps_json(list(
     factorName = paste(design$names, collapse = " × "), levels = design$cells, between = between, n = nrow(env$Y),
     factors = lapply(seq_along(design$names), function(i) list(name = design$names[i], levels = I(design$levels[[i]]))),
     within = ws, betweenTable = bs, sphericity = NULL, sphericityTable = sph, corrected = corr, friedman = NULL,
     friedmanTable = if (!bt) ps_rm_friedman_out(env$friedman) else NULL, posthoc = ps_rm_posthoc_out(env$posthoc),
-    cells = lapply(seq_along(design$cells), function(i) c(list(cell = sprintf("%s (%s)", unname(labels[i]), design$cells[i])), ps_desc(env$Y[, i]))),
+    cells = lapply(
+      seq_along(design$cells),
+      function(i) c(list(cell = sprintf("%s (%s)", unname(labels[i]), design$cells[i])), ps_desc(env$Y[, i]))
+    ),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
   ))
 }
@@ -550,7 +656,15 @@ ps_rm_posthoc_out <- function(ph) {
     lapply(seq_along(x$pairs), function(i) {
       p <- x$pairs[[i]]
       h <- x$tests[[i]]
-      list(factor = f, comparison = sprintf("%s: %s - %s", f, x$levels[p[1]], x$levels[p[2]]), diff = unname(h$estimate), t = unname(h$statistic), df = unname(h$parameter), p = h$p.value, pHolm = x$pHolm[i])
+      list(
+        factor = f,
+        comparison = sprintf("%s: %s - %s", f, x$levels[p[1]], x$levels[p[2]]),
+        diff = unname(h$estimate),
+        t = unname(h$statistic),
+        df = unname(h$parameter),
+        p = h$p.value,
+        pHolm = x$pHolm[i]
+      )
     })
   }), recursive = FALSE)
 }
@@ -568,7 +682,11 @@ ps_rmanova_car <- function(req, design, betweens, export) {
   }
   cellsR <- unname(unlist(v[design$cells]))
   k <- length(design$names)
-  fac <- vapply(rev(seq_len(k)), function(i) sprintf("%s = factor(%s, levels = %s)", design$names[i], ps_q(design$levels[[i]]), ps_q(design$levels[[i]])), "")
+  fac <- vapply(
+    rev(seq_len(k)),
+    function(i) sprintf("%s = factor(%s, levels = %s)", design$names[i], ps_q(design$levels[[i]]), ps_q(design$levels[[i]])),
+    ""
+  )
   body <- c(
     "suppressPackageStartupMessages(library(car))",
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(c(cellsR, bvars))),
@@ -576,7 +694,11 @@ ps_rmanova_car <- function(req, design, betweens, export) {
     "# Sum-to-zero contrasts (as car's help page sets them): the within effects are tested at the unweighted mean of the groups",
     sprintf("for (b in %s) contrasts(data[[b]]) <- contr.sum(nlevels(data[[b]]))", ps_q(bvars)),
     "# The within-subject design: one row per cell (wide column), the last factor varying fastest.",
-    sprintf("idata <- expand.grid(%s, KEEP.OUT.ATTRS = FALSE)[, %s, drop = FALSE]", paste(fac, collapse = ", "), ps_q(design$names)),
+    sprintf(
+      "idata <- expand.grid(%s, KEEP.OUT.ATTRS = FALSE)[, %s, drop = FALSE]",
+      paste(fac, collapse = ", "),
+      ps_q(design$names)
+    ),
     sprintf("Y <- as.matrix(data[, %s])", ps_q(cellsR)),
     sprintf("mlm <- lm(Y ~ %s, data = data)", paste(bvars, collapse = " * ")),
     sprintf("av <- Anova(mlm, idata = idata, idesign = ~ %s, type = 2)", paste(design$names, collapse = " * ")),
@@ -607,7 +729,15 @@ ps_rmanova_car <- function(req, design, betweens, export) {
     df <- ut[i, "num Df"]
     ess <- ut[i, "Error SS"]
     edf <- ut[i, "den Df"]
-    row <- list(term = name_of(c(w, b)), ss = ss, df = df, ms = ss / df, f = ut[i, "F value"], p = ut[i, "Pr(>F)"], partialEta2 = ss / (ss + ess))
+    row <- list(
+      term = name_of(c(w, b)),
+      ss = ss,
+      df = df,
+      ms = ss / df,
+      f = ut[i, "F value"],
+      p = ut[i, "Pr(>F)"],
+      partialEta2 = ss / (ss + ess)
+    )
     if (!length(w)) {
       if (rn[i] != "(Intercept)") rows_b[[length(rows_b) + 1]] <- c(row, list(stratum = "subject"))
       res_b <- list(term = "Residuals", stratum = "subject", ss = ess, df = edf, ms = ess / edf)
@@ -635,7 +765,12 @@ ps_rmanova_car <- function(req, design, betweens, export) {
   labels <- if (single) {
     design$cells
   } else {
-    apply(expand.grid(rev(design$levels), KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)[, rev(seq_len(k)), drop = FALSE], 1, paste, collapse = " · ")
+    apply(
+      expand.grid(rev(design$levels), KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)[, rev(seq_len(k)), drop = FALSE],
+      1,
+      paste,
+      collapse = " · "
+    )
   }
   sp1 <- if (single && length(sph)) sph[[1]] else NULL
   ps_json(list(
@@ -644,7 +779,10 @@ ps_rmanova_car <- function(req, design, betweens, export) {
     within = rows_w, betweenTable = c(rows_b, if (!is.null(res_b)) list(res_b)),
     sphericity = if (single) (if (is.null(sp1)) NULL else sp1[c("w", "p", "gg", "hf")]) else NULL, sphericityTable = if (!single) sph else NULL,
     corrected = corr, friedman = NULL, posthoc = ps_rm_posthoc_out(env$posthoc),
-    cells = lapply(seq_along(design$cells), function(i) c(list(cell = if (single) design$cells[i] else sprintf("%s (%s)", unname(labels[i]), design$cells[i])), ps_desc(env$Y[, i]))),
+    cells = lapply(
+      seq_along(design$cells),
+      function(i) c(list(cell = if (single) design$cells[i] else sprintf("%s (%s)", unname(labels[i]), design$cells[i])), ps_desc(env$Y[, i]))
+    ),
     warnings = env$.warnings, engine = ps_engine("car")
   ))
 }
@@ -661,7 +799,11 @@ ps_manova <- function(req_json, export = FALSE) {
   full <- !identical(req$interactions, FALSE)
   fr <- ps_long_frame(req, unique(c(ys, fac)))
   v <- fr$v
-  fml <- sprintf("cbind(%s) ~ %s", paste(unname(unlist(v[ys])), collapse = ", "), paste(unname(unlist(v[fac])), collapse = if (full) " * " else " + "))
+  fml <- sprintf(
+    "cbind(%s) ~ %s",
+    paste(unname(unlist(v[ys])), collapse = ", "),
+    paste(unname(unlist(v[fac])), collapse = if (full) " * " else " + ")
+  )
   tests <- c("Pillai", "Wilks", "Hotelling-Lawley", "Roy")
   body <- c(
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(ys, fac)])))),
@@ -712,9 +854,19 @@ ps_correlation <- function(req_json, export = FALSE) {
     "pairs <- combn(vars, 2, simplify = FALSE)",
     if (exact) {
       c(
-        sprintf("# Exact p-values (exact = TRUE) where they exist: no ties, and at most %d cases; otherwise the normal approximation.", if (method == "kendall") 200 else 1289),
-        sprintf("exact <- vapply(pairs, function(p) { ok <- complete.cases(data[[p[1]]], data[[p[2]]]); x <- data[[p[1]]][ok]; y <- data[[p[2]]][ok]; !anyDuplicated(x) && !anyDuplicated(y) && sum(ok) <= %d }, TRUE)", if (method == "kendall") 200 else 1289),
-        sprintf("tests <- lapply(seq_along(pairs), function(i) { p <- pairs[[i]]; cor.test(data[[p[1]]], data[[p[2]]], method = \"%s\", alternative = \"%s\", exact = exact[i]) })", method, alt)
+        sprintf(
+          "# Exact p-values (exact = TRUE) where they exist: no ties, and at most %d cases; otherwise the normal approximation.",
+          if (method == "kendall") 200 else 1289
+        ),
+        sprintf(
+          "exact <- vapply(pairs, function(p) { ok <- complete.cases(data[[p[1]]], data[[p[2]]]); x <- data[[p[1]]][ok]; y <- data[[p[2]]][ok]; !anyDuplicated(x) && !anyDuplicated(y) && sum(ok) <= %d }, TRUE)",
+          if (method == "kendall") 200 else 1289
+        ),
+        sprintf(
+          "tests <- lapply(seq_along(pairs), function(i) { p <- pairs[[i]]; cor.test(data[[p[1]]], data[[p[2]]], method = \"%s\", alternative = \"%s\", exact = exact[i]) })",
+          method,
+          alt
+        )
       )
     } else {
       sprintf(
@@ -769,7 +921,10 @@ ps_polychoric <- function(fr, vars, alt, conf, listwise, export) {
     if (listwise) "data <- data[complete.cases(data[, vars]), ]",
     "# (continuous variables standardised, so that every estimate is a correlation)",
     "for (k in setdiff(vars, ordinal)) data[[k]] <- as.numeric(scale(data[[k]]))",
-    sprintf("fit <- lavCor(data[, vars], ordered = ordinal, se = \"standard\", output = \"fit\", missing = \"%s\")", if (listwise) "listwise" else "pairwise"),
+    sprintf(
+      "fit <- lavCor(data[, vars], ordered = ordinal, se = \"standard\", output = \"fit\", missing = \"%s\")",
+      if (listwise) "listwise" else "pairwise"
+    ),
     sprintf("est <- standardizedSolution(fit, level = %s)", format(conf)),
     "est <- est[est$op == \"~~\" & est$lhs != est$rhs, ]",
     "n <- vapply(seq_len(nrow(est)), function(i) sum(complete.cases(data[[est$lhs[i]]], data[[est$rhs[i]]])), 0)",
@@ -843,7 +998,10 @@ ps_contingency <- function(req_json, export = FALSE) {
     "chiYates <- if (all(dim(tab) == 2)) chisq.test(tab, correct = TRUE)",
     "E <- chi$expected",
     "G2 <- 2 * sum(ifelse(tab > 0, tab * log(tab / E), 0)); pG2 <- pchisq(G2, chi$parameter, lower.tail = FALSE)  # likelihood ratio",
-    sprintf("fisher <- tryCatch(fisher.test(tab, conf.level = %s, workspace = 2e7), error = function(e) NULL)  # (NULL when the table is too large for the exact test)", format(conf)),
+    sprintf(
+      "fisher <- tryCatch(fisher.test(tab, conf.level = %s, workspace = 2e7), error = function(e) NULL)  # (NULL when the table is too large for the exact test)",
+      format(conf)
+    ),
     "cramerV <- sqrt(unname(chi$statistic) / (sum(tab) * (min(dim(tab)) - 1)))",
     "if (all(dim(tab) == 2)) {",
     "  phi <- (tab[1, 1] * tab[2, 2] - tab[1, 2] * tab[2, 1]) / sqrt(prod(rowSums(tab)) * prod(colSums(tab)))",
@@ -880,18 +1038,36 @@ ps_freqtest <- function(req_json, export = FALSE) {
   conf <- ps_bt_conf(req)
   fr <- ps_long_frame(req, x)
   v <- fr$v
-  body <- c(sprintf("data <- data[!is.na(data$%s), , drop = FALSE]", v[[x]]), ps_bt_factor_line(req, fr, x), sprintf("counts <- table(data$%s)", v[[x]]))
+  body <- c(
+    sprintf("data <- data[!is.na(data$%s), , drop = FALSE]", v[[x]]),
+    ps_bt_factor_line(req, fr, x),
+    sprintf("counts <- table(data$%s)", v[[x]])
+  )
   if (type == "binomial") {
     p0 <- ps_number(req$testValue %||% 0.5, "test proportion")
     if (p0 <= 0 || p0 >= 1) stop("The test proportion must be between 0 and 1.")
-    body <- c(body, sprintf("tests <- lapply(counts, function(k) binom.test(k, sum(counts), p = %s, alternative = \"%s\", conf.level = %s))", format(p0, digits = 15), alt, format(conf)))
+    body <- c(
+      body,
+      sprintf(
+        "tests <- lapply(counts, function(k) binom.test(k, sum(counts), p = %s, alternative = \"%s\", conf.level = %s))",
+        format(p0, digits = 15),
+        alt,
+        format(conf)
+      )
+    )
   } else {
     lv <- levels(factor(fr$data[[v[[x]]]]))
     props <- unlist(req$proportions)
     if (length(props) && (length(props) != length(lv) || any(!is.finite(props)) || any(props <= 0))) {
       stop(sprintf("Give one positive expected proportion per category (%d).", length(lv)))
     }
-    body <- c(body, sprintf("gof <- chisq.test(counts%s)", if (length(props)) sprintf(", p = c(%s), rescale.p = TRUE", paste(format(props, digits = 15), collapse = ", ")) else ""))
+    body <- c(
+      body,
+      sprintf(
+        "gof <- chisq.test(counts%s)",
+        if (length(props)) sprintf(", p = c(%s), rescale.p = TRUE", paste(format(props, digits = 15), collapse = ", ")) else ""
+      )
+    )
   }
   inputs <- list(data = fr$data)
   if (export) {
@@ -926,7 +1102,11 @@ ps_kappa_weights <- function(req, k) {
   }
   c(
     "# Weights (rows: the first rater's categories).",
-    sprintf("W <- matrix(c(%s), nrow = %d, byrow = TRUE)", paste(format(c(t(m)), digits = 15), collapse = ", "), nrow(m)),
+    sprintf(
+      "W <- matrix(c(%s), nrow = %d, byrow = TRUE)",
+      paste(format(c(t(m)), digits = 15), collapse = ", "),
+      nrow(m)
+    ),
     "# A zero diagonal: disagreement weights (Cohen 1968), taken as the agreement weights 1 - W / max(W). The weighted kappa is the same,",
     "# and psych's standard error is the one for agreement weights (Fleiss, Cohen & Everitt 1969).",
     "if (all(diag(W) == 0) && max(W) > 0) W <- 1 - W / max(W)"
@@ -975,12 +1155,21 @@ ps_kappa_table <- function(req, export) {
   } else {
     format(codes, trim = TRUE)
   }
-  lev <- sprintf("levels = c(%s), labels = %s", paste(format(codes, digits = 15, trim = TRUE), collapse = ", "), ps_q(labels))
+  lev <- sprintf(
+    "levels = c(%s), labels = %s",
+    paste(format(codes, digits = 15, trim = TRUE), collapse = ", "),
+    ps_q(labels)
+  )
   body <- c(
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(rv, cv, if (nzchar(wv)) wv)])))),
     "# Both raters on the same categories (either rater's), so that the table is square.",
     sprintf("data$%s <- factor(data$%s, %s)", v[[rv]], v[[rv]], lev), sprintf("data$%s <- factor(data$%s, %s)", v[[cv]], v[[cv]], lev),
-    sprintf("tab <- unclass(xtabs(%s~ %s + %s, data = data))  # rows: the first rater; columns: the second", if (nzchar(wv)) paste0(v[[wv]], " ") else "", v[[rv]], v[[cv]]),
+    sprintf(
+      "tab <- unclass(xtabs(%s~ %s + %s, data = data))  # rows: the first rater; columns: the second",
+      if (nzchar(wv)) paste0(v[[wv]], " ") else "",
+      v[[rv]],
+      v[[cv]]
+    ),
     if (!is.null(nobs)) sprintf("tab <- tab / sum(tab) * %s  # proportions (or counts) scaled to the number of subjects", format(nobs, digits = 15)),
     "suppressPackageStartupMessages(library(psych))", ps_kappa_weights(req, length(codes)),
     sprintf("k <- cohen.kappa(tab%s, alpha = %s)", ps_kappa_args(req), format(1 - conf))
@@ -1039,10 +1228,18 @@ ps_reliability <- function(req_json, export = FALSE) {
       "g <- glb.fa(cor(X))  # greatest lower bound (psych's factor-analytic estimate)",
       if (!is.null(bayes)) ps_bayesrel_lines(bayes, conf)
     ),
-    icc = c("suppressPackageStartupMessages(library(psych))", sprintf("icc <- ICC(X, lmer = FALSE, alpha = %s)  # rows: subjects; columns: raters", format(1 - conf))),
+    icc = c(
+      "suppressPackageStartupMessages(library(psych))",
+      sprintf("icc <- ICC(X, lmer = FALSE, alpha = %s)  # rows: subjects; columns: raters", format(1 - conf))
+    ),
     kappa = c(
       "suppressPackageStartupMessages(library(psych))", ps_kappa_weights(req, NULL),
-      sprintf("k <- cohen.kappa(X%s, alpha = %s)%s", ps_kappa_args(req), format(1 - conf), if (identical(req$kappaWeights %||% "squared", "squared")) "  # weighted: squared distances between categories" else "")
+      sprintf(
+        "k <- cohen.kappa(X%s, alpha = %s)%s",
+        ps_kappa_args(req),
+        format(1 - conf),
+        if (identical(req$kappaWeights %||% "squared", "squared")) "  # weighted: squared distances between categories" else ""
+      )
     ),
     blandaltman = c(
       "d <- X[[1]] - X[[2]]; m <- (X[[1]] + X[[2]]) / 2",
@@ -1076,7 +1273,10 @@ ps_reliability <- function(req_json, export = FALSE) {
       is <- a$item.stats
       list(
         alpha = tot$raw_alpha, stdAlpha = tot$std.alpha, averageR = tot$average_r, omegaTotal = env$o$omega.tot, glb = env$g$glb, mean = tot$mean, sd = tot$sd,
-        items = lapply(seq_len(nrow(dr)), function(i) list(item = vars[i], alphaIfDropped = dr$raw_alpha[i], itemRest = is$r.drop[i], mean = is$mean[i], sd = is$sd[i])),
+        items = lapply(
+          seq_len(nrow(dr)),
+          function(i) list(item = vars[i], alphaIfDropped = dr$raw_alpha[i], itemRest = is$r.drop[i], mean = is$mean[i], sd = is$sd[i])
+        ),
         bayes = if (is.null(bayes)) NULL else ps_bayesrel_result(env, bayes, conf)
       )
     },
@@ -1086,11 +1286,24 @@ ps_reliability <- function(req_json, export = FALSE) {
     },
     kappa = {
       cf <- env$k$confid
-      list(kappa = list(est = cf[1, 2], ciLow = cf[1, 1], ciHigh = cf[1, 3]), weighted = list(est = cf[2, 2], ciLow = cf[2, 1], ciHigh = cf[2, 3]), agreement = env$k$agree, categories = nrow(env$k$agree))
+      list(
+        kappa = list(est = cf[1, 2], ciLow = cf[1, 1], ciHigh = cf[1, 3]),
+        weighted = list(est = cf[2, 2], ciLow = cf[2, 1], ciHigh = cf[2, 3]),
+        agreement = env$k$agree,
+        categories = nrow(env$k$agree)
+      )
     },
     blandaltman = {
       keep <- if (n > 5000) seq(1, n, length.out = 5000) else seq_len(n)
-      list(bias = env$bias, sd = env$s, lower = env$loa[1], upper = env$loa[2], biasCiLow = env$biasCI[1], biasCiHigh = env$biasCI[2], points = list(mean = unname(env$m[keep]), diff = unname(env$d[keep])))
+      list(
+        bias = env$bias,
+        sd = env$s,
+        lower = env$loa[1],
+        upper = env$loa[2],
+        biasCiLow = env$biasCI[1],
+        biasCiHigh = env$biasCI[2],
+        points = list(mean = unname(env$m[keep]), diff = unname(env$d[keep]))
+      )
     }
   )
   if (type == "kappa") out$agreement <- NULL

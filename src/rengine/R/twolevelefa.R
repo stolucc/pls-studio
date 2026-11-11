@@ -14,7 +14,11 @@ ps_efa2_syntax <- function(ys, k, prefix) {
   }
   fs <- sprintf("%s%d", prefix, seq_len(k))
   c(
-    vapply(seq_len(k), function(j) sprintf("%s =~ %s", fs[j], paste(c(if (j > 1) sprintf("0*%s", ys[seq_len(j - 1)]), sprintf("NA*%s", ys[j]), if (j < length(ys)) ys[(j + 1):length(ys)]), collapse = " + ")), ""),
+    vapply(
+      seq_len(k),
+      function(j) sprintf("%s =~ %s", fs[j], paste(c(if (j > 1) sprintf("0*%s", ys[seq_len(j - 1)]), sprintf("NA*%s", ys[j]), if (j < length(ys)) ys[(j + 1):length(ys)]), collapse = " + ")),
+      ""
+    ),
     sprintf("%s ~~ 1*%s", fs, fs),
     if (k > 1) {
       unlist(lapply(seq_len(k - 1), function(i) sprintf("%s ~~ 0*%s", fs[i], fs[(i + 1):k])))
@@ -99,7 +103,13 @@ ps_efa_twolevel <- function(req_json, export = FALSE) {
   between <- lev_list(req$between, "between")
   p <- length(items)
   for (k in c(within, between)) if (!identical(k, "U") && (p - k)^2 < p + k) stop(sprintf("%d factors are too many for %d items.", k, p))
-  combos <- Filter(Negate(is.null), unlist(lapply(within, function(w) lapply(between, function(b) if (identical(w, "U") && identical(b, "U")) NULL else list(w = w, b = b))), recursive = FALSE))
+  combos <- Filter(
+    Negate(is.null),
+    unlist(
+      lapply(within, function(w) lapply(between, function(b) if (identical(w, "U") && identical(b, "U")) NULL else list(w = w, b = b))),
+      recursive = FALSE
+    )
+  )
   if (!length(combos)) {
     stop("Choose factors for at least one level (both unrestricted is the saturated model).")
   }
@@ -115,7 +125,10 @@ ps_efa_twolevel <- function(req_json, export = FALSE) {
     body <- c(
       body, sprintf("# %s within, %s between", if (identical(w, "U")) "unrestricted" else sprintf("%d factor(s)", w), if (identical(b, "U")) "unrestricted" else sprintf("%d factor(s)", b)),
       "model <- '", paste0("  ", syn), "'",
-      sprintf("fit <- lavaan::sem(model, data = data, cluster = \"%s\", estimator = \"ML\", information = \"observed\")", cv),
+      sprintf(
+        "fit <- lavaan::sem(model, data = data, cluster = \"%s\", estimator = \"ML\", information = \"observed\")",
+        cv
+      ),
       "sol <- list(fit = fit)",
       if (!identical(w, "U")) {
         c(
@@ -148,18 +161,27 @@ ps_efa_twolevel <- function(req_json, export = FALSE) {
         factors = I(colnames(sol$L)), loadings = lapply(seq_len(nrow(sol$L)), function(r) list(item = items[r], est = I(unname(sol$L[r, ])), se = I(unname(se$L[r, ])))),
         correlations = if (ncol(sol$L) > 1) {
           ij <- which(lower.tri(sol$Phi), arr.ind = TRUE)
-          lapply(seq_len(nrow(ij)), function(q) list(a = ij[q, 2], b = ij[q, 1], est = sol$Phi[ij[q, 1], ij[q, 2]], se = se$Phi[q]))
+          lapply(
+            seq_len(nrow(ij)),
+            function(q) list(a = ij[q, 2], b = ij[q, 1], est = sol$Phi[ij[q, 1], ij[q, 2]], se = se$Phi[q])
+          )
         } else {
           list()
         },
-        residuals = lapply(seq_along(items), function(r) list(item = items[r], est = unname(sol$th[r]), se = unname(se$th[r]))),
+        residuals = lapply(
+          seq_along(items),
+          function(r) list(item = items[r], est = unname(sol$th[r]), se = unname(se$th[r]))
+        ),
         criterion = if (is.na(sol$f)) NULL else sol$f
       )
     }
   }
   out <- lapply(seq_along(combos), function(i) {
     s <- env$solutions[[i]]
-    fm <- lavaan::fitMeasures(s$fit, c("npar", "logl", "chisq", "df", "pvalue", "aic", "bic", "rmsea", "cfi", "tli", "srmr_within", "srmr_between"))
+    fm <- lavaan::fitMeasures(
+      s$fit,
+      c("npar", "logl", "chisq", "df", "pvalue", "aic", "bic", "rmsea", "cfi", "tli", "srmr_within", "srmr_between")
+    )
     w <- combos[[i]]$w
     b <- combos[[i]]$b
     # (Mplus does not count an unrestricted level's variances and covariances among the free parameters)

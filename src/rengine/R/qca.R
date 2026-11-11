@@ -40,7 +40,10 @@ qca_models <- function(m, back) {
     )
   }
   if (!is.null(ic$individual)) {
-    lapply(seq_along(m$solution), function(i) one(m$solution[[i]], ic$individual[[i]]$incl.cov, ic$individual[[i]]$sol.incl.cov))
+    lapply(
+      seq_along(m$solution),
+      function(i) one(m$solution[[i]], ic$individual[[i]]$incl.cov, ic$individual[[i]]$sol.incl.cov)
+    )
   } else {
     list(one(m$solution[[1]], ic$incl.cov, ic$sol.incl.cov))
   }
@@ -93,7 +96,17 @@ ps_qca <- function(req_json, export = FALSE) {
       if (!((e < cc && cc < i) || (e > cc && cc > i))) {
         stop(sprintf("The anchors of %s must be in order (full non-membership, crossover, full membership).", nm))
       }
-      cal_lines <- c(cal_lines, sprintf("cal$%s <- calibrate(data$%s, type = \"fuzzy\", thresholds = \"e=%s, c=%s, i=%s\")", v[[nm]], v[[nm]], format(e, digits = 15), format(cc, digits = 15), format(i, digits = 15)))
+      cal_lines <- c(
+        cal_lines,
+        sprintf(
+          "cal$%s <- calibrate(data$%s, type = \"fuzzy\", thresholds = \"e=%s, c=%s, i=%s\")",
+          v[[nm]],
+          v[[nm]],
+          format(e, digits = 15),
+          format(cc, digits = 15),
+          format(i, digits = 15)
+        )
+      )
       cal_out[[nm]] <- list(variable = nm, method = "direct", e = e, c = cc, i = i)
     } else {
       cal_lines <- c(cal_lines, sprintf("cal$%s <- data$%s  # already calibrated", v[[nm]], v[[nm]]))
@@ -147,7 +160,10 @@ ps_qca <- function(req_json, export = FALSE) {
   })
   nec_rows <- function(p, neg) {
     ic <- p$incl.cov
-    lapply(seq_len(nrow(ic)), function(r) list(condition = paste0(if (neg) "~" else "", back[[sub("^~", "", rownames(ic)[r])]]), inclN = unname(ic$inclN[r]), RoN = unname(ic$RoN[r]), covN = unname(ic$covN[r])))
+    lapply(
+      seq_len(nrow(ic)),
+      function(r) list(condition = paste0(if (neg) "~" else "", back[[sub("^~", "", rownames(ic)[r])]]), inclN = unname(ic$inclN[r]), RoN = unname(ic$RoN[r]), covN = unname(ic$covN[r]))
+    )
   }
   necessity <- c(nec_rows(env$nec, FALSE), nec_rows(env$nec_neg, TRUE))
   solution <- function(m, kind) {
@@ -189,7 +205,11 @@ ps_qca <- function(req_json, export = FALSE) {
       counts = list(out1 = sum(obs$OUT == "1"), out0 = sum(obs$OUT == "0"), contradictions = sum(obs$OUT == "C"))
     ),
     expectations = dir_exp,
-    solutions = list(complex = solution(env$sol_c, "complex"), parsimonious = solution(env$sol_p, "parsimonious"), intermediate = solution(env$sol_i, "intermediate")),
+    solutions = list(
+      complex = solution(env$sol_c, "complex"),
+      parsimonious = solution(env$sol_p, "parsimonious"),
+      intermediate = solution(env$sol_i, "intermediate")
+    ),
     outcomeValues = utils::head(as.numeric(y), 3000),
     warnings = env$.warnings, engine = ps_engine("QCA")
   ))

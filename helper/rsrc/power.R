@@ -60,7 +60,13 @@ ps_power <- function(req_json, export = FALSE) {
     fn <- c(apriori = "semPower.aPriori", posthoc = "semPower.postHoc", compromise = "semPower.compromise")[[analysis]]
     body <- c(
       "suppressPackageStartupMessages(library(semPower))",
-      sprintf("# %s: misfit of %s = %s on %s degrees of freedom", c(apriori = "A priori power analysis (the N needed)", posthoc = "Post hoc power analysis (the power at N)", compromise = "Compromise power analysis (the critical chi-square with alpha / beta as chosen)")[[analysis]], measure, effect, df),
+      sprintf(
+        "# %s: misfit of %s = %s on %s degrees of freedom",
+        c(apriori = "A priori power analysis (the N needed)", posthoc = "Post hoc power analysis (the power at N)", compromise = "Compromise power analysis (the critical chi-square with alpha / beta as chosen)")[[analysis]],
+        measure,
+        effect,
+        df
+      ),
       sprintf("pw <- %s(%s)", fn, paste(args, collapse = ", ")),
       if (analysis != "compromise") {
         c(
@@ -117,7 +123,13 @@ ps_power <- function(req_json, export = FALSE) {
       "# The population: the model as fitted (its implied covariance matrix, and means with a mean structure)",
       "Sigma <- lavInspect(fit, \"implied\")$cov",
       "mu <- if (lavInspect(fit, \"meanstructure\")) lavInspect(fit, \"implied\")$mean else NULL",
-      sprintf("# H0: the same model (lavaan's parameter table of the fit, so every option applies) with %s %s %s fixed at %s", ps_comment(lhs), op, ps_comment(rhs), value),
+      sprintf(
+        "# H0: the same model (lavaan's parameter table of the fit, so every option applies) with %s %s %s fixed at %s",
+        ps_comment(lhs),
+        op,
+        ps_comment(rhs),
+        value
+      ),
       "pt <- parTable(fit)",
       sprintf("k <- which(pt$lhs == %s & pt$op == %s & pt$rhs == %s & pt$free > 0)", q(lhs), q(op), q(rhs)),
       "if (length(k) != 1) stop(\"The parameter is not a free parameter of the model.\")",
@@ -130,7 +142,12 @@ ps_power <- function(req_json, export = FALSE) {
       "SigmaHat <- lavInspect(fit0, \"implied\")$cov",
       "muHat <- if (is.null(mu)) NULL else lavInspect(fit0, \"implied\")$mean",
       "# The likelihood-ratio test of H0 against the model (df = 1): semPower on the two implied matrices (as semPower.powerLav)",
-      sprintf("pw <- %s(SigmaHat = SigmaHat, Sigma = Sigma, muHat = muHat, mu = mu, df = 1, alpha = %s, %s)", if (type == "apriori") "semPower.aPriori" else "semPower.postHoc", alpha, at),
+      sprintf(
+        "pw <- %s(SigmaHat = SigmaHat, Sigma = Sigma, muHat = muHat, mu = mu, df = 1, alpha = %s, %s)",
+        if (type == "apriori") "semPower.aPriori" else "semPower.postHoc",
+        alpha,
+        at
+      ),
       sprintf("alpha <- %s; df_test <- 1; f0 <- pw$fmin", alpha),
       sprintf("n_at <- %s", if (type == "apriori") "pw$requiredN" else "pw$N"), .ps_power_curve,
       "n_sample <- lavInspect(fit, \"ntotal\")"
@@ -160,7 +177,12 @@ ps_power <- function(req_json, export = FALSE) {
     } else {
       body <- c(
         "# The model's ML chi-square, degrees of freedom and N, as entered",
-        sprintf("Tml <- %s; df <- %s; n <- %s", ps_power_num(o$chisq, "chi-square", 0, 1e9), ps_power_num(o$df, "degrees of freedom", 1, 1e6, TRUE), ps_power_num(o$n, "N", 2, 1e8, TRUE))
+        sprintf(
+          "Tml <- %s; df <- %s; n <- %s",
+          ps_power_num(o$chisq, "chi-square", 0, 1e9),
+          ps_power_num(o$df, "degrees of freedom", 1, 1e6, TRUE),
+          ps_power_num(o$n, "N", 2, 1e8, TRUE)
+        )
       )
       packages <- character(0)
     }
@@ -196,7 +218,19 @@ ps_power <- function(req_json, export = FALSE) {
   val <- function(x) if (is.null(x) || !length(x) || !is.finite(x[1])) NULL else unname(as.numeric(x[1]))
   res <- list(analysis = analysis)
   if (analysis == "equivalence") {
-    res <- c(res, list(chisq = env$Tml, df = env$df, n = env$n, rmsea = env$rmsea, rmseaT = env$rmsea_t, ncpT = env$ncp_t, cutoffs = I(unname(env$cutoffs)), verdict = env$verdict))
+    res <- c(
+      res,
+      list(
+        chisq = env$Tml,
+        df = env$df,
+        n = env$n,
+        rmsea = env$rmsea,
+        rmseaT = env$rmsea_t,
+        ncpT = env$ncp_t,
+        cutoffs = I(unname(env$cutoffs)),
+        verdict = env$verdict
+      )
+    )
   } else {
     pw <- env$pw
     res <- c(res, list(
@@ -210,7 +244,14 @@ ps_power <- function(req_json, export = FALSE) {
       res$curve <- list(n = I(env$curve_n), power = I(unname(env$curve_power)))
     }
     if (analysis == "parameter") {
-      res <- c(res, list(estimate = env$estimate, sampleN = env$n_sample, param = list(lhs = p$lhs, op = op, rhs = p$rhs, value = as.numeric(value))))
+      res <- c(
+        res,
+        list(
+          estimate = env$estimate,
+          sampleN = env$n_sample,
+          param = list(lhs = p$lhs, op = op, rhs = p$rhs, value = as.numeric(value))
+        )
+      )
     }
   }
   res$warnings <- env$.warnings

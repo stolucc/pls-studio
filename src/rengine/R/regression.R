@@ -128,14 +128,25 @@ ps_regression <- function(req_json, export = FALSE) {
     if (length(unlist(levels_of[[y]])) != 2) {
       stop("A logistic model needs a 0/1 outcome, or a text column with exactly two categories.")
     }
-    fac_lines <- c(fac_lines, sprintf("data$%s <- ps_labelled(data$%s, %s)", v[[y]], v[[y]], ps_q(unlist(levels_of[[y]]))))
+    fac_lines <- c(
+      fac_lines,
+      sprintf("data$%s <- ps_labelled(data$%s, %s)", v[[y]], v[[y]], ps_q(unlist(levels_of[[y]])))
+    )
   }
   if (family == "ordinal" && !is.null(levels_of[[y]])) {
     fac_lines <- c(fac_lines, sprintf("data$%s <- factor(data$%s, ordered = TRUE)", v[[y]], v[[y]]))
   }
   # (Mplus's reference category of a nominal outcome is the last)
   if (family == "multinomial" && reference == "last") {
-    fac_lines <- c(fac_lines, sprintf("data$%s <- relevel(data$%s, ref = tail(levels(data$%s), 1))  # the last level is the reference", v[[y]], v[[y]], v[[y]]))
+    fac_lines <- c(
+      fac_lines,
+      sprintf(
+        "data$%s <- relevel(data$%s, ref = tail(levels(data$%s), 1))  # the last level is the reference",
+        v[[y]],
+        v[[y]],
+        v[[y]]
+      )
+    )
   }
   if (nzchar(status)) {
     if (!is.null(levels_of[[status]]) || !all(fr$data[[v[[status]]]] %in% c(0, 1, NA))) {
@@ -182,7 +193,10 @@ ps_regression <- function(req_json, export = FALSE) {
     c(
       ps_ml_source,
       sprintf("X <- model.matrix(~ %s, data); y <- data$%s; x <- data$%s; k <- ncol(X)", rhs, yv, v[[slope]]),
-      sprintf("# A random slope of %s: y = X b + u x + e, u and e with variances tau and sigma2 and covariance c, so y | x is", ps_comment(slope)),
+      sprintf(
+        "# A random slope of %s: y = X b + u x + e, u and e with variances tau and sigma2 and covariance c, so y | x is",
+        ps_comment(slope)
+      ),
       "# normal with mean X b and variance sigma2 + 2 c x + tau x^2 (Mplus TYPE = RANDOM; s | y ON x; s WITH y).",
       "ll <- function(p) dnorm(y, drop(X %*% p[1:k]), sqrt(pmax(p[k + 1] + 2 * p[k + 3] * x + p[k + 2] * x^2, 1e-8)), log = TRUE)",
       sprintf("ols <- lm(%s, data = data)", fml),
@@ -198,14 +212,20 @@ ps_regression <- function(req_json, export = FALSE) {
           "# Zero-inflated Poisson: counts from a Poisson model (log link) and extra zeros, whose probability is a logistic model (the inflation).",
           "ll <- function(p) { lam <- exp(drop(X %*% p[1:k])); pz <- plogis(drop(X %*% p[k + 1:k]))",
           "  ifelse(y == 0, log(pz + (1 - pz) * exp(-lam)), log1p(-pz) + dpois(y, lam, log = TRUE)) }",
-          sprintf("start <- c(setNames(coef(glm(%s, family = poisson, data = data)), colnames(X)), setNames(rep(0, k), paste0(\"inflation:\", colnames(X))))", fml)
+          sprintf(
+            "start <- c(setNames(coef(glm(%s, family = poisson, data = data)), colnames(X)), setNames(rep(0, k), paste0(\"inflation:\", colnames(X))))",
+            fml
+          )
         )
       } else {
         c(
           lim_line, sprintf("cen <- y %s lim", if (censoring == "below") "<=" else ">="),
           "# Censored-inflated: a censored-normal (tobit) model, and extra values at the censoring point, whose probability is a logistic model (the inflation).",
           "ll <- function(p) { mu <- drop(X %*% p[1:k]); s <- exp(p[k + 1]); pz <- plogis(drop(X %*% p[k + 1 + 1:k]))",
-          sprintf("  ifelse(cen, log(pz + (1 - pz) * pnorm((lim - mu) / s, lower.tail = %s)), log1p(-pz) + dnorm(y, mu, s, log = TRUE)) }", if (censoring == "below") "TRUE" else "FALSE"),
+          sprintf(
+            "  ifelse(cen, log(pz + (1 - pz) * pnorm((lim - mu) / s, lower.tail = %s)), log1p(-pz) + dnorm(y, mu, s, log = TRUE)) }",
+            if (censoring == "below") "TRUE" else "FALSE"
+          ),
           sprintf("ols <- lm(%s, data = data)", fml),
           "start <- c(setNames(coef(ols), colnames(X)), \"log(sigma)\" = log(summary(ols)$sigma), setNames(rep(0, k), paste0(\"inflation:\", colnames(X))))"
         )
@@ -225,7 +245,11 @@ ps_regression <- function(req_json, export = FALSE) {
       "# Piecewise-constant baseline hazard (piecewise exponential): each person's time split at the cut points, a Poisson model",
       "# of the events with log exposure as offset; the interval coefficients are the log baseline hazards.",
       sprintf("data$.event <- as.integer(data$%s); data$.id <- seq_len(nrow(data))", event),
-      sprintf("long <- survSplit(Surv(%s, .event) ~ ., data = data, cut = c(%s), episode = \".interval\", start = \".start\")", yv, paste(format(cuts, digits = 15, trim = TRUE), collapse = ", ")),
+      sprintf(
+        "long <- survSplit(Surv(%s, .event) ~ ., data = data, cut = c(%s), episode = \".interval\", start = \".start\")",
+        yv,
+        paste(format(cuts, digits = 15, trim = TRUE), collapse = ", ")
+      ),
       sprintf("long$.exposure <- long$%s - long$.start; long$.interval <- factor(long$.interval)", yv),
       sprintf("fit <- glm(.event ~ 0 + .interval + %s + offset(log(.exposure)), family = poisson, data = long)", rhs),
       "ll <- as.numeric(logLik(fit)) - sum(long$.event * log(long$.exposure))  # the log-likelihood of the survival times",
@@ -264,7 +288,13 @@ ps_regression <- function(req_json, export = FALSE) {
       negbin = sprintf("fit <- glm.nb(%s, data = data%s)", fml, w),
       ordinal = sprintf("fit <- polr(%s, data = data%s, method = \"%s\", Hess = TRUE)", fml, w, link),
       multinomial = sprintf("fit <- multinom(%s, data = data%s, Hess = TRUE, trace = FALSE)", fml, w),
-      survival = sprintf("fit <- coxph(Surv(%s, %s) ~ %s, data = data%s)", yv, event, rhs, if (se == "HC0") ", robust = TRUE" else "")
+      survival = sprintf(
+        "fit <- coxph(Surv(%s, %s) ~ %s, data = data%s)",
+        yv,
+        event,
+        rhs,
+        if (se == "HC0") ", robust = TRUE" else ""
+      )
     )
   }
   hc0 <- if (se == "HC0" && family == "negbin" && !zmod) {
@@ -280,7 +310,10 @@ ps_regression <- function(req_json, export = FALSE) {
     c(
       "# HC0 (as Mplus MLR): the sandwich of the rows' scores, (indicator - probability) x predictors for each non-reference level.",
       "X <- model.matrix(fit); P <- fitted(fit); if (!is.matrix(P)) P <- cbind(1 - P, P)",
-      sprintf("Y <- sapply(fit$lev, function(l) as.numeric(data$%s == l)); wt <- if (is.null(fit$weights)) 1 else as.numeric(fit$weights)", yv),
+      sprintf(
+        "Y <- sapply(fit$lev, function(l) as.numeric(data$%s == l)); wt <- if (is.null(fit$weights)) 1 else as.numeric(fit$weights)",
+        yv
+      ),
       "S <- do.call(cbind, lapply(2:ncol(P), function(j) (Y[, j] - P[, j]) * X))",
       "vc <- vcov(fit) %*% crossprod(sqrt(wt) * S) %*% vcov(fit); dimnames(vc) <- dimnames(vcov(fit))"
     )
@@ -301,9 +334,17 @@ ps_regression <- function(req_json, export = FALSE) {
   title <- if (nzchar(slope)) {
     "Linear regression with a random slope (maximum likelihood, optim)"
   } else if (inflated) {
-    sprintf("%s regression (maximum likelihood, optim)", if (family == "poisson") "Zero-inflated Poisson" else "Censored-inflated")
+    sprintf(
+      "%s regression (maximum likelihood, optim)",
+      if (family == "poisson") "Zero-inflated Poisson" else "Censored-inflated"
+    )
   } else if (zmod) {
-    sprintf("%s %s regression (pscl::%s)", if (zmodel == "zeroinfl") "Zero-inflated" else "Hurdle", if (family == "negbin") "negative binomial" else "Poisson", zmodel)
+    sprintf(
+      "%s %s regression (pscl::%s)",
+      if (zmodel == "zeroinfl") "Zero-inflated" else "Hurdle",
+      if (family == "negbin") "negative binomial" else "Poisson",
+      zmodel
+    )
   } else {
     c(
       gaussian = "Linear regression (lm)", binomial = sprintf("%s regression (glm)", if (link == "probit") "Probit" else "Logistic"), poisson = "Poisson regression (glm)",
@@ -314,7 +355,14 @@ ps_regression <- function(req_json, export = FALSE) {
   report <- if (inflated || nzchar(slope)) {
     c("cbind(estimate = fit$coefficients, se = sqrt(diag(fit$vcov)))", "fit$logLik")
   } else if (zmod) {
-    c("summary(fit)", if (se == "HC0") "ct", "exp(coef(fit))  # rate ratios (count part) and odds ratios (zero part)", "c(logLik = logLik(fit), AIC = AIC(fit), BIC = BIC(fit))", "vuong(fit, std)", "zeros")
+    c(
+      "summary(fit)",
+      if (se == "HC0") "ct",
+      "exp(coef(fit))  # rate ratios (count part) and odds ratios (zero part)",
+      "c(logLik = logLik(fit), AIC = AIC(fit), BIC = BIC(fit))",
+      "vuong(fit, std)",
+      "zeros"
+    )
   } else {
     c(
       "summary(fit)", if (family %in% c("binomial", "poisson", "negbin", "ordinal", "multinomial", "survival") && !piecewise) "exp(coef(fit))  # odds, rate or hazard ratios", if (se != "model" && !own) "ct",
@@ -379,11 +427,29 @@ ps_regression <- function(req_json, export = FALSE) {
       }
       coefs[[length(coefs) + 1]] <- if (identical(part, "baseline")) {
         j <- as.integer(substring(t, 10))
-        list(part = part, term = sprintf("[%s, %s)", format(br[j]), format(br[j + 1])), est = exp(b), se = exp(b) * s, stat = b / s, p = 2 * pnorm(-abs(b / s)), ciLow = exp(b - z * s), ciHigh = exp(b + z * s))
+        list(
+          part = part,
+          term = sprintf("[%s, %s)", format(br[j]), format(br[j + 1])),
+          est = exp(b),
+          se = exp(b) * s,
+          stat = b / s,
+          p = 2 * pnorm(-abs(b / s)),
+          ciLow = exp(b - z * s),
+          ciHigh = exp(b + z * s)
+        )
       } else if (identical(part, "random")) {
         # (Mplus: y ~~ y, s ~~ s, s WITH y)
         lab <- c("random:residual" = "Residual variance", "random:slope" = sprintf("Variance of the slope of %s", slope), "random:slope with residual" = sprintf("Covariance of the slope of %s and the residual", slope))[[t]]
-        list(part = part, term = lab, est = b, se = s, stat = b / s, p = 2 * pnorm(-abs(b / s)), ciLow = b - z * s, ciHigh = b + z * s)
+        list(
+          part = part,
+          term = lab,
+          est = b,
+          se = s,
+          stat = b / s,
+          p = 2 * pnorm(-abs(b / s)),
+          ciLow = b - z * s,
+          ciHigh = b + z * s
+        )
       } else {
         list(
           part = part, term = nm(if (identical(part, "inflation")) substring(t, 11) else t), est = b, se = s, stat = b / s, p = 2 * pnorm(-abs(b / s)),
@@ -438,7 +504,16 @@ ps_regression <- function(req_json, export = FALSE) {
     k <- length(coef(fit))
     for (i in seq_len(nrow(s))) {
       p <- 2 * pnorm(-abs(s[i, 3]))
-      row <- list(term = nm(rownames(s)[i]), est = s[i, 1], se = s[i, 2], stat = s[i, 3], p = p, ciLow = s[i, 1] - z * s[i, 2], ciHigh = s[i, 1] + z * s[i, 2], ratio = if (ratio && i <= k) exp(s[i, 1]) else NULL)
+      row <- list(
+        term = nm(rownames(s)[i]),
+        est = s[i, 1],
+        se = s[i, 2],
+        stat = s[i, 3],
+        p = p,
+        ciLow = s[i, 1] - z * s[i, 2],
+        ciHigh = s[i, 1] + z * s[i, 2],
+        ratio = if (ratio && i <= k) exp(s[i, 1]) else NULL
+      )
       if (i <= k) coefs[[length(coefs) + 1]] <- row else thresholds[[length(thresholds) + 1]] <- row
     }
   } else if (family == "multinomial") {
@@ -493,11 +568,35 @@ ps_regression <- function(req_json, export = FALSE) {
     ps_try(
       {
         nf <- switch(family,
-          gaussian = lm(as.formula(sprintf("%s ~ 1", v[[y]])), data = env$data, weights = if (nzchar(wcol)) env$data[[v[[wcol]]]]),
-          ordinal = MASS::polr(as.formula(sprintf("%s ~ 1", v[[y]])), data = env$data, weights = if (nzchar(wcol)) env$data[[v[[wcol]]]], method = link, Hess = FALSE),
-          multinomial = nnet::multinom(as.formula(sprintf("%s ~ 1", v[[y]])), data = env$data, weights = if (nzchar(wcol)) env$data[[v[[wcol]]]], trace = FALSE),
-          negbin = MASS::glm.nb(as.formula(sprintf("%s ~ 1", v[[y]])), data = env$data, weights = if (nzchar(wcol)) env$data[[v[[wcol]]]]),
-          glm(as.formula(sprintf("%s ~ 1", lhs)), family = fit$family, data = env$data, weights = if (nzchar(wcol)) env$data[[v[[wcol]]]])
+          gaussian = lm(
+            as.formula(sprintf("%s ~ 1", v[[y]])),
+            data = env$data,
+            weights = if (nzchar(wcol)) env$data[[v[[wcol]]]]
+          ),
+          ordinal = MASS::polr(
+            as.formula(sprintf("%s ~ 1", v[[y]])),
+            data = env$data,
+            weights = if (nzchar(wcol)) env$data[[v[[wcol]]]],
+            method = link,
+            Hess = FALSE
+          ),
+          multinomial = nnet::multinom(
+            as.formula(sprintf("%s ~ 1", v[[y]])),
+            data = env$data,
+            weights = if (nzchar(wcol)) env$data[[v[[wcol]]]],
+            trace = FALSE
+          ),
+          negbin = MASS::glm.nb(
+            as.formula(sprintf("%s ~ 1", v[[y]])),
+            data = env$data,
+            weights = if (nzchar(wcol)) env$data[[v[[wcol]]]]
+          ),
+          glm(
+            as.formula(sprintf("%s ~ 1", lhs)),
+            family = fit$family,
+            data = env$data,
+            weights = if (nzchar(wcol)) env$data[[v[[wcol]]]]
+          )
         )
         as.numeric(logLik(nf))
       },
@@ -507,7 +606,12 @@ ps_regression <- function(req_json, export = FALSE) {
   lrt <- if (!is.null(null_ll)) {
     st <- 2 * (ll - null_ll)
     df <- npar - (if (family == "ordinal") length(fit$zeta) else if (family == "multinomial") length(fit$lev) - 1 else if (family %in% c("gaussian", "negbin", "gamma")) 2 else 1) # (lm, glm.nb and Gamma count a dispersion parameter)
-    list(stat = st, df = df, p = pchisq(st, df, lower.tail = FALSE), pseudoR2 = if (family == "gaussian") NULL else 1 - ll / null_ll)
+    list(
+      stat = st,
+      df = df,
+      p = pchisq(st, df, lower.tail = FALSE),
+      pseudoR2 = if (family == "gaussian") NULL else 1 - ll / null_ll
+    )
   } else {
     NULL
   }

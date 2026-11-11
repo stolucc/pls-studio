@@ -71,7 +71,10 @@ ps_lmm <- function(req_json, export = FALSE) {
     },
     "# R-squared (Nakagawa & Schielzeth 2013; random slopes: Johnson 2014): fixed effects (marginal), fixed + random (conditional).",
     "vf <- var(as.vector(model.matrix(fit) %*% fixef(fit)))",
-    sprintf("Zr <- model.matrix(~ %s, data = data); Sg <- VarCorr(fit)[[1]]", if (length(S)) paste(S, collapse = " + ") else "1"),
+    sprintf(
+      "Zr <- model.matrix(~ %s, data = data); Sg <- VarCorr(fit)[[1]]",
+      if (length(S)) paste(S, collapse = " + ") else "1"
+    ),
     "vr <- mean(rowSums((Zr %*% Sg) * Zr)); ve <- sigma(fit)^2",
     "r2 <- c(marginal = vf / (vf + vr + ve), conditional = (vf + vr) / (vf + vr + ve))"
   )
@@ -239,8 +242,14 @@ ps_lmm_ext <- function(req, export) {
   indep <- as.character(unlist(req$independent))
   # (equally long terms arrive as a matrix, one term per row)
   ints <- if (is.matrix(req$interactions)) lapply(seq_len(nrow(req$interactions)), function(i) as.character(req$interactions[i, ])) else lapply(req$interactions %||% list(), function(t) as.character(unlist(t)))
-  lv <- lapply(req$levels %||% list(), function(l) list(cluster = str(l$cluster), slopes = as.character(unlist(l$slopes)), occasions = isTRUE(l$occasions)))
-  outs <- lapply(req$outcomes %||% list(), function(o) list(outcome = str(o$outcome), predictors = as.character(unlist(o$predictors)), slopes = as.character(unlist(o$slopes))))
+  lv <- lapply(
+    req$levels %||% list(),
+    function(l) list(cluster = str(l$cluster), slopes = as.character(unlist(l$slopes)), occasions = isTRUE(l$occasions))
+  )
+  outs <- lapply(
+    req$outcomes %||% list(),
+    function(o) list(outcome = str(o$outcome), predictors = as.character(unlist(o$predictors)), slopes = as.character(unlist(o$slopes)))
+  )
   rp <- req$repeated
   wide <- !is.null(rp)
   stacked <- length(outs) > 0
@@ -282,7 +291,10 @@ ps_lmm_ext <- function(req, export) {
     ms <- as.character(unlist(rp$measures))
     times <- as.numeric(unlist(rp$times))
     tname <- str(rp$time %||% "time")
-    vary <- lapply(rp$varying %||% list(), function(v) list(name = str(v$name), columns = as.character(unlist(v$columns))))
+    vary <- lapply(
+      rp$varying %||% list(),
+      function(v) list(name = str(v$name), columns = as.character(unlist(v$columns)))
+    )
     if (length(ms) < 2) stop("Repeated measures need two or more occasions.")
     if (length(times) != length(ms) || any(!is.finite(times))) {
       stop("Give one time score per occasion.")
@@ -348,7 +360,10 @@ ps_lmm_ext <- function(req, export) {
       "long <- do.call(rbind, lapply(seq_along(times), function(t) data.frame(",
       sprintf(
         "  %s = seq_len(nrow(data)), %s = t, %s = times[t], %s = data[[measures[t]]]%s%s)))", Pi, Oi, Ti, Yi,
-        paste(vapply(seq_along(vary), function(k) sprintf(", %s = data[[%s_cols[t]]]", Vi_[k], Vi_[k]), ""), collapse = ""),
+        paste(
+          vapply(seq_along(vary), function(k) sprintf(", %s = data[[%s_cols[t]]]", Vi_[k], Vi_[k]), ""),
+          collapse = ""
+        ),
         paste(vapply(keep, function(x) sprintf(", %s = data$%s", fr$v[[x]], fr$v[[x]]), ""), collapse = "")
       ),
       sprintf("long <- long[order(long$%s, long$%s), ]", Pi, Oi)
@@ -356,7 +371,11 @@ ps_lmm_ext <- function(req, export) {
     if (resid == "occasion" || any(vapply(lv, function(l) l$occasions, TRUE))) {
       occ <- fresh(paste0(".occ", seq_along(ms)))
       occ_name <- ms
-      prep <- c(prep, "# Occasion indicators (a variance per occasion)", sprintf("long$%s <- as.numeric(long$%s == %d)", occ, Oi, seq_along(ms)))
+      prep <- c(
+        prep,
+        "# Occasion indicators (a variance per occasion)",
+        sprintf("long$%s <- as.numeric(long$%s == %d)", occ, Oi, seq_along(ms))
+      )
     }
     y_id <- Yi
   } else if (stacked) {
@@ -393,7 +412,10 @@ ps_lmm_ext <- function(req, export) {
   idv <- function(x) unname(id_of[x])
   # ---- the levels, lowest first: units nested in the units above (unique ids) ----
   base <- if (wide) list(col = Pi, name = "Person", slopes = slopes, occasions = FALSE) else list(col = fr$v[[cl]], name = cl, slopes = if (stacked) NULL else slopes, occasions = FALSE)
-  levs <- c(list(base), lapply(lv, function(l) list(col = fr$v[[l$cluster]], name = l$cluster, slopes = l$slopes, occasions = l$occasions)))
+  levs <- c(
+    list(base),
+    lapply(lv, function(l) list(col = fr$v[[l$cluster]], name = l$cluster, slopes = l$slopes, occasions = l$occasions))
+  )
   H <- length(levs)
   gid <- fresh(paste0(".level", seq_len(H)))
   nest <- c(if (H > 0) {
@@ -401,7 +423,11 @@ ps_lmm_ext <- function(req, export) {
       if (h == H) {
         sprintf("long$%s <- long$%s", gid[h], levs[[h]]$col)
       } else {
-        sprintf("long$%s <- as.integer(factor(paste(%s)))", gid[h], paste(sprintf("long$%s", vapply(levs[h:H], `[[`, "", "col")), collapse = ", "))
+        sprintf(
+          "long$%s <- as.integer(factor(paste(%s)))",
+          gid[h],
+          paste(sprintf("long$%s", vapply(levs[h:H], `[[`, "", "col")), collapse = ", ")
+        )
       }
     }, "")
   })
@@ -439,7 +465,11 @@ ps_lmm_ext <- function(req, export) {
         if (length(t$ind)) sprintf("pdDiag(~ 0 + %s)", paste(t$ind, collapse = " + ")),
         if (isTRUE(levs[[h]]$occasions)) sprintf("pdDiag(~ 0 + %s)", paste(occ, collapse = " + "))
       )
-      sprintf("%s = %s", gid[h], if (length(parts) == 1) parts else sprintf("pdBlocked(list(%s))", paste(parts, collapse = ", ")))
+      sprintf(
+        "%s = %s",
+        gid[h],
+        if (length(parts) == 1) parts else sprintf("pdBlocked(list(%s))", paste(parts, collapse = ", "))
+      )
     }, "")
     wts <- if (stacked) {
       Oi
@@ -455,9 +485,18 @@ ps_lmm_ext <- function(req, export) {
   } else {
     ran <- unlist(lapply(seq_len(H), function(h) {
       t <- term_ids(h)
-      c(sprintf("(%s | %s)", paste(c("1", t$corr), collapse = " + "), gid[h]), vapply(t$ind, function(s) sprintf("(0 + %s | %s)", s, gid[h]), ""))
+      c(
+        sprintf("(%s | %s)", paste(c("1", t$corr), collapse = " + "), gid[h]),
+        vapply(t$ind, function(s) sprintf("(0 + %s | %s)", s, gid[h]), "")
+      )
     }))
-    call <- sprintf("fit <- lmer(%s ~ %s + %s, data = long, REML = %s)", y_id, paste(fixed, collapse = " + "), paste(ran, collapse = " + "), reml)
+    call <- sprintf(
+      "fit <- lmer(%s ~ %s + %s, data = long, REML = %s)",
+      y_id,
+      paste(fixed, collapse = " + "),
+      paste(ran, collapse = " + "),
+      reml
+    )
   }
   model_vars <- unique(c(y_id, if (stacked) unlist(tcol) else idv(c(xs, unlist(ints))), vapply(levs, `[[`, "", "col")))
   wts_col <- if (nlme && (stacked || resid == "occasion")) Oi else NULL
@@ -512,7 +551,11 @@ ps_lmm_ext <- function(req, export) {
   if (export) {
     return(ps_script(
       sprintf("Multilevel regression (%s)", pkg), if (nlme) "nlme" else c("lme4", "lmerTest"), inputs, body,
-      c("summary(fit)", if (robust) "data.frame(estimate = mlr$est, se_model = mlr$model, se_mlr = mlr$robust)  # every parameter, Mplus's MLR standard errors", if (!stacked) "r2")
+      c(
+        "summary(fit)",
+        if (robust) "data.frame(estimate = mlr$est, se_model = mlr$model, se_mlr = mlr$robust)  # every parameter, Mplus's MLR standard errors",
+        if (!stacked) "r2"
+      )
     ))
   }
   env <- ps_run(body, inputs)
@@ -551,12 +594,30 @@ ps_lmm_ext <- function(req, export) {
     if (robust) {
       s <- mlr$robust[i]
       z <- est / s
-      list(term = disp(names(beta)[i]), est = est, se = s, df = NULL, t = z, p = 2 * stats::pnorm(-abs(z)), ciLow = est - stats::qnorm(0.975) * s, ciHigh = est + stats::qnorm(0.975) * s)
+      list(
+        term = disp(names(beta)[i]),
+        est = est,
+        se = s,
+        df = NULL,
+        t = z,
+        p = 2 * stats::pnorm(-abs(z)),
+        ciLow = est - stats::qnorm(0.975) * s,
+        ciHigh = est + stats::qnorm(0.975) * s
+      )
     } else {
       s <- co[i, 2]
       df <- co[i, 3]
       ci <- if (nlme) est + c(-1, 1) * stats::qt(0.975, df) * s else env$ci[rownames(co)[i], ]
-      list(term = disp(rownames(co)[i]), est = est, se = s, df = df, t = co[i, 4], p = co[i, 5], ciLow = ci[1], ciHigh = ci[2])
+      list(
+        term = disp(rownames(co)[i]),
+        est = est,
+        se = s,
+        df = df,
+        t = co[i, 4],
+        p = co[i, 5],
+        ciLow = ci[1],
+        ciHigh = ci[2]
+      )
     }
   })
   # Variance components: higher levels first, the residual last; standard errors (MLR) where computed.
@@ -650,7 +711,11 @@ ps_gmm <- function(req_json, export = FALSE) {
     m <- unname(fr$v[measures])
     prep <- c(
       "# Wide to long: one row per person and occasion.",
-      sprintf("long <- data.frame(id = rep(seq_len(nrow(data)), times = %d), time = rep(%s, each = nrow(data)),", length(m), paste(deparse(times), collapse = "")),
+      sprintf(
+        "long <- data.frame(id = rep(seq_len(nrow(data)), times = %d), time = rep(%s, each = nrow(data)),",
+        length(m),
+        paste(deparse(times), collapse = "")
+      ),
       sprintf(
         "  y = unlist(data[, %s], use.names = FALSE)%s)", ps_q(m),
         if (length(covs)) paste0(", ", paste(sprintf("%s = rep(data$%s, times = %d)", fr$v[covs], fr$v[covs], length(m)), collapse = ", ")) else ""
@@ -689,9 +754,16 @@ ps_gmm <- function(req_json, export = FALSE) {
     sprintf("fits[[\"1\"]] <- %s", call(1)),
     if (any(ks > 1)) {
       c(
-        sprintf("# More classes: %d random starts from the one-class solution (lcmm::gridsearch), the best kept.", nrep),
+        sprintf(
+          "# More classes: %d random starts from the one-class solution (lcmm::gridsearch), the best kept.",
+          nrep
+        ),
         sprintf("set.seed(%d)", seed),
-        vapply(ks[ks > 1], function(k) sprintf("fits[[\"%d\"]] <- gridsearch(rep = %d, maxiter = 30, minit = fits[[\"1\"]], %s)", k, nrep, call(k)), "")
+        vapply(
+          ks[ks > 1],
+          function(k) sprintf("fits[[\"%d\"]] <- gridsearch(rep = %d, maxiter = 30, minit = fits[[\"1\"]], %s)", k, nrep, call(k)),
+          ""
+        )
       )
     },
     "# Classification quality: relative entropy (1 = perfectly separated classes).",
@@ -703,7 +775,10 @@ ps_gmm <- function(req_json, export = FALSE) {
   if (export) {
     return(ps_script(
       "Growth mixture model (lcmm::hlme)", "lcmm", inputs, body,
-      c("summarytable(fits[[1]], fits[-1], which = c(\"G\", \"loglik\", \"npm\", \"BIC\", \"SABIC\", \"entropy\", \"%class\"))", "lapply(fits, summary)")
+      c(
+        "summarytable(fits[[1]], fits[-1], which = c(\"G\", \"loglik\", \"npm\", \"BIC\", \"SABIC\", \"entropy\", \"%class\"))",
+        "lapply(fits, summary)"
+      )
     ))
   }
   env <- ps_run(body, inputs)
@@ -718,7 +793,11 @@ ps_gmm <- function(req_json, export = FALSE) {
     g <- m$ng
     cls <- m$pprob$class
     pr <- lcmm::predictY(m, newdata = nd, var.time = "time")$pred
-    se <- ps_try(sqrt(diag(lcmm::VarCov(m))), sprintf("Standard errors of the %d-class model (lcmm::VarCov)", g), otherwise = rep(NA_real_, length(m$best)))
+    se <- ps_try(
+      sqrt(diag(lcmm::VarCov(m))),
+      sprintf("Standard errors of the %d-class model (lcmm::VarCov)", g),
+      otherwise = rep(NA_real_, length(m$best))
+    )
     est <- m$best
     z <- est / se[seq_along(est)]
     # The first ng - 1 parameters are class membership (multinomial logit, last class the reference); lcmm names them like trajectory intercepts.
@@ -836,11 +915,30 @@ ps_gmm_wide <- function(req_json, export = FALSE) {
   wv <- unname(fr$v[memb])
   body <- c(
     PS_GMM_WIDE_FUNCTIONS,
-    sprintf("d <- data[complete.cases(data[, %s]), , drop = FALSE]  # persons with every occasion and covariate", ps_q(unique(c(m, cv, wv)))),
-    sprintf("Y <- d[, %s]; X <- d[, %s, drop = FALSE]; W <- d[, %s, drop = FALSE]", ps_q(m), if (length(cv)) ps_q(cv) else "integer(0)", if (length(wv)) ps_q(wv) else "integer(0)"),
+    sprintf(
+      "d <- data[complete.cases(data[, %s]), , drop = FALSE]  # persons with every occasion and covariate",
+      ps_q(unique(c(m, cv, wv)))
+    ),
+    sprintf(
+      "Y <- d[, %s]; X <- d[, %s, drop = FALSE]; W <- d[, %s, drop = FALSE]",
+      ps_q(m),
+      if (length(cv)) ps_q(cv) else "integer(0)",
+      if (length(wv)) ps_q(wv) else "integer(0)"
+    ),
     sprintf("times <- %s", paste(deparse(times), collapse = "")),
-    sprintf("# %s classes; %d random starts each (k-means of the persons' growth factors), the best kept.", paste(ks, collapse = ", "), nrep),
-    sprintf("fits <- lapply(%s, function(k) { set.seed(%d); gmm_wide_fit(Y, times, X, W, k, \"%s\", \"%s\", %d) })", paste(deparse(ks), collapse = ""), seed, shape, random, nrep),
+    sprintf(
+      "# %s classes; %d random starts each (k-means of the persons' growth factors), the best kept.",
+      paste(ks, collapse = ", "),
+      nrep
+    ),
+    sprintf(
+      "fits <- lapply(%s, function(k) { set.seed(%d); gmm_wide_fit(Y, times, X, W, k, \"%s\", \"%s\", %d) })",
+      paste(deparse(ks), collapse = ""),
+      seed,
+      shape,
+      random,
+      nrep
+    ),
     "entropy <- function(m) { p <- m$post; k <- ncol(p); if (k == 1) return(NA); 1 - sum(-p * log(pmax(p, 1e-300))) / (nrow(p) * log(k)) }"
   )
   inputs <- list(data = fr$data)
@@ -874,7 +972,11 @@ ps_gmm_wide <- function(req_json, export = FALSE) {
       as.vector(outer(fac[seq_len(f)], covs, function(a, x) sprintf("%s ~ %s", a, x))),
       if (nr) {
         ix <- which(lower.tri(diag(nr), diag = TRUE), arr.ind = TRUE)
-        ifelse(ix[, 1] == ix[, 2], sprintf("variance: %s", fac[ix[, 1]]), sprintf("covariance: %s, %s", fac[ix[, 2]], fac[ix[, 1]]))
+        ifelse(
+          ix[, 1] == ix[, 2],
+          sprintf("variance: %s", fac[ix[, 1]]),
+          sprintf("covariance: %s, %s", fac[ix[, 2]], fac[ix[, 1]])
+        )
       },
       sprintf("residual variance: %s", measures),
       if (k > 1) {
@@ -888,13 +990,21 @@ ps_gmm_wide <- function(req_json, export = FALSE) {
     B <- p$B
     Bs <- sweep(B, 2, B[ref, ], `-`)
     mb <- if (k > 1) {
-      lapply(setdiff(ord, ref), function(c) list(name = sprintf("membership: class %d vs %d", cls[c], k), est = unname(Bs[c, ]), terms = c("intercept", memb)))
+      lapply(
+        setdiff(ord, ref),
+        function(c) list(name = sprintf("membership: class %d vs %d", cls[c], k), est = unname(Bs[c, ]), terms = c("intercept", memb))
+      )
     } else {
       list()
     }
     params <- lapply(which(keep & !grepl("^membership", nm)), function(i) {
       z <- est[i] / se[i]
-      list(name = nm[i], est = unname(est[i]), se = if (is.finite(se[i])) unname(se[i]) else NULL, p = if (is.finite(z)) 2 * stats::pnorm(-abs(unname(z))) else NULL)
+      list(
+        name = nm[i],
+        est = unname(est[i]),
+        se = if (is.finite(se[i])) unname(se[i]) else NULL,
+        p = if (is.finite(z)) 2 * stats::pnorm(-abs(unname(z))) else NULL
+      )
     })
     for (b in mb) for (j in seq_along(b$terms)) params[[length(params) + 1]] <- list(name = sprintf("%s: %s", b$name, b$terms[j]), est = b$est[j], se = NULL, p = NULL)
     Lg <- cbind(1, grid, if (f == 3) grid^2)
@@ -902,7 +1012,10 @@ ps_gmm_wide <- function(req_json, export = FALSE) {
     list(
       k = k, logLik = fit$ll, npar = fit$npar, aic = -2 * fit$ll + 2 * fit$npar, bic = -2 * fit$ll + fit$npar * log(n), sabic = -2 * fit$ll + fit$npar * log((n + 2) / 24),
       entropy = env$entropy(fit), converged = fit$converged, shares = unname(shares[ord]), params = params,
-      trajectories = lapply(ord, function(c) unname(as.vector(Lg %*% (p$a[, c] + if (length(xbar)) p$G %*% xbar else 0)))),
+      trajectories = lapply(
+        ord,
+        function(c) unname(as.vector(Lg %*% (p$a[, c] + if (length(xbar)) p$G %*% xbar else 0)))
+      ),
       observed = lapply(ord, function(c) unname(colMeans(as.matrix(env$Y)[cl == c, , drop = FALSE])))
     )
   })
