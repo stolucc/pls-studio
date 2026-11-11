@@ -6,10 +6,12 @@ import {
   nameError,
   parseFormula,
   columnsIn,
-  recomputeAll,
   removeComputed,
 } from '../data/compute';
 import { observedRange, reverseCode } from '../data/recode';
+import { restoreCases, transformData } from '../data/pipeline';
+import { editFilter, FilterBadge } from './FilterBadge';
+import { RecodeDialog } from './RecodeDialog';
 import { importCsv, loadSample } from '../io';
 import { formDialog, confirmDialog, textDialog } from './Overlays';
 import { useStore } from '../store';
@@ -25,6 +27,7 @@ export function DataPanel() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'free'>('all');
   const [over, setOver] = useState(false);
+  const [recoding, setRecoding] = useState<string | null>(null);
   const anchor = useRef<string | null>(null);
 
   const owner = useMemo(() => {
@@ -128,16 +131,22 @@ export function DataPanel() {
     if (text === null) return;
     const [min, max] = parse(text)!;
     try {
-      const r = reverseCode(data, info, names, min, max);
+      // (on the base dataset: the cases the filter leaves out are reverse-coded too)
+      let undone: string[] = [];
+      const r = transformData(data, info, (d, i) => {
+        const rc = reverseCode(d, i, names, min, max);
+        undone = rc.undone;
+        return rc;
+      });
       useStore.getState().setData(r.data, r.info);
-      const changed = names.filter((n) => !r.undone.includes(n));
+      const changed = names.filter((n) => !undone.includes(n));
       useStore
         .getState()
         .toast(
           'success',
           [
             changed.length ? `Reverse-coded ${changed.join(', ')} (${min}–${max}).` : '',
-            r.undone.length ? `Back to the original coding: ${r.undone.join(', ')}.` : '',
+            undone.length ? `Back to the original coding: ${undone.join(', ')}.` : '',
           ]
             .filter(Boolean)
             .join(' '),
@@ -185,9 +194,11 @@ export function DataPanel() {
     });
     if (!values) return;
     try {
-      const r0 = computeColumn(data, info, values[0], values[1]);
-      // An edited formula changes the columns computed from this one too.
-      const r = current ? recomputeAll(r0.data, r0.info) : r0;
+      // Over every case (the filter applies afterwards); an edited formula changes the columns
+      // computed from this one too.
+      const r = transformData(data, info, (d, i) => computeColumn(d, i, values[0], values[1]), {
+        recompute: !!current,
+      });
       useStore.getState().setData(r.data, r.info);
       const col = r.data.cols[r.data.names.indexOf(values[0])];
       const miss = col.filter(Number.isNaN).length;
@@ -224,14 +235,20 @@ export function DataPanel() {
     )
       return;
     try {
-      let r = { data, info };
-      for (const n of names) r = removeComputed(r.data, r.info, n);
+      const r = transformData(data, info, (d, i) => {
+        let out = { data: d, info: i };
+        for (const n of names) out = removeComputed(out.data, out.info, n);
+        return out;
+      });
       useStore.getState().setData(r.data, r.info);
       setSelected(selected.filter((n) => !names.includes(n)));
     } catch (e) {
       useStore.getState().toast('error', (e as Error).message);
     }
   };
+
+  // Exclusions other than the filter's rows (the filter has its own badge).
+  const exclusions = (info?.droppedRows ?? []).filter((d) => !d.filter);
 
   const onFileDrop = (e: DragEvent) => {
     setOver(false);
@@ -243,6 +260,7 @@ export function DataPanel() {
 
   return (
     <aside className="panel left" aria-label="Data">
+      {recoding && <RecodeDialog column={recoding} onClose={() => setRecoding(null)} />}
       <div className="panel-head">
         <span>Data</span>
         {data && (
@@ -335,7 +353,22 @@ export function DataPanel() {
                   </>
                 )}
               </div>
-              {info.droppedRows?.length ? (
+              {info.kind !== 'matrix' && (
+                <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {info.filter ? (
+                    <FilterBadge />
+                  ) : (
+                    <button
+                      className="btn sm ghost"
+                      onClick={() => void editFilter()}
+                      title="Analyse only the cases where a condition holds, e.g. age >= 18"
+                    >
+                      Filter cases…
+                    </button>
+                  )}
+                </div>
+              )}
+              {exclusions.length ? (
                 <div
                   className="hint"
                   style={{
@@ -347,23 +380,18 @@ export function DataPanel() {
                   }}
                 >
                   <span>
-                    Excluded: {info.droppedRows.reduce((n, d) => n + d.at.length, 0)} cases (
-                    {[...new Set(info.droppedRows.map((d) => d.reason))].join('; ')})
+                    Excluded: {exclusions.reduce((n, d) => n + d.at.length, 0)} cases (
+                    {[...new Set(exclusions.map((d) => d.reason))].join('; ')})
                   </span>
                   <button
                     className="btn sm"
-                    onClick={() =>
-                      void import('../model/rows').then(({ restoreRows }) => {
-                        const s = useStore.getState();
-                        if (!s.data || !s.dataInfo) return;
-                        const r = recomputeAll(
-                          restoreRows(s.data, s.dataInfo).data,
-                          restoreRows(s.data, s.dataInfo).info,
-                        );
-                        s.setData(r.data, r.info);
-                        s.toast('success', 'The excluded cases are back in the dataset.');
-                      })
-                    }
+                    onClick={() => {
+                      const s = useStore.getState();
+                      if (!s.data || !s.dataInfo) return;
+                      const r = restoreCases(s.data, s.dataInfo);
+                      s.setData(r.data, r.info);
+                      s.toast('success', 'The excluded cases are back in the dataset.');
+                    }}
                   >
                     Restore
                   </button>
@@ -403,6 +431,15 @@ export function DataPanel() {
                   >
                     Reverse-code…
                   </button>
+                  {selected.length === 1 && !data.categories?.[selected[0]] && (
+                    <button
+                      className="btn sm ghost"
+                      onClick={() => setRecoding(selected[0])}
+                      title="A new column from this one: bins (equal width, equal counts, cut points) or old values to new ones"
+                    >
+                      Recode…
+                    </button>
+                  )}
                   {selected.length === 1 && computed.has(selected[0]) && (
                     <button
                       className="btn sm ghost"

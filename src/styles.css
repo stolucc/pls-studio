@@ -987,3 +987,19 @@ table.grid.evidence-table th:last-child, table.grid.evidence-table td.hint { tex
 .qca-anchors { display: inline-flex; gap: 8px; flex-wrap: wrap; }
 .inline-field { display: inline-flex; align-items: center; gap: 6px; margin: 0 12px 6px 0; font-size: 12px; }
 .inline-field .input.num { width: 84px; }
+.filter-badge {
+  display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  padding: 2px 4px 2px 8px; border-radius: 8px; font-size: 12px;
+  background: var(--accent-soft); color: var(--accent-strong);
+}
+.filter-badge code { font-family: var(--mono); font-size: 11.5px; overflow-wrap: anywhere; }
+.filter-badge .filter-label { font-weight: 600; }
+.data-grid .value-label { color: var(--text-3); font-size: 11px; }
+.variables-grid th, .variables-grid td { text-align: left; white-space: normal; vertical-align: middle; }
+.variables-grid .labels-cell { display: inline-flex; align-items: center; gap: 4px; }
+.modal.recode-dialog { width: min(620px, calc(100vw - 32px)); max-height: 90vh; overflow: auto; }
+.recode-dialog .hint.bad { color: var(--bad); }
+.recode-formula { display: block; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; padding: 6px 8px; background: var(--surface-3); border-radius: 6px; }
+.recode-preview { margin-top: 8px; }
+.split-section + .split-section { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.split-heading { margin: 0 0 8px; font-size: 13px; }

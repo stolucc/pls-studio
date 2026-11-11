@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
+import { FilterBadge } from '../FilterBadge';
 import { analysisType, ANALYSIS_TYPES } from '../../analyses/registry';
 import { ranWith } from '../../analyses/ranWith';
 import { matchesSearch } from '../../analyses/search';
@@ -887,6 +888,7 @@ export function AnalysesWorkspace() {
           >
             Replication package
           </button>
+          <FilterBadge actions={false} />
           <span className="hint">
             {readOnly
               ? 'View only.'

@@ -38,6 +38,39 @@ describe('reading SPSS, Stata and Excel files', () => {
     expect(sheets).toEqual(['Sheet1']);
   });
 
+  it('keeps value labels of numeric columns, validated', () => {
+    const { info } = toDataset(
+      {
+        names: ['x', 'y'],
+        n: 2,
+        cols: [
+          {
+            kind: 'number',
+            values: [1, 2],
+            labels: [
+              { value: 2, label: 'high' },
+              { value: 1, label: 'low' },
+              { value: 1, label: 'twice' },
+              { value: 'x', label: 'bad' },
+            ],
+          },
+          { kind: 'number', values: [1, 2], labels: { value: 1, label: 'one' } },
+        ],
+      },
+      'f.sav',
+    );
+    expect(info.variables).toEqual([
+      {
+        name: 'x',
+        labels: [
+          { value: 1, label: 'low' },
+          { value: 2, label: 'high' },
+        ],
+      },
+      { name: 'y', labels: [{ value: 1, label: 'one' }] },
+    ]);
+  });
+
   it('refuses a file with no usable column', () => {
     expect(() => toDataset({ names: [], cols: [], n: 0 }, 'empty.sav')).toThrow(
       'No usable columns',

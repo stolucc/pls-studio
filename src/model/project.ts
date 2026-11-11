@@ -26,6 +26,9 @@ import {
   type WeightingScheme,
 } from '../engine/types';
 import { pooledMoments } from '../data/moments';
+import { filterError, normalizeData } from '../data/pipeline';
+import { parseVariables, type VariableInfo } from '../data/columns';
+import { parseMissingCodes, type MissingCodes } from '../data/missingCodes';
 import { MAX_CATEGORIES } from '../engine/dataset';
 
 /** PLS-SEM, CB-SEM, or conditional process analysis (Hayes's PROCESS models, by OLS regression). */
@@ -165,6 +168,15 @@ export interface DataInfo {
   computed?: { name: string; expr: string }[];
   /** Cases excluded in the app (e.g. outliers), kept so they can be restored (model/rows.ts). */
   droppedRows?: RowExclusion[];
+  /**
+   * The dataset-level filter (data/pipeline.ts): only the rows where the condition, a formula of
+   * data/compute.ts, is true are analysed; the others are the last entry of droppedRows.
+   */
+  filter?: { expr: string };
+  /** Measurement levels and value labels of columns (data/columns.ts). */
+  variables?: VariableInfo[];
+  /** User-defined missing values of numeric columns, treated as missing everywhere (data/missingCodes.ts). */
+  missingCodes?: MissingCodes[];
 }
 
 /** PLS-SEM (seminr): how an interaction term is built; absent = the two-stage approach (products of construct scores). */
@@ -1323,6 +1335,30 @@ function parseReversed(
   return out.length ? { reversed: out } : {};
 }
 
+/** The dataset filter of a project file: a condition that parses and reads columns that exist. */
+function parseFilter(raw: unknown, data: Dataset): { filter?: { expr: string } } {
+  if (!isObj(raw) || typeof raw.expr !== 'string') return {};
+  const expr = raw.expr.trim();
+  if (!expr || expr.length > 500 || filterError(expr, data)) return {};
+  return { filter: { expr } };
+}
+
+/**
+ * Excluded rows of a project file; only the last may be the filter's, and only with a filter
+ * (otherwise its rows stay excluded as an ordinary exclusion, restorable).
+ */
+function parseExclusions(raw: unknown, names: string[], hasFilter: boolean) {
+  const dropped = parseDroppedRows(raw, names);
+  if (!dropped) return {};
+  const last = dropped.length - 1;
+  const out = dropped.map((d, k) => {
+    if (!d.filter || (hasFilter && k === last)) return d;
+    const { filter: _f, ...rest } = d;
+    return rest;
+  });
+  return { droppedRows: out };
+}
+
 /** Validate the data section of a project file (also used for datasets stored on the server). */
 export function parseDataSection(d: Record<string, unknown>): { data: Dataset; info: DataInfo } {
   let data: Dataset;
@@ -1346,6 +1382,7 @@ export function parseDataSection(d: Record<string, unknown>): { data: Dataset; i
   if (cols.some((c: Float64Array) => c.length !== cols[0].length))
     throw new Error('Invalid project file: columns differ in length.');
   data = { names, cols, ...parseCategories(d.categories, names) };
+  const filter = d.moments === undefined ? parseFilter(d.info.filter, data) : {};
   info = {
     fileName: str(d.info.fileName ?? 'data.csv'),
     rows: cols[0]?.length ?? 0,
@@ -1353,16 +1390,23 @@ export function parseDataSection(d: Record<string, unknown>): { data: Dataset; i
     excluded: [],
     ...parseReversed(d.info.reversed, names),
     ...parseComputed(d.info.computed, names),
-    ...(parseDroppedRows(d.info.droppedRows, names)
-      ? { droppedRows: parseDroppedRows(d.info.droppedRows, names) }
-      : {}),
+    ...parseExclusions(d.info.droppedRows, names, !!filter.filter),
+    ...filter,
   };
+  const variables = parseVariables(d.info.variables, data);
+  if (variables) info.variables = variables;
+  const computedNames = (info.computed ?? []).map((c) => c.name);
+  const missingCodes = parseMissingCodes(d.info.missingCodes, data, computedNames);
+  if (missingCodes && d.moments === undefined) info.missingCodes = missingCodes;
   if (d.moments !== undefined) {
     const moments = parseMoments(d.moments, names.length);
     data = { names, cols: [], moments };
     info = { ...info, rows: moments.n, missingCells: 0, kind: 'matrix', hasNacov: !!moments.nacov };
+    return { data, info };
   }
-  return { data: data!, info: info! };
+  // The filter's rows and the masked codes are derived again (never trusted from the file).
+  if (info.filter || info.missingCodes) return normalizeData(data, info);
+  return { data, info };
 }
 
 // ---------- persistence ----------

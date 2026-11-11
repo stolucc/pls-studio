@@ -67,6 +67,7 @@ import {
   mnlfaAnalysis,
 } from './invariance';
 import type { AnalysisType } from './types';
+import { withSplit } from './split';
 
 export const ANALYSIS_TYPES: AnalysisType[] = [
   runAnalysis,
@@ -75,9 +76,10 @@ export const ANALYSIS_TYPES: AnalysisType[] = [
   parcelAllocationAnalysis,
   screenAnalysis,
   missingDataAnalysis,
-  chartAnalysis,
+  withSplit(chartAnalysis),
   influenceAnalysis,
-  ...BASIC_TEST_TYPES,
+  // (split by group: one result section per group; see split.tsx)
+  ...(BASIC_TEST_TYPES as AnalysisType[]).map((t) => withSplit(t)),
   ...BAYES_TYPES,
   regressionAnalysis,
   customMlAnalysis,

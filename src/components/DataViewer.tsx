@@ -3,6 +3,9 @@ import { columnSummary } from '../data/summary';
 import { fmt } from '../format';
 import { useStore } from '../store';
 import { c, Table } from './results/Table';
+import { FilterBadge } from './FilterBadge';
+import { VariablesView } from './VariablesView';
+import { labelOf } from '../data/columns';
 
 const PAGE = 100;
 const num = (v: number, d?: number) => c(Number.isFinite(v) ? v : null, undefined, d);
@@ -17,7 +20,7 @@ export function DataWorkspace() {
   const data = useStore((s) => s.data);
   const info = useStore((s) => s.dataInfo);
   const owner = useStore((s) => s.model.constructs);
-  const [tab, setTab] = useState<'rows' | 'summary'>('rows');
+  const [tab, setTab] = useState<'rows' | 'summary' | 'variables'>('rows');
   const [page, setPage] = useState(0);
   const [query, setQuery] = useState('');
   useEffect(() => {
@@ -58,6 +61,7 @@ export function DataWorkspace() {
           <b>Data</b>
           <span className="muted">{datasetLine}</span>
         </div>
+        <FilterBadge />
       </header>
       {!data ? (
         <div className="empty-results">
@@ -67,9 +71,16 @@ export function DataWorkspace() {
         <div className="data-view">
           <div className="table-tools">
             {!matrix && (
-              <div className="segmented" style={{ width: 220 }}>
+              <div className="segmented" style={{ width: 320 }}>
                 <button className={tab === 'rows' ? 'on' : ''} onClick={() => setTab('rows')}>
                   Rows
+                </button>
+                <button
+                  className={tab === 'variables' ? 'on' : ''}
+                  onClick={() => setTab('variables')}
+                  title="Measurement levels and value labels of the columns"
+                >
+                  Variables
                 </button>
                 <button className={tab === 'summary' ? 'on' : ''} onClick={() => setTab('summary')}>
                   Descriptives
@@ -152,6 +163,8 @@ export function DataWorkspace() {
                   : `Summary-statistics data: covariances (N = ${shownN}${data.moments!.nacov ? ', with NACOV' : ''}); there are no rows to show.`
               }
             />
+          ) : tab === 'variables' && info ? (
+            <VariablesView data={data} info={info} shown={shown} />
           ) : tab === 'rows' ? (
             <div className="data-grid-wrap">
               <table className="data-grid">
@@ -175,9 +188,18 @@ export function DataWorkspace() {
                       {shown.map(([n, i]) => {
                         const v = data.cols[i][r];
                         const cats = data.categories?.[n];
+                        if (cats)
+                          return (
+                            <td key={n} className="text">
+                              {Number.isNaN(v) ? cell(v) : (cats[v - 1] ?? cell(v))}
+                            </td>
+                          );
+                        // A value label is shown beside the value.
+                        const label = Number.isNaN(v) ? null : labelOf(info, n, v);
                         return (
-                          <td key={n} className={cats ? 'text' : undefined}>
-                            {cats && !Number.isNaN(v) ? (cats[v - 1] ?? cell(v)) : cell(v)}
+                          <td key={n} title={label ?? undefined}>
+                            {cell(v)}
+                            {label && <span className="value-label"> {label}</span>}
                           </td>
                         );
                       })}

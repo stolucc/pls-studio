@@ -3,6 +3,7 @@ import { STUDENTIZED_INNER } from '../../engine/bootstrap';
 import { validateModel, type Settings } from '../../model/project';
 import { useStore } from '../../store';
 import { OrderedPicker } from '../OrderedPicker';
+import { OrdinalSuggestion } from './OrdinalSuggestion';
 import { IconAlert } from '../icons';
 import { switchMethod } from '../../methodSwitch';
 import { exportRScript } from '../../io';
@@ -507,6 +508,7 @@ export function EstimatorOptions() {
       <div className="hint" style={{ marginTop: 8 }}>
         {ESTIMATORS.find((e) => e.id === settings.estimator)?.hint}
       </div>
+      <OrdinalSuggestion disabled={readOnlyChecks} />
       {settings.estimator === 'ML' && (
         <label className="check" style={{ marginTop: 8 }}>
           <input

@@ -44,6 +44,7 @@ import {
   rawData,
 } from './common';
 import { clampStrict } from '../parse';
+import { withLabelledCategories } from '../data/columns';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 import {
   designColumns,
@@ -66,6 +67,12 @@ const ALTS: readonly (readonly [Alternative, string])[] = [
 ];
 const ALT_IDS = ALTS.map(([id]) => id);
 const engine = () => import('../rengine/tests');
+/**
+ * The raw data with the value labels of these (grouping) columns as their categories, so that
+ * the results name groups and table rows by their labels (data/columns.ts).
+ */
+const labelled = (ctx: AnalysisCtx, groupColumns: string[]) =>
+  withLabelledCategories(rawData(ctx)!, ctx.info, groupColumns);
 const NoData = () => <div className="empty-results">Import raw data first.</div>;
 /** The degrees of freedom of a test: blank when absent, a list when there are several, integers without decimals. */
 function df(h: HTest | null | undefined): string {
@@ -450,8 +457,9 @@ export const ttestAnalysis: AnalysisType<TTestOptions, TTestResult> = {
       String(o.rank),
       ctx.settings.confidence,
     ]),
-  run: async (o, ctx) => (await engine()).ttestR(rawData(ctx)!, ttestInput(o, ctx)),
-  script: async (o, ctx) => (await engine()).ttestScriptR(rawData(ctx)!, ttestInput(o, ctx)),
+  run: async (o, ctx) => (await engine()).ttestR(labelled(ctx, [o.group]), ttestInput(o, ctx)),
+  script: async (o, ctx) =>
+    (await engine()).ttestScriptR(labelled(ctx, [o.group]), ttestInput(o, ctx)),
   summary: (o) => {
     const variables =
       o.type === 'paired'
@@ -700,11 +708,14 @@ export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidenc
   run: async (o, ctx) => ({
     ...(await (
       await engine()
-    ).anovaR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence })),
+    ).anovaR(labelled(ctx, o.factors), { ...o, confidence: ctx.settings.confidence })),
     confidence: ctx.settings.confidence,
   }),
   script: async (o, ctx) =>
-    (await engine()).anovaScriptR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
+    (await engine()).anovaScriptR(labelled(ctx, o.factors), {
+      ...o,
+      confidence: ctx.settings.confidence,
+    }),
   summary: (o) =>
     `${o.dependent || '…'} by ${o.factors.join(' × ') || '…'}${o.covariates.length ? ` + ${o.covariates.join(', ')}` : ''} · type ${o.ssType}`,
 };
@@ -932,8 +943,10 @@ export const rmAnovaAnalysis: AnalysisType<RmAnovaOptions, RmAnovaResult> = {
       ...withinFingerprint(o),
       ...(o.moreBetween?.length ? ['|', ...o.moreBetween] : []),
     ]),
-  run: async (o, ctx) => (await engine()).rmAnovaR(rawData(ctx)!, o),
-  script: async (o, ctx) => (await engine()).rmAnovaScriptR(rawData(ctx)!, o),
+  run: async (o, ctx) =>
+    (await engine()).rmAnovaR(labelled(ctx, [o.between, ...(o.moreBetween ?? [])]), o),
+  script: async (o, ctx) =>
+    (await engine()).rmAnovaScriptR(labelled(ctx, [o.between, ...(o.moreBetween ?? [])]), o),
   summary: (o) =>
     (isMulti(o)
       ? `${rmName(o)}: ${(o.cells ?? []).filter(Boolean).length} cells`
@@ -1027,8 +1040,8 @@ export const manovaAnalysis: AnalysisType<ManovaOptions, ManovaResult> = {
   },
   fingerprint: (o, ctx) =>
     columnsFingerprint(ctx, manovaCols(o), [String(o.interactions), ...o.factors]),
-  run: async (o, ctx) => (await engine()).manovaR(rawData(ctx)!, o),
-  script: async (o, ctx) => (await engine()).manovaScriptR(rawData(ctx)!, o),
+  run: async (o, ctx) => (await engine()).manovaR(labelled(ctx, o.factors), o),
+  script: async (o, ctx) => (await engine()).manovaScriptR(labelled(ctx, o.factors), o),
   summary: (o) => `${o.dependents.join(', ') || '…'} by ${o.factors.join(' × ') || '…'}`,
 };
 
@@ -1425,9 +1438,12 @@ export const contingencyAnalysis: AnalysisType<ContingencyOptions, ContingencyRe
   fingerprint: (o, ctx) =>
     columnsFingerprint(ctx, ctCols(o), [o.rows, o.columns, o.counts, ctx.settings.confidence]),
   run: async (o, ctx) =>
-    (await engine()).contingencyR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
+    (await engine()).contingencyR(labelled(ctx, [o.rows, o.columns]), {
+      ...o,
+      confidence: ctx.settings.confidence,
+    }),
   script: async (o, ctx) =>
-    (await engine()).contingencyScriptR(rawData(ctx)!, {
+    (await engine()).contingencyScriptR(labelled(ctx, [o.rows, o.columns]), {
       ...o,
       confidence: ctx.settings.confidence,
     }),
@@ -1615,9 +1631,15 @@ export const freqTestAnalysis: AnalysisType<FreqTestOptions, FreqTestResult> = {
       [o.type, o.testValue, o.alternative, o.proportions.join(','), ctx.settings.confidence],
     ),
   run: async (o, ctx) =>
-    (await engine()).freqTestR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
+    (await engine()).freqTestR(labelled(ctx, [o.variable]), {
+      ...o,
+      confidence: ctx.settings.confidence,
+    }),
   script: async (o, ctx) =>
-    (await engine()).freqTestScriptR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
+    (await engine()).freqTestScriptR(labelled(ctx, [o.variable]), {
+      ...o,
+      confidence: ctx.settings.confidence,
+    }),
   summary: (o) =>
     `${o.type} · ${o.variable || '…'}${o.type === 'binomial' ? ` vs ${o.testValue}` : ''}`,
 };

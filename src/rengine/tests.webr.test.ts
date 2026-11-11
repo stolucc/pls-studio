@@ -278,6 +278,63 @@ describe('correlations and frequencies', () => {
     expect(r3.yates).toBeNull();
     expect(r3.oddsRatio).toBeNull();
   }, 600_000);
+  it('contingency table card: value labels of a numeric column name its categories', async () => {
+    const { contingencyAnalysis } = await import('../analyses/tests');
+    const { setVariableInfo } = await import('../data/columns');
+    const { DEFAULT_SETTINGS } = await import('../model/project');
+    // cyl as the numbers 4, 6, 8 (the fixture codes it as a text column).
+    const base = data(ref.mtcars);
+    const k = base.names.indexOf('cyl');
+    const cyl = base.cols[k].map((code) => Number(base.categories!.cyl[code - 1]));
+    const { cyl: _c, ...categories } = base.categories!;
+    const d: Dataset = { ...base, cols: base.cols.map((c, j) => (j === k ? cyl : c)), categories };
+    const info = setVariableInfo(
+      { fileName: 'mtcars', rows: d.cols[0].length, missingCells: 0, excluded: [] },
+      'cyl',
+      {
+        labels: [
+          { value: 4, label: 'four' },
+          { value: 8, label: 'eight' },
+        ],
+      },
+    );
+    const ctx = { data: d, info, settings: DEFAULT_SETTINGS, pls: null, projectName: '' };
+    const o = { rows: 'am', columns: 'cyl', counts: '' };
+    const r = await contingencyAnalysis.run(o, ctx, () => {});
+    // Labelled values by their labels, an unlabelled one by its number; the statistics as before.
+    expect(r.colLevels).toEqual(['four', '6', 'eight']);
+    close(r.chisq.stat, ref.contingency23.chisq.stat, 'χ² 2×3 with value labels');
+    const script = await contingencyAnalysis.script!(o, ctx);
+    expect(script).toContain('"four"');
+  }, 600_000);
+  it('split by group: the t-test card per group equals the test on each group’s cases', async () => {
+    const { analysisType } = await import('../analyses/registry');
+    const { subsetRows, splitGroups } = await import('../analyses/split');
+    const { DEFAULT_SETTINGS } = await import('../model/project');
+    const d = data(ref.mtcars);
+    const ctx = { data: d, info: null, settings: DEFAULT_SETTINGS, pls: null, projectName: '' };
+    const card = analysisType('ttest')!;
+    const o = { ...T, type: 'independent', vars: ['mpg'], group: 'vs', splitBy: 'am' };
+    expect(card.blocked(o, ctx)).toBeNull();
+    const r = await card.run(o, ctx, () => {});
+    const groups = r.__split.groups;
+    expect(groups.map((g: { label: string }) => g.label)).toEqual(['automatic', 'manual']);
+    for (const [k, part] of splitGroups(d, null, 'am').entries()) {
+      const direct = await ttestR(subsetRows(d, part.rows), {
+        ...T,
+        type: 'independent',
+        vars: ['mpg'],
+        group: 'vs',
+      });
+      expect(groups[k].n).toBe(part.rows.length);
+      close(
+        groups[k].result.rows[0].student.stat,
+        direct.rows[0].student!.stat!,
+        `t (${part.label})`,
+      );
+      close(groups[k].result.rows[0].student.p, direct.rows[0].student!.p!, `p (${part.label})`);
+    }
+  }, 600_000);
   it('binomial and multinomial tests', async () => {
     const b = await freqTestR(data(ref.mtcars), {
       type: 'binomial',
