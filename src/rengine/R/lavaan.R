@@ -1751,3 +1751,162 @@ ps_mplus_syntax <- function(req_json) {
   out <- lavaan::mplus2lavaan.modelSyntax(syntax)
   ps_json(list(syntax = paste(out, collapse = "\n")))
 }
+
+# ---------- Data summary for secondary analysis (APA JARS-Quant) ----------
+
+#' Script lines: the sample statistics the fitted model was estimated from, one list per group,
+#' and the raw-data estimates to check a refit against. No case-level data leave R.
+PS_DATA_SUMMARY_LINES <- c(
+  "# Data summary for secondary analysis (APA JARS-Quant, SEM): the sample statistics lavaan fitted",
+  "# the model to, per group, and the estimates, so that others can refit the model without the data.",
+  "ss <- lavInspect(fit, \"sampstat\")",
+  "if (!is.null(ss$cov)) ss <- list(ss)",
+  "nobs <- lavInspect(fit, \"nobs\")",
+  "idx <- lavInspect(fit, \"case.idx\")",
+  "if (!is.list(idx)) idx <- list(idx)",
+  "ordinal <- lavNames(fit, \"ov.ord\")",
+  "# N times the asymptotic covariance matrix of the statistics (NACOV) and the weight matrix: ordinal only",
+  "per_group <- function(x) if (is.list(x)) x else list(x)",
+  "nacov <- if (length(ordinal)) per_group(lavInspect(fit, \"gamma\"))",
+  "wls_v <- if (length(ordinal)) per_group(lavInspect(fit, \"wls.v\"))",
+  "summary_of <- function(g) {",
+  "  x <- ss[[g]]",
+  "  n <- nobs[[g]]",
+  "  vars <- rownames(x$cov)",
+  "  # Descriptives on the variables' own scale (category codes for ordinal ones), the analysed cases",
+  "  raw <- sapply(vars, function(v) as.numeric(data[idx[[g]], v]))",
+  "  out <- list(",
+  "    n = n,",
+  "    variables = vars,",
+  "    ordinal = vars %in% ordinal,",
+  "    valid = colSums(!is.na(raw)),",
+  "    mean = colMeans(raw, na.rm = TRUE),",
+  "    sd = apply(raw, 2, sd, na.rm = TRUE)",
+  "  )",
+  "  if (length(ordinal)) {",
+  "    # Polychoric (ordinal pairs) and polyserial (ordinal and continuous) correlations, thresholds",
+  "    out$cor <- unclass(x$cov)",
+  "    out$th <- unclass(x$th)",
+  "    out$nacov <- unclass(nacov[[g]])",
+  "    out$wls_v <- unclass(wls_v[[g]])",
+  "  } else {",
+  "    # Means and covariances (divisor N - 1); lavaan rescales them by (N - 1) / N when refitting",
+  "    out$cov <- unclass(x$cov) * n / (n - 1)",
+  "    out$cor <- cov2cor(unclass(x$cov))",
+  "    out$means <- if (is.null(x$mean)) colMeans(raw, na.rm = TRUE) else unclass(x$mean)",
+  "  }",
+  "  out",
+  "}",
+  "summaries <- lapply(seq_along(ss), summary_of)",
+  "labels <- lavInspect(fit, \"group.label\")",
+  "names(summaries) <- if (length(labels)) labels else \"\"",
+  "estimates <- parameterEstimates(fit, ci = FALSE)"
+)
+
+#' The data summary of the CB-SEM model on the canvas: sample statistics (N, means, SDs, correlations;
+#' for ordinal indicators the polychoric correlations, thresholds, NACOV and weight matrix), the lavaan
+#' model syntax and the estimates from the raw data. The TypeScript side writes the files.
+ps_cb_data_summary <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  b <- ps_cb_build(req)
+  what <- "A data summary for secondary analysis"
+  ps_cb_plain(b, what)
+  if (!is.null(req$model$weights) || !is.null(req$model$cluster)) {
+    stop("A data summary cannot reproduce a model with sampling weights or clusters: share the raw data.")
+  }
+  if (length(b$esem_blocks)) stop("A data summary is not available for ESEM blocks; share the raw data.")
+  body <- c(b$body, PS_DATA_SUMMARY_LINES)
+  if (export) {
+    report <- c("summaries", "estimates[, intersect(c(\"lhs\", \"op\", \"rhs\", \"group\", \"est\", \"se\"), names(estimates))]")
+    return(ps_script("Data summary for secondary analysis (lavaan sample statistics)", "lavaan", b$inputs, body, report))
+  }
+  env <- ps_run(body, b$inputs)
+  fit <- env$fit
+  if (length(env$ordinal) && length(lavaan::lavNames(fit, "ov.x")) && isTRUE(lavaan::lavInspect(fit, "options")$conditional.x)) {
+    stop("A data summary with ordinal indicators and observed exogenous covariates (conditional.x) is not available; share the raw data.")
+  }
+  mat <- function(m) lapply(seq_len(nrow(m)), function(i) I(unname(as.numeric(m[i, ]))))
+  # (by position: a single group's label is "", which [[ ]] cannot look up)
+  groups <- lapply(seq_along(env$summaries), function(k) {
+    s <- env$summaries[[k]]
+    th <- s$th
+    list(
+      label = names(env$summaries)[k],
+      n = s$n,
+      variables = I(s$variables),
+      ordinal = I(s$ordinal),
+      valid = I(unname(as.numeric(s$valid))),
+      mean = I(unname(as.numeric(s$mean))),
+      sd = I(unname(as.numeric(s$sd))),
+      cor = mat(s$cor),
+      cov = if (!is.null(s$cov)) mat(s$cov),
+      means = if (!is.null(s$means)) I(unname(as.numeric(s$means))),
+      thresholds = if (!is.null(th)) list(
+        variable = I(sub("\\|t[0-9]+$", "", names(th))),
+        index = I(as.integer(sub(".*\\|t", "", names(th)))),
+        value = I(unname(as.numeric(th)))
+      ),
+      nacovNames = if (!is.null(s$nacov)) I(rownames(s$nacov)),
+      nacov = if (!is.null(s$nacov)) mat(s$nacov),
+      wlsV = if (!is.null(s$wls_v)) mat(s$wls_v)
+    )
+  })
+  pe <- env$estimates
+  opts <- lavaan::lavInspect(fit, "options")
+  refit <- ps_data_summary_refit_call(b$call, length(env$ordinal) > 0, isTRUE(opts$meanstructure))
+  fm <- lavaan::fitMeasures(fit, c("chisq", "df"))
+  ps_json(list(
+    groups = groups,
+    groupVar = b$group_var,
+    names = list(lavaan = I(names(ps_cb_back(b))), app = I(unname(ps_cb_back(b)))),
+    syntax = I(ps_model_lines(b)),
+    refitCall = refit$call,
+    # (the app's WLSMV standard errors as Mplus's: the same correction after the refit)
+    refitAfter = I(if ("fit <- mplus_se(fit)" %in% b$body) ps_mplus_se_lines() else character(0)),
+    refitEstimator = refit$estimator,
+    requestedEstimator = req$estimator,
+    estimator = opts$estimator,
+    test = opts$test,
+    missing = opts$missing,
+    meanstructure = isTRUE(opts$meanstructure),
+    estimates = list(
+      lhs = I(pe$lhs), op = I(pe$op), rhs = I(pe$rhs),
+      group = I(if (is.null(pe$group)) rep(1L, nrow(pe)) else pe$group),
+      est = I(pe$est), se = I(pe$se)
+    ),
+    chisq = unname(fm[["chisq"]]),
+    df = unname(fm[["df"]]),
+    warnings = env$.warnings,
+    engine = ps_engine("lavaan")
+  ))
+}
+
+#' The lavaan call that refits the model from the summary: the data replaced by the sample statistics
+#' (S, M, N; for ordinal indicators R, TH, NACOV and WLS_V), without the missing-data treatment, the
+#' grouping column and auxiliary variables (the groups are the statistics' lists). Robust ML
+#' estimators need the raw data, so the refit uses ML (same estimates and chi-square).
+ps_data_summary_refit_call <- function(call, ordinal, meanstructure) {
+  if (length(call) != 1 || !startsWith(call, "fit <- sem(model, data = data,")) {
+    stop("A data summary is not available for this model.")
+  }
+  stats <- if (ordinal) {
+    "sample.cov = R, sample.th = TH, sample.mean = M, sample.nobs = N, NACOV = NACOV, WLS.V = WLS_V,"
+  } else {
+    "sample.cov = S, sample.mean = M, sample.nobs = N,"
+  }
+  out <- sub("data = data,", stats, call, fixed = TRUE)
+  for (drop in c(", missing = \"[^\"]*\"", ", group = \"[^\"]*\"", ", aux = c\\([^)]*\\)")) {
+    out <- gsub(drop, "", out)
+  }
+  estimator <- regmatches(out, regexpr("estimator = \"[A-Za-z]+\"", out))
+  estimator <- sub("estimator = \"([A-Za-z]+)\"", "\\1", estimator)
+  if (!ordinal && estimator %in% c("MLR", "MLM", "MLMV", "MLF")) {
+    out <- sub(sprintf("estimator = \"%s\"", estimator), "estimator = \"ML\"", out, fixed = TRUE)
+    estimator <- "ML"
+  }
+  # (FIML and groups imply a mean structure, which moments without data do not)
+  if (meanstructure && !grepl("meanstructure = TRUE", out, fixed = TRUE)) {
+    out <- sub("\\)$", ", meanstructure = TRUE)", out)
+  }
+  list(call = out, estimator = estimator)
+}

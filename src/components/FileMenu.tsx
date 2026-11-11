@@ -1,6 +1,6 @@
 import { openReplication } from './analyses/ReplicationDialog';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { exportCovarianceCsv, exportMplus, exportRScript, importAmos, importCsv, importModelSyntax, newProject, openProject, saveProject } from '../io';
+import { exportCovarianceCsv, exportDataSummary, exportMplus, exportRScript, importAmos, importCsv, importModelSyntax, newProject, openProject, saveProject } from '../io';
 import { useStore } from '../store';
 import { IconChevronDown } from './icons';
 
@@ -50,6 +50,7 @@ export function FileMenu() {
           {item('Import AMOS model (.amw)…', () => void importAmos())}
           {item('Download R script', () => void exportRScript(), { disabled: !hasData })}
           {rawCb && item('Download covariance matrix (CSV)', () => exportCovarianceCsv())}
+          {rawCb && item('Download data summary for secondary analysis (zip)', () => void exportDataSummary())}
           {item('Download Mplus input', () => void exportMplus())}
           <div className="menu-sep" />
           <a role="menuitem" className="menu-item" href="guide.html" target="_blank" rel="noopener">User guide</a>

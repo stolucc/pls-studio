@@ -3,7 +3,7 @@ import { MAX_FILE_BYTES, parseCsv } from './engine/dataset';
 import { choiceDialog, confirmDialog, numberDialog } from './components/Overlays';
 import { parseCovMatrixCsv, parseNacovCsv } from './examples/matrix';
 import { dataFileFormat, readDataFile, readPackageFile } from './data/readFile';
-import { safeFileName, downloadText } from './format';
+import { safeFileName, downloadBlob, downloadText } from './format';
 import { parseProject, serializeProject, toSpec, validateModel, type DataInfo, type ModelState, type Settings } from './model/project';
 import { covarianceDataset } from './data/covariance';
 import { datasetCsv } from './replication/package';
@@ -271,6 +271,51 @@ export function exportCovarianceCsv() {
   const m = data.moments!;
   downloadText(`${safeFileName(s.projectName)}-covariances-N${m.n}.csv`, datasetCsv(data), 'text/csv');
   s.toast('success', `Covariance matrix of ${data.names.length} variables saved (${m.groups ? m.groups.map((g) => `${g.label}: N = ${g.n}`).join(', ') : `N = ${m.n}`}, listwise). lavaan refits the model from it; share it with N instead of the raw data.`);
+}
+
+/** Why the model's data summary for secondary analysis cannot be made (null: it can). */
+export function dataSummaryBlocked(): string | null {
+  const s = useStore.getState();
+  if (!s.data) return 'Import a dataset first.';
+  if (s.data.moments && s.data.cols.length === 0) return 'The dataset already is a covariance matrix.';
+  if (s.settings.method !== 'cbsem') return 'The data summary reproduces CB-SEM models (lavaan); switch the method to CB-SEM.';
+  if (!s.model.constructs.length) return 'Draw the model first: the summary covers its indicators.';
+  return null;
+}
+
+/**
+ * Download the data summary for secondary analysis (APA JARS-Quant): a zip with N, means, SDs and
+ * correlations (for ordinal indicators polychorics, thresholds and NACOV), the lavaan syntax, a
+ * refit script, the raw-data estimates and a README. No case-level data.
+ */
+export async function exportDataSummary() {
+  const s = useStore.getState();
+  const why = dataSummaryBlocked();
+  if (why) {
+    s.toast('error', why);
+    return;
+  }
+  try {
+    const { dataSummaryR } = await import('./rengine/cbExtras');
+    const { dataSummaryFiles } = await import('./replication/dataSummary');
+    const { makeZip } = await import('./replication/zip');
+    const call = {
+      data: s.data!,
+      spec: toSpec(s.model),
+      missing: s.settings.missing,
+      estimator: s.settings.estimator as CbEstimator,
+      interaction: s.settings.interaction,
+    };
+    const r = await dataSummaryR(call);
+    const zip = await makeZip(dataSummaryFiles(r, s.projectName));
+    downloadBlob(`${safeFileName(s.projectName)}-data-summary.zip`, zip);
+    const n = r.groups.map((g) => g.n).reduce((a, b) => a + b, 0);
+    s.toast('success', `Data summary of ${r.groups[0]?.variables.length ?? 0} variables saved (N = ${n}): `
+      + 'the statistics lavaan fits, a refit script and a README; no raw data.');
+  } catch (e) {
+    const { rMessage } = await import('./rengine/bridge');
+    s.toast('error', rMessage(e));
+  }
 }
 
 export function saveProject() {
