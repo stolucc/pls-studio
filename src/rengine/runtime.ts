@@ -51,7 +51,12 @@ export function configureR(o: RRuntimeOptions) {
   options = o;
 }
 
-function start(s: Session, index: number): Promise<WebR> {
+/**
+ * Start session `index` (once; a failed start is tried again by the next call). `quiet` (the warm-up, warmup.ts): no
+ * status for the UI while R starts, and no error status if it fails; R's versions are still recorded.
+ */
+function start(s: Session, index: number, quiet = false): Promise<WebR> {
+  const report = index === 0 && !quiet;
   s.webR ??= (async () => {
     const o = options ?? browserOptions();
     // The SharedArrayBuffer channel (webR's recommended mode) lets R be interrupted, which
@@ -61,7 +66,7 @@ function start(s: Session, index: number): Promise<WebR> {
         'The R engine needs a cross-origin isolated page (Cross-Origin-Opener-Policy: same-origin, Cross-Origin-Embedder-Policy: require-corp). Reload the page; if this persists, the server is missing these headers. Choose the built-in engine meanwhile.',
       );
     }
-    if (index === 0) useR.setState({ status: 'loading', message: 'Starting R…' });
+    if (report) useR.setState({ status: 'loading', message: 'Starting R…' });
     const { WebR, ChannelType } = await import('webr');
     // (R_MAX_NUM_DLLS: R loads at most ~100 compiled libraries per session by default; one session that runs many
     //  analyses passes that, and every later package with compiled code then fails to load)
@@ -75,19 +80,32 @@ function start(s: Session, index: number): Promise<WebR> {
     // webR limits nested R evaluation to 400 levels (R's default is 5000); cSEM's
     // resampling needs more. 5e5 is R's maximum; the C stack still guards recursion.
     await webR.evalRVoid('options(expressions = 5e5)');
-    if (index === 0)
+    if (report)
       useR.setState({
         status: 'ready',
         message: '',
         versions: { R: webR.versionR, webR: webR.version },
       });
+    else if (index === 0)
+      useR.setState((st) => ({
+        versions: { ...st.versions, R: webR.versionR, webR: webR.version },
+      }));
     return webR;
   })().catch((e) => {
     s.webR = null;
-    if (index === 0) useR.setState({ status: 'error', message: (e as Error).message });
+    if (report) useR.setState({ status: 'error', message: (e as Error).message });
     throw e;
   });
   return s.webR;
+}
+
+/**
+ * Start the main R session ahead of the first calculation, without packages and without telling the UI (warmup.ts):
+ * the first calculation then skips webR's start-up. Does nothing when the session has started (or is starting).
+ */
+export async function warmUpR(): Promise<void> {
+  if (sessions[0].webR) return;
+  await start(sessions[0], 0, true);
 }
 
 // In Node (the webR tests), webR downloads packages with synchronous XHR, which

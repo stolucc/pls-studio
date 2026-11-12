@@ -4,6 +4,7 @@ import { DataWorkspace } from './components/DataViewer';
 import { ReactFlowProvider } from '@xyflow/react';
 import { useEffect, useState } from 'react';
 import { startAutoCalculate } from './autoCalculate';
+import { scheduleRWarmUp } from './rengine/warmup';
 import { Canvas } from './components/Canvas';
 import { DataPanel } from './components/DataPanel';
 import { Inspector } from './components/Inspector';
@@ -32,8 +33,13 @@ export default function App() {
   const validationReturn = useStore((s) => s.validationReturn);
   const projectName = useStore((s) => s.projectName);
 
-  // The validation page has its own address (#validation), so that it can be linked to and bookmarked.
   useEffect(() => startAutoCalculate(), []);
+  // R in the browser starts in the background once the app is idle, ready for the first calculation.
+  useEffect(
+    () => scheduleRWarmUp({ engineIsR: () => useStore.getState().settings.engine === 'r' }),
+    [],
+  );
+  // The validation page has its own address (#validation), so that it can be linked to and bookmarked.
   useEffect(() => {
     const fromHash = () => {
       const s = useStore.getState();
