@@ -2557,10 +2557,17 @@
    "credit": "Revelle, W. psych: Procedures for Psychological, Psychometric, and Personality Research; the SAPA project’s Big Five items"
   },
   {
-   "name": "Examples from R packages",
-   "where": "loaded at run time from the packages in the browser (not stored here)",
-   "license": "per package",
-   "credit": "lavaan, MIIVsem, modsem, manymome, cSEM, seminr, plspm, ltm, poLCA, mirt, glca, lme4, lcmm, ivreg, sampleSelection, MatchIt and QCA (Lipset and Cebotari & Vink) datasets; each example links to its documentation.",
+   "name": "Datasets of the examples from R packages (92 datasets of 44 packages)",
+   "where": "public/examples/data: copies of what the packages provide, bundled so that an example opens without starting R (scripts/examples/bundle-data.mjs; checked against R by src/examples/bundledData.webr.test.ts)",
+   "license": "each under its package’s licence: bain GPL (>= 3); Bayesrel GPL-3; carData GPL (>= 2); cSEM GPL-3; datasets GPL-2 | GPL-3 (R); did GPL-3; dynamic AGPL-3; EGAnet AGPL (>= 3.0); faraway GPL; fixest GPL-3; genpathmox GPL-3; glca GPL-3; irr GPL (>= 2); irrCAC GPL (>= 2); ivreg GPL (>= 2); lavaan GPL (>= 2); lcmm GPL (>= 2.0); lme4 GPL (>= 2); ltm GPL (>= 2); manymome GPL (>= 3); MASS GPL-2 | GPL-3; MatchIt GPL (>= 2); mediation GPL (>= 2); metadat GPL (>= 2); mice GPL (>= 2); MIIVsem GPL-2; mirt GPL (>= 3); mnlfa GPL (>= 2); modsem MIT + file LICENSE; piecewiseSEM GPL-3; plspm GPL-3; poLCA GPL (>= 2); pROC GPL (>= 3); pscl GPL-2; psych GPL (>= 2); psychotools GPL-2 | GPL-3; QCA GPL (>= 3); rsem GPL-2; sampleSelection GPL (>= 2); semfindr GPL-3; seminr GPL-3; sirt GPL (>= 2); survival LGPL (>= 2); WRS2 GPL-3",
+   "credit": "Distributed with the R packages (versions read: src/examples/bundledData.json): bain 0.2.12 (sesamesim); Bayesrel 0.8.0 (asrm); carData 3.0.6 (Duncan, OBrienKaiser, Prestige); cSEM 0.7.1 (Benitezetal2020, BergamiBagozzi2000, ITFlex, LancelotMiltgenetal2016, Russett, Switching, Yooetal2000, dgp_2ndorder_cf_of_c, satisfaction, satisfaction_gender, threecommonfactors); datasets 4.6.2 (PlantGrowth, ToothGrowth, USJudgeRatings, airquality, attitude, cars, faithful, infert, iris, mtcars, sleep, swiss, warpbreaks); did 2.5.1 (mpdta); dynamic 1.1.0 (Example, Holzinger); EGAnet 2.4.1 (wmt2); faraway 1.0.9 (gala); fixest 0.14.2 (base_did); genpathmox 1.1 (csibank); glca 1.4.2 (nyts18); irr 0.85 (anxiety, diagnoses); irrCAC 1.4 (cac.raw4raters); ivreg 0.6.8 (Kmenta); lavaan 0.7.3 (Demo.growth, Demo.twolevel, HolzingerSwineford1939, PoliticalDemocracy); lcmm 2.2.2 (data_hlme); lme4 2.1.0 (cbpp, sleepstudy); ltm 1.2.0 (LSAT, Science); manymome 0.3.7 (data_med, data_med_mod_a, data_serial); MASS 7.3.66 (birthwt, housing, menarche, quine); MatchIt 4.8.2 (lalonde); mediation 4.5.1 (jobs); metadat 1.6.0 (dat.bcg); mice 3.19.0 (nhanes); MIIVsem 0.5.8 (bollen1989a, bollen1989b, bollen1996, felson1979, reisenzein1986); mirt 1.48 (LSAT7); mnlfa 0.3.4 (data.mnlfa01); modsem 1.0.23 (oneInt); piecewiseSEM 2.3.1 (keeley); plspm 0.6.0 (simdata); poLCA 1.6.0.2 (carcinoma, values); pROC 1.19.1 (aSAH); pscl 1.5.9 (bioChemists); psych 2.6.9 (Harman.5, bfi); psychotools 0.7.7 (YouthGratitude); QCA 3.25 (CVF, CVR, LC, LF); rsem 0.5.1 (mardiamv25); sampleSelection 1.2.16 (Mroz87); semfindr 0.2.1 (cfa_dat2); seminr 2.6.0 (corp_rep_data, influencer_data, mobi); sirt 4.2.133 (data.inv4gr, data.lsem01); survival 3.8.12 (aml); WRS2 1.1.7 (viagra). Each example links to its documentation and the dataset’s original source.",
+   "url": ""
+  },
+  {
+   "name": "Example files shipped in R packages (iris.sav, datasets.xlsx)",
+   "where": "read at run time from the packages in the browser (not stored here)",
+   "license": "per package (haven, readxl)",
+   "credit": "The SPSS and Excel example files of haven and readxl; each example links to its documentation.",
    "url": ""
   },
   {

@@ -777,4 +777,6 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'rengine/quoting': 'none',
   'rengine/runtime': 'none',
   'replication/package': 'none',
+  // The bundled copies of the examples' R-package datasets equal ps_dataset's result (data, not a method).
+  'examples/bundledData': 'none',
 };

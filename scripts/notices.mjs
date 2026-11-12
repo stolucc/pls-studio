@@ -32,6 +32,33 @@ function npmDeps(dir) {
 }
 
 const lock = json('scripts/webr/webr-lock.json');
+
+/**
+ * The examples' datasets from R packages, bundled with the app (scripts/examples/bundle-data.mjs): each under its
+ * package's licence (R's own datasets package: R's licence).
+ */
+function bundledExampleData() {
+  const { datasets, versions } = json('src/examples/bundledData.json');
+  const byPackage = new Map();
+  for (const key of Object.keys(datasets)) {
+    const [, pkg, name] = /^([^:]+)::([^?]+)/.exec(key);
+    if (!byPackage.get(pkg)?.includes(name))
+      byPackage.set(pkg, [...(byPackage.get(pkg) ?? []), name]);
+  }
+  const licence = (pkg) =>
+    pkg === 'datasets' ? 'GPL-2 | GPL-3 (R)' : (lock.packages[pkg]?.license ?? 'see package');
+  const pkgs = [...byPackage.keys()].sort((a, b) => a.localeCompare(b));
+  return {
+    name: `Datasets of the examples from R packages (${Object.keys(datasets).length} datasets of ${pkgs.length} packages)`,
+    where:
+      'public/examples/data: copies of what the packages provide, bundled so that an example opens without starting R (scripts/examples/bundle-data.mjs; checked against R by src/examples/bundledData.webr.test.ts)',
+    license: `each under its package’s licence: ${pkgs.map((p) => `${p} ${licence(p)}`).join('; ')}`,
+    credit: `Distributed with the R packages (versions read: src/examples/bundledData.json): ${pkgs
+      .map((p) => `${p} ${versions[p] ?? ''} (${byPackage.get(p).join(', ')})`)
+      .join('; ')}. Each example links to its documentation and the dataset’s original source.`,
+    url: '',
+  };
+}
 // (dynamic: the CRAN release is archived; the app ships a build of the maintained repository at a pinned commit, see scripts/webr/fetch.mjs)
 const UPSTREAM = {
   nloptr: 'https://github.com/astamm/nloptr',
@@ -133,12 +160,13 @@ const data = {
       credit:
         'Revelle, W. psych: Procedures for Psychological, Psychometric, and Personality Research; the SAPA project’s Big Five items',
     },
+    bundledExampleData(),
     {
-      name: 'Examples from R packages',
-      where: 'loaded at run time from the packages in the browser (not stored here)',
-      license: 'per package',
+      name: 'Example files shipped in R packages (iris.sav, datasets.xlsx)',
+      where: 'read at run time from the packages in the browser (not stored here)',
+      license: 'per package (haven, readxl)',
       credit:
-        'lavaan, MIIVsem, modsem, manymome, cSEM, seminr, plspm, ltm, poLCA, mirt, glca, lme4, lcmm, ivreg, sampleSelection, MatchIt and QCA (Lipset and Cebotari & Vink) datasets; each example links to its documentation.',
+        'The SPSS and Excel example files of haven and readxl; each example links to its documentation.',
       url: '',
     },
     {

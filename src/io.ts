@@ -30,6 +30,7 @@ import {
 import type { BuiltinExample } from './examples/textbook';
 import type { RemoteData } from './examples/remote/source';
 import type { ChosenFile } from './examples/remote/load';
+import type { PackageDataset } from './examples/bundledData';
 import { useStore } from './store';
 import type { CbEstimator } from './engine/cbsem';
 import type { IpmaOptions } from './engine/ipma';
@@ -967,10 +968,13 @@ export async function loadPackageExample(id: string, opts: { files?: ChosenFile[
   if (ex.data.remote)
     loading = opts.files ? `Reading ${ex.data.name}…` : `Downloading ${ex.data.name}…`;
   else if (ex.data.file) loading = `Loading ${ex.data.name}…`;
-  else loading = `Loading ${ex.data.package}::${ex.data.name} in R…`;
+  else loading = `Loading ${ex.data.package}::${ex.data.name}…`;
   s.toast('info', loading);
   try {
-    const { rCall, rMessage } = await import('./rengine/bridge');
+    const [{ rCall, rMessage }, { bundledDataFile, fetchBundledDataset }] = await Promise.all([
+      import('./rengine/bridge'),
+      import('./examples/bundledData'),
+    ]);
     const pf = ex.data.packageFile;
     // An SPSS / Stata / Excel file shipped in the package: read as a user's file would be.
     const fromFile = pf
@@ -991,12 +995,14 @@ export async function loadPackageExample(id: string, opts: { files?: ChosenFile[
         };
       if (downloaded) return downloaded;
       if (ex.data.file) return await bundledDataset(ex.data.file);
-      return await rCall<{
-        names: string[];
-        cols: (number | null)[][];
-        n: number;
-        levels?: Record<string, string[] | string> | unknown[];
-      }>(
+      // The package's dataset as ps_dataset returns it: the copy bundled with the app, without starting R; R reads
+      // it from the package when there is no copy, or the copy cannot be loaded.
+      const copy = bundledDataFile(ex.data);
+      if (copy) {
+        const bundled = await fetchBundledDataset(copy).catch(() => null);
+        if (bundled) return bundled;
+      }
+      return await rCall<PackageDataset>(
         'ps_dataset',
         { package: ex.data.package, name: ex.data.name, na: ex.data.na ?? [] },
         ex.data.package as RPackage,

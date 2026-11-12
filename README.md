@@ -34,7 +34,9 @@ components, fonts and datasets (`npm run notices` regenerates it).
 
 Data credits: the gamification example uses the replication package of Stol, Schaarschmidt &
 Goldblit (2022), *Empirical Software Engineering* 27:35 (doi:10.5281/zenodo.6322761, CC BY 4.0);
-the other example and test datasets come from the R packages lavaan, seminr and cSEM.
+the other example and test datasets come from the R packages lavaan, seminr and cSEM. The datasets
+the examples take from R packages are bundled as copies (`public/examples/data`, written by
+`scripts/examples/bundle-data.mjs` and checked against R), each under its package's licence.
 
 ## Methods
 
@@ -58,7 +60,7 @@ instruments and a Sargan overidentification test per equation; works from raw da
 matrix. Misspecification in one equation does not propagate to others.
 
 **Examples**: 387 examples from the R packages' own documentation (lavaan, dynamic, sirt, mnlfa, MIIVsem, modsem, manymome, plspm, genpathmox, ivreg, REndo, sampleSelection, MatchIt, RSA, NCA, QCA,
-cSEM, seminr, ltm, mirt, poLCA, glca, lme4, GLMMadaptive, lcmm, did, fixest, MASS, nnet, datasets, carData, faraway, BayesFactor, blavaan, semPower, metaSEM, semtree, lslx, misty, SEMsens, mediation, strucchange, INLAvaan, nonnest2, pscl, plssem, piecewiseSEM, restriktor, bain, Bayesrel, nortest, effectsize, TOSTER, metafor, metadat, pROC, irr, irrCAC, pwr, ppcor, emmeans, WRS2, coin; data loaded from the packages, each linked to its source) and from the Mplus User's Guide (Muthén & Muthén; their generated example data are not distributed with the app but downloaded from statmodel.com each time an example is opened, through the PLS Studio server or the desktop helper, fitted with lavaan, glm, survival, ltm, mirt, poLCA, glca, lme4, GLMMadaptive, modsem and maximum likelihood written out in R), plus a synthetic customer survey (PLS, raw data) and the published model of Stol,
+cSEM, seminr, ltm, mirt, poLCA, glca, lme4, GLMMadaptive, lcmm, did, fixest, MASS, nnet, datasets, carData, faraway, BayesFactor, blavaan, semPower, metaSEM, semtree, lslx, misty, SEMsens, mediation, strucchange, INLAvaan, nonnest2, pscl, plssem, piecewiseSEM, restriktor, bain, Bayesrel, nortest, effectsize, TOSTER, metafor, metadat, pROC, irr, irrCAC, pwr, ppcor, emmeans, WRS2, coin; data from the packages, bundled with the app so that an example opens without starting R, each linked to its source) and from the Mplus User's Guide (Muthén & Muthén; their generated example data are not distributed with the app but downloaded from statmodel.com each time an example is opened, through the PLS Studio server or the desktop helper, fitted with lavaan, glm, survival, ltm, mirt, poLCA, glca, lme4, GLMMadaptive, modsem and maximum likelihood written out in R), plus a synthetic customer survey (PLS, raw data) and the published model of Stol,
 Schaarschmidt & Goldblit (2022), *Gamification in software engineering*, Empirical Software
 Engineering 27:35 (CB-SEM, MLM, from the covariance and NACOV matrices of the replication
 package, doi:10.5281/zenodo.6322761, CC BY 4.0). The example reproduces the paper's results.
