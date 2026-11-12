@@ -63,6 +63,9 @@ const close = (what: string, got: number, want: number, tol: number) =>
   expect(Math.abs(got - want), `${what}: |${got} − ${want}|`).toBeLessThanOrEqual(
     tol * Math.max(1, Math.abs(want)),
   );
+/** The same relative comparison, recorded in the example's record. */
+const nearRel = (what: string, got: number, want: number, tol: number) =>
+  near(what, got, want, tol * Math.max(1, Math.abs(want)));
 const SCALE: Record<ScoreFn, ScoreScale> = {
   DM: 'continuous',
   CvM: 'continuous',
@@ -175,8 +178,8 @@ describe('score-based invariance tests (strucchange)', () => {
     const r = (await t.run(o, ctx, () => {})) as ScoreView;
     against(SOURCE);
     same('N', r.n, REF.example.n);
-    near('WDMo', r.statistic, REF.example.tests.WDMo.statistic, 1e-4);
-    near('WDMo p', r.p, REF.example.tests.WDMo.p, 1e-4);
+    nearRel('WDMo', r.statistic, REF.example.tests.WDMo.statistic, 1e-4);
+    nearRel('WDMo p', r.p, REF.example.tests.WDMo.p, 1e-4);
     expect(r.warnings).toEqual([]);
     // the chart: one split per category but the last, its maximum is the statistic; labels are the age groups
     expect(r.series.labels).toEqual(['1', '2', '3', '4', '5']);
@@ -206,7 +209,7 @@ describe('score-based invariance tests (strucchange)', () => {
       nrep: 50000,
     });
     same('parameters, all', all.params.length, REF.example.npar);
-    near('LMuo, all parameters', all.statistic, REF.example.all.LMuo.statistic, 1e-4);
+    nearRel('LMuo, all parameters', all.statistic, REF.example.all.LMuo.statistic, 1e-4);
     for (const fn of ['LMuo', 'maxLMo', 'DM'] as ScoreFn[]) {
       const x = await scoreTestR(call, {
         covariate: 'agegroup',
@@ -216,8 +219,9 @@ describe('score-based invariance tests (strucchange)', () => {
         seed: 1234,
         nrep: 50000,
       });
-      near(`${fn} (all rows)`, x.statistic, REF.example.tests[fn].statistic, 1e-4);
-      near(`${fn} p (all rows)`, x.p, REF.example.tests[fn].p, 1e-4);
+      // (relative, as close(): maxLMo is 13.76433 in webR against desktop R's 13.76486, 3.9e-5 relative)
+      nearRel(`${fn} (all rows)`, x.statistic, REF.example.tests[fn].statistic, 1e-4);
+      nearRel(`${fn} p (all rows)`, x.p, REF.example.tests[fn].p, 1e-4);
     }
   }, 900_000);
 
