@@ -35,3 +35,13 @@ it('locks every package the browser loads', () => {
     );
   expect(missing).toEqual([]);
 });
+
+// effectsize only suggests boot, and webR's base library has no boot: without it effectsize warns and leaves out the
+// bootstrap interval of Kruskal-Wallis's rank epsilon-squared (desktop R always has boot, a recommended package).
+it('loads boot with effectsize', () => {
+  const without = (Object.keys(R_PACKAGES) as RPackage[]).filter((k) => {
+    const set = R_PACKAGES[k] as readonly string[];
+    return set.includes('effectsize') && !set.includes('boot');
+  });
+  expect(without).toEqual([]);
+});

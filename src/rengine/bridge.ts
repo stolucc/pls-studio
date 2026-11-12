@@ -216,10 +216,12 @@ export const R_PACKAGES = {
   stats: ['jsonlite'],
   // Normality tests of the descriptives card: Lilliefors (Kolmogorov-Smirnov) and Anderson-Darling (nortest).
   nortest: ['jsonlite', 'nortest'],
-  // Effect sizes with confidence intervals for the basic test cards (Cohen's d, Hedges' g, eta², omega², Cramér's V, …).
-  effectsize: ['jsonlite', 'effectsize'],
+  // Effect sizes with confidence intervals for the basic test cards (Cohen's d, Hedges' g, eta², omega², Cramér's V, …);
+  // boot for Kruskal-Wallis's rank epsilon-squared, whose bootstrap interval effectsize leaves out when boot (only
+  // suggested by effectsize, and not part of webR's base library) is not installed.
+  effectsize: ['jsonlite', 'effectsize', 'boot'],
   // Equivalence tests (TOST) of the t-test and correlation cards; effectsize beside it for the effect sizes.
-  TOSTER: ['jsonlite', 'effectsize', 'TOSTER'],
+  TOSTER: ['jsonlite', 'effectsize', 'boot', 'TOSTER'],
   // Repeated measures with several between-subjects factors: car::Anova's type II tests (car's ?Anova, OBrienKaiser).
   car: ['jsonlite', 'car'],
   // Estimated marginal means, post hoc tests, simple effects and contrasts (emmeans) of the ANOVA cards' fits;
