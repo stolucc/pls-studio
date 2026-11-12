@@ -472,12 +472,15 @@ describe('post hoc tests and reliability', () => {
       });
       const b = r.bayes!;
       expect(b.estimates.map((x) => x.estimate)).toEqual(['alpha', 'lambda2', 'glb', 'omega']);
-      // Same seed, same draws: exact in desktop R; 1e-6 for webR's floating point.
+      // Same seed, same draws: exact in desktop R; 1e-6 for webR's floating point. The glb of each draw is an
+      // optimisation (Bayesrel 0.8.0 calls psych::glb.fa, a minimum-residual factor analysis by optim, psych 2.6.9),
+      // whose results WebAssembly's floating point moves by a few 1e-6 (the lower credible limit by 3.5e-6): 1e-5.
       for (const x of b.estimates) {
-        const w = want.withGlb[x.estimate];
-        near(`${x.estimate} posterior mean`, x.mean, w.mean, 1e-6);
-        near(`${x.estimate} credible interval lower`, x.low, w.low, 1e-6);
-        near(`${x.estimate} credible interval upper`, x.high, w.high, 1e-6);
+        const w = want.withGlb[x.estimate],
+          tol = x.estimate === 'glb' ? 1e-5 : 1e-6;
+        near(`${x.estimate} posterior mean`, x.mean, w.mean, tol);
+        near(`${x.estimate} credible interval lower`, x.low, w.low, tol);
+        near(`${x.estimate} credible interval upper`, x.high, w.high, tol);
       }
       // Validated in R: too few iterations and fewer than three items are refused.
       await expect(
