@@ -70,5 +70,6 @@ slowIt.each([['ex5.5part3'], ['ex5.5part4']])(
     }
     expect(r.warnings).toEqual([]);
   },
-  3_600_000,
+  // (part 4 alone took 2,439 s of CPU in webR, 2026-11-12; under a full parallel run that nears an hour: two hours)
+  7_200_000,
 );
