@@ -330,7 +330,12 @@ it('sirt-lsem01-age: the help page’s local SEM of data.lsem01, its bootstrap a
     near(`${p.par}: linear slope`, p.summary!.linSlope, s.linSlope, 1e-5);
     near(`${p.par}: mean`, p.summary!.mean, s.mean, 1e-5);
     const perm = m.perm[p.par];
-    if (perm) {
+    // A parameter that does not vary over the focal points (F~~F, fixed at 1 to identify the factor) has permutation
+    // statistics made of rounding noise (its SD over the points is 1e-8 in desktop R): its permutation p-values compare
+    // noise with noise, which WebAssembly's floating point decides differently (the SD's p is 0.5 in desktop R, 1 in
+    // webR). Its constant estimates are compared above; its p-values are left out.
+    const constant = want.est.every((v: number) => v === want.est[0]);
+    if (perm && !constant) {
       near(`${p.par}: permutation p of the SD`, p.test!.sdP, perm.sdP, 1e-12);
       near(`${p.par}: permutation p of the MAD`, p.test!.madP, perm.madP, 1e-12);
       near(`${p.par}: permutation p of the slope`, p.test!.linSlopeP, perm.linSlopeP, 1e-12);
