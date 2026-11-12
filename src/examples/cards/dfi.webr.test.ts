@@ -1,7 +1,7 @@
 // The examples of cards/dfi.ts against the dynamic package run in desktop R on the help page's own call
 // (scripts/validation/dfi.R → src/engine/__fixtures__/dfi/reference.json, the original packages). The package draws
 // with fixed seeds of its own, so the same code and data give the same cutoffs, and every cell of its printed tables is
-// compared as text (tolerance 0). Each example runs through its card (the card's own run(), the same rengine call the
+// compared as text (tolerance 0; DDDFI's cutoffs in webR within Monte Carlo error, see check()). Each example runs through its card (the card's own run(), the same rengine call the
 // app makes): in the browser's R (npm run test:webr; the patched build of dynamic that loads without GenOrd and
 // cubature, scripts/webr/fetch.mjs PATCHED), or with PS_NATIVE_R=1 (npm run test:native) in desktop R. The slower
 // ones (minutes each in webR) run with WEBR_SLOW (npm run test:webr:all, validate:evidence).
@@ -98,8 +98,12 @@ async function run(ex: PackageExample): Promise<{ result: DfiResult; call: strin
   return { result, call };
 }
 
-/** Every cell of a printed table equals the native one (printed rounded: numbers to one unit in their last decimal). */
-function sameTable(what: string, got: DfiTable | null, want: DfiTable | null) {
+/**
+ * Every cell of a printed table equals the native one (printed rounded: numbers to one unit in their last decimal).
+ * `monteCarlo`: the table comes from other replications than the native one's (DDDFI in webR, see check()), so its
+ * numbers are compared within Monte Carlo error instead: four units in the last decimal, percentages within six points.
+ */
+function sameTable(what: string, got: DfiTable | null, want: DfiTable | null, monteCarlo = false) {
   same(`${what}: rows`, got?.rows.join(' | ') ?? '', want?.rows.join(' | ') ?? '');
   same(`${what}: columns`, got?.columns.join(' | ') ?? '', want?.columns.join(' | ') ?? '');
   want?.rows.forEach((row, i) =>
@@ -112,7 +116,9 @@ function sameTable(what: string, got: DfiTable | null, want: DfiTable | null) {
       //  number may differ by one unit in its last decimal; text cells must be equal)
       const dec = /^-?\d+\.(\d+)$/.exec(w)?.[1].length;
       if (dec !== undefined && /^-?\d+\.\d+$/.test(g))
-        near(label, Number(g), Number(w), 10 ** -dec * 1.0001);
+        near(label, Number(g), Number(w), (monteCarlo ? 4 : 1) * 10 ** -dec * 1.0001);
+      else if (monteCarlo && /^\d+%$/.test(w) && /^\d+%$/.test(g))
+        near(`${label} (%)`, parseFloat(g), parseFloat(w), 6);
       else same(label, g, w);
     }),
   );
@@ -140,7 +146,13 @@ async function check(id: string) {
   same('dynamic function', r.fn, Array.isArray(ref.fn) ? ref.fn[0] : ref.fn);
   same('dynamic version', String(r.engine?.version ?? ''), REF.dynamic);
   same('N', r.n, ex.data.name === 'Example' ? 500 : 301);
-  sameTable('cutoffs', r.cutoffs, ref.cutoffs);
+  // DDDFI (dynamic 1.1.0) draws its replications with MASS::mvrnorm, which maps the seeded normal draws through
+  // eigen(Sigma). An eigenvector's sign is arbitrary, and for the Holzinger model webR's LAPACK (webR 0.6.0, R 4.6.0)
+  // returns some with the other sign than desktop R 4.6.2 (the 4th of the true model's correlation matrix): the
+  // replications are equally distributed but not the same. (Desktop R with that one sign flipped reproduces webR's
+  // "Consistent" row exactly: 0.986, 0.042, 0.068 against the reference's 0.987, 0.04, 0.066.) In webR its cutoffs are
+  // then compared within Monte Carlo error; in desktop R exactly. The other functions' draws agree.
+  sameTable('cutoffs', r.cutoffs, ref.cutoffs, !NATIVE && r.fn === 'DDDFI');
   sameTable('empirical fit indices', r.fit, ref.fit);
   if (r.fn !== 'equivTest') {
     same(
