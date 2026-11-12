@@ -17,6 +17,7 @@ import { projectRoutes } from './routes/projects.ts';
 import type { Mailer } from './services/mailer.ts';
 import { AccessError } from './services/projects.ts';
 import { AuthError, getUser } from './services/users.ts';
+import { staticCacheControl } from './staticCache.ts';
 
 declare module 'express-session' {
   interface SessionData {
@@ -159,20 +160,17 @@ export function createApp(deps: AppDeps) {
       next();
     });
     // The single-page app, same origin as the API (cookies, CSRF and CSP all line up).
-    // index.html is revalidated on every load so a deploy takes effect at once;
-    // Vite's content-hashed bundles under /assets/ never change, so they are
-    // cached for good. Everything else (the pinned R runtime) for an hour.
+    // Cache headers per file (staticCache.ts): index.html and the R worker revalidated on every load,
+    // Vite's content-hashed bundles and the versioned R package binaries cached for good, the rest
+    // (the pinned R runtime, example data) for an hour.
+    const staticRoot = path.resolve(config.STATIC_DIR);
     app.use(
       express.static(config.STATIC_DIR, {
         index: 'index.html',
         maxAge: '1h',
         setHeaders: (res, filePath) => {
-          // The worker script too: browsers keep a cached copy's headers, so a
-          // CSP change for the worker would otherwise wait out the max-age.
-          if (filePath.endsWith('index.html') || filePath.endsWith('webr-worker.js'))
-            res.setHeader('Cache-Control', 'no-cache');
-          else if (filePath.includes(`${path.sep}assets${path.sep}`))
-            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          const cache = staticCacheControl(path.relative(staticRoot, filePath));
+          if (cache) res.setHeader('Cache-Control', cache);
         },
       }),
     );

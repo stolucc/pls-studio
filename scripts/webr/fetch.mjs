@@ -179,6 +179,8 @@ const ROOTS = [
  * the patch in PATCHED applied; GenOrd likewise, from its CRAN source with its
  * patch (the webR repository's build imports cubature, which does not load).
  * Their SHA-256s are those of the files in vendor/.
+ * The server caches every <name>_<version>.tgz for a year (server/src/staticCache.ts): a binary rebuilt at the same
+ * version reaches browsers that cached the old file only under a new file name.
  */
 const VENDOR = join(ROOT, 'scripts', 'webr', 'vendor');
 const vendored = () =>

@@ -24,6 +24,10 @@ beforeAll(async () => {
   writeFileSync(join(staticDir, 'assets', 'index-abc123.js'), 'export {};');
   writeFileSync(join(staticDir, 'webr', 'R.wasm'), Buffer.from([0, 97, 115, 109]));
   writeFileSync(join(staticDir, 'webr', 'webr-worker.js'), 'self.onmessage = () => {};');
+  const contrib = join(staticDir, 'webr', 'repo', 'bin', 'emscripten', 'contrib', '4.6');
+  mkdirSync(contrib, { recursive: true });
+  writeFileSync(join(contrib, 'lavaan_0.6-21.tgz'), Buffer.from([31, 139]));
+  writeFileSync(join(contrib, 'PACKAGES'), 'Package: lavaan\nVersion: 0.6-21\n');
   const config = loadConfig({
     NODE_ENV: 'test',
     DATABASE_URL: TEST_DB,
@@ -78,6 +82,16 @@ describe('static client caching', () => {
     const res = await request(app).get('/assets/index-abc123.js');
     expect(res.status).toBe(200);
     expect(res.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+  });
+
+  it('caches the versioned R package binaries for good, and revalidates their index', async () => {
+    const pkg = await request(app).get('/webr/repo/bin/emscripten/contrib/4.6/lavaan_0.6-21.tgz');
+    expect(pkg.status).toBe(200);
+    expect(pkg.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+    expect(pkg.headers['cross-origin-embedder-policy']).toBe('require-corp');
+    const index = await request(app).get('/webr/repo/bin/emscripten/contrib/4.6/PACKAGES');
+    expect(index.status).toBe(200);
+    expect(index.headers['cache-control']).toBe('no-cache');
   });
 
   it('caches the R runtime for an hour and keeps cross-origin isolation', async () => {
