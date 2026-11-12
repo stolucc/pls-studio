@@ -64,28 +64,42 @@ const relative = (tol: number) => (q: string, got: number | null, want: number |
 };
 const round = (x: number, d: number) => Math.round(x * 10 ** d) / 10 ** d;
 
-/** Every number of a result against a reference case. */
-function compare(label: string, r: PsemResult, t: RefCase, tol: number) {
-  const rel = relative(tol);
+/** A looser relative tolerance for the equations of some responses (and the sums over all equations). */
+interface Looser {
+  responses: string[];
+  tol: number;
+}
+
+/**
+ * Every number of a result against a reference case. With `looser`, the numbers of its responses' equations (their
+ * tests of directed separation, coefficients and R²) and the sums over all equations (Fisher's C, AIC) are compared
+ * within its tolerance, and the values summary(), fisherC() and coefs() print within the tolerance of the unrounded
+ * value and half a printed unit instead of exactly.
+ */
+function compare(label: string, r: PsemResult, t: RefCase, tol: number, looser?: Looser) {
+  const tolOf = (response?: string) =>
+    looser && (response === undefined || looser.responses.includes(response)) ? looser.tol : tol;
+  const rel = (response?: string) => relative(tolOf(response));
+  // (as printed, rounded to `d` decimals)
+  const printed = (q: string, got: number, want: number, d: number, response?: string) =>
+    looser
+      ? near(q, round(got, d), want, tolOf(response) * Math.max(1, Math.abs(want)) + 10 ** -d / 2)
+      : same(q, round(got, d), want);
   same(`${label}: claims`, r.claims.length, t.claims.length);
   r.claims.forEach((k, i) => {
     const text = `${k.y} ~ ${[k.x, ...k.given].join(' + ')}`;
     same(`${label}: claim ${i + 1}`, text, t.claims[i].claim);
-    rel(`${label}: ${text}: df`, k.df, t.claims[i].df);
-    rel(`${label}: ${text}: statistic`, k.stat, t.claims[i].stat);
-    rel(`${label}: ${text}: p`, k.p, t.claims[i].p);
+    rel(k.y)(`${label}: ${text}: df`, k.df, t.claims[i].df);
+    rel(k.y)(`${label}: ${text}: statistic`, k.stat, t.claims[i].stat);
+    rel(k.y)(`${label}: ${text}: p`, k.p, t.claims[i].p);
   });
-  rel(`${label}: Fisher's C`, r.fisherC, t.fisherC);
-  same(
-    `${label}: Fisher's C as fisherC() prints it`,
-    round(r.fisherC, 3),
-    t.fisherRounded['Fisher.C'],
-  );
+  rel()(`${label}: Fisher's C`, r.fisherC, t.fisherC);
+  printed(`${label}: Fisher's C as fisherC() prints it`, r.fisherC, t.fisherRounded['Fisher.C'], 3);
   same(`${label}: df`, r.df, t.fisherRounded.df);
-  same(`${label}: p as fisherC() prints it`, round(r.p!, 3), t.fisherRounded['P.Value']);
-  rel(`${label}: AIC`, r.aic, t.aic);
-  rel(`${label}: AICc`, r.aicc, t.aicc);
-  same(`${label}: AIC as summary() prints it`, round(r.aic, 3), t.aicRounded.AIC);
+  printed(`${label}: p as fisherC() prints it`, r.p!, t.fisherRounded['P.Value'], 3);
+  rel()(`${label}: AIC`, r.aic, t.aic);
+  rel()(`${label}: AICc`, r.aicc, t.aicc);
+  printed(`${label}: AIC as summary() prints it`, r.aic, t.aicRounded.AIC, 3);
   same(`${label}: K`, r.k, t.aicRounded.K);
   same(`${label}: n`, r.n, t.aicRounded.n);
   same(`${label}: coefficients`, r.coefs.length, t.coefs.length);
@@ -93,23 +107,25 @@ function compare(label: string, r: PsemResult, t: RefCase, tol: number) {
     const x = t.coefs[i];
     const what = `${label}: ${k.correlation ? '~~' : ''}${k.response} ← ${k.predictor}`;
     expect(`${k.correlation ? '~~' : ''}${k.response}`).toBe(x.response);
-    rel(`${what}: estimate`, k.est, x.est);
-    rel(`${what}: SE`, k.se, x.se);
-    rel(`${what}: df`, k.df, x.df);
-    rel(`${what}: statistic`, k.stat, x.stat);
-    rel(`${what}: p`, k.p, x.p);
-    rel(`${what}: standardised`, k.std, x.std);
+    const c = rel(k.response);
+    c(`${what}: estimate`, k.est, x.est);
+    c(`${what}: SE`, k.se, x.se);
+    c(`${what}: df`, k.df, x.df);
+    c(`${what}: statistic`, k.stat, x.stat);
+    c(`${what}: p`, k.p, x.p);
+    c(`${what}: standardised`, k.std, x.std);
     if (x.stdRounded !== null)
-      same(`${what}: standardised as coefs() prints it`, round(k.std!, 4), x.stdRounded);
+      printed(`${what}: standardised as coefs() prints it`, k.std!, x.stdRounded, 4, k.response);
   });
   r.r2.forEach((x, i) => {
     const y = t.r2[i];
+    const c = rel(x.response);
     same(`${label}: R² response ${i + 1}`, x.response, y.Response);
-    if (typeof y['R.squared'] === 'number') rel(`${label}: R² ${x.response}`, x.r2, y['R.squared']);
+    if (typeof y['R.squared'] === 'number') c(`${label}: R² ${x.response}`, x.r2, y['R.squared']);
     if (typeof y.Marginal === 'number')
-      rel(`${label}: marginal R² ${x.response}`, x.marginal, y.Marginal);
+      c(`${label}: marginal R² ${x.response}`, x.marginal, y.Marginal);
     if (typeof y.Conditional === 'number')
-      rel(`${label}: conditional R² ${x.response}`, x.conditional, y.Conditional);
+      c(`${label}: conditional R² ${x.response}`, x.conditional, y.Conditional);
   });
 }
 
@@ -173,7 +189,19 @@ describe('piecewise SEM (piecewiseSEM)', () => {
       group: 'site',
       standardize: 'latent.linear',
     });
-    compare('shipley', r, ref.shipley, 1e-5);
+    // Live is fitted by glmer, whose optimum and standard errors differ between lme4 versions: desktop R's reference
+    // is lme4 2.1.0, webR's library has lme4 2.0-6 (the newest built for webR). The z statistic of Live ← Growth is
+    // 7.90865 in desktop R and 7.93202 in webR (3e-3 relative), the claim Live ~ lat + Growth's 0.857069 and 0.858047
+    // (1e-3); desktop R with lme4 2.0-6 gives 7.93156 and 0.858075, within 6e-5 of webR (glmer's standard errors come
+    // from a finite-difference Hessian). The lmer equations agree to 1e-10. Until webR's lme4 is 2.1.0, Live's numbers
+    // and the sums over the equations are compared in webR within 5e-3 relative.
+    compare(
+      'shipley',
+      r,
+      ref.shipley,
+      1e-5,
+      process.env.PS_NATIVE_R ? undefined : { responses: ['Live'], tol: 5e-3 },
+    );
     expect(r.engine.lme4).toBeTruthy();
   }, 600_000);
 
