@@ -29,13 +29,20 @@ const data = (f: Frame): Dataset => ({
 // WebAssembly's floating-point differences, ~1e-12; 1e-6 relative leaves room.
 const close = (what: string, a: number | null | undefined, b: number) =>
   near(what, a ?? NaN, b, 1e-6 * Math.max(1, Math.abs(b)));
-function boot(what: string, got: BootInterval | null | undefined, want: BootInterval) {
+function boot(
+  what: string,
+  got: BootInterval | null | undefined,
+  want: BootInterval,
+  bcaTolerance?: number,
+) {
   close(`${what} estimate`, got?.estimate, want.estimate);
   close(`${what} bootstrap SE`, got?.se, want.se);
   close(`${what} percentile low`, got?.percLow, want.percLow);
   close(`${what} percentile high`, got?.percHigh, want.percHigh);
-  close(`${what} BCa low`, got?.bcaLow, want.bcaLow);
-  close(`${what} BCa high`, got?.bcaHigh, want.bcaHigh);
+  const bca = (q: string, a: number | null | undefined, b: number) =>
+    bcaTolerance === undefined ? close(q, a, b) : near(q, a ?? NaN, b, bcaTolerance);
+  bca(`${what} BCa low`, got?.bcaLow, want.bcaLow);
+  bca(`${what} BCa high`, got?.bcaHigh, want.bcaHigh);
 }
 /** A Monte Carlo p-value against the exact one: within four standard errors of the resampling. */
 function monteCarlo(what: string, p: number, exact: number, resamples: number) {
@@ -119,7 +126,12 @@ describe('robust and resampling t-tests', () => {
     close('trimmed df', x.trimmed!.df, w.trimmed.df);
     close('trimmed p', x.trimmed!.p, w.trimmed.p);
     close('trimmed CI high', x.trimmed!.ciHigh, w.trimmed.ciHigh);
-    boot('mean', x.bootstrap, w.bootstrap);
+    // BCa's bias correction counts the resampled means strictly below the sample mean (boot 1.3.32, boot.ci). With
+    // ten values recorded to 0.1, many resampled means equal the sample mean, 0.75, exactly, and whether each counts
+    // as below it is decided by the last bit of mean(): R accumulates in long double, which is 64 bits in desktop R
+    // 4.6.2 on Apple silicon and 128 bits in webR 0.6.0 (R 4.6.0, WebAssembly), so desktop R counts 1031 below and
+    // webR 1028 on the same 2,000 draws. The endpoints then move by up to one step of the resampled means' grid (0.01).
+    boot('mean', x.bootstrap, w.bootstrap, 0.01);
     close('permutation p', x.permutation!.p, w.permutation.p);
     monteCarlo('permutation p', x.permutation!.p, w.permutation.exact, ref.resamples);
   }, 600_000);
