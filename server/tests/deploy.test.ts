@@ -23,6 +23,7 @@ beforeAll(async () => {
   writeFileSync(join(staticDir, 'index.html'), '<!doctype html><title>PLS Studio</title>');
   writeFileSync(join(staticDir, 'assets', 'index-abc123.js'), 'export {};');
   writeFileSync(join(staticDir, 'webr', 'R.wasm'), Buffer.from([0, 97, 115, 109]));
+  writeFileSync(join(staticDir, 'webr', 'libRlapack.so'), Buffer.from([0, 97, 115, 109]));
   writeFileSync(join(staticDir, 'webr', 'webr-worker.js'), 'self.onmessage = () => {};');
   const contrib = join(staticDir, 'webr', 'repo', 'bin', 'emscripten', 'contrib', '4.6');
   mkdirSync(contrib, { recursive: true });
@@ -99,6 +100,15 @@ describe('static client caching', () => {
     expect(res.status).toBe(200);
     expect(res.headers['cache-control']).toBe('public, max-age=3600');
     expect(res.headers['cross-origin-embedder-policy']).toBe('require-corp');
+  });
+});
+
+describe('static client compression', () => {
+  it('serves the R shared libraries as WebAssembly (Caddy compresses that type, not octet-stream)', async () => {
+    const res = await request(app).get('/webr/libRlapack.so');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toBe('application/wasm');
+    expect(res.headers['cache-control']).toBe('public, max-age=3600');
   });
 });
 

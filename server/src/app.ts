@@ -17,7 +17,7 @@ import { projectRoutes } from './routes/projects.ts';
 import type { Mailer } from './services/mailer.ts';
 import { AccessError } from './services/projects.ts';
 import { AuthError, getUser } from './services/users.ts';
-import { staticCacheControl } from './staticCache.ts';
+import { staticCacheControl, staticContentType } from './staticCache.ts';
 
 declare module 'express-session' {
   interface SessionData {
@@ -162,15 +162,19 @@ export function createApp(deps: AppDeps) {
     // The single-page app, same origin as the API (cookies, CSRF and CSP all line up).
     // Cache headers per file (staticCache.ts): index.html and the R worker revalidated on every load,
     // Vite's content-hashed bundles and the versioned R package binaries cached for good, the rest
-    // (the pinned R runtime, example data) for an hour.
+    // (the pinned R runtime, example data) for an hour; the R shared libraries labelled as WebAssembly, so Caddy
+    // compresses them.
     const staticRoot = path.resolve(config.STATIC_DIR);
     app.use(
       express.static(config.STATIC_DIR, {
         index: 'index.html',
         maxAge: '1h',
         setHeaders: (res, filePath) => {
-          const cache = staticCacheControl(path.relative(staticRoot, filePath));
+          const relative = path.relative(staticRoot, filePath);
+          const cache = staticCacheControl(relative);
           if (cache) res.setHeader('Cache-Control', cache);
+          const type = staticContentType(relative);
+          if (type) res.setHeader('Content-Type', type);
         },
       }),
     );

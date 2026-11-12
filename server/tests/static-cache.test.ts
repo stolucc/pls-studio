@@ -1,6 +1,6 @@
 // Cache-Control per static file (staticCache.ts): versioned files for a year, their indexes and the page revalidated.
 import { describe, expect, it } from 'vitest';
-import { IMMUTABLE, NO_CACHE, staticCacheControl } from '../src/staticCache.ts';
+import { IMMUTABLE, NO_CACHE, staticCacheControl, staticContentType } from '../src/staticCache.ts';
 
 const contrib = 'webr/repo/bin/emscripten/contrib/4.6';
 
@@ -47,5 +47,24 @@ describe('staticCacheControl', () => {
     expect(staticCacheControl('webr\\repo\\bin\\emscripten\\contrib\\4.6\\lavaan_0.6-21.tgz')).toBe(
       IMMUTABLE,
     );
+  });
+});
+
+describe('staticContentType', () => {
+  it('labels the R shared libraries as WebAssembly, so the proxy compresses them', () => {
+    expect(staticContentType('webr/libRblas.so')).toBe('application/wasm');
+    expect(staticContentType('webr/libRlapack.so')).toBe('application/wasm');
+    expect(staticContentType('webr\\libRlapack.so')).toBe('application/wasm');
+  });
+
+  it('leaves every other file to its extension', () => {
+    for (const f of [
+      'webr/R.wasm',
+      'webr/R.js',
+      'libRblas.so',
+      'webr/vfs/usr/lib/libx.so',
+      'assets/a.so.js',
+    ])
+      expect(staticContentType(f), f).toBeNull();
   });
 });

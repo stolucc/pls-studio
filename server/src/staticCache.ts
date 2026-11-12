@@ -33,3 +33,14 @@ export function staticCacheControl(relativePath: string): string | null {
   if (p.startsWith('assets/') || PACKAGE_BINARY.test(p)) return IMMUTABLE;
   return null;
 }
+
+// The R runtime's shared libraries (webr/libRblas.so, libRlapack.so) are WebAssembly modules, but their extension maps
+// to application/octet-stream, which Caddy's `encode` does not compress. Labelled application/wasm (what they are) they
+// travel compressed: libRlapack.so drops from 1.8 MB to about 0.7 MB.
+const R_SHARED_LIBRARY = /^webr\/[^/]+\.so$/;
+
+/** The Content-Type for a static file when its extension would give the wrong one, or null for the default. */
+export function staticContentType(relativePath: string): string | null {
+  const p = relativePath.replace(/\\/g, '/');
+  return R_SHARED_LIBRARY.test(p) ? 'application/wasm' : null;
+}
