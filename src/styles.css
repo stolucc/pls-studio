@@ -205,6 +205,8 @@ button, input, select { font: inherit; color: inherit; }
 /* ---------- side panels ---------- */
 .panel { background: var(--surface); display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .panel.left { border-right: 1px solid var(--border); }
+/* Room below the last row for the R indicator in the bottom-left corner (.r-pill-region), which stays on screen. */
+.panel.left .panel-body { padding-bottom: 52px; }
 .panel.right { border-left: 1px solid var(--border); }
 .panel-head {
   display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
@@ -467,13 +469,14 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .r-pill {
   position: relative; display: inline-flex; align-items: center; gap: 2px; pointer-events: auto; max-width: 100%;
   background: #1d2433; color: #f1f3f7; border-radius: 99px; box-shadow: var(--shadow); font-size: 12px;
-  animation: fade 0.2s; transition: opacity 0.4s;
+  animation: fade 0.2s;
 }
-.r-pill.fading { opacity: 0; }
+/* Ready: stays on screen, so quieter than the loading and error states. */
+.r-pill.ready { background: var(--surface); color: var(--text-2); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
 .r-pill-main { display: inline-flex; align-items: center; gap: 7px; min-width: 0; border: none; background: none; color: inherit; cursor: pointer; padding: 5px 11px; border-radius: 99px; }
 .r-pill-main:focus-visible, .r-pill-close:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 1px; }
 .r-pill-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.r-pill.ready svg { color: #6ee7b7; flex: none; }
+.r-pill.ready svg { color: var(--good); flex: none; }
 .r-pill.error svg { color: #ff8a80; flex: none; }
 .r-pill.error .r-pill-main { padding-right: 4px; }
 .r-pill-close { border: none; background: none; color: #8a94a6; cursor: pointer; padding: 4px 9px 4px 4px; display: grid; place-items: center; border-radius: 99px; }
@@ -488,7 +491,7 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .r-pill-about p + p { margin-top: 6px; color: #c4cad6; }
 @media (max-width: 600px) { .r-pill-region { left: 8px; bottom: 8px; max-width: calc(100vw - 16px); } .r-pill { font-size: 11px; } }
 @media (prefers-reduced-motion: reduce) {
-  .r-pill { animation: none; transition: none; }
+  .r-pill { animation: none; }
   .r-pill-spinner { animation: none; border-color: #a5b4fc; }
 }
 @keyframes fade { from { opacity: 0; } }

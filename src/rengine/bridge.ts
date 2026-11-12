@@ -431,6 +431,22 @@ export async function rCall<T>(fn: string, req: unknown, pkg: RPackage): Promise
   );
 }
 
+/**
+ * The packages the background warm-up loads (warmup.ts): PLS by cSEM and CB-SEM by lavaan, which most examples and
+ * first calculations use. Other packages still load when a calculation needs them.
+ */
+export const WARM_UP_PACKAGES: readonly string[] = [
+  ...new Set([...R_PACKAGES.cSEM, ...R_PACKAGES.lavaan]),
+];
+
+/**
+ * Start R in the browser and load the common packages and the bridge's R code, ahead of the first calculation. A
+ * calculation started meanwhile waits for it (R runs one thing at a time) and then finds them loaded.
+ */
+export async function warmUpRPackages(): Promise<void> {
+  await withR([...WARM_UP_PACKAGES], SOURCES, async () => undefined);
+}
+
 /** As rCall, in R session `session` (parallel work; 0 is the main session). The helper has its own pool. */
 export async function rCallOn<T>(
   session: number,

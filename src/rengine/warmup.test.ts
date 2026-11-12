@@ -1,5 +1,5 @@
-// Warming up R in the background (warmup.ts, runtime.ts warmUpR): once, only for R in the browser on a visible page
-// that does not ask to save data. Its progress goes to useR (the R status indicator); a failure is reported there, never
+// Warming up R in the background (warmup.ts, runtime.ts warmUpR): once, right after the app renders, only for R in the
+// browser on a page that does not ask to save data. Its progress goes to useR (the R status indicator); a failure is reported there, never
 // thrown, and the next calculation starts R itself.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -56,11 +56,11 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-/** Schedule with the idle moment under the test's control. */
+/** Schedule with the moment it is due under the test's control. */
 function schedule(engineIsR = true, start = vi.fn(async () => undefined)) {
-  let idle: (() => void) | null = null;
-  scheduleRWarmUp({ engineIsR: () => engineIsR, start, whenIdle: (t) => (idle = t) });
-  return { start, idle: () => idle?.() };
+  let due: (() => void) | null = null;
+  scheduleRWarmUp({ engineIsR: () => engineIsR, start, whenDue: (t) => (due = t) });
+  return { start, idle: () => due?.() };
 }
 
 describe('scheduleRWarmUp', () => {
@@ -74,24 +74,18 @@ describe('scheduleRWarmUp', () => {
     expect(again.start).not.toHaveBeenCalled();
   });
 
-  it('waits for the load event, a pause and an idle moment', () => {
+  it('starts right after the current render, without waiting for the load event or an idle moment', () => {
     vi.useFakeTimers();
     page.readyState = 'loading';
     const start = vi.fn(async () => undefined);
-    const idleCallback = vi.fn((task: () => void) => task());
-    vi.stubGlobal('requestIdleCallback', idleCallback);
     scheduleRWarmUp({ engineIsR: () => true, start });
-    const [event, onLoad] = (window.addEventListener as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(event).toBe('load');
-    onLoad();
-    vi.advanceTimersByTime(1999);
     expect(start).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
-    expect(idleCallback).toHaveBeenCalledWith(expect.any(Function), { timeout: 10_000 });
+    vi.advanceTimersByTime(0);
     expect(start).toHaveBeenCalledTimes(1);
+    expect(window.addEventListener).not.toHaveBeenCalled();
   });
 
-  it('does not start R with the desktop helper, the built-in engine, data saving or a hidden page', () => {
+  it('does not start R with the desktop helper, the built-in engine, data saving or no isolation', () => {
     useCompute.setState({ backend: 'helper' });
     const helper = schedule();
     helper.idle();
@@ -103,11 +97,7 @@ describe('scheduleRWarmUp', () => {
     builtin.idle();
     expect(builtin.start).not.toHaveBeenCalled();
 
-    for (const change of [
-      () => (page.saveData = true),
-      () => (page.visibilityState = 'hidden'),
-      () => (page.isolated = false),
-    ]) {
+    for (const change of [() => (page.saveData = true), () => (page.isolated = false)]) {
       page = { visibilityState: 'visible', readyState: 'complete', isolated: true };
       change();
       resetWarmUp();
@@ -116,6 +106,9 @@ describe('scheduleRWarmUp', () => {
       expect(s.start).not.toHaveBeenCalled();
     }
     page = { visibilityState: 'visible', readyState: 'complete', isolated: true, saveData: false };
+    expect(shouldWarmUp(() => true)).toBe(true);
+    // (a page opened in a background tab warms up too, so R is ready when the user turns to it)
+    page.visibilityState = 'hidden';
     expect(shouldWarmUp(() => true)).toBe(true);
   });
 
@@ -139,7 +132,7 @@ describe('scheduleRWarmUp', () => {
     expect(() =>
       scheduleRWarmUp({
         engineIsR: () => true,
-        whenIdle: () => {
+        whenDue: () => {
           throw new Error('no timers');
         },
       }),

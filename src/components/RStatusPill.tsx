@@ -1,22 +1,21 @@
 // A small, non-blocking indicator of R in the browser (webR) in the bottom-left corner: while R starts (the background
-// warm-up after load, or a first calculation), while it loads packages, "R ready" briefly afterwards, and a short note
-// when R could not load. The app stays usable throughout. Hidden when the desktop helper runs R, and when R is not
-// being loaded at all (the built-in engine, or a warm-up that was skipped).
+// warm-up right after the app renders, or a first calculation), while it loads packages, then a quiet "R environment
+// ready" that stays, and a short note when R could not load. The app stays usable throughout. Hidden when the desktop
+// helper runs R, and when R has not been started at all (the built-in engine, or a warm-up that was skipped).
 //
 // Download progress is not shown: webR downloads its runtime and packages inside its Web Worker, whose requests the
 // page cannot measure, so the indicator names the phase only.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useCompute } from '../rengine/compute';
 import { useR } from '../rengine/status';
 import { IconAlert, IconCheck, IconX } from './icons';
 
-/** How long "R ready" stays, and how long it takes to fade out. */
-export const READY_MS = 2500;
-export const FADE_MS = 400;
-
 export const R_EXPLANATION =
   'PLS Studio runs R in your browser (webR). The first visit downloads about 20 MB; later visits use the browser’s cache.';
+
+export const R_READY_EXPLANATION =
+  'R and the packages most examples use (cSEM, lavaan) are loaded, so calculations start at once. Other packages load when a calculation needs them.';
 
 /** The first sentence of an error message, without a stack trace, at most 160 characters. */
 export function shortError(message: string): string {
@@ -34,35 +33,17 @@ export function RStatusPill() {
   const status = useR((s) => s.status);
   const message = useR((s) => s.message);
   const helper = useCompute((s) => s.backend === 'helper');
-  // "R ready" only follows a loading phase this indicator showed (not, say, a status reset).
-  const sawLoading = useRef(false);
-  const [readyPhase, setReadyPhase] = useState<'showing' | 'fading' | 'done'>('done');
   const [dismissed, setDismissed] = useState(false);
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    setDismissed(false);
-    if (status === 'loading') {
-      sawLoading.current = true;
-      setReadyPhase('done');
-      return;
-    }
-    if (status !== 'ready' || !sawLoading.current) return;
-    sawLoading.current = false;
-    setReadyPhase('showing');
-    const fade = setTimeout(() => setReadyPhase('fading'), READY_MS);
-    const done = setTimeout(() => setReadyPhase('done'), READY_MS + FADE_MS);
-    return () => {
-      clearTimeout(fade);
-      clearTimeout(done);
-    };
-  }, [status, message]);
+  // A dismissed error comes back with the next attempt.
+  useEffect(() => setDismissed(false), [status, message]);
 
   let shown: Shown | null = null;
   if (helper || dismissed) shown = null;
   else if (status === 'loading') shown = { kind: 'loading', text: message || 'Loading R…' };
   else if (status === 'error') shown = { kind: 'error', detail: shortError(message) };
-  else if (status === 'ready' && readyPhase !== 'done') shown = { kind: 'ready' };
+  else if (status === 'ready') shown = { kind: 'ready' };
 
   // The explanation closes with the indicator.
   const visible = shown !== null;
@@ -75,7 +56,7 @@ export function RStatusPill() {
     <div className="r-pill-region" role="status" aria-live="polite">
       {shown && (
         <div
-          className={`r-pill ${shown.kind}${shown.kind === 'ready' && readyPhase === 'fading' ? ' fading' : ''}`}
+          className={`r-pill ${shown.kind}`}
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => setOpen(false)}
         >
@@ -91,7 +72,7 @@ export function RStatusPill() {
             {shown.kind === 'error' && <IconAlert size={13} />}
             <span className="r-pill-text">
               {shown.kind === 'loading' && shown.text}
-              {shown.kind === 'ready' && 'R ready'}
+              {shown.kind === 'ready' && 'R environment ready'}
               {shown.kind === 'error' && 'R could not load'}
             </span>
           </button>
@@ -109,6 +90,7 @@ export function RStatusPill() {
             // (not announced: it is opened on purpose, and read where it is)
             <div className="r-pill-about" id="r-pill-about" aria-live="off">
               {shown.kind === 'error' && <p>{shown.detail} The next calculation tries again.</p>}
+              {shown.kind === 'ready' && <p>{R_READY_EXPLANATION}</p>}
               <p>{R_EXPLANATION}</p>
             </div>
           )}

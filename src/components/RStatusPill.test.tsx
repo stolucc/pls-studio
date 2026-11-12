@@ -1,13 +1,14 @@
 // @vitest-environment happy-dom
-// The R status indicator follows useR: R starting (the background warm-up), packages loading, "R ready" briefly, a
-// short error; hidden with the desktop helper, and when R is not being loaded (no warm-up, the built-in engine).
+// The R status indicator follows useR: R starting (the background warm-up), packages loading, then "R environment
+// ready" for good, a short error; hidden with the desktop helper, and when R has not been started (no warm-up, the
+// built-in engine).
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useCompute } from '../rengine/compute';
 import { R_STARTING, useR } from '../rengine/status';
-import { FADE_MS, READY_MS, RStatusPill, R_EXPLANATION, shortError } from './RStatusPill';
+import { RStatusPill, R_EXPLANATION, R_READY_EXPLANATION, shortError } from './RStatusPill';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -40,7 +41,7 @@ describe('RStatusPill', () => {
     expect(pill()).toBeNull();
   });
 
-  it('shows the warm-up, then the packages, then "R ready" briefly, fading out', () => {
+  it('shows the warm-up, then the packages, then "R environment ready", which stays', () => {
     setR('loading', R_STARTING);
     expect(region().textContent).toBe('Loading R in your browser…');
     expect(pill()!.querySelector('.r-pill-spinner')).not.toBeNull();
@@ -49,15 +50,23 @@ describe('RStatusPill', () => {
     expect(region().textContent).toBe('Loading R packages: lavaan…');
 
     setR('ready');
-    expect(region().textContent).toBe('R ready');
-    act(() => vi.advanceTimersByTime(READY_MS));
-    expect(pill()!.classList.contains('fading')).toBe(true);
-    act(() => vi.advanceTimersByTime(FADE_MS));
-    expect(pill()).toBeNull();
+    expect(region().textContent).toBe('R environment ready');
+    expect(pill()!.classList.contains('ready')).toBe(true);
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(region().textContent).toBe('R environment ready');
   });
 
-  it('does not announce "R ready" without a loading phase before it', () => {
+  it('says what is ready on hover', () => {
     setR('ready');
+    act(() => pill()!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+    const about = host.querySelector('.r-pill-about')!.textContent!;
+    expect(about).toContain(R_READY_EXPLANATION);
+    expect(about).toContain(R_EXPLANATION);
+  });
+
+  it('goes away when R is shut down (a fresh session starts it again)', () => {
+    setR('ready');
+    setR('idle');
     expect(pill()).toBeNull();
   });
 
