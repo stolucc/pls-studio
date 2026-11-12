@@ -1,7 +1,9 @@
 // Starting R in the browser in the background once the app is idle after loading, so that the first calculation does
 // not wait for webR's start-up (downloading and starting the R runtime; packages still install when a calculation
 // needs them). Only for R in the browser — not with the desktop helper, not with the built-in engine — and not when
-// the browser asks to save data or the page is in the background. Silent: no toast, no status, no error.
+// the browser asks to save data or the page is in the background. Its progress shows in the R status indicator
+// (useR, components/RStatusPill.tsx); it never blocks the app, and a failure is no more than a short note there (the
+// next calculation starts R itself).
 
 import { useCompute } from './compute';
 
@@ -41,7 +43,7 @@ export function shouldWarmUp(engineIsR: () => boolean): boolean {
 
 let scheduled = false;
 
-/** Warm up R once the app is idle (once per page; later calls do nothing). Never throws, never reports. */
+/** Warm up R once the app is idle (once per page; later calls do nothing). Never throws (a failure shows in useR). */
 export function scheduleRWarmUp(o: WarmUpOptions): void {
   if (scheduled) return;
   scheduled = true;

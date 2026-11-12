@@ -1,0 +1,25 @@
+/* The start-up splash (index.html): shown from the first paint until React mounts and replaces #root's contents.
+   An external stylesheet, not an inline <style>, so that the page needs nothing inline beyond what the CSP allows. */
+.splash {
+  position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  background: #f4f5f8; color: #121826; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.splash-brand { display: flex; align-items: center; gap: 11px; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+.splash-mark {
+  width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; color: #fff;
+  background: linear-gradient(135deg, #6366f1, #4338ca); box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+}
+.splash-text { font-size: 13px; color: #4a5468; }
+.splash-bar { width: 160px; height: 4px; border-radius: 99px; background: #e3e6ec; overflow: hidden; }
+.splash-bar span { display: block; width: 35%; height: 100%; border-radius: 99px; background: #4f46e5; animation: splash-slide 1.2s ease-in-out infinite; }
+@keyframes splash-slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+.splash-noscript { font-size: 13px; color: #4a5468; max-width: 36ch; text-align: center; }
+@media (prefers-color-scheme: dark) {
+  .splash { background: #121826; color: #f1f3f7; }
+  .splash-text, .splash-noscript { color: #c4cad6; }
+  .splash-bar { background: #2a3245; }
+  .splash-bar span { background: #818cf8; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .splash-bar span { animation: none; width: 100%; opacity: 0.5; }
+}

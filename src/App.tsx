@@ -10,6 +10,7 @@ import { DataPanel } from './components/DataPanel';
 import { Inspector } from './components/Inspector';
 import { ConfirmModal, Toasts } from './components/Overlays';
 import { ResultsPanel } from './components/ResultsPanel';
+import { RStatusPill } from './components/RStatusPill';
 import { TopBar } from './components/TopBar';
 import { EXAMPLES, HomeScreen } from './components/HomeScreen';
 import { ValidationPage } from './components/validation/ValidationPage';
@@ -162,6 +163,7 @@ export default function App() {
         />
         <ConfirmModal />
         <Toasts />
+        <RStatusPill />
       </>
     );
   }
@@ -173,6 +175,7 @@ export default function App() {
         <AuthDialog />
         <ConfirmModal />
         <Toasts />
+        <RStatusPill />
       </>
     );
   }
@@ -200,6 +203,7 @@ export default function App() {
       <AuthDialog />
       <ConfirmModal />
       <Toasts />
+      <RStatusPill />
     </ReactFlowProvider>
   );
 }

@@ -462,6 +462,35 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .toast.success .ticon { color: #6ee7b7; }
 .toast.info .ticon { color: #a5b4fc; }
 .toast button { background: none; border: none; color: #8a94a6; cursor: pointer; padding: 0; margin-left: 4px; }
+/* R status indicator (RStatusPill.tsx): bottom-left, small, never in the way; the toasts own the bottom-right. */
+.r-pill-region { position: fixed; left: 12px; bottom: 12px; z-index: 110; max-width: calc(100vw - 24px); pointer-events: none; }
+.r-pill {
+  position: relative; display: inline-flex; align-items: center; gap: 2px; pointer-events: auto; max-width: 100%;
+  background: #1d2433; color: #f1f3f7; border-radius: 99px; box-shadow: var(--shadow); font-size: 12px;
+  animation: fade 0.2s; transition: opacity 0.4s;
+}
+.r-pill.fading { opacity: 0; }
+.r-pill-main { display: inline-flex; align-items: center; gap: 7px; min-width: 0; border: none; background: none; color: inherit; cursor: pointer; padding: 5px 11px; border-radius: 99px; }
+.r-pill-main:focus-visible, .r-pill-close:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 1px; }
+.r-pill-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.r-pill.ready svg { color: #6ee7b7; flex: none; }
+.r-pill.error svg { color: #ff8a80; flex: none; }
+.r-pill.error .r-pill-main { padding-right: 4px; }
+.r-pill-close { border: none; background: none; color: #8a94a6; cursor: pointer; padding: 4px 9px 4px 4px; display: grid; place-items: center; border-radius: 99px; }
+.r-pill-close svg { color: inherit; }
+.r-pill-spinner { width: 11px; height: 11px; flex: none; border-radius: 50%; border: 2px solid rgba(241, 243, 247, 0.25); border-top-color: #a5b4fc; animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.r-pill-about {
+  position: absolute; left: 0; bottom: calc(100% + 6px); width: min(300px, calc(100vw - 24px)); padding: 10px 12px;
+  background: #1d2433; color: #f1f3f7; border-radius: 10px; box-shadow: var(--shadow-lg); line-height: 1.45;
+}
+.r-pill-about p { margin: 0; }
+.r-pill-about p + p { margin-top: 6px; color: #c4cad6; }
+@media (max-width: 600px) { .r-pill-region { left: 8px; bottom: 8px; max-width: calc(100vw - 16px); } .r-pill { font-size: 11px; } }
+@media (prefers-reduced-motion: reduce) {
+  .r-pill { animation: none; transition: none; }
+  .r-pill-spinner { animation: none; border-color: #a5b4fc; }
+}
 @keyframes fade { from { opacity: 0; } }
 @keyframes pop { from { opacity: 0; transform: translateY(4px) scale(0.98); } }
 

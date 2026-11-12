@@ -1,5 +1,6 @@
 // Warming up R in the background (warmup.ts, runtime.ts warmUpR): once, only for R in the browser on a visible page
-// that does not ask to save data, and silently — a failure shows nothing and the next calculation starts R itself.
+// that does not ask to save data. Its progress goes to useR (the R status indicator); a failure is reported there, never
+// thrown, and the next calculation starts R itself.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -147,23 +148,29 @@ describe('scheduleRWarmUp', () => {
 });
 
 describe('warmUpR', () => {
-  it('starts the main R session without telling the UI, records R’s versions, and starts it only once', async () => {
+  it('reports its progress in useR, records R’s versions, and starts R only once', async () => {
     const { warmUpR } = await import('./runtime');
+    const { R_STARTING } = await import('./status');
     useR.setState({ status: 'idle', message: '', versions: {} });
-    const statuses: string[] = [];
-    const unsubscribe = useR.subscribe((s) => statuses.push(s.status));
+    const seen: string[] = [];
+    const unsubscribe = useR.subscribe((s) => seen.push(`${s.status}:${s.message}`));
 
-    // A failed start: no error status, and the next start tries again.
+    // A failed start: an error status with webR's message, and the next start tries again.
     failInit = true;
     await expect(warmUpR()).rejects.toThrow('404');
-    expect(useR.getState().status).toBe('idle');
+    expect(useR.getState()).toMatchObject({ status: 'error', message: 'R.wasm: 404' });
 
     failInit = false;
     await warmUpR();
     await warmUpR();
     unsubscribe();
     expect(created).toHaveLength(2);
-    expect(statuses.every((s) => s === 'idle')).toBe(true);
+    expect(seen).toEqual([
+      `loading:${R_STARTING}`,
+      'error:R.wasm: 404',
+      `loading:${R_STARTING}`,
+      'ready:',
+    ]);
     expect(useR.getState().versions).toMatchObject({ R: '4.6.2', webR: '0.6.0' });
   });
 });

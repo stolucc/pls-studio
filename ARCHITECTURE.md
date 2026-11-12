@@ -195,7 +195,14 @@ itself compiled to WebAssembly, with a JavaScript API around it. Concretely, for
 
 ### 5.1 Loading R
 
-`src/rengine/runtime.ts` starts webR lazily: the first call that needs R triggers it. Every
+`src/rengine/runtime.ts` starts webR lazily: the first call that needs R triggers it, or the
+background warm-up (`src/rengine/warmup.ts`: R in the browser only, a couple of seconds after
+the page has loaded and is idle) starts the main session ahead of it. Either way the main
+session reports its phases in `useR` (`src/rengine/status.ts`), shown by the small indicator in
+the bottom-left corner (`src/components/RStatusPill.tsx`: "Loading R in your browser…",
+"Loading R packages: …", "R ready", or a one-line error) and by the results panel. Before the
+JavaScript bundle has loaded, `index.html` shows a static splash (styled by `src/splash.css`,
+no inline script or style, so the CSP stays strict) that React replaces when it mounts. Every
 call goes through `withSession(index, packages, sources, fn)`, which queues work per session
 and does, in order, whatever is still missing:
 
@@ -203,7 +210,7 @@ and does, in order, whatever is still missing:
 withSession(0, ['cSEM'], SOURCES, fn)
   │
   ├─ start(session 0)        new WebR({ baseUrl: '/webr/', repoUrl: '/webr/repo/', channelType: SharedArrayBuffer })
-  │                          await webR.init()               ← downloads R.wasm once; "Starting R…" in the status bar
+  │                          await webR.init()               ← downloads R.wasm once; "Loading R in your browser…"
   │                          options(expressions = 5e5)      ← cSEM's resampling recurses deeper than webR's default
   ├─ installPackages(missing) cSEM and its dependencies from /webr/repo → the Worker's virtual file system
   │                          then: packageVersion() of each, shown in About and with every result
