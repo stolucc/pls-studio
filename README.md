@@ -144,10 +144,12 @@ webR tests with `PS_VALIDATION_DIR` set, then the plain tests listed in `src/val
 the built-in engine against R fixtures, recorded desktop runs) without R, and writes `public/validation.json`
 (`src/validation/`: `record.ts` grades the examples, `setup.ts` records every `toBeCloseTo` and `near()` of the feature
 tests listed in `features.ts`). `npm run validate:evidence:desktop` adds the desktop-only packages' tests (metaSEM,
-semtree, plssem; `evidenceRuns.json` `desktop`), run in desktop R and marked as such. `src/validation/cards.ts` names the
-correctness evidence of every analysis card, every mode of a card, the Model tab's analyses and the built-in engine;
-`cards.test.ts` keeps it complete. The app shows it all as a badge on each example (reproduces published results /
-matches native R / recovers known values / runs as documented), a Validation page with every number compared and an
+semtree, plssem; `evidenceRuns.json` `desktop`), run in desktop R and marked as such. On macOS both keep the machine
+from idle sleep while they run (`caffeinate`; a sleep stalls the tests past their timeouts, and closing the lid on
+battery still sleeps). `src/validation/cards.ts` names the correctness evidence of every analysis card, every mode of a
+card, the Model tab's analyses and the built-in engine; `cards.test.ts` keeps it complete. The app shows it all as a
+badge on each example (reproduces published results / matches native R / recovers known values / runs as documented),
+a Validation page with every number compared and an
 Analyses tab listing every analysis with its evidence, a "Check this browser" self-check that re-runs ten examples and
 compares their digests, and a badge on the results of an unmodified example. `src/validation/evidence.test.ts` fails
 when the record is incomplete (an example, test file or analysis without checks), has a failed check, is older than an
