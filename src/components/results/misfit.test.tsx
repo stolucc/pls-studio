@@ -105,6 +105,10 @@ describe('fit-index guidance', () => {
       n: 301,
       iterations: 30,
       warnings: [],
+      // (the fit tab also holds the admissibility check, which reads the estimates)
+      estimates: [],
+      constructs: [],
+      indicators: [],
     } as unknown as CbResult;
     const out = renderToStaticMarkup(<CbTab tab="fit" cb={cb} boot={null} />);
     expect(out).toContain('Report the second column (Robust / scaled)');
