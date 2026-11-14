@@ -110,6 +110,7 @@ export function googleRoutes(deps: AppDeps, strict: RequestHandler) {
       const finish = async (user: users.User) => {
         if (user.totp_enabled) {
           req.session.pendingTotpUser = user.id; // second factor required
+          req.session.pendingTotpAt = Date.now();
           return req.session.save(() => res.redirect('/?auth=totp'));
         }
         await establishSession(req, res, user.id, secure);

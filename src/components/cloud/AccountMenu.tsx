@@ -41,7 +41,12 @@ function TotpSetup({ onClose }: { onClose: () => void }) {
   const submit = async () => {
     setError(null);
     try {
-      if (user.totp_enabled) await api.post('/api/auth/totp/disable', { password });
+      // (an account without a password, signed in with Google, confirms with a code)
+      if (user.totp_enabled)
+        await api.post(
+          '/api/auth/totp/disable',
+          user.has_password ? { password } : { code: code.trim() },
+        );
       else await api.post('/api/auth/totp/enable', { code });
       await refresh();
       useStore
@@ -67,7 +72,25 @@ function TotpSetup({ onClose }: { onClose: () => void }) {
         onMouseDown={(e) => e.stopPropagation()}
       >
         <h3>Two-factor authentication</h3>
-        {user.totp_enabled ? (
+        {user.totp_enabled && !user.has_password ? (
+          <>
+            <p>
+              Two-factor authentication is on. Enter the code from your authenticator app to turn it
+              off.
+            </p>
+            <div className="field">
+              <input
+                className="input num"
+                inputMode="numeric"
+                maxLength={6}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                aria-label="Authentication code"
+                autoComplete="one-time-code"
+              />
+            </div>
+          </>
+        ) : user.totp_enabled ? (
           <>
             <p>Two-factor authentication is on. Enter your password to turn it off.</p>
             <div className="field">

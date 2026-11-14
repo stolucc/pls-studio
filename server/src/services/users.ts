@@ -59,9 +59,12 @@ export class AuthError extends Error {
 }
 
 /**
- * Register. An address that only an unverified account holds is not taken:
- * that account never proved it owns the address, so it is replaced (its
- * password, second factor and sessions go), and the new owner must verify.
+ * Register. An address any account holds is taken, verified or not: replacing
+ * an unverified account here would let anyone take over the account of a
+ * person who registered but has not yet clicked the link (and the link mailed
+ * for the new password would verify it for the newcomer). The route mails a
+ * password link instead: whoever controls the mailbox gets the account
+ * (resetPassword), which also removes a squatter's second factor.
  */
 export async function register(
   db: Db,
@@ -72,28 +75,6 @@ export async function register(
   const weak = validatePassword(password);
   if (weak) throw new AuthError(weak, 'weak');
   const hash = await argon2.hash(password, ARGON);
-  const squat = await db.query(
-    'SELECT id FROM users WHERE email = $1 AND email_verified = false AND google_sub IS NULL',
-    [email],
-  );
-  if (squat.rows[0]) {
-    const id = squat.rows[0].id as string;
-    const r = await tx(db, async (c) => {
-      const u = await c.query(
-        `UPDATE users SET display_name = $2, password_hash = $3, totp_enabled = false, totp_secret = NULL, failed_logins = 0, locked_until = NULL
-          WHERE id = $1 AND email_verified = false RETURNING *`,
-        [id, displayName, hash],
-      );
-      if (!u.rowCount) return null;
-      await c.query(
-        'UPDATE auth_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL',
-        [id],
-      );
-      await endSessions(c, id);
-      return u.rows[0];
-    });
-    if (r) return toUser(r);
-  }
   try {
     const r = await db.query(
       'INSERT INTO users (email, display_name, password_hash) VALUES ($1, $2, $3) RETURNING *',
@@ -129,27 +110,38 @@ export async function login(
   }
   const ok = await argon2.verify(row.password_hash, password);
   if (!ok) {
-    await recordFailure(db, row.id, row.failed_logins + 1);
+    await recordFailure(db, row.id);
     throw new AuthError('Incorrect email or password.', 'invalid');
   }
   if (row.totp_enabled) {
     if (!totpCode)
       throw new AuthError('Enter the code from your authenticator app.', 'totp_required');
-    if (!verifyTotp(open(totpKey, row.totp_secret, `totp:${row.id}`).toString(), totpCode)) {
-      await recordFailure(db, row.id, row.failed_logins + 1);
+    if (!(await useTotp(db, totpKey, row.id, row.totp_secret, totpCode))) {
+      await recordFailure(db, row.id);
       throw new AuthError('Incorrect authentication code.', 'invalid');
     }
   }
-  await db.query('UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = $1', [row.id]);
+  await clearFailures(db, row.id);
   return toUser(row);
 }
 
-async function recordFailure(db: Db, id: string, failures: number) {
-  const lock = failures >= MAX_FAILED;
+/**
+ * Count a failed attempt; the MAX_FAILED-th locks the account. One atomic
+ * UPDATE (the row lock orders parallel attempts): a read-then-write would let
+ * parallel guesses each write "1" and the lock never trigger.
+ */
+async function recordFailure(db: Db, id: string) {
   await db.query(
-    `UPDATE users SET failed_logins = $2, locked_until = CASE WHEN $3 THEN now() + make_interval(mins => ${LOCK_MINUTES}) ELSE locked_until END WHERE id = $1`,
-    [id, lock ? 0 : failures, lock],
+    `UPDATE users SET
+       failed_logins = CASE WHEN failed_logins + 1 >= $2 THEN 0 ELSE failed_logins + 1 END,
+       locked_until = CASE WHEN failed_logins + 1 >= $2 THEN now() + make_interval(mins => $3) ELSE locked_until END
+     WHERE id = $1`,
+    [id, MAX_FAILED, LOCK_MINUTES],
   );
+}
+
+async function clearFailures(db: Db, id: string) {
+  await db.query('UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = $1', [id]);
 }
 
 export async function verifyPassword(db: Db, id: string, password: string): Promise<boolean> {
@@ -187,6 +179,20 @@ export async function issueToken(db: Db, userId: string, kind: TokenKind): Promi
   return token;
 }
 
+/** Whether a token of this kind was issued for the user in the last `minutes`. */
+export async function issuedRecently(
+  db: Db,
+  userId: string,
+  kind: TokenKind,
+  minutes: number,
+): Promise<boolean> {
+  const r = await db.query(
+    'SELECT 1 FROM auth_tokens WHERE user_id = $1 AND kind = $2 AND created_at > now() - make_interval(mins => $3)',
+    [userId, kind, minutes],
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
 /** Use a token once; returns the user id. */
 async function consumeToken(
   c: import('pg').PoolClient,
@@ -217,7 +223,9 @@ export async function verifyEmail(db: Db, token: string): Promise<User> {
 /**
  * Set a new password from an emailed link. Proves the address, so the account
  * counts as verified; the lockout clears; every session ends (the link may have
- * been requested because the password leaked). TOTP stays as it was.
+ * been requested because the password leaked). TOTP stays as it was, unless
+ * the account was unverified: then whoever set it up never proved the address
+ * (a squatter), so it goes, with the other open links.
  */
 export async function resetPassword(db: Db, token: string, password: string): Promise<User> {
   const weak = validatePassword(password);
@@ -225,6 +233,17 @@ export async function resetPassword(db: Db, token: string, password: string): Pr
   const hash = await argon2.hash(password, ARGON);
   return tx(db, async (c) => {
     const id = await consumeToken(c, token, 'reset');
+    const before = await c.query('SELECT email_verified FROM users WHERE id = $1 FOR UPDATE', [id]);
+    if (!before.rows[0].email_verified) {
+      await c.query(
+        'UPDATE users SET totp_enabled = false, totp_secret = NULL, totp_last_step = NULL WHERE id = $1',
+        [id],
+      );
+      await c.query(
+        'UPDATE auth_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL',
+        [id],
+      );
+    }
     const r = await c.query(
       'UPDATE users SET password_hash = $2, email_verified = true, failed_logins = 0, locked_until = NULL WHERE id = $1 RETURNING *',
       [id, hash],
@@ -263,9 +282,30 @@ const totpFor = (secret: string, label = 'PLS Studio') =>
     secret: OTPAuth.Secret.fromBase32(secret),
   });
 
-export function verifyTotp(secretBase32: string, code: string): boolean {
+/**
+ * Check a TOTP code against the user's (encrypted) secret and use it up: the
+ * time step of the last accepted code is stored, and a code of that step or an
+ * earlier one is refused (RFC 6238 section 5.2: a seen code must not work twice).
+ * The conditional UPDATE makes two parallel uses of one code accept only one.
+ */
+async function useTotp(
+  db: Db,
+  totpKey: Buffer,
+  userId: string,
+  sealedSecret: Buffer,
+  code: string,
+): Promise<boolean> {
   if (!/^\d{6}$/.test(code)) return false;
-  return totpFor(secretBase32).validate({ token: code, window: 1 }) !== null;
+  const totp = totpFor(open(totpKey, sealedSecret, `totp:${userId}`).toString());
+  const now = Date.now();
+  const delta = totp.validate({ token: code, window: 1, timestamp: now });
+  if (delta === null) return false;
+  const step = totp.counter({ timestamp: now }) + delta;
+  const r = await db.query(
+    'UPDATE users SET totp_last_step = $2 WHERE id = $1 AND (totp_last_step IS NULL OR totp_last_step < $2)',
+    [userId, step],
+  );
+  return r.rowCount === 1;
 }
 
 /** Start TOTP enrolment: store an encrypted pending secret, return the otpauth URI. */
@@ -275,10 +315,10 @@ export async function beginTotp(
   user: User,
 ): Promise<{ uri: string; secret: string }> {
   const secret = new OTPAuth.Secret({ size: 20 }).base32;
-  await db.query('UPDATE users SET totp_secret = $2 WHERE id = $1 AND totp_enabled = false', [
-    user.id,
-    seal(totpKey, Buffer.from(secret), `totp:${user.id}`),
-  ]);
+  await db.query(
+    'UPDATE users SET totp_secret = $2, totp_last_step = NULL WHERE id = $1 AND totp_enabled = false',
+    [user.id, seal(totpKey, Buffer.from(secret), `totp:${user.id}`)],
+  );
   return { uri: totpFor(secret, user.email).toString(), secret };
 }
 
@@ -292,15 +332,16 @@ export async function enableTotp(
     userId,
   ]);
   const enc = r.rows[0]?.totp_secret;
-  if (!enc || !verifyTotp(open(totpKey, enc, `totp:${userId}`).toString(), code)) return false;
+  if (!enc || !(await useTotp(db, totpKey, userId, enc, code))) return false;
   await db.query('UPDATE users SET totp_enabled = true WHERE id = $1', [userId]);
   return true;
 }
 
 export async function disableTotp(db: Db, userId: string) {
-  await db.query('UPDATE users SET totp_enabled = false, totp_secret = NULL WHERE id = $1', [
-    userId,
-  ]);
+  await db.query(
+    'UPDATE users SET totp_enabled = false, totp_secret = NULL, totp_last_step = NULL WHERE id = $1',
+    [userId],
+  );
 }
 
 // ---------- Google ----------
@@ -354,15 +395,30 @@ export async function linkGoogle(db: Db, userId: string, sub: string) {
   await db.query('UPDATE users SET google_sub = $2 WHERE id = $1', [userId, sub]);
 }
 
-/** TOTP check for the second sign-in step (Google accounts with 2FA). */
+/**
+ * A TOTP code from a signed-in or half-signed-in user (the second step after
+ * Google sign-in; confirming that a password-less account turns TOTP off).
+ * Counts like a password attempt: a wrong code is a failure towards the
+ * lockout, and a locked account is refused before the code is looked at.
+ */
 export async function verifyTotpForUser(
   db: Db,
   totpKey: Buffer,
   userId: string,
   code: string,
 ): Promise<boolean> {
-  const r = await db.query('SELECT totp_secret, totp_enabled FROM users WHERE id = $1', [userId]);
+  const r = await db.query(
+    'SELECT totp_secret, totp_enabled, locked_until FROM users WHERE id = $1',
+    [userId],
+  );
   const row = r.rows[0];
   if (!row?.totp_enabled || !row.totp_secret) return false;
-  return verifyTotp(open(totpKey, row.totp_secret, `totp:${userId}`).toString(), code);
+  if (row.locked_until && new Date(row.locked_until) > new Date())
+    throw new AuthError('Too many failed attempts. Try again later.', 'locked');
+  if (!(await useTotp(db, totpKey, userId, row.totp_secret, code))) {
+    await recordFailure(db, userId);
+    return false;
+  }
+  await clearFailures(db, userId);
+  return true;
 }

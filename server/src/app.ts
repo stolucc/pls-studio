@@ -26,6 +26,8 @@ declare module 'express-session' {
     /** Google sign-in waiting for a password (link) or TOTP code. */
     pendingGoogle?: { sub: string; email: string; name: string };
     pendingTotpUser?: string;
+    /** When the Google step that set pendingTotpUser finished (ms since epoch). */
+    pendingTotpAt?: number;
     oauth?: { state: string; nonce: string; verifier: string };
   }
 }
