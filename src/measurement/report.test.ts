@@ -48,7 +48,7 @@ describe('Items deleted', () => {
     const t = methodsText(plsInput({ model: mixed })).text;
     expect(t).not.toContain('were deleted only where');
     expect(t).toContain(
-      'of the deletions above, im1 (loading 0.75, at or above 0.70); im2 (loading 0.55; no re-estimate without it was logged) do not follow that rule.',
+      'of the deletions above, im1 (loading 0.75, at or above 0.708); im2 (loading 0.55; no re-estimate without it was logged) do not follow that rule.',
     );
     // A loading below 0.40 needs no before/after comparison.
     const fine = { ...plsModel, measurement: { deletedItems: [item, low] } };

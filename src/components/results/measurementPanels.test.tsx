@@ -91,7 +91,7 @@ describe('loading triage', () => {
     let text = host.textContent ?? '';
     expect(text).toContain('Loading triage (reflective indicators)');
     expect(text).toContain('Below 0.40: candidate for deletion');
-    expect(text).toContain('Re-estimate without each indicator below 0.70 (6 runs)');
+    expect(text).toContain('Re-estimate without each indicator below 0.708 (6 runs)');
     const items = reestimationCandidates(triageItems(model, pls));
     const estimate = (spec: ReturnType<typeof toSpec>) =>
       Promise.resolve(estimatePls(data, spec, REFERENCE_OPTIONS));

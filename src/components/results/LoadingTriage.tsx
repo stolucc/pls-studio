@@ -46,8 +46,8 @@ let active: { estimator: CancellableEstimator; stopped: boolean } | null = null;
 
 const BAND_TEXT: Record<LoadingBand, string> = {
   delete: 'Below 0.40: candidate for deletion',
-  consider: '0.40–0.70: delete only if AVE or ρC rises above the threshold',
-  keep: '0.70 or more: keep',
+  consider: '0.40–0.708: delete only if AVE or ρC rises above the threshold',
+  keep: '0.708 or more: keep',
 };
 
 /** The decision of a negative loading, before the deletion rules apply. */
@@ -200,17 +200,17 @@ export function LoadingTriage({ pls }: { pls: PlsResult }) {
               disabled={!data || !!job}
               title={job ? 'Wait for the calculation in progress' : undefined}
             >
-              <IconPlay size={13} /> Re-estimate without each indicator below 0.70 ({pending.length}{' '}
-              {pending.length === 1 ? 'run' : 'runs'})
+              <IconPlay size={13} /> Re-estimate without each indicator below 0.708 (
+              {pending.length} {pending.length === 1 ? 'run' : 'runs'})
             </button>
           )
         )}
       </div>
       <p className="mq-text">
-        Hair et al. (2017, 2021): a loading below 0.40 is a candidate for deletion; a loading
-        between 0.40 and 0.70 is deleted only if removing it raises the construct’s AVE to 0.50 or
+        Hair et al. (2019, 2021): a loading below 0.40 is a candidate for deletion; a loading
+        between 0.40 and 0.708 is deleted only if removing it raises the construct’s AVE to 0.50 or
         its composite reliability ρC to 0.70, and content validity does not suffer; a loading of
-        0.70 or more is kept. The values “if removed” come from estimating the model again without
+        0.708 or more is kept. The values “if removed” come from estimating the model again without
         the indicator, with the current settings; the construct’s current value is in brackets.
         Nothing is deleted unless you confirm it.
       </p>

@@ -3,6 +3,7 @@ import { toLatex } from '../../latex';
 import { registerTable } from '../../report/tableRegistry';
 import { copyText, csvCell, downloadText, fmt, fmtP, safeFileName, stars } from '../../format';
 import type { BootstrapResult, BootstrapStat } from '../../engine/types';
+import { HTMT_DISTINCT, HTMT_SIMILAR, htmtFails } from '../../reporting/thresholds';
 import { useStore } from '../../store';
 import { IconCopy, IconDownload } from '../icons';
 
@@ -211,9 +212,9 @@ export function matrixRows(
   ]);
 }
 
-/** HTMT above .90 is bad, above .85 a warning (the stricter cut-off). */
+/** HTMT at or above .90 is bad, at or above .85 a warning (the stricter cut-off; reporting/thresholds.ts). */
 export function htmtCls(v: number): string {
-  if (v > 0.9) return 'bad';
-  if (v > 0.85) return 'warn';
+  if (htmtFails(v, HTMT_SIMILAR)) return 'bad';
+  if (htmtFails(v, HTMT_DISTINCT)) return 'warn';
   return '';
 }

@@ -1,29 +1,28 @@
 // Loading triage for reflective (Mode A) indicators, after Hair, Hult, Ringle & Sarstedt
 // (2017, 2021), PLS-SEM primer, the indicator-reliability flowchart:
 // - loading below 0.40: a candidate for deletion;
-// - 0.40 to below 0.70: delete only if removing the indicator raises the construct's AVE to
+// - 0.40 to below 0.708: delete only if removing the indicator raises the construct's AVE to
 //   0.50 or more, or its composite reliability (ρC) to 0.70 or more, and content validity
 //   does not suffer; otherwise keep it;
-// - 0.70 or more: keep.
+// - 0.708 or more: keep (Hair et al. 2019, 2021; the 2017 edition rounds this to 0.70).
+// The cut-offs are shared with the checklist and the methods text (reporting/thresholds.ts).
 // The effect of a removal is found by re-estimating the model without the indicator
 // (measurement/reestimate.ts). Nothing is ever deleted without the author's confirmation.
 
 import type { PlsResult } from '../engine/types';
 import type { ModelState } from '../model/project';
+import { AVE_MIN, LOADING_DELETE, LOADING_MIN, RELIABILITY_MIN } from '../reporting/thresholds';
 import type { QualitySnapshot } from './state';
 
-/** Below this, a candidate for deletion (Hair et al. 2017, 2021). */
-export const LOADING_DELETE = 0.4;
-/** At or above this, keep (Hair et al. 2017, 2021). */
-export const LOADING_KEEP = 0.7;
-/** Convergent validity: AVE of at least 0.50 (Fornell & Larcker 1981; Hair et al. 2021). */
-export const AVE_MIN = 0.5;
+export { AVE_MIN, LOADING_DELETE };
+/** At or above this, keep (Hair et al. 2019, 2021). */
+export const LOADING_KEEP = LOADING_MIN;
 /** Composite reliability ρC of at least 0.70 (Hair et al. 2021). */
-export const RHOC_MIN = 0.7;
+export const RHOC_MIN = RELIABILITY_MIN;
 
 export type LoadingBand = 'delete' | 'consider' | 'keep';
 
-/** The band of a loading: below 0.40, 0.40 to below 0.70, or 0.70 and above. */
+/** The band of a loading: below 0.40, 0.40 to below 0.708, or 0.708 and above. */
 export function loadingBand(loading: number): LoadingBand {
   if (loading < LOADING_DELETE) return 'delete';
   if (loading < LOADING_KEEP) return 'consider';
@@ -46,7 +45,7 @@ export interface RemovalDecision {
 
 const f2 = (x: number) => x.toFixed(2);
 
-/** What re-estimating without an indicator says about removing it (for 0.40–0.70 loadings). */
+/** What re-estimating without an indicator says about removing it (for 0.40–0.708 loadings). */
 export function removalDecision(before: QualitySnapshot, after: QualitySnapshot): RemovalDecision {
   const aveMet = before.ave >= AVE_MIN;
   const rhoMet = before.rhoC >= RHOC_MIN;
@@ -127,7 +126,7 @@ export function canRemove(item: Pick<TriageItem, 'blockSize'>): boolean {
   return item.blockSize >= 3;
 }
 
-/** The items whose removal the triage re-estimates: loadings below 0.70 that can be removed. */
+/** The items whose removal the triage re-estimates: loadings below 0.708 that can be removed. */
 export function reestimationCandidates(items: TriageItem[]): TriageItem[] {
   return items.filter((x) => x.band !== 'keep' && canRemove(x));
 }
@@ -173,7 +172,7 @@ export function deletionReason(item: TriageItem, after?: QualitySnapshot | null)
   if (item.band === 'consider' && after) {
     const d = removalDecision(item.before, after);
     if (d.outcome === 'supported') {
-      return `Loading ${l}, between 0.40 and 0.70; removal raised AVE to ${f2(after.ave)} and ρC to ${f2(after.rhoC)} (Hair et al. 2017, 2021).`;
+      return `Loading ${l}, between 0.40 and 0.708; removal raised AVE to ${f2(after.ave)} and ρC to ${f2(after.rhoC)} (Hair et al. 2017, 2021).`;
     }
   }
   return `Loading ${l}; deleted by the author.`;

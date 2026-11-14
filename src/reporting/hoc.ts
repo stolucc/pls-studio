@@ -14,6 +14,16 @@ import { corStd, standardize } from '../engine/stats';
 import type { BootstrapResult, BootstrapStat, PlsResult } from '../engine/types';
 import type { Construct, HocApproach, ModelState } from '../model/project';
 import type { CheckItem, CheckStatus } from './checklist';
+import {
+  aveMeets,
+  HTMT_DISTINCT,
+  HTMT_SIMILAR,
+  htmtFails,
+  LOADING_DELETE,
+  loadingMeets,
+  reliabilityOutside,
+  reliabilityTooLow,
+} from './thresholds';
 
 /** How a block is measured, in the PLS-SEM sense of Hair et al. (Mode A reflective, Mode B formative). */
 export type Measurement = 'reflective' | 'formative';
@@ -266,10 +276,11 @@ function reflectiveLocLines(ctx: Ctx, locs: number[]): HocLine[] {
   // Indicator loadings (Hair et al. 2019: ≥ .708; .40–.708 kept when ρC and AVE are met).
   const low = locs.flatMap((j) =>
     block(pls, j)
-      .filter((x) => pls.loadings[x.i] < 0.708)
+      .filter((x) => !loadingMeets(pls.loadings[x.i]))
       .map((x) => {
         const q = pls.quality[j];
-        const kept = pls.loadings[x.i] >= 0.4 && q.ave >= 0.5 && q.rhoC >= 0.7;
+        const kept =
+          pls.loadings[x.i] >= LOADING_DELETE && aveMeets(q.ave) && !reliabilityTooLow(q.rhoC);
         return { text: `${x.name} ${f3(pls.loadings[x.i])}`, kept };
       }),
   );
@@ -296,9 +307,7 @@ function reflectiveLocLines(ctx: Ctx, locs: number[]): HocLine[] {
   // Internal consistency and convergent validity of each LOC.
   const rel = locs.map((j) => ({ name: pls.constructs[j], ...pls.quality[j] }));
   const known = rel.filter((r) => Number.isFinite(r.rhoC));
-  const badRel = known.filter(
-    (r) => r.rhoC < 0.7 || r.rhoC > 0.95 || r.rhoA < 0.7 || r.rhoA > 0.95,
-  );
+  const badRel = known.filter((r) => reliabilityOutside(r.rhoC) || reliabilityOutside(r.rhoA));
   out.push({
     id: 'loc-reliability',
     level,
@@ -315,7 +324,7 @@ function reflectiveLocLines(ctx: Ctx, locs: number[]): HocLine[] {
     sources: [H19, 'dijkstra2015'],
     tab: 'reliability',
   });
-  const badAve = known.filter((r) => r.ave < 0.5);
+  const badAve = known.filter((r) => !aveMeets(r.ave));
   out.push({
     id: 'loc-ave',
     level,
@@ -340,11 +349,11 @@ function reflectiveLocLines(ctx: Ctx, locs: number[]): HocLine[] {
       if (locs.includes(j) && j < i) continue;
       const v = htmtOf(pls, i, j);
       if (v === null) continue;
-      const cut = ctx.comps.includes(j) ? 0.9 : 0.85;
+      const cut = ctx.comps.includes(j) ? HTMT_SIMILAR : HTMT_DISTINCT;
       pairs.push({ text: `${pls.constructs[i]}–${pls.constructs[j]} ${f2(v)}`, v, cut });
     }
   }
-  const failing = pairs.filter((p) => p.v >= p.cut);
+  const failing = pairs.filter((p) => htmtFails(p.v, p.cut));
   out.push({
     id: 'loc-htmt',
     level,
@@ -519,11 +528,15 @@ function reflectiveHocLines(ctx: Ctx, derived: HocDerived): HocLine[] {
   const ave = repeated ? derived.ave : pls.quality[hoc].ave;
   const rhoA = repeated ? NaN : pls.quality[hoc].rhoA;
   const alpha = repeated ? derived.alpha : pls.quality[hoc].alpha;
-  const relOk = (v: number | null) => v !== null && Number.isFinite(v) && v >= 0.7 && v <= 0.95;
+  const relOk = (v: number | null) => v !== null && Number.isFinite(v) && !reliabilityOutside(v);
 
-  const low = entries.filter((e) => e.l < 0.708);
+  const low = entries.filter((e) => !loadingMeets(e.l));
   const keptLow =
-    low.every((e) => e.l >= 0.4) && ave !== null && ave >= 0.5 && rhoC !== null && rhoC >= 0.7;
+    low.every((e) => e.l >= LOADING_DELETE) &&
+    ave !== null &&
+    aveMeets(ave) &&
+    rhoC !== null &&
+    !reliabilityTooLow(rhoC);
   out.push({
     id: 'hoc-loadings',
     level,
@@ -576,7 +589,7 @@ function reflectiveHocLines(ctx: Ctx, derived: HocDerived): HocLine[] {
     value: ave === null ? '' : f2(ave),
     threshold: 'AVE ≥ .50 (Fornell & Larcker, 1981; Hair et al., 2019)',
     status:
-      ave === null || !Number.isFinite(ave) ? 'notComputed' : ave >= 0.5 ? 'pass' : 'attention',
+      ave === null || !Number.isFinite(ave) ? 'notComputed' : aveMeets(ave) ? 'pass' : 'attention',
     detail: repeated
       ? 'Computed by PLS Studio as the mean squared loading of the dimensions (Sarstedt et al., 2019), not from the repeated indicators.'
       : 'From stage 2: the mean squared loading of the dimensions.',
@@ -611,7 +624,7 @@ function hocHtmtLine(ctx: Ctx): HocLine {
     sources: [S19, 'henseler2015'],
   };
   if (approach === 'two_stage' && others.length) {
-    const failing = others.filter((o) => o.v >= 0.85);
+    const failing = others.filter((o) => htmtFails(o.v, HTMT_DISTINCT));
     return {
       ...base,
       value: failing.length

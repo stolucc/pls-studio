@@ -35,9 +35,9 @@ import { DEFAULT_SETTINGS } from '../model/project';
 const ref = fixture<TriageFixture>('loading_triage.json');
 
 describe('loading bands', () => {
-  it('uses Hair et al.’s cut-offs 0.40 and 0.70', () => {
+  it('uses Hair et al.’s cut-offs 0.40 and 0.708', () => {
     expect(LOADING_DELETE).toBe(0.4);
-    expect(LOADING_KEEP).toBe(0.7);
+    expect(LOADING_KEEP).toBe(0.708);
     expect(AVE_MIN).toBe(0.5);
     expect(RHOC_MIN).toBe(0.7);
   });
@@ -48,9 +48,10 @@ describe('loading bands', () => {
     expect(loadingBand(0.4)).toBe('consider');
   });
 
-  it('0.40 to below 0.70 is conditional; 0.70 itself is kept', () => {
-    expect(loadingBand(0.6999)).toBe('consider');
-    expect(loadingBand(0.7)).toBe('keep');
+  it('0.40 to below 0.708 is conditional; 0.708 itself is kept', () => {
+    expect(loadingBand(0.7)).toBe('consider');
+    expect(loadingBand(0.7079)).toBe('consider');
+    expect(loadingBand(0.708)).toBe('keep');
     expect(loadingBand(0.95)).toBe('keep');
   });
 });
@@ -166,7 +167,7 @@ describe('deletion reasons', () => {
   it('names the rule that applied', () => {
     expect(deletionReason(item(0.31))).toBe('Loading 0.31, below 0.40 (Hair et al. 2017, 2021).');
     expect(deletionReason(item(0.6), { ave: 0.53, rhoA: 0.72, rhoC: 0.73 })).toBe(
-      'Loading 0.60, between 0.40 and 0.70; removal raised AVE to 0.53 and ρC to 0.73 (Hair et al. 2017, 2021).',
+      'Loading 0.60, between 0.40 and 0.708; removal raised AVE to 0.53 and ρC to 0.73 (Hair et al. 2017, 2021).',
     );
     expect(deletionReason(item(0.6))).toBe('Loading 0.60; deleted by the author.');
   });

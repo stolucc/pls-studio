@@ -15,11 +15,10 @@
 import { expandCategorical } from '../engine/categorical';
 import { compileModel, extractColumns } from '../engine/pls';
 import type { Dataset, MissingTreatment, ModelSpec, PlsResult } from '../engine/types';
+import { HTMT_DISTINCT, HTMT_SIMILAR, htmtFails } from '../reporting/thresholds';
 
-/** Henseler et al. (2015): conceptually distinct constructs. */
-export const HTMT_DISTINCT = 0.85;
-/** Henseler et al. (2015): conceptually similar constructs. */
-export const HTMT_SIMILAR = 0.9;
+// The thresholds and the at-or-above rule are shared with the checklist (reporting/thresholds.ts).
+export { HTMT_DISTINCT, HTMT_SIMILAR };
 /** One-sided 95% interval: its upper bound is the 95th percentile (Franke & Sarstedt 2019). */
 export const HTMT_UPPER_PROBABILITY = 0.95;
 
@@ -42,9 +41,9 @@ export function htmtVerdict(
   upper: number | null | undefined,
   threshold: number,
 ): HtmtVerdict {
-  if (value >= threshold) return 'fails';
+  if (htmtFails(value, threshold)) return 'fails';
   if (upper === null || upper === undefined || !Number.isFinite(upper)) return 'unconfirmed';
-  if (upper >= threshold) return 'boundFails';
+  if (htmtFails(upper, threshold)) return 'boundFails';
   return 'established';
 }
 

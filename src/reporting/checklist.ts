@@ -17,6 +17,16 @@ import { mediationCheck } from './mediationCheck';
 import { ran, type ReportInput } from './methods';
 import { deletedItemsCheck, htmtCutOf } from '../measurement/report';
 import { checkAdmissibility } from '../engine/admissibility';
+import {
+  aveMeets,
+  HTMT_DISTINCT,
+  htmtFails,
+  LOADING_DELETE,
+  loadingMeets,
+  reliabilityOutside,
+  reliabilityTooHigh,
+  reliabilityTooLow,
+} from './thresholds';
 import type { CbResult } from '../engine/cbsem';
 import {
   cbNegativeLoadingFlags,
@@ -458,7 +468,7 @@ function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] 
         : `Met by every factor (${join(rel.map((r) => `${r.name}: CR ${f2(r.cr)}, AVE ${f2(r.ave)}`))}).`,
       link: tab('Reliability'),
     });
-    out.push(htmtItem(cb.constructs, cb.htmt, 0.85, ['henseler2015']));
+    out.push(htmtItem(cb.constructs, cb.htmt, HTMT_DISTINCT, ['henseler2015']));
   }
   // Groups: invariance before comparing them.
   out.push(cbInvarianceItem(input));
@@ -548,11 +558,12 @@ function htmtItem(
     row.forEach((v, j) => {
       if (v !== null && Number.isFinite(v) && i !== j) {
         max = Math.max(max, v);
-        if (v >= (cutOf ? cutOf(i, j) : cut)) pairs.push(`${names[i]}–${names[j]} (${f2(v)})`);
+        if (htmtFails(v, cutOf ? cutOf(i, j) : cut))
+          pairs.push(`${names[i]}–${names[j]} (${f2(v)})`);
       }
     }),
   );
-  const threshold = cut === 0.85 ? '.85 (.90 for conceptually similar constructs)' : cut;
+  const threshold = cut === HTMT_DISTINCT ? '.85 (.90 for conceptually similar constructs)' : cut;
   return {
     id: 'htmt',
     section: 'Measurement model',
@@ -618,10 +629,13 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
     // A loading below .708 can stay when it is above .40 and its construct is reliable.
     const low = modeA.flatMap((j) =>
       block(j)
-        .filter((x) => pls.loadings[x.i] < 0.708)
+        .filter((x) => !loadingMeets(pls.loadings[x.i]))
         .map((x) => ({
           text: `${x.name} (${f3(pls.loadings[x.i])})`,
-          ok: pls.loadings[x.i] >= 0.4 && quality(j).ave >= 0.5 && quality(j).rhoC >= 0.7,
+          ok:
+            pls.loadings[x.i] >= LOADING_DELETE &&
+            aveMeets(quality(j).ave) &&
+            !reliabilityTooLow(quality(j).rhoC),
         })),
     );
     const lowAdvice = low.every((x) => x.ok)
@@ -639,8 +653,10 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
       link: tab('Loadings & weights'),
     });
     const rel = modeA.map((j) => ({ name: pls.constructs[j], ...quality(j) }));
-    const badRel = rel.filter((r) => r.rhoC < 0.7 || r.rhoA < 0.7 || r.rhoC > 0.95);
-    const redundant = badRel.some((r) => r.rhoC > 0.95) ? ' (above .95: redundant items)' : '';
+    const badRel = rel.filter((r) => reliabilityOutside(r.rhoC) || reliabilityOutside(r.rhoA));
+    const redundant = badRel.some((r) => reliabilityTooHigh(r.rhoC) || reliabilityTooHigh(r.rhoA))
+      ? ' (above .95: redundant items)'
+      : '';
     const outside = badRel.length
       ? ` Outside .70–.95: ${join(badRel.map((r) => r.name))}${redundant}.`
       : '';
@@ -653,7 +669,7 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
       evidence: `${join(rel.map((r) => `${r.name}: ρA ${f2(r.rhoA)}, ρC ${f2(r.rhoC)}`))}.${outside}`,
       link: tab('Reliability'),
     });
-    const badAve = rel.filter((r) => r.ave < 0.5);
+    const badAve = rel.filter((r) => !aveMeets(r.ave));
     const belowAve = badAve.length ? ` Below .50: ${join(badAve.map((r) => r.name))}.` : '';
     out.push({
       id: 'ave',
@@ -669,7 +685,7 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
     const htmt = pls.htmt.map((row, i) => row.map((v, j) => (skip(i, j) ? null : v)));
     // Pairs marked conceptually similar are held to 0.90 (Henseler et al. 2015).
     const cutOf = m.measurement?.similarPairs?.length ? htmtCutOf(m, pls) : undefined;
-    out.push(htmtItem(pls.constructs, htmt, 0.85, ['henseler2015', ...H], cutOf));
+    out.push(htmtItem(pls.constructs, htmt, HTMT_DISTINCT, ['henseler2015', ...H], cutOf));
     const deleted = deletedItemsCheck(m);
     if (deleted) out.push(deleted);
   }

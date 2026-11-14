@@ -30,7 +30,7 @@ export function itemsDeletedLine(model: ModelState): string | null {
 
 /**
  * Whether a logged deletion follows the loading rule (Hair et al. 2017, 2021; loadings.ts): a
- * loading below 0.40, or one between 0.40 and 0.70 whose removal lifted the AVE or ρC above its
+ * loading below 0.40, or one between 0.40 and 0.708 whose removal lifted the AVE or ρC above its
  * threshold (as the logged before/after values show).
  */
 export function followsDeletionRule(d: DeletedItem): boolean {
@@ -43,13 +43,13 @@ export function followsDeletionRule(d: DeletedItem): boolean {
 /** Why a logged deletion does not follow the rule, in a few words. */
 function ruleBreach(d: DeletedItem): string {
   const loading = `loading ${f2(d.loading)}`;
-  if (loadingBand(d.loading) === 'keep') return `${d.indicator} (${loading}, at or above 0.70)`;
+  if (loadingBand(d.loading) === 'keep') return `${d.indicator} (${loading}, at or above 0.708)`;
   if (!d.after) return `${d.indicator} (${loading}; no re-estimate without it was logged)`;
   return `${d.indicator} (${loading}; removal did not lift the AVE or ρC above its threshold)`;
 }
 
 const DELETION_RULE =
-  'indicators with loadings below 0.40 are candidates for deletion, and indicators loading between 0.40 and 0.70 ' +
+  'indicators with loadings below 0.40 are candidates for deletion, and indicators loading between 0.40 and 0.708 ' +
   'are deleted only where their removal raises the AVE or the composite reliability above its threshold';
 
 /**
@@ -67,7 +67,7 @@ export function deletedItemsMethods(
   const breaches = items.filter((d) => !followsDeletionRule(d));
   if (!breaches.length) {
     return (
-      'Indicators with loadings below 0.40 were candidates for deletion; indicators loading between 0.40 and 0.70 ' +
+      'Indicators with loadings below 0.40 were candidates for deletion; indicators loading between 0.40 and 0.708 ' +
       'were deleted only where their removal raised the AVE or the composite reliability above its threshold, ' +
       `and content validity was not harmed ${cite('hair2017', 'hair2021')}. ${line}`
     );
