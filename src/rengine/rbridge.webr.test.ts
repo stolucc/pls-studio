@@ -16,6 +16,7 @@ import { useHelper } from './helper';
 import { cbRequest, cbScriptLavaan, estimateCbLavaan } from './lavaan';
 import { mcChunkRequest, runMcChunkR } from './mc';
 import { helperLibrary } from './nativeR';
+import { networkR, networkScriptR } from './network';
 import { estimatePlsR, plsScriptR } from './pls';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
@@ -250,3 +251,27 @@ function runScript(script: string): Record<string, number> {
     rmSync(dir, { recursive: true, force: true });
   }
 }
+
+it('the network script reads the variables back under their own names ("Item 1", not Item.1)', async () => {
+  const items = {
+    names: ['Item 1', 'Item 2', 'Item 3', 'x4'],
+    cols: [hs.cols[0], hs.cols[1], hs.cols[2], hs.cols[3]],
+  };
+  const input = {
+    vars: items.names,
+    estimator: 'pcor' as const,
+    corMethod: 'cor' as const,
+    missing: 'listwise' as const,
+    gamma: 0.5,
+    boot: { samples: 0, seed: 1 },
+  };
+  // (bootnet abbreviates the node labels: the script's must be the app's)
+  const r = await networkR(items, input);
+  const script = await networkScriptR(items, input);
+  expect(script).toContain("', check.names = FALSE)");
+  const out = runScript(
+    `${script}\nwriteLines(jsonlite::toJSON(list(names = colnames(data), nodes = colnames(W))), "out.json")`,
+  ) as unknown as { names: string[]; nodes: string[] };
+  expect(out.names).toEqual(items.names);
+  expect(out.nodes).toEqual(r.names);
+}, 600_000);

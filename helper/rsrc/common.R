@@ -387,7 +387,9 @@ ps_embed_frame <- function(name, df) {
   tc <- textConnection("csv", "w", local = TRUE)
   utils::write.csv(df, tc, row.names = FALSE)
   close(tc)
-  c(sprintf("%s <- read.csv(text = '", name), ps_sq(csv), "')")
+  # (names that are not syntactic, such as "Item 1", are read back as they are: read.csv would make them Item.1)
+  keep_names <- if (identical(make.names(names(df)), names(df))) "" else ", check.names = FALSE"
+  c(sprintf("%s <- read.csv(text = '", name), ps_sq(csv), sprintf("'%s)", keep_names))
 }
 ps_embed_matrix <- function(name, m) {
   tc <- textConnection("csv", "w", local = TRUE)
