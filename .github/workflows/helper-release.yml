@@ -10,6 +10,12 @@ name: helper-release
 # warning on first launch (right-click → Open), Windows SmartScreen asks
 # once (More info → Run anyway). The macOS binary is ad-hoc signed so Apple
 # Silicon runs it at all.
+#
+# The release key (secret HELPER_SIGNING_KEY) is used only by the publish job,
+# which runs in the environment helper-release: keep the secret there, with a
+# required reviewer and only tags helper-v* allowed (helper/README.md,
+# "Release key"). Third-party actions are pinned by commit SHA (the version
+# in the comment): a moved tag cannot change what runs next to the key.
 
 on:
   push:
@@ -33,9 +39,9 @@ jobs:
           # The tray (systray) needs CGO and the Windows shell APIs: build on Windows.
           - { goos: windows, goarch: amd64, runs-on: windows-latest }
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '1.27'
           cache-dependency-path: helper/go.sum
@@ -100,7 +106,7 @@ jobs:
           hdiutil create -volname "PLS Studio Helper" -srcfolder "dist/PLS Studio Helper.app" -ov -format UDZO \
             "dist/PLS-Studio-Helper-${{ matrix.goarch }}.dmg"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: helper-${{ matrix.goos }}-${{ matrix.goarch }}
           path: |
@@ -114,9 +120,12 @@ jobs:
     name: publish release
     needs: build
     runs-on: ubuntu-latest
+    # Publishing (and the signing key) only for a tag helper-v*, also when
+    # started by hand (workflow_dispatch on a branch only builds).
     if: startsWith(github.ref, 'refs/tags/helper-v')
+    environment: helper-release
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: dist
           merge-multiple: true
@@ -128,24 +137,43 @@ jobs:
           sha256sum pls-studio-helper-* PLS-Studio-Helper-*.dmg > SHA256SUMS
           cat SHA256SUMS
 
-      # The helper's self-update installs a release only if SHA256SUMS carries the
-      # release key's signature (helper/update.go; public key in helper/updatekey.go).
-      - uses: actions/checkout@v6
+      # The signed version manifest: binds the version and tag to this
+      # SHA256SUMS, so an old signed release cannot be republished under a new
+      # tag (helper 0.1.11+ requires it; older helpers ignore it).
+      - name: Version manifest
+        working-directory: dist
+        run: |
+          VERSION="${GITHUB_REF_NAME#helper-v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "::error::tag $GITHUB_REF_NAME is not helper-v<major>.<minor>.<patch>"; exit 1; fi
+          jq -n -c \
+            --arg version "$VERSION" \
+            --arg tag "$GITHUB_REF_NAME" \
+            --arg sums "$(sha256sum SHA256SUMS | cut -d' ' -f1)" \
+            --arg published "$(date -u +%FT%TZ)" \
+            '{version: $version, tag: $tag, sha256sums: $sums, published: $published}' > RELEASE.json
+          cat RELEASE.json
+
+      # The helper's self-update installs a release only if SHA256SUMS and
+      # RELEASE.json carry the release key's signature (helper/update.go;
+      # public key in helper/updatekey.go).
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           path: src
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '1.27'
           cache-dependency-path: src/helper/go.sum
-      - name: Sign SHA256SUMS
+      - name: Sign SHA256SUMS and RELEASE.json
         env:
           HELPER_SIGNING_KEY: ${{ secrets.HELPER_SIGNING_KEY }}
         run: |
-          if [ -z "$HELPER_SIGNING_KEY" ]; then echo "::error::the repository secret HELPER_SIGNING_KEY is not set: the release would not be updatable"; exit 1; fi
+          if [ -z "$HELPER_SIGNING_KEY" ]; then echo "::error::the secret HELPER_SIGNING_KEY is not set (environment helper-release): the release would not be updatable"; exit 1; fi
           cd src/helper
-          go run ./cmd/sign-release sign "$GITHUB_WORKSPACE/dist/SHA256SUMS"
           KEY=$(sed -n 's/^var updatePublicKey = "\(.*\)"$/\1/p' updatekey.go)
-          go run ./cmd/sign-release verify "$KEY" "$GITHUB_WORKSPACE/dist/SHA256SUMS"
+          for f in SHA256SUMS RELEASE.json; do
+            go run ./cmd/sign-release sign "$GITHUB_WORKSPACE/dist/$f"
+            go run ./cmd/sign-release verify "$KEY" "$GITHUB_WORKSPACE/dist/$f"
+          done
 
       - name: Create release
         env:
@@ -165,8 +193,8 @@ jobs:
 
           Then in PLS Studio: Inspector → Calculated by → Desktop R (helper) → Connect, and click Allow. Install the R packages once with: pls-studio-helper setup
 
-          Verify downloads against SHA256SUMS (signed: SHA256SUMS.sig, Ed25519). Already installed? Update from the helper: menu-bar icon → Check for updates…, or pls-studio-helper update." \
+          Verify downloads against SHA256SUMS (signed: SHA256SUMS.sig, Ed25519; RELEASE.json, signed too, names the version). Already installed? Update from the helper: menu-bar icon → Check for updates…, or pls-studio-helper update." \
             dist/pls-studio-helper-darwin-arm64 dist/pls-studio-helper-darwin-amd64 \
             dist/pls-studio-helper-linux-amd64 dist/pls-studio-helper-windows-amd64.exe \
             dist/PLS-Studio-Helper-arm64.dmg dist/PLS-Studio-Helper-amd64.dmg \
-            dist/SHA256SUMS dist/SHA256SUMS.sig
+            dist/SHA256SUMS dist/SHA256SUMS.sig dist/RELEASE.json dist/RELEASE.json.sig

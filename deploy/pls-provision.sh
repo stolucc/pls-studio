@@ -5,7 +5,7 @@
 # Everything it creates is PLS-specific and named so:
 #
 #   service account   plsstudio            (home /var/lib/plsstudio)
-#   checkout          /opt/pls-studio
+#   app directory     /opt/pls-studio      (repo.git, releases/, current -> the live release)
 #   config            /etc/pls-studio/pls-studio.env   (secrets, 640 root:plsstudio)
 #   database / role   pls_studio / pls_studio          (in the shared PostgreSQL)
 #   systemd unit      pls-studio.service               (127.0.0.1:8787)
@@ -22,7 +22,8 @@
 #      The first run creates a read-only GitHub deploy key, prints it and
 #      stops. Add it at github.com/stolucc/pls-studio > Settings > Deploy keys
 #      (leave "Allow write access" unticked), then run the same command again.
-#   Re-running later is safe: existing secrets, database and checkout are kept.
+#   Re-running later is safe: existing secrets, database and repository are
+#   kept (a plain checkout from before releases is migrated by pls-update.sh).
 #   Routine updates: sudo bash /opt/pls-studio/deploy/pls-update.sh
 #
 # ENV (all optional except DOMAIN on the first run)
@@ -145,14 +146,23 @@ KEY
   fi
 fi
 
-# ── Checkout ─────────────────────────────────────────────────────────────
+# ── Repository ───────────────────────────────────────────────────────────
+# A bare clone in $APP_DIR/repo.git; pls-update.sh builds each release from
+# it into $APP_DIR/releases and points $APP_DIR/current at the live one. (An
+# install from before releases has a plain checkout here instead: it is kept
+# and migrated by pls-update.sh.)
 export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o IdentitiesOnly=yes -o UserKnownHostsFile=$KNOWN_HOSTS -o StrictHostKeyChecking=yes"
-if [ ! -d "$APP_DIR/.git" ]; then
-  log "Cloning $REPO_URL ($BRANCH) into $APP_DIR"
-  install -d -o "$APP_USER" -g "$APP_USER" "$APP_DIR"
-  sudo -u "$APP_USER" -H env GIT_SSH_COMMAND="$GIT_SSH_COMMAND" \
-    git clone --branch "$BRANCH" "$REPO_URL" "$APP_DIR" \
-    || die "Clone failed. Is the deploy key added on GitHub (Settings > Deploy keys)?"
+if [ -d "$APP_DIR/.git" ]; then
+  REPO_GIT=$APP_DIR
+else
+  REPO_GIT=$APP_DIR/repo.git
+  if [ ! -d "$REPO_GIT" ]; then
+    log "Cloning $REPO_URL into $REPO_GIT"
+    install -d -o "$APP_USER" -g "$APP_USER" "$APP_DIR"
+    sudo -u "$APP_USER" -H env GIT_SSH_COMMAND="$GIT_SSH_COMMAND" \
+      git clone --quiet --bare "$REPO_URL" "$REPO_GIT" \
+      || die "Clone failed. Is the deploy key added on GitHub (Settings > Deploy keys)?"
+  fi
 fi
 
 # ── PostgreSQL: role + database ──────────────────────────────────────────
@@ -190,7 +200,7 @@ else
     echo "PORT=$PLS_PORT"
     echo "APP_ORIGIN=https://$DOMAIN"
     echo "DATABASE_URL=postgres://pls_studio:${PG_PASSWORD}@localhost:5432/pls_studio"
-    echo "STATIC_DIR=$APP_DIR/dist"
+    echo "STATIC_DIR=$APP_DIR/current/dist"
     echo "SESSION_SECRET=$(openssl rand -hex 32)"
     echo "DATA_MASTER_KEY=$(openssl rand -base64 32)"
     echo "TOTP_KEY=$(openssl rand -base64 32)"
@@ -221,9 +231,9 @@ Requires=postgresql.service
 Type=simple
 User=$APP_USER
 Group=$APP_USER
-WorkingDirectory=$APP_DIR/server
+WorkingDirectory=$APP_DIR/current/server
 EnvironmentFile=$ENV_FILE
-ExecStart=/usr/bin/node $APP_DIR/server/src/index.ts
+ExecStart=/usr/bin/node $APP_DIR/current/server/src/index.ts
 Restart=on-failure
 RestartSec=5
 # Sharing the host with other apps: cap memory so a runaway can't starve them.
@@ -273,8 +283,15 @@ if ! caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
 fi
 
 # ── Build + start (same path as routine updates) ─────────────────────────
+# With the branch's own pls-update.sh (there may be no release yet, or only
+# an older script in a checkout from before releases).
 log "Building and starting PLS Studio (first build downloads the R runtime, ~400 MB)"
-bash "$APP_DIR/deploy/pls-update.sh"
+sudo -u "$APP_USER" -H env GIT_SSH_COMMAND="$GIT_SSH_COMMAND" \
+  git -C "$REPO_GIT" fetch --quiet origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
+UPDATE_SCRIPT="$(mktemp)"
+sudo -u "$APP_USER" git -C "$REPO_GIT" show "refs/remotes/origin/$BRANCH:deploy/pls-update.sh" > "$UPDATE_SCRIPT"
+BRANCH="$BRANCH" bash "$UPDATE_SCRIPT" || { rm -f "$UPDATE_SCRIPT"; die "The deploy failed (output above)."; }
+rm -f "$UPDATE_SCRIPT"
 
 systemctl enable caddy >/dev/null
 systemctl reload caddy || systemctl restart caddy

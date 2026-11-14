@@ -47,12 +47,30 @@ func TestAssetName(t *testing.T) {
 }
 
 // fakeRelease serves a release like GitHub's: latest-release JSON and assets,
-// SHA256SUMS signed with priv (or as modified by the test).
+// SHA256SUMS and the version manifest RELEASE.json signed with priv (or as
+// modified by the test).
 type fakeRelease struct {
 	tag    string
+	priv   ed25519.PrivateKey
 	files  map[string][]byte
 	assets []string
 	server *httptest.Server
+}
+
+// signFile stores a file and its signature by the release key, as the
+// release workflow does (cmd/sign-release sign).
+func (f *fakeRelease) signFile(name string, data []byte, priv ed25519.PrivateKey) {
+	f.files[name] = data
+	f.files[name+".sig"] = []byte(base64.StdEncoding.EncodeToString(ed25519.Sign(priv, data)) + "\n")
+}
+
+// setManifest writes a signed RELEASE.json naming version and tag, for the
+// SHA256SUMS the release serves.
+func (f *fakeRelease) setManifest(version, tag string) {
+	sumsHash := sha256.Sum256(f.files["SHA256SUMS"])
+	manifest := fmt.Sprintf(`{"version":%q,"tag":%q,"sha256sums":%q,"published":"2026-11-14T12:00:00Z"}`+"\n",
+		version, tag, hex.EncodeToString(sumsHash[:]))
+	f.signFile("RELEASE.json", []byte(manifest), f.priv)
 }
 
 func newFakeRelease(t *testing.T, tag string, bin []byte, priv ed25519.PrivateKey) *fakeRelease {
@@ -63,9 +81,10 @@ func newFakeRelease(t *testing.T, tag string, bin []byte, priv ed25519.PrivateKe
 	}
 	h := sha256.Sum256(bin)
 	sums := []byte(fmt.Sprintf("%s  %s\n%s  other-file\n", hex.EncodeToString(h[:]), name, strings.Repeat("0", 64)))
-	f := &fakeRelease{tag: tag, files: map[string][]byte{name: bin, "SHA256SUMS": sums,
-		"SHA256SUMS.sig": []byte(base64.StdEncoding.EncodeToString(ed25519.Sign(priv, sums)) + "\n")}}
-	f.assets = []string{name, "SHA256SUMS", "SHA256SUMS.sig"}
+	f := &fakeRelease{tag: tag, priv: priv, files: map[string][]byte{name: bin}}
+	f.signFile("SHA256SUMS", sums, priv)
+	f.setManifest(strings.TrimPrefix(tag, "helper-v"), tag)
+	f.assets = []string{name, "SHA256SUMS", "SHA256SUMS.sig", "RELEASE.json", "RELEASE.json.sig"}
 	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/latest" {
 			rel := release{Tag: f.tag}
@@ -84,7 +103,9 @@ func newFakeRelease(t *testing.T, tag string, bin []byte, priv ed25519.PrivateKe
 	}))
 	t.Cleanup(f.server.Close)
 	oldLatest, oldPrefix, oldKey, oldVersion := updateLatestURL, updateDownloadPrefix, updatePublicKey, helperVersion
-	t.Cleanup(func() { updateLatestURL, updateDownloadPrefix, updatePublicKey, helperVersion = oldLatest, oldPrefix, oldKey, oldVersion })
+	t.Cleanup(func() {
+		updateLatestURL, updateDownloadPrefix, updatePublicKey, helperVersion = oldLatest, oldPrefix, oldKey, oldVersion
+	})
 	updateLatestURL, updateDownloadPrefix = f.server.URL+"/latest", f.server.URL+"/download/"
 	updatePublicKey = base64.StdEncoding.EncodeToString(priv.Public().(ed25519.PublicKey))
 	helperVersion = "0.1.8"
@@ -181,6 +202,125 @@ func TestVerifiedBinary(t *testing.T) {
 	}
 	if _, err := verifiedBinary(ctx, &foreign, runtime.GOOS, runtime.GOARCH); err == nil || !strings.Contains(err.Error(), "unexpected download address") {
 		t.Errorf("foreign URL: %v", err)
+	}
+}
+
+// withoutAsset is a copy of rel without the named asset.
+func withoutAsset(rel *release, name string) *release {
+	out := *rel
+	out.Assets = nil
+	for _, a := range rel.Assets {
+		if a.Name != name {
+			out.Assets = append(out.Assets, a)
+		}
+	}
+	return &out
+}
+
+func TestReleaseManifest(t *testing.T) {
+	priv := newKey(t)
+	bin := []byte("the new helper binary")
+	f := newFakeRelease(t, "helper-v0.1.9", bin, priv)
+	ctx := context.Background()
+	_, rel, err := checkUpdate(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refused := func(what, want string) {
+		t.Helper()
+		if _, err := verifiedBinary(ctx, rel, runtime.GOOS, runtime.GOARCH); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: want an error containing %q, got %v", what, want, err)
+		}
+	}
+
+	// A valid manifest: the binary is installed.
+	if got, err := verifiedBinary(ctx, rel, runtime.GOOS, runtime.GOARCH); err != nil || string(got) != string(bin) {
+		t.Fatalf("a valid manifest: %q %v", got, err)
+	}
+
+	// The manifest of another release under this tag (an old release republished as helper-v0.1.9).
+	f.setManifest("0.1.7", "helper-v0.1.7")
+	refused("manifest of an older release", "tagged helper-v0.1.9")
+	f.setManifest("0.1.9", "helper-v0.1.8")
+	refused("tag and version disagree", "tagged helper-v0.1.9")
+	f.setManifest("0.1.10", "helper-v0.1.10")
+	refused("manifest of a newer release", "tagged helper-v0.1.9")
+
+	// The same or an older version than the running helper (replay, downgrade).
+	f.setManifest("0.1.9", "helper-v0.1.9")
+	helperVersion = "0.1.9"
+	refused("same version", "not newer")
+	helperVersion = "0.2.0"
+	refused("older version", "refusing a downgrade")
+	helperVersion = "0.1.8"
+
+	// A manifest changed after signing, or signed by another key.
+	good := f.files["RELEASE.json"]
+	f.files["RELEASE.json"] = []byte(strings.Replace(string(good), "0.1.9", "0.1.99", 2))
+	refused("modified manifest", "RELEASE.json: the release signature is not valid")
+	f.signFile("RELEASE.json", good, newKey(t))
+	refused("manifest signed by another key", "not valid")
+	f.files["RELEASE.json.sig"] = []byte("not base64!")
+	refused("malformed manifest signature", "malformed")
+	f.setManifest("0.1.9", "helper-v0.1.9")
+
+	// SHA256SUMS validly signed, but not the one the manifest names (taken from another release).
+	sums := f.files["SHA256SUMS"]
+	f.signFile("SHA256SUMS", append(append([]byte(nil), sums...), []byte(strings.Repeat("1", 64)+"  extra\n")...), priv)
+	refused("SHA256SUMS of another release", "not the one the signed release manifest names")
+	f.signFile("SHA256SUMS", sums, priv)
+
+	// Unreadable or incomplete manifests.
+	for _, bad := range []string{
+		`not json`,
+		`{"version":"helper-v0.1.9","tag":"helper-v0.1.9","sha256sums":"` + strings.Repeat("a", 64) + `","published":"2026-11-14T12:00:00Z"}`,
+		`{"version":"0.1.9","tag":"helper-v0.1.9","sha256sums":"abc","published":"2026-11-14T12:00:00Z"}`,
+		`{"version":"0.1.9","tag":"helper-v0.1.9","sha256sums":"` + strings.Repeat("z", 64) + `","published":"2026-11-14T12:00:00Z"}`,
+		`{"version":"0.1.9","tag":"helper-v0.1.9","sha256sums":"` + strings.Repeat("a", 64) + `"}`,
+	} {
+		f.signFile("RELEASE.json", []byte(bad), priv)
+		if _, err := verifiedBinary(ctx, rel, runtime.GOOS, runtime.GOARCH); err == nil || !strings.Contains(err.Error(), "RELEASE.json") {
+			t.Errorf("manifest %s: %v", bad, err)
+		}
+	}
+	f.setManifest("0.1.9", "helper-v0.1.9")
+
+	// A release without the manifest (made before 0.1.11, or with it removed), or without its signature.
+	if _, err := verifiedBinary(ctx, withoutAsset(rel, "RELEASE.json"), runtime.GOOS, runtime.GOARCH); err == nil || !strings.Contains(err.Error(), "no signed version manifest") {
+		t.Errorf("no manifest: %v", err)
+	}
+	if _, err := verifiedBinary(ctx, withoutAsset(rel, "RELEASE.json.sig"), runtime.GOOS, runtime.GOARCH); err == nil || !strings.Contains(err.Error(), "manifest is not signed") {
+		t.Errorf("unsigned manifest: %v", err)
+	}
+
+	// Everything restored: accepted again.
+	if got, err := verifiedBinary(ctx, rel, runtime.GOOS, runtime.GOARCH); err != nil || string(got) != string(bin) {
+		t.Fatalf("restored release: %q %v", got, err)
+	}
+}
+
+func TestCheckManifest(t *testing.T) {
+	sum := strings.Repeat("a", 64)
+	manifest := func(version, tag string) []byte {
+		return []byte(`{"version":"` + version + `","tag":"` + tag + `","sha256sums":"` + sum + `","published":"2026-11-14T12:00:00Z"}`)
+	}
+	if m, err := checkManifest(manifest("0.1.11", "helper-v0.1.11"), "helper-v0.1.11", "0.1.10"); err != nil || m.Version != "0.1.11" || m.SHA256Sums != sum {
+		t.Errorf("valid: %+v %v", m, err)
+	}
+	// A newer major/minor counts as newer, numerically (0.1.10 > 0.1.9).
+	if _, err := checkManifest(manifest("0.1.10", "helper-v0.1.10"), "helper-v0.1.10", "0.1.9"); err != nil {
+		t.Errorf("0.1.10 after 0.1.9: %v", err)
+	}
+	for _, c := range []struct{ version, tag, relTag, current, want string }{
+		{"0.1.9", "helper-v0.1.9", "helper-v9.9.9", "0.1.10", "tagged helper-v9.9.9"},
+		{"0.1.11", "helper-v0.1.11", "helper-v0.1.11", "0.1.11", "not newer"},
+		{"0.1.9", "helper-v0.1.9", "helper-v0.1.9", "0.1.10", "downgrade"},
+		{"0.1.11", "helper-v0.1.11", "helper-v0.1.11", "0.1.0-dev", "development build"},
+		{"0.1.11-rc1", "helper-v0.1.11-rc1", "helper-v0.1.11-rc1", "0.1.10", "no release version"},
+	} {
+		if _, err := checkManifest(manifest(c.version, c.tag), c.relTag, c.current); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%+v: %v", c, err)
+		}
 	}
 }
 
