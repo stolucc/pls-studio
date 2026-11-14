@@ -824,7 +824,7 @@ describe('exogenous correlations are explicit (the diagram is the model)', () =>
     expect(old.correlations?.map((k) => [k.a, k.b, k.zero ?? false])).toEqual([['A', 'B', false]]);
     expect(toSpec(old).covariances).toEqual([{ a: 'Alpha', b: 'Beta', kind: 'construct' }]);
     expect(parseProject(file(2)).model.correlations ?? []).toEqual([]);
-    expect(JSON.parse(serializeProject(m, DEFAULT_SETTINGS, null, null)).version).toBe(2);
+    expect(JSON.parse(serializeProject(m, DEFAULT_SETTINGS, null, null)).version).toBe(3);
     // An old fixed zero stays a fixed zero (now: confirmed uncorrelated).
     const zeroed = parseProject(
       JSON.stringify({

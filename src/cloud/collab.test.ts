@@ -3,6 +3,7 @@ import * as Y from 'yjs';
 import {
   type Construct,
   DEFAULT_SETTINGS,
+  FORMAT_VERSION,
   type ModelState,
   parseProject,
   serializeProject,
@@ -235,7 +236,7 @@ describe('shared projects from before explicit correlations', () => {
       ['a', 'b', false],
     ]);
     writeDoc(d, migrated, DEFAULT_SETTINGS, 'Shared', null);
-    expect(d.getMap('meta').get('format')).toBe(2);
+    expect(d.getMap('meta').get('format')).toBe(FORMAT_VERSION);
     expect(readDoc(d).model.correlations).toEqual(migrated.correlations);
     // Removed later by a user: stays removed (no second migration).
     writeDoc(d, { ...migrated, correlations: [] }, DEFAULT_SETTINGS, 'Shared', null);
@@ -324,6 +325,7 @@ const kitchenSink: Required<ModelState> = {
     meanStructure: false,
     ordinalScales: 'free',
   },
+  groupValueOrder: 'appearance',
   multilevel: { column: 'school', between: 'same' },
   weights: 'w',
   cluster: 'k',

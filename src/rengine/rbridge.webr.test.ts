@@ -10,6 +10,11 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { parseCsv } from '../engine/dataset';
 import type { McDesign } from '../engine/montecarlo';
 import type { ModelSpec } from '../engine/types';
+import { exampleModel } from '../examples/packages';
+import { example, load } from '../examples/mplus/testkit';
+import { codeOrderValues } from '../model/heldValue';
+import { toSpec, type ModelState } from '../model/project';
+import { parseLavaanSyntax } from '../model/syntax';
 import { analysisScript, bootChunked, bootstrapR } from './analyses';
 import { parallelism, rCall } from './bridge';
 import { useHelper } from './helper';
@@ -298,4 +303,43 @@ it('a one-sided interval keeps its open end (Infinity), told apart from a missin
   const d = row.effects!.find((e) => e.id === 'd')!;
   expect(d.ciHigh).toBe(Infinity);
   expect(Number.isFinite(d.ciLow)).toBe(true);
+}, 600_000);
+
+it('lavaan syntax’s values per group keep lavaan’s order: ex5.33’s request as before the code order, and a round trip over shuffled rows', async () => {
+  // ex5.33 (values per group in syntax, groups 1, 4, 7, 10, … in the data): the lavaan model as written.
+  const ex = example('ex5.33');
+  const m33 = exampleModel(ex);
+  expect(m33.groupValueOrder).toBe('appearance');
+  const script33 = await cbScriptLavaan(load('ex5.33'), toSpec(m33), 'casewise', 'ML');
+  for (const line of ex.syntax!.split('\n').filter((l) => l.includes('c(')))
+    expect(script33).toContain(line);
+  // A syntax value list on data with group 2 first: as imported, and in code order once converted, the same
+  // lavaan model; the converted model then gives the same groups their values on rows in another order.
+  const g = Float64Array.from(hs.cols[0], (_v, i) => (i % 3 === 0 ? 2 : 1));
+  const grouped = { names: [...hs.names, 'g'], cols: [...hs.cols, g] };
+  const order = Array.from(g.keys()).sort((a, b) => g[a] - g[b] || a - b);
+  const shuffled = {
+    names: grouped.names,
+    cols: grouped.cols.map((c) => Float64Array.from(order, (i) => c[i])),
+  };
+  const imported: ModelState = {
+    ...parseLavaanSyntax(
+      'visual =~ x1 + x2 + x3\ntextual =~ x4 + x5 + x6\nvisual ~~ c(0.2, 0.4)*textual',
+    ).model,
+    multigroup: { column: 'g', invariance: 'configural', free: [] },
+  };
+  const converted = codeOrderValues(imported, grouped);
+  expect(converted.correlations![0].byGroup).toEqual([0.4, 0.2]);
+  const lavaanLine = (s: string) => s.split('\n').find((l) => l.includes('c(0.'));
+  const before = await cbScriptLavaan(grouped, toSpec(imported), 'casewise', 'ML');
+  const after = await cbScriptLavaan(grouped, toSpec(converted), 'casewise', 'ML');
+  expect(lavaanLine(after)).toBe(lavaanLine(before));
+  expect(lavaanLine(before)).toContain('c(0.2, 0.4)*');
+  const r = await estimateCbLavaan(shuffled, toSpec(converted), 'casewise', 'ML');
+  const cov = (group: string) =>
+    r.groups!.results[r.groups!.labels.indexOf(group)].estimates.find(
+      (e) => e.op === '~~' && e.lhs === 'visual' && e.rhs === 'textual',
+    )!.est;
+  expect(cov('2')).toBeCloseTo(0.2, 12);
+  expect(cov('1')).toBeCloseTo(0.4, 12);
 }, 600_000);

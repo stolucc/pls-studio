@@ -32,6 +32,7 @@ import { parseVariables, type VariableInfo } from '../data/columns';
 import { parseMissingCodes, type MissingCodes } from '../data/missingCodes';
 import { MAX_CATEGORIES } from '../engine/dataset';
 import { parseMeasurement, type MeasurementLog } from '../measurement/state';
+import { codeOrderValues, hasGroupValues } from './heldValue';
 
 /** PLS-SEM, CB-SEM, or conditional process analysis (Hayes's PROCESS models, by OLS regression). */
 export type Method = 'pls' | 'cbsem' | 'process';
@@ -344,6 +345,12 @@ export interface ModelState {
   sampleCovRescale?: false;
   /** CB-SEM: multiple groups by a data column, with measurement invariance (constructs by id in `free`). */
   multigroup?: MultigroupSpec;
+  /**
+   * 'appearance': the values per group (byGroup) are in the order the groups first appear in the data, lavaan's
+   * order, as lavaan syntax writes c(...) and projects before format 3 stored them; converted to the order of the
+   * group codes (heldValue.ts codeOrderValues) once the data are known. Absent: in the order of the group codes.
+   */
+  groupValueOrder?: 'appearance';
   /** CB-SEM: two-level model by a cluster column. */
   /** between: 'factors': each factor measured by the same indicators between clusters, regressed on `betweenCovariates` (cluster-level variables), as lavaan's tutorial model. */
   /** between: 'model': the between-level model as written in syntax (lavaan's level: 2 block, Mplus %BETWEEN%), `betweenModel`. */
@@ -950,6 +957,9 @@ export function toSpec(model: ModelState): ModelSpec {
           multigroup: {
             ...model.multigroup,
             free: renameFreedParameters(model.multigroup.free, (id) => name.get(id) ?? id),
+            ...(model.groupValueOrder === 'appearance'
+              ? { valueOrder: 'appearance' as const }
+              : {}),
           },
         }
       : {}),
@@ -1522,9 +1532,11 @@ export function parseMoments(raw: unknown, p: number): MomentData {
 
 /**
  * Project file format. 2: a correlation between exogenous constructs is
- * estimated only when drawn (1: CB-SEM estimated undrawn pairs too).
+ * estimated only when drawn (1: CB-SEM estimated undrawn pairs too). 3: values
+ * per group are in the order of the group codes (1, 2: in the order the groups
+ * first appear in the data, lavaan's).
  */
-export const FORMAT_VERSION = 2;
+export const FORMAT_VERSION = 3;
 
 export interface ProjectFile {
   format: 'pls-studio';
@@ -1737,12 +1749,20 @@ export function parseProject(text: string): {
   if (
     !isObj(raw) ||
     raw.format !== 'pls-studio' ||
-    (raw.version !== 1 && raw.version !== FORMAT_VERSION)
+    (raw.version !== 1 && raw.version !== 2 && raw.version !== FORMAT_VERSION)
   )
     throw new Error('Not a PLS Studio project file (or an unsupported version).');
-  const model = parseModelState(raw.model);
+  const parsed = parseModelState(raw.model);
   const settings = parseSettings(raw.settings);
   const { data, info } = isObj(raw.data) ? parseDataSection(raw.data) : { data: null, info: null };
+  // Formats 1 and 2 stored values per group in lavaan's order (first appearance in the data): mark them so, then
+  // put them in the order of the group codes with the project's own data (same results as before).
+  const model = codeOrderValues(
+    raw.version !== FORMAT_VERSION && hasGroupValues(parsed)
+      ? { ...parsed, groupValueOrder: 'appearance' }
+      : parsed,
+    data,
+  );
   return {
     // Format 1 estimated every undrawn exogenous pair in CB-SEM: draw those correlations (same results).
     model: raw.version === 1 ? makeCovariancesExplicit(model) : model,
@@ -1944,6 +1964,7 @@ export function parseModelState(m: unknown): ModelState {
     ...(isObj(m.multigroup) && typeof m.multigroup.column === 'string'
       ? { multigroup: parseMultigroup(m.multigroup, ids) }
       : {}),
+    ...(m.groupValueOrder === 'appearance' ? { groupValueOrder: 'appearance' as const } : {}),
     ...(typeof m.weights === 'string' && m.weights ? { weights: str(m.weights) } : {}),
     ...(typeof m.cluster === 'string' && m.cluster ? { cluster: str(m.cluster) } : {}),
     ...(Array.isArray(m.auxiliary) && m.auxiliary.some((x: unknown) => typeof x === 'string' && x)
