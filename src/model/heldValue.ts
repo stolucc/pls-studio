@@ -3,11 +3,15 @@
 // entry per group separated by commas (lavaan c(1, NA, a)): a number, NA (free in that group) or a label.
 
 import type { Dataset, GroupValue } from '../engine/types';
+import { NAME_RE } from './expr';
 
 export type HeldValue = { fixed: number } | { label: string } | { byGroup: GroupValue[] } | null;
 
 const NUMBER = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
-const LABEL = /^[A-Za-z][A-Za-z0-9_.]{0,30}$/;
+// (the label rule of the R bridge, ps_label: a letter, then letters, digits or _; no dots)
+const LABEL = NAME_RE;
+const LABEL_RULE =
+  'a label starts with a letter and has letters, digits and _ only (at most 31 characters)';
 
 function entry(raw: string): GroupValue | undefined {
   const v = raw.trim();
@@ -31,7 +35,8 @@ export function parseHeldValue(
     const out: GroupValue[] = [];
     for (const p of parts) {
       const v = entry(p);
-      if (v === undefined) return { error: `“${p.trim()}” is not a number, NA or a label.` };
+      if (v === undefined)
+        return { error: `“${p.trim()}” is not a number, NA or a label (${LABEL_RULE}).` };
       if (typeof v === 'string' && opts.reserved?.has(v))
         return { error: `“${v}” is a variable or construct name; a label must differ.` };
       out.push(v);
@@ -41,8 +46,7 @@ export function parseHeldValue(
   const v = entry(t);
   if (v === undefined)
     return {
-      error:
-        'Type a number (held at it), a label (equal labels are equal), or leave it empty (estimated freely).',
+      error: `Type a number (held at it), a label (equal labels are equal; ${LABEL_RULE}), or leave it empty (estimated freely).`,
     };
   if (v === null) return null;
   if (typeof v === 'number') {

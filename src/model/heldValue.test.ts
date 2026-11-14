@@ -100,3 +100,17 @@ describe('the order of the values per group', () => {
     expect(groupOrder(null, 'g')).toEqual([]);
   });
 });
+
+describe('labels follow the R bridge’s rule (ps_label)', () => {
+  it('refuses a dot, which R would refuse only after running', () => {
+    expect(parseHeldValue('a.b', { groups: false })).toEqual({
+      error: expect.stringMatching(/letters, digits and _ only/),
+    });
+    expect(parseHeldValue('1, a.b', { groups: true })).toEqual({
+      error: expect.stringMatching(
+        /“a\.b” is not a number, NA or a label \(a label starts with a letter/,
+      ),
+    });
+    expect(parseHeldValue('a_b2', { groups: false })).toEqual({ label: 'a_b2' });
+  });
+});
