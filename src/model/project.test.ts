@@ -120,6 +120,61 @@ describe('project files', () => {
     bad.model.paths[0].to = 'ghost';
     expect(() => parseProject(JSON.stringify(bad))).toThrow(/unknown construct/);
   });
+  it('rejects duplicate path ids, two paths between the same constructs and self-loops', () => {
+    const file = () => JSON.parse(serializeProject(base, DEFAULT_SETTINGS, null, null));
+    const sameId = file();
+    sameId.model.paths.push({ id: 'p1', from: 'B', to: 'A' });
+    expect(() => parseProject(JSON.stringify(sameId))).toThrow(/duplicate path ids/);
+    const twice = file();
+    twice.model.paths.push({ id: 'p2', from: 'A', to: 'B' });
+    expect(() => parseProject(JSON.stringify(twice))).toThrow(/same constructs/);
+    const loop = file();
+    loop.model.paths.push({ id: 'p2', from: 'B', to: 'B' });
+    expect(() => parseProject(JSON.stringify(loop))).toThrow(/to itself/);
+    // A reciprocal pair is two different paths (CB-SEM estimates it).
+    const reciprocal = file();
+    reciprocal.model.paths.push({ id: 'p2', from: 'B', to: 'A' });
+    expect(parseProject(JSON.stringify(reciprocal)).model.paths).toHaveLength(2);
+  });
+  it('checks cycles over many paths without rebuilding the graph for each', () => {
+    // 5000 paths out of one construct (the graph was rebuilt for each: 15 s).
+    const constructs = [C('A', 'Alpha', ['a1', 'a2']), C('B', 'Beta', ['b1'])];
+    const paths = Array.from({ length: 5000 }, (_, i) => ({ id: `p${i}`, from: 'A', to: 'B' }));
+    const model: ModelState = { constructs, paths, moderations: [] };
+    const start = performance.now();
+    const issues = validateModel(model, data, DEFAULT_SETTINGS);
+    expect(performance.now() - start).toBeLessThan(3000);
+    expect(issues.some((i) => /cycle/.test(i.message))).toBe(false);
+    expect(createsCycle(model.paths, 'B', 'A')).toBe(true);
+    expect(createsCycle(model.paths, 'A', 'B')).toBe(false);
+  });
+  it('rejects data columns without a name or with the same name', () => {
+    const d = { names: ['a1', 'b1'], cols: [Float64Array.from([1, 2]), Float64Array.from([3, 4])] };
+    const info = { fileName: 'd.csv', rows: 2, missingCells: 0, excluded: [] };
+    const file = () => JSON.parse(serializeProject(base, DEFAULT_SETTINGS, d, info));
+    const same = file();
+    same.data.names = ['a1', 'a1'];
+    expect(() => parseProject(JSON.stringify(same))).toThrow(/same name/);
+    const empty = file();
+    empty.data.names = ['a1', ' '];
+    expect(() => parseProject(JSON.stringify(empty))).toThrow(/no name/);
+  });
+  it('keeps a text column named __proto__ as an ordinary category list', () => {
+    const d = {
+      names: ['__proto__', 'constructor'],
+      cols: [Float64Array.from([1, 2]), Float64Array.from([3, 4])],
+    };
+    const info = { fileName: 'd.csv', rows: 2, missingCells: 0, excluded: [] };
+    const f = JSON.parse(serializeProject(base, DEFAULT_SETTINGS, d, info));
+    // (written by hand: JSON.parse makes __proto__ an own key, as a hostile file would)
+    f.data.categories = JSON.parse('{"__proto__": ["a", "b"]}');
+    const p = parseProject(JSON.stringify(f));
+    const categories = p.data!.categories!;
+    expect(Object.keys(categories)).toEqual(['__proto__']);
+    expect(Object.getPrototypeOf(categories)).toBeNull();
+    expect(categories['__proto__']).toEqual(['a', 'b']);
+    expect(categories['constructor']).toBeUndefined();
+  });
   it('clamps out-of-range settings', () => {
     const f = JSON.parse(serializeProject(base, DEFAULT_SETTINGS, null, null));
     f.settings = { bootSamples: 1e9, maxIter: -5, scheme: '<script>', confidence: 7 };

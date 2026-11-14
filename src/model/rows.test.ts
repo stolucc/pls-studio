@@ -49,8 +49,21 @@ describe('excluding cases and restoring them', () => {
     const file = parseProject(serializeProject(m, DEFAULT_SETTINGS, ex.data, ex.info));
     expect(file.info!.droppedRows).toEqual(ex.info.droppedRows);
     expect(
-      parseDroppedRows([{ at: [-1, 2], values: { a: [1], evil: [2] }, reason: 'x' }], ['a']),
+      parseDroppedRows([{ at: [-1, 2], values: { a: [1], evil: [2] }, reason: 'x' }], ['a'], 5),
     ).toEqual([{ reason: 'x', at: [2], values: { a: [1] } }]);
-    expect(parseDroppedRows('nope', ['a'])).toBeUndefined();
+    expect(parseDroppedRows('nope', ['a'], 5)).toBeUndefined();
+    // Positions must lie within the dataset as it was when the rows were excluded.
+    const v = (n: number) => ({ a: Array.from({ length: n }, () => 1) });
+    expect(parseDroppedRows([{ at: [0, 7], values: v(2), reason: 'x' }], ['a'], 5)).toBeUndefined();
+    expect(parseDroppedRows([{ at: [0, 6], values: v(2), reason: 'x' }], ['a'], 5)).toHaveLength(1);
+    // Stacked: the first was made from 5 + 2 + 1 = 8 rows, the second from 5 + 1 = 6.
+    const stacked = [
+      { at: [0, 7], values: v(2), reason: 'first' },
+      { at: [5], values: v(1), reason: 'second' },
+    ];
+    expect(parseDroppedRows(stacked, ['a'], 5)!.map((e) => e.reason)).toEqual(['first', 'second']);
+    const tooFar = [stacked[0], { at: [6], values: v(1), reason: 'second' }];
+    // The second is dropped; the first is then checked against 5 + 2 = 7 rows and dropped too.
+    expect(parseDroppedRows(tooFar, ['a'], 5)).toBeUndefined();
   });
 });

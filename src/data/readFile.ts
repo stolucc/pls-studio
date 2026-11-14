@@ -53,7 +53,8 @@ export function toDataset(
 ): { data: Dataset; info: DataInfo; sheets: string[] } {
   const names: string[] = [],
     cols: Float64Array[] = [],
-    categories: Record<string, string[]> = {};
+    // (null prototype: a column named __proto__ is an ordinary key)
+    categories: Record<string, string[]> = Object.create(null);
   const excluded = [...(raw.excluded ?? [])];
   const variables: { name: string; labels: unknown }[] = [];
   const codes: { name: string; values: unknown; ranges: unknown }[] = [];

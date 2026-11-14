@@ -4,6 +4,8 @@ import { BIFACTOR_ROTATIONS, LAVAAN_MISSING, type Dataset } from '../engine/type
 import { processGraph } from '../process/fromModel';
 import {
   constraintErrors,
+  addToAdjacency,
+  closesCycle,
   createsCycle,
   DEFAULT_SETTINGS,
   endogenousIds,
@@ -13,7 +15,7 @@ import {
   unconfirmedUncorrelated,
   usesConstraints,
 } from './project';
-import type { Construct, Issue, ModelState, Path, Settings } from './project';
+import type { Construct, Issue, ModelState, Settings } from './project';
 import { countIndicators, countModelSyntax } from './countModel';
 import { identificationIssues, isolatedTwoIndicatorFactor } from './identification';
 
@@ -1818,11 +1820,12 @@ function checkCycles(v: Ctx): Issue[] {
   const { model, method, cname } = v;
   // Cycles (reciprocal paths, feedback loops): a non-recursive model. CB-SEM estimates it (lavaan, the built-in
   // ML engine) when the equations are identified; PLS-SEM and conditional process analysis need a recursive model.
-  const seen: Path[] = [];
+  // The adjacency of the paths seen so far, built up once (not rebuilt for every path).
+  const seen = new Map<string, string[]>();
   const loops: string[] = [];
   for (const p of model.paths) {
-    if (createsCycle(seen, p.from, p.to)) loops.push(`${cname.get(p.from)} → ${cname.get(p.to)}`);
-    seen.push(p);
+    if (closesCycle(seen, p.from, p.to)) loops.push(`${cname.get(p.from)} → ${cname.get(p.to)}`);
+    addToAdjacency(seen, p.from, p.to);
   }
   if (loops.length) {
     if (method.method !== 'cbsem')
