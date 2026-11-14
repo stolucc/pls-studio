@@ -8,7 +8,9 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { parseCsv } from '../engine/dataset';
 import type { McDesign } from '../engine/montecarlo';
 import type { ModelSpec } from '../engine/types';
-import { rCall } from './bridge';
+import { analysisScript, bootChunked, bootstrapR } from './analyses';
+import { parallelism, rCall } from './bridge';
+import { useHelper } from './helper';
 import { cbRequest, estimateCbLavaan } from './lavaan';
 import { mcChunkRequest, runMcChunkR } from './mc';
 import { estimatePlsR, plsScriptR } from './pls';
@@ -155,4 +157,47 @@ it('PLS multiple imputation reports the method it used and passes mice’s warni
   expect(norm.pathCoef[0][1]).not.toBe(amelia.pathCoef[0][1]);
   const script = await plsScriptR(holes, spec, options('micenorm'), 'seminr');
   expect(script).toContain('method = "norm"');
+}, 600_000);
+
+it('a lavaan bootstrap gives the same intervals on one R session as on several (chunks with seed + k)', async () => {
+  const f = (name: string, indicators: string[]) => ({
+    name,
+    type: 'factor' as const,
+    mode: 'A' as const,
+    indicators,
+  });
+  const spec: ModelSpec = {
+    constructs: [f('visual', ['x1', 'x2', 'x3']), f('textual', ['x4', 'x5', 'x6'])],
+    paths: [{ from: 'visual', to: 'textual' }],
+  };
+  const a = {
+    kind: 'cbBoot' as const,
+    estimator: 'ML' as const,
+    missing: 'casewise' as const,
+    boot: { samples: 250, seed: 11, confidence: 0.95 },
+  };
+  expect(bootChunked(a)).toBe(true);
+  const sessions = async (n: number) => {
+    await parallelism();
+    const h = useHelper.getState();
+    useHelper.setState({ info: { ...h.info!, workers: n } });
+    return (await parallelism()).sessions;
+  };
+  await parallelism();
+  const before = useHelper.getState().info!.workers;
+  try {
+    expect(await sessions(4)).toBe(4);
+    const parallel = await bootstrapR(hs, spec, a, () => 'x');
+    expect(await sessions(1)).toBe(1);
+    const serial = await bootstrapR(hs, spec, a, () => 'x');
+    expect(serial.chunked).toBe(true);
+    expect(parallel.chunked).toBe(true);
+    expect(serial.stats.length).toBeGreaterThan(5);
+    expect(serial.stats).toEqual(parallel.stats);
+    // The exported script draws the same chunks.
+    const script = await analysisScript(hs, spec, a);
+    expect(script).toContain('chunks <- data.frame(R = c(100, 100, 50), seed = c(11, 12, 13))');
+  } finally {
+    await sessions(before);
+  }
 }, 600_000);

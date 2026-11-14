@@ -79,13 +79,20 @@ function request(data: Dataset, spec: ModelSpec, a: Analysis): { req: unknown; p
   }
 }
 
-/** The self-contained R script for an analysis (data embedded). */
-export function analysisScript(data: Dataset, spec: ModelSpec, a: Analysis): Promise<string> {
+/**
+ * The self-contained R script for an analysis (data embedded). A bootstrap draws its samples as the result did:
+ * `chunks`, the result's `chunked` (absent: as a bootstrap of this analysis runs now, bootChunked).
+ */
+export function analysisScript(
+  data: Dataset,
+  spec: ModelSpec,
+  a: Analysis,
+  chunks?: boolean,
+): Promise<string> {
   if (a.kind === 'plsBoot' || a.kind === 'cbBoot') {
-    return bootParallel(a).then((par) => {
-      const { req, pkg } = par ? chunked(data, spec, a) : request(data, spec, a);
-      return rScript(FN[a.kind], req, pkg);
-    });
+    const { req, pkg } =
+      (chunks ?? bootChunked(a)) ? chunked(data, spec, a) : request(data, spec, a);
+    return rScript(FN[a.kind], req, pkg);
   }
   const { req, pkg } = request(data, spec, a);
   return rScript(FN[a.kind], req, pkg);
@@ -93,7 +100,12 @@ export function analysisScript(data: Dataset, spec: ModelSpec, a: Analysis): Pro
 
 // ---------- parsers ----------
 
-export type BootstrapResultR = BootstrapResult & { engine: REngineInfo; warnings: string[] };
+/** `chunked`: the samples were drawn in chunks (bootChunked), which the exported script then reproduces. */
+export type BootstrapResultR = BootstrapResult & {
+  engine: REngineInfo;
+  warnings: string[];
+  chunked?: boolean;
+};
 
 export function parseBoot(raw: Raw, engine: REngineInfo): BootstrapResultR {
   const all = (raw.stats as Raw[]).map((s) => ({
@@ -215,19 +227,23 @@ export function parseMiiv(raw: Raw): MiivResultR {
 // ---------- runners ----------
 
 /**
- * Whether a bootstrap runs in chunks on several R sessions. Desktop R:
- * lavaan / modsem bootstraps always (cSEM and seminr use the cores of one R
- * process, with identical results). The browser: cSEM and lavaan with the
- * Parallel setting on (seminr cannot bootstrap there).
+ * Whether a bootstrap draws its samples in chunks (CHUNK_SAMPLES each, chunk k with seed + k: compute.ts bootChunks),
+ * as the built-in engine does. A property of the analysis alone, never of this browser's settings or the desktop
+ * helper, so the same project and seed give the same intervals everywhere: lavaan / modsem and cSEM bootstraps
+ * always (on one R session the chunks are drawn in turn, on several in parallel). Not chunked: seminr (its own
+ * seeding, identical for any number of cores), multiple imputation (one bootstrap per imputed data set, pooled in
+ * one call) and BCa (the jackknife runs with the summary, in one call).
  */
-export async function bootParallel(a: Analysis): Promise<boolean> {
-  // Multiple imputation: one bootstrap per imputed data set, in one call (pooled by Rubin's rules in R).
+export function bootChunked(a: Analysis): boolean {
   if (a.kind === 'plsBoot' && a.options.missing === 'mi') return false;
-  // BCa: the jackknife runs with the summary, in one call.
   if ((a.kind === 'plsBoot' || a.kind === 'cbBoot') && a.boot.interval === 'bca') return false;
-  const p = await parallelism();
-  if (p.where === 'desktop') return a.kind === 'cbBoot' && p.sessions > 1;
-  return p.sessions > 1 && (a.kind === 'cbBoot' || (a.kind === 'plsBoot' && a.pkg === 'cSEM'));
+  return a.kind === 'cbBoot' || (a.kind === 'plsBoot' && a.pkg === 'cSEM');
+}
+
+/** Whether a chunked bootstrap spreads its chunks over several R sessions (the Parallel setting; desktop R: the helper's processes). */
+export async function bootParallel(a: Analysis): Promise<boolean> {
+  if (!bootChunked(a)) return false;
+  return (await parallelism()).sessions > 1;
 }
 
 /** The request with the chunk plan of the parallel option (see bootChunks). */
@@ -245,9 +261,6 @@ function chunked(
   };
 }
 
-const rows = (v: unknown): unknown[][] =>
-  (Array.isArray(v) ? v : []).map((r) => (Array.isArray(r) ? r : [r]));
-
 /**
  * Bootstrap by the package. With the parallel option, the chunks are drawn in
  * parallel R sessions and summarised in one last call (equal to the exported
@@ -262,7 +275,11 @@ export async function bootstrapR(
 ): Promise<BootstrapResultR> {
   let raw: Raw;
   const { pkg } = request(data, spec, a);
-  if (await bootParallel(a)) {
+  const inChunks = bootChunked(a);
+  if (inChunks && !(await bootParallel(a))) {
+    // (one R session: one call draws the chunks in turn, as the exported script does)
+    raw = await rCall<Raw>(FN[a.kind], chunked(data, spec, a).req, pkg);
+  } else if (inChunks) {
     const { req, chunks } = chunked(data, spec, a);
     const parts = await rCallParallel<Raw>(
       FN[a.kind],
@@ -270,10 +287,11 @@ export async function bootstrapR(
       pkg,
       (done) => onProgress?.(done, chunks),
     );
+    // (each part's draws and the originals travel back as R sent them: base64 of the doubles, exact and compact)
     const draws = {
-      names: rList<unknown>(parts[0].names),
-      values: parts.flatMap((p) => rows(p.values)),
-      original: rList<unknown>(parts[0].original),
+      names: rStrings(parts[0].names),
+      parts: parts.map((p) => ({ rows: p.rows, values: p.values })),
+      original: parts[0].original,
     };
     raw = await rCall<Raw>(FN[a.kind], { ...req, boot: { ...req.boot, draws } }, pkg);
     raw.warnings = [
@@ -286,10 +304,10 @@ export async function bootstrapR(
   let reportedPackage: string;
   if (a.kind === 'cbBoot') reportedPackage = pkg === 'modsem' ? 'modsem' : 'lavaan';
   else reportedPackage = a.pkg;
-  return parseBoot(raw, {
-    package: reportedPackage,
-    version: version(),
-  });
+  return {
+    ...parseBoot(raw, { package: reportedPackage, version: version() }),
+    ...(inChunks ? { chunked: true } : {}),
+  };
 }
 
 export async function fitTestR(

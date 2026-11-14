@@ -136,27 +136,43 @@ ps_boot_draw_lines <- function(req, chunk_fn) {
     "draws <- do.call(rbind, lapply(parts, `[[`, \"draws\")); original <- parts[[1]]$original"
   )
 }
-#' Inputs of the summarising call: the draws of all chunks (req$boot$draws: {names, rows}) and the originals.
+#' A numeric matrix as base64 of its doubles, row by row (little-endian IEEE 754): exact (NA, NaN and Inf included),
+#' and about half the size of the same numbers as JSON text, which also reads and writes far faster.
+ps_doubles_b64 <- function(m) {
+  gsub("[\r\n]", "", jsonlite::base64_enc(writeBin(as.double(t(m)), raw(), size = 8, endian = "little")))
+}
+#' The matrix of `rows` rows and `cols` columns from ps_doubles_b64's text (refused unless the sizes agree).
+ps_b64_doubles <- function(text, rows, cols) {
+  rows <- suppressWarnings(as.integer(rows))
+  bytes <- if (is.character(text) && length(text) == 1) jsonlite::base64_dec(text) else raw(0)
+  if (length(rows) != 1 || is.na(rows) || rows < 0 || length(bytes) != rows * cols * 8) {
+    stop("Invalid bootstrap draws in the request.")
+  }
+  matrix(readBin(bytes, "double", n = rows * cols, size = 8, endian = "little"), nrow = rows, byrow = TRUE)
+}
+#' Inputs of the summarising call: the draws of all chunks (req$boot$draws: {names, parts: [{rows, values}], original},
+#' the values and the originals as ps_doubles_b64 gave them).
 ps_boot_inputs <- function(req, inputs) {
   d <- req$boot$draws
   if (is.null(d)) {
     return(inputs)
   }
-  v <- d$values
-  # (a JSON array of rows arrives as a matrix, or as a list of rows when they contain nulls)
-  row_values <- function(r) as.numeric(vapply(r, function(x) if (is.null(x)) NA_real_ else as.numeric(x), 0))
-  m <- if (is.matrix(v)) v else do.call(rbind, lapply(v, row_values))
-  m <- matrix(as.numeric(m), nrow = nrow(m), dimnames = list(NULL, d$names))
-  c(inputs, list(boot_draws = m, boot_original = setNames(as.numeric(unlist(d$original)), d$names)))
+  nms <- as.character(unlist(d$names))
+  blocks <- lapply(d$parts, function(p) ps_b64_doubles(p$values, p$rows, length(nms)))
+  m <- do.call(rbind, blocks)
+  colnames(m) <- nms
+  original <- setNames(as.numeric(ps_b64_doubles(d$original, 1, length(nms))), nms)
+  c(inputs, list(boot_draws = m, boot_original = original))
 }
-#' The draws of one chunk as JSON (in-app parallel calls).
+#' The draws of one chunk as JSON (in-app parallel calls): the draws as base64 (ps_doubles_b64), sent back unchanged
+#' with the summarising call.
 ps_boot_part_json <- function(env) {
   D <- env$draws
-  draw_rows <- unname(lapply(seq_len(nrow(D)), function(i) unname(D[i, ])))
   ps_json(list(
-    names = colnames(D),
-    values = draw_rows,
-    original = unname(env$original[colnames(D)]),
+    names = I(colnames(D)),
+    rows = nrow(D),
+    values = ps_doubles_b64(D),
+    original = ps_doubles_b64(matrix(env$original[colnames(D)], nrow = 1)),
     warnings = ps_quiet_2ndorder(env$.warnings)
   ))
 }
