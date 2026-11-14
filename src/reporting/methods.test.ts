@@ -39,8 +39,28 @@ describe('methods text', () => {
       '2,000 bootstrap resamples (Efron & Tibshirani, 1993), of which 3 failed and were skipped, with two-tailed tests',
     );
     expect(r.text).toContain('(MLR; Yuan & Bentler, 2000)');
+    expect(r.text).toContain(
+      'The z tests used robust standard errors; bootstrap standard errors and 95% bias-corrected and accelerated (BCa) confidence intervals came from 2,000 bootstrap resamples',
+    );
+    expect(r.text).not.toContain('Standard errors and 95%');
     expect(r.text).toContain('robust CFI, TLI and RMSEA');
     expect(r.text).toContain('Hu and Bentler (1999)');
+  });
+
+  it('CB-SEM: says which standard errors the z tests used, beside the bootstrap', () => {
+    const ml = methodsText(
+      cbInput({ cb: cbResult({ estimator: 'ML', seType: undefined, fit: { ...cbResult().fit } }) }),
+    ).text;
+    expect(ml).toContain(
+      'The z tests used information-matrix standard errors; bootstrap standard errors',
+    );
+    // lavaan with se = "bootstrap": the tables' standard errors are the bootstrap's.
+    const boot = methodsText(cbInput({ cb: cbResult({ seType: 'bootstrap' }) })).text;
+    expect(boot).toContain(
+      'Standard errors and 95% bias-corrected and accelerated (BCa) confidence intervals came from',
+    );
+    // Without a bootstrap, no bootstrap sentence.
+    expect(methodsText(cbInput({ boot: null })).text).not.toContain('bootstrap resamples');
   });
 
   it('conditional process analysis (PROCESS model 4, HC3)', () => {

@@ -250,7 +250,15 @@ function imputationMethod(miMethod: Settings['miMethod']): string {
   return `chained equations with mice ${cite('vanbuuren2011')}${model}`;
 }
 
-function bootText(b: (BootstrapResult & { seed?: number }) | null | undefined): string | null {
+/**
+ * The bootstrap sentence. `estimatorSe` (CB-SEM): the kind of standard errors the parameter
+ * tables show when they are not the bootstrap's own (the estimator's information-matrix or
+ * robust ones); the bootstrap then adds its standard errors and intervals beside them.
+ */
+function bootText(
+  b: (BootstrapResult & { seed?: number }) | null | undefined,
+  estimatorSe?: string,
+): string | null {
   if (!b) return null;
   let interval = 'percentile';
   if (b.interval === 'bca') interval = 'bias-corrected and accelerated (BCa)';
@@ -261,10 +269,31 @@ function bootText(b: (BootstrapResult & { seed?: number }) | null | undefined): 
   const seed = b.seed !== undefined ? `, random seed ${b.seed}` : '';
   const resamples = b.samples.toLocaleString('en-US');
   const tails = b.tails === 1 ? 'one' : 'two';
-  return (
-    `Standard errors and ${pct(b.confidence)} ${interval} confidence intervals came from ` +
-    `${resamples} bootstrap resamples ${cite('efron1993')}${failed || ','} with ${tails}-tailed tests${seed}.`
-  );
+  const source = `${resamples} bootstrap resamples ${cite('efron1993')}${failed || ','} with ${tails}-tailed tests${seed}.`;
+  if (estimatorSe)
+    return (
+      `The z tests used ${estimatorSe} standard errors; bootstrap standard errors and ${pct(b.confidence)} ` +
+      `${interval} confidence intervals came from ${source}`
+    );
+  return `Standard errors and ${pct(b.confidence)} ${interval} confidence intervals came from ${source}`;
+}
+
+/**
+ * The standard errors a CB-SEM result's parameter tables show (as the results label them), or
+ * undefined when they are bootstrap standard errors (lavaan se = "bootstrap").
+ */
+function cbStandardErrors(cb: CbResult): string | undefined {
+  const t = cb.seType;
+  if (t === 'bootstrap') return undefined;
+  if (t?.startsWith('robust.cluster')) return 'cluster-robust';
+  if (t?.startsWith('robust')) return 'robust';
+  if (
+    t !== 'standard' &&
+    t !== 'default' &&
+    ['MLM', 'MLMV', 'MLR', 'RML', 'WLSMV'].includes(cb.estimator)
+  )
+    return 'robust';
+  return 'information-matrix';
 }
 
 /** Has a card of one of these types run (in the analysis log)? */
@@ -488,7 +517,7 @@ function cbDraft(input: ReportInput, cb: WithEngine<CbResult>, d: Draft) {
   if (m.cluster) d.add(`Standard errors account for the clustering of cases in ${m.cluster}.`);
   if (m.weights) d.add(`Sampling weights from ${m.weights} were applied.`);
   d.add(missingText(input, cb.n, cb.droppedRows, cb.imputations));
-  d.add(bootText(input.boot));
+  d.add(bootText(input.boot, cbStandardErrors(cb)));
   d.add(mediationText(input, 'cbsem'));
   const robust = cb.fit.cfiRobust !== undefined || cb.fit.rmseaRobust !== undefined;
   if (Number.isFinite(cb.fit.chisq)) {
