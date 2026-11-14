@@ -2,7 +2,7 @@
 // that value, lavaan 1*x, Mplus x@1), a name (a label, lavaan a*x, Mplus x (a)) or, with groups, one
 // entry per group separated by commas (lavaan c(1, NA, a)): a number, NA (free in that group) or a label.
 
-import type { GroupValue } from '../engine/types';
+import type { Dataset, GroupValue } from '../engine/types';
 
 export type HeldValue = { fixed: number } | { label: string } | { byGroup: GroupValue[] } | null;
 
@@ -62,4 +62,19 @@ export function heldText(
   if (p.byGroup?.length) return p.byGroup.map((v) => (v === null ? 'NA' : String(v))).join(', ');
   if (p.fixed !== undefined) return String(p.fixed);
   return p.label ?? '';
+}
+
+/**
+ * The groups in the order the values per group go to them: a stacked dataset's groups as given; otherwise the
+ * grouping column's codes in ascending order, shown as their categories for a text column (lavaan's group.label,
+ * R/lavaan.R ps_group_order; never the order the rows happen to be in).
+ */
+export function groupOrder(data: Dataset | null | undefined, column: string): string[] {
+  if (!data) return [];
+  if (data.moments?.groups?.length) return data.moments.groups.map((g) => g.label);
+  const col = data.cols[data.names.indexOf(column)];
+  if (!col) return [];
+  const codes = [...new Set(Array.from(col).filter(Number.isFinite))].sort((a, b) => a - b);
+  const categories = data.categories?.[column];
+  return codes.map((c) => categories?.[c - 1] ?? String(c));
 }

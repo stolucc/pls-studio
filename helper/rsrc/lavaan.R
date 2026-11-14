@@ -471,12 +471,23 @@ ps_cb_build <- function(req) {
   } else {
     1
   }
+  # The app gives values per group in the order of the group codes (for a text column, of its categories: heldValue.ts
+  # groupOrder); lavaan numbers the groups in the order they first appear in the data. lavaan_order[k]: the app's
+  # position of lavaan's group k, so sorting the rows never changes which group gets which value.
+  lavaan_order <- if (!matrix_groups && !is.null(group_var)) {
+    g <- inputs$data[[group_var]]
+    g <- g[is.finite(g)]
+    match(unique(g), sort(unique(g)))
+  } else {
+    seq_len(n_groups)
+  }
   ps_mod <- function(t) {
     if (!is.null(t$byGroup)) {
       vals <- t$byGroup
       if (n_groups < 2 || length(vals) != n_groups) {
         stop("Values per group need one value per group.")
       }
+      vals <- vals[lavaan_order]
       group_value <- function(x) {
         if (is.null(x) || (length(x) == 1 && is.na(x))) {
           "NA"

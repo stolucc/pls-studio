@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { heldText, parseHeldValue } from './heldValue';
+import { groupOrder, heldText, parseHeldValue } from './heldValue';
 
 describe('held and labelled parameter values typed in the dialogs', () => {
   it('reads free, a value, a label and values per group', () => {
@@ -69,5 +69,34 @@ describe('values per group in the model check', () => {
         parameters: [{ id: 'v', kind: 'variance' as const, target: f, byGroup: [1, null] }],
       }),
     ).toEqual([]);
+  });
+});
+
+describe('the order of the values per group', () => {
+  it('is the order of the group codes (a text column: its categories), not the order of the rows', () => {
+    const data = {
+      names: ['x', 'g'],
+      cols: [Float64Array.from([1, 2, 3, 4]), Float64Array.from([3, 1, NaN, 2])],
+    };
+    expect(groupOrder(data, 'g')).toEqual(['1', '2', '3']);
+    expect(groupOrder({ ...data, categories: { g: ['old', 'young', 'mid'] } }, 'g')).toEqual([
+      'old',
+      'young',
+      'mid',
+    ]);
+    const stacked = {
+      names: ['x'],
+      cols: [],
+      moments: {
+        S: [[1]],
+        n: 10,
+        groups: [
+          { label: 'B', S: [[1]], n: 5 },
+          { label: 'A', S: [[1]], n: 5 },
+        ],
+      },
+    };
+    expect(groupOrder(stacked as never, 'g')).toEqual(['B', 'A']);
+    expect(groupOrder(null, 'g')).toEqual([]);
   });
 });

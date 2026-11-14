@@ -2,7 +2,7 @@
 // store, and dialogs for values, labels and held parameters.
 
 import { newId, endogenousIds, type ModelState } from '../../model/project';
-import { heldText, parseHeldValue, type HeldValue } from '../../model/heldValue';
+import { groupOrder, heldText, parseHeldValue, type HeldValue } from '../../model/heldValue';
 import { nameError } from '../../model/expr';
 import { useStore } from '../../store';
 import { heldOf, type MenuAction, type MenuTarget } from '../canvasMenu';
@@ -84,8 +84,13 @@ const setLabel = async (target: MenuTarget) => {
 // Held or labelled variances, intercepts, thresholds and values per group: one text field (heldValue.ts).
 const HELD_HINT =
   'A number holds it at that value; a name labels it (equal labels are equal; usable in defined parameters and constraints); empty estimates it freely.';
-const GROUP_HINT =
-  ' With groups, one entry per group separated by commas (a number, NA for free, or a label), e.g. 1, NA, a.';
+/** With groups: one entry per group, in the order of groupOrder (the order lavaan is told, whatever the rows' order). */
+const groupHint = () => {
+  const column = st().model.multigroup?.column;
+  const order = column ? groupOrder(st().data, column) : [];
+  const which = order.length ? `, in this order: ${order.join(', ')}` : '';
+  return ` With groups, one entry per group${which}, separated by commas (a number, NA for free, or a label), e.g. 1, NA, a.`;
+};
 const heldOpts = () => {
   const m = st().model;
   return { groups: !!m.multigroup, reserved: variableNames(m) };
@@ -101,7 +106,7 @@ const heldDialog = async (
 ): Promise<HeldValue | undefined> => {
   const text = await textDialog({
     title,
-    body: `${body} ${HELD_HINT}${heldOpts().groups ? GROUP_HINT : ''}`,
+    body: `${body} ${HELD_HINT}${heldOpts().groups ? groupHint() : ''}`,
     confirmLabel: 'Apply',
     text: { label: 'Value or label', initial, allowEmpty: true, check: checkHeld },
   });
@@ -114,7 +119,7 @@ const heldParameter = async (target: MenuTarget, kind: 'variance' | 'intercept' 
       const first = heldOf(m, { kind, target: target.name, indicator: true, threshold: 1 });
       const values = await formDialog({
         title: `A threshold of ${target.name}`,
-        body: `Threshold k separates categories k and k + 1 of the ordinal indicator (lavaan ${target.name} | t1; Mplus [${target.name}$1]). ${HELD_HINT}${heldOpts().groups ? GROUP_HINT : ''}`,
+        body: `Threshold k separates categories k and k + 1 of the ordinal indicator (lavaan ${target.name} | t1; Mplus [${target.name}$1]). ${HELD_HINT}${heldOpts().groups ? groupHint() : ''}`,
         confirmLabel: 'Apply',
         fields: [
           {

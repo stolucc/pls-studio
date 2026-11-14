@@ -78,3 +78,41 @@ it('a Monte Carlo chunk of one replication sends one-element arrays', async () =
   const part = await runMcChunkR(design, 200, 0, 1);
   expect(part.est[0][0]).toHaveLength(1);
 }, 600_000);
+
+it('values per group go to the groups in the order of their codes, whatever the order of the rows', async () => {
+  // Two groups (codes 1 and 2) and a covariance held at 0.2 in group 1 and 0.4 in group 2.
+  const g = Float64Array.from(hs.cols[0], (_v, i) => (i % 3 === 1 ? 2 : 1));
+  const grouped = { names: [...hs.names, 'g'], cols: [...hs.cols, g] };
+  const order = Array.from(g.keys()).sort((a, b) => g[b] - g[a] || a - b);
+  const reordered = {
+    names: grouped.names,
+    cols: grouped.cols.map((c) => Float64Array.from(order, (i) => c[i])),
+  };
+  const f = (name: string, indicators: string[]) => ({
+    name,
+    type: 'factor' as const,
+    mode: 'A' as const,
+    indicators,
+  });
+  const spec: ModelSpec = {
+    constructs: [f('visual', ['x1', 'x2', 'x3']), f('textual', ['x4', 'x5', 'x6'])],
+    paths: [],
+    covariances: [{ a: 'visual', b: 'textual', kind: 'construct', byGroup: [0.2, 0.4] }],
+    multigroup: { column: 'g', invariance: 'configural', free: [] },
+  };
+  const first = await estimateCbLavaan(grouped, spec, 'casewise', 'ML');
+  const sorted = await estimateCbLavaan(reordered, spec, 'casewise', 'ML');
+  // (rows of group 2 first: lavaan makes it its first group, so the values must follow the groups, not the positions)
+  expect(reordered.cols[9][0]).toBe(2);
+  expect(first.groups!.labels).toEqual(['1', '2']);
+  expect(sorted.groups!.labels).toEqual(['2', '1']);
+  expect(sorted.fit.chisq).toBeCloseTo(first.fit.chisq, 8);
+  const cov = (r: typeof first, group: string) =>
+    r.groups!.results[r.groups!.labels.indexOf(group)].estimates.find(
+      (e) => e.op === '~~' && e.lhs === 'visual' && e.rhs === 'textual',
+    )!.est;
+  for (const r of [first, sorted]) {
+    expect(cov(r, '1')).toBeCloseTo(0.2, 12);
+    expect(cov(r, '2')).toBeCloseTo(0.4, 12);
+  }
+}, 600_000);
