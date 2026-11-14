@@ -7,7 +7,13 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, type ModelState } from '../../model/project';
 import { estimationKey } from '../../validation/exampleState';
-import { evidenceKinds, resetEvidence } from '../../validation/useEvidence';
+import {
+  comparedText,
+  evidenceKinds,
+  kindComparisons,
+  LEVEL_TEXT,
+  resetEvidence,
+} from '../../validation/useEvidence';
 import type { Evidence } from '../../validation/types';
 import { useStore } from '../../store';
 import { ValidationPage } from './ValidationPage';
@@ -242,6 +248,34 @@ describe('evidenceKinds', () => {
     expect(evidenceKinds({ ...both, comparisons: [both.comparisons[0]] })).toEqual(['published']);
     expect(evidenceKinds(evidence.checks[1])).toEqual(['runs']);
     expect(evidenceKinds(evidence.checks[2])).toEqual(['native']); // a method check: its own kind
+  });
+
+  it('same R is a kind of its own; published and native need an estimated quantity, not counts alone', () => {
+    const c = {
+      ...evidence.checks[0],
+      sources: [
+        { label: 'counts', level: 'published' as const },
+        { label: 'direct call', level: 'same-r' as const },
+      ],
+      comparisons: [
+        { quantity: 'df', value: 24, reference: 24, tolerance: 0, source: 'counts' },
+        { quantity: 'logLik', value: -1, reference: -1, tolerance: 1e-6, source: 'direct call' },
+      ],
+    };
+    expect(evidenceKinds(c)).toEqual(['same-r']);
+    expect(kindComparisons(c, 'published')).toHaveLength(1);
+    expect(comparedText(c, 'same-r')).toBe('1 number compared');
+    const withEstimate = {
+      ...c,
+      comparisons: [
+        ...c.comparisons,
+        { quantity: 'χ²', value: 85.3, reference: 85.3, tolerance: 0.05, source: 'counts' },
+      ],
+    };
+    expect(evidenceKinds(withEstimate)).toEqual(['published', 'same-r']);
+    expect(comparedText(withEstimate, 'published')).toBe('2 numbers compared');
+    expect(LEVEL_TEXT['same-r'].hint).toMatch(/same R session/);
+    expect(LEVEL_TEXT.native.hint).toMatch(/desktop R/);
   });
 });
 

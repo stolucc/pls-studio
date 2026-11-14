@@ -33,7 +33,7 @@ for (const f of readdirSync(dir)
     }
     // The same example checked in several test files: one check with every source and comparison (the app shows each kind of
     // evidence; `level` keeps one, published before native, for sorting).
-    const rank = { published: 0, native: 1, recovery: 2, runs: 3 };
+    const rank = { published: 0, native: 1, 'same-r': 2, recovery: 3, runs: 4 };
     prev.level = rank[c.level] < rank[prev.level] ? c.level : prev.level;
     prev.comparisons.push(...c.comparisons);
     for (const s of c.sources)

@@ -159,7 +159,7 @@ it('qca-lf-lipset: ?minimize’s fuzzy-set Lipset analysis (truth table, conserv
   // The package called directly on the help page's code, in the same R: every parameter of fit to 1e-6.
   against({
     label: 'QCA::truthTable, minimize and pof called directly in the same R (?minimize, LF)',
-    level: 'native',
+    level: 'same-r',
   });
   const ref = await sameR<{
     c: number[][];
@@ -380,7 +380,7 @@ it('qca-cvf-protest: ?pof’s analysis of necessity and ?minimize’s parsimonio
   against({
     label:
       'QCA::minimize called directly in the same R (?minimize, CVF): each model’s parameters of fit',
-    level: 'native',
+    level: 'same-r',
   });
   const ref = await sameR<{ sol: number[][]; nec: number[][] }>(
     'suppressPackageStartupMessages(library(QCA)); m <- minimize(truthTable(CVF, "PROTEST", incl.cut = 0.8, sort.by = "incl, n"), include = "?", details = TRUE); ' +

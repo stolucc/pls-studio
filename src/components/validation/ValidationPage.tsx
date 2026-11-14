@@ -6,6 +6,7 @@ import type { Check, Evidence, EvidenceLevel } from '../../validation/types';
 import { EVIDENCE_LEVELS } from '../../validation/types';
 import {
   evidenceKinds,
+  kindComparisons,
   largestDifference,
   LEVEL_TEXT,
   useEvidenceStatus,
@@ -32,6 +33,7 @@ function diff(v: number | null): string {
 }
 
 function Sources({ c }: { c: Check }) {
+  const compared = (label: string) => c.comparisons.filter((x) => x.source === label).length;
   return (
     <ul className="evidence-sources">
       {c.sources.map((s) => (
@@ -45,6 +47,7 @@ function Sources({ c }: { c: Check }) {
             s.label
           )}
           {s.script && <span className="hint"> ({s.script})</span>}
+          {c.subject === 'example' && <span className="hint"> ({compared(s.label)} compared)</span>}
         </li>
       ))}
       {c.runtime === 'desktop' && (
@@ -138,7 +141,7 @@ function CheckRow({
         <span className="evidence-title">{title}</span>
         <span className="evidence-badges">
           {evidenceKinds(c).map((k) => (
-            <LevelChip key={k} level={k} />
+            <LevelChip key={k} level={k} compared={kindComparisons(c, k).length} />
           ))}
           {c.runtime === 'desktop' && (
             <span className="chip coverage runtime" title="Computed in desktop R, not in webR">
@@ -189,7 +192,10 @@ function Summary({ e }: { e: Evidence }) {
               Kinds of evidence, not a ranking: published results show that another author or
               program gets the same numbers (to the decimals printed), native R that the browser
               computes exactly what the package does in desktop R (every estimate, to four to six
-              decimals). {ex.filter((c) => evidenceKinds(c).length > 1).length} examples have both.
+              decimals); same R that the app asks the package what a direct call in the same R
+              session asks, and reads its answer correctly.{' '}
+              {ex.filter((c) => evidenceKinds(c).length > 1).length} examples have more than one
+              kind.
             </td>
           </tr>
         </tfoot>

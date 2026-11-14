@@ -6,15 +6,19 @@
  * The kind of evidence (kinds, not a ranking: an example often has both published and native evidence, which
  * show different things; useEvidence.ts evidenceKinds lists them):
  * - `published`: reproduces numbers printed by other people with other software (Mplus output, a book's tables);
- * - `native`: equals the same R package run in desktop R on the same data (a reference script), or an
- *   independent computation (numerical integration, a direct call of the package in the same R);
+ * - `native`: equals the same R package run in desktop R on the same data (a reference script, or values
+ *   recorded from desktop R), or the package's documented output;
+ * - `same-r`: equals the package's own function (or a computation by hand) called directly in the same R session
+ *   that computed the app's numbers (webR): it checks the app's request, options and reading of the result, not R
+ *   or the package build;
  * - `recovery`: simulated data with known true values, recovered (methods without a reference package);
  * - `runs`: the package's documented example estimates without unexpected warnings; nothing to compare with.
  */
-export type EvidenceLevel = 'published' | 'native' | 'recovery' | 'runs';
+export type EvidenceLevel = 'published' | 'native' | 'same-r' | 'recovery' | 'runs';
 export const EVIDENCE_LEVELS: readonly EvidenceLevel[] = [
   'published',
   'native',
+  'same-r',
   'recovery',
   'runs',
 ];
@@ -39,6 +43,20 @@ export interface Comparison {
   /** Examples: the label of the source compared with. */
   source?: string;
 }
+
+/**
+ * A comparison of an estimated quantity: two numbers, a finite tolerance above 0. Exact comparisons (counts, df,
+ * labels, orderings: same()) show structure, not estimates: a published or native source grades an example only with
+ * at least one comparison of this kind (record.ts, useEvidence.ts evidenceKinds, evidence.test.ts).
+ */
+export const isEstimateComparison = (c: Comparison): boolean =>
+  typeof c.value === 'number' &&
+  typeof c.reference === 'number' &&
+  Number.isFinite(c.tolerance) &&
+  c.tolerance > 0;
+
+/** The levels a source gives only with a comparison of an estimated quantity (isEstimateComparison). */
+export const ESTIMATE_LEVELS: readonly EvidenceLevel[] = ['published', 'native'];
 
 export interface Check {
   /** An example id (`subject: 'example'`) or a feature key (`subject: 'feature'`). */

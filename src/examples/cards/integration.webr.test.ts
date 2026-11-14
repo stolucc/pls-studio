@@ -66,7 +66,7 @@ it('ltm-quadml-lsat: the 2PL written in Mplus syntax and integrated as ltm integ
   const { run } = await open('ltm-quadml-lsat');
   against({
     label: 'R, ?ltm: ltm(LSAT ~ z1) (21 Gauss–Hermite points) in the same R',
-    level: 'native',
+    level: 'same-r',
     url: 'https://rdrr.io/cran/ltm/man/ltm.html',
   });
   const r = await run();

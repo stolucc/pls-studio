@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { evidenceFile } from './collector';
-import { definitionHash, UNHASHED_FIELDS } from './record';
+import { afterEach, describe, expect, it } from 'vitest';
+import { current, evidenceFile } from './collector';
+import { against, definitionHash, example, near, same, UNHASHED_FIELDS } from './record';
 
 describe('evidenceFile', () => {
   it('keeps .webr, so a plain and a webR test file of the same name write different files', () => {
@@ -46,5 +46,34 @@ describe('definitionHash', () => {
   it('hashes non-objects as before', () => {
     expect(definitionHash(null)).toBe(definitionHash(undefined));
     expect(definitionHash([1, 2])).not.toBe(definitionHash([2, 1]));
+  });
+});
+
+describe('the level an example’s comparisons give it', () => {
+  const start = (id: string) => example(id, { title: id, method: 'CB-SEM', packages: ['lavaan'] });
+  afterEach(() => {
+    current.example = null;
+    current.source = null;
+  });
+
+  it('published or native only with an estimated quantity: counts alone leave it at “runs”', () => {
+    const c = start('test-counts');
+    against({ label: 'a book (counts)', level: 'published' });
+    same('df', 24, 24);
+    same('parameters', 21, 21);
+    expect(c.level).toBe('runs');
+    near('χ²', 85.306, 85.306, 0.001);
+    expect(c.level).toBe('published');
+    expect(c.comparisons).toHaveLength(3);
+  });
+
+  it('same R: the package’s own function in the same R session, below native', () => {
+    const c = start('test-same-r');
+    against({ label: 'the package, called in the same R', level: 'same-r' });
+    near('log-likelihood', -100.5, -100.5, 1e-6);
+    expect(c.level).toBe('same-r');
+    against({ label: 'desktop R', level: 'native' });
+    near('log-likelihood', -100.5, -100.5, 1e-6);
+    expect(c.level).toBe('native');
   });
 });

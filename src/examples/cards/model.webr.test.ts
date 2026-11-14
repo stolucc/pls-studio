@@ -186,7 +186,7 @@ slowIt(
     against({
       label:
         'lavaan, ?bootstrapLavaan: the help page’s code in the same R (R = 1000, set.seed(1234))',
-      level: 'native',
+      level: 'same-r',
       url: 'https://rdrr.io/cran/lavaan/man/bootstrapLavaan.html',
     });
     same('bootstrap samples', r.boot.length, ref.boot.length);
@@ -219,7 +219,7 @@ it('lavaan-hs-wald: each critical ratio squared is lavTestWald’s test of the t
   );
   against({
     label: 'lavaan, ?lavTestWald: its model and lavTestWald() in the same R',
-    level: 'native',
+    level: 'same-r',
     url: 'https://rdrr.io/cran/lavaan/man/lavTestWald.html',
   });
   near('χ²', ref.chisq, 85.306, 0.001);
@@ -324,7 +324,7 @@ it('lavaan-hs-scoreweights: the weights applied to the centred tests give lavPre
   );
   against({
     label: 'lavaan, ?lavPredict: lavPredict(fit) in the same R',
-    level: 'native',
+    level: 'same-r',
     url: 'https://rdrr.io/cran/lavaan/man/lavPredict.html',
   });
   const col = (n: string) => Array.from(data.cols[data.names.indexOf(n)]);
@@ -427,7 +427,7 @@ it('seminr-mobi-compare: AIC and BIC per endogenous construct as seminr’s it_c
   );
   against({
     label: 'seminr, demo("seminr-alternative-models"): summary()$it_criteria in the same R',
-    level: 'native',
+    level: 'same-r',
     url: 'https://github.com/sem-in-r/seminr/blob/master/demo/seminr-alternative-models.R',
   });
   for (const [mine, theirs, which] of [
@@ -453,9 +453,11 @@ it('seminr-corprep-cta: the tetrads and their bootstrap SEs as computed by hand'
   }>();
   same('bootstrap samples', r.samples, 1000);
   const count = Object.fromEntries(r.blocks.map((b) => [b.construct, b.tetrads.length]));
+  // (the formula's counts of tetrads: structure, not an estimate, so this source grades nothing: published evidence
+  // needs an estimated quantity, types.ts isEstimateComparison; the tetrads themselves are compared below)
   against({
     label: 'Bollen & Ting (1993): p(p − 3)/2 non-redundant tetrads per block',
-    level: 'published',
+    level: 'runs',
   });
   same('tetrads of QUAL (8 indicators)', count.QUAL, 20);
   same('tetrads of PERF (5 indicators)', count.PERF, 5);
@@ -479,7 +481,7 @@ it('seminr-corprep-cta: the tetrads and their bootstrap SEs as computed by hand'
   against({
     label:
       'the tetrads and their bootstrap SEs computed by hand in the same R (mean replacement, set.seed(123), 1,000 resamples)',
-    level: 'native',
+    level: 'same-r',
   });
   const mine = r.blocks.flatMap((b) => b.tetrads);
   mine.forEach((t, i) => {

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useStore } from '../../store';
 import { estimationKey } from '../../validation/exampleState';
 import {
+  comparedText,
   evidenceKinds,
   exampleEvidence,
   LEVEL_TEXT,
@@ -31,7 +32,7 @@ export function ExampleResultsBadge() {
           key={k}
           className={`chip evidence ${k}`}
           onClick={() => useStore.getState().openValidation(example!)}
-          title={`This example as it opened: ${LEVEL_TEXT[k].long.toLowerCase()}. ${LEVEL_TEXT[k].hint} The test suite compared ${c.comparisons.length} numbers. Edit the model, settings or data and this no longer applies.`}
+          title={`This example as it opened: ${LEVEL_TEXT[k].long.toLowerCase()}. ${LEVEL_TEXT[k].hint} The test suite compared ${c.comparisons.length} numbers (${comparedText(c, k)} for this kind). Edit the model, settings or data and this no longer applies.`}
         >
           {k === 'runs' ? '' : '✓ '}
           {LEVEL_TEXT[k].short}

@@ -71,7 +71,7 @@ it('mirt-lsat7-3pl: the 3PL card with a prior on item 5 reproduces ?mirt’s mod
   // (with the card's convergence criterion, TOL = 1e-6 within 5000 cycles: at mirt's default 1e-4 the flat likelihood stops item 5's threshold 0.008 away)
   against({
     label: 'mirt’s ?mirt example (mod1.3PL.norm, TOL = 1e-6), run in the same R',
-    level: 'native',
+    level: 'same-r',
   });
   same('respondents', r.n, 1000);
   near('log-likelihood', r.logLik, ref.ll, 0.01);
@@ -104,7 +104,7 @@ it('glca-nyts18-mlca: the multilevel LCA card reproduces glca’s help-page mode
   );
   against({
     label: 'glca’s ?glca example 2 (Model 4 of ?nyts18), run in the same R',
-    level: 'native',
+    level: 'same-r',
   });
   const m = r.models[0];
   same('students', r.n, 1734);
@@ -130,7 +130,7 @@ it('glmmadaptive-cbpp: the GLMM card (25 points) reproduces glmer(..., nAGQ = 25
   );
   against({
     label: 'lme4’s ?glmer example (gm1 with nAGQ = 25), run in the same R',
-    level: 'native',
+    level: 'same-r',
   });
   same('herds', r.clusters, 15);
   // (lme4 2.0-6, webR's build, reports −50.005 for this fit with nAGQ > 1; desktop lme4 2.1.0 reports −91.98337,

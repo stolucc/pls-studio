@@ -15,7 +15,8 @@ import { expect } from 'vitest';
 import { cardsOfCheck } from './cards';
 import { checks, current, fileName, runtime } from './collector';
 import { FEATURES } from './features';
-import type { Check, EvidenceLevel, EvidenceSource } from './types';
+import { ESTIMATE_LEVELS, isEstimateComparison, type Check, type Comparison } from './types';
+import type { EvidenceLevel, EvidenceSource } from './types';
 
 /**
  * Fields of an example that describe it or the test suite's allowances, not what is estimated: left out of its
@@ -128,7 +129,13 @@ export function example(
   return check;
 }
 
-const RANK: Record<EvidenceLevel, number> = { published: 0, native: 1, recovery: 2, runs: 3 };
+const RANK: Record<EvidenceLevel, number> = {
+  published: 0,
+  native: 1,
+  'same-r': 2,
+  recovery: 3,
+  runs: 4,
+};
 
 /** The source the next comparisons are made against. */
 export function against(source: EvidenceSource & { level: EvidenceLevel }) {
@@ -156,16 +163,20 @@ export function recordComparison(
     return;
   }
   const label = current.source;
-  check.comparisons.push({
+  const comparison: Comparison = {
     quantity,
     value,
     reference,
     tolerance,
     ...(label ? { source: label } : {}),
-  });
+  };
+  check.comparisons.push(comparison);
   if (!passed) check.passed = false;
   const src = label ? check.sources.find((s) => s.label === label) : undefined;
-  if (src?.level && RANK[src.level] < RANK[check.level]) check.level = src.level;
+  // (a published or native source raises the level only with an estimated quantity: one count or df does not)
+  const grades =
+    !!src?.level && (!ESTIMATE_LEVELS.includes(src.level) || isEstimateComparison(comparison));
+  if (src?.level && grades && RANK[src.level] < RANK[check.level]) check.level = src.level;
 }
 
 /** An exact comparison (counts, df, labels), asserted and recorded. */
