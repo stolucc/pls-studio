@@ -316,11 +316,7 @@ ps_pls <- function(req_json, export = FALSE) {
       ms <- ps_mi_settings(req)
       body <- c(
         "suppressPackageStartupMessages(library(mice))",
-        sprintf(
-          "imp <- mice(data, m = %d, seed = %d, printFlag = FALSE)  # multiple imputation (predictive mean matching)",
-          ms$m,
-          ms$seed
-        ),
+        ps_pls_mice_line(ms),
         "fits <- lapply(seq_len(imp$m), function(k) {",
         "  data <- complete(imp, k)",
         paste0("  ", b$body),
@@ -723,14 +719,42 @@ ps_pls_out <- function(req, b, env) {
   )
 }
 
-#' Multiple imputation: the imputed data sets (mice, predictive mean matching).
+#' The imputation method PLS uses for the request's setting: mice with Bayesian normal regression ("micenorm") or
+#' with predictive mean matching ("mice"; also for Amelia and joint imputation, which are CB-SEM's: lavaan.R).
+ps_pls_mi_method <- function(ms) {
+  if (identical(ms$method, "micenorm")) "micenorm" else "mice"
+}
+
+#' The script's mice call for the PLS imputations.
+ps_pls_mice_line <- function(ms) {
+  if (ps_pls_mi_method(ms) == "micenorm") {
+    sprintf(
+      "imp <- mice(data, m = %d, seed = %d, method = \"norm\", printFlag = FALSE)  # multiple imputation (Bayesian normal regression)",
+      ms$m,
+      ms$seed
+    )
+  } else {
+    sprintf(
+      "imp <- mice(data, m = %d, seed = %d, printFlag = FALSE)  # multiple imputation (predictive mean matching)",
+      ms$m,
+      ms$seed
+    )
+  }
+}
+
+#' Multiple imputation: the imputed data sets (mice), the method used, and mice's warnings (with a note when the
+#' setting names a method PLS does not use).
 ps_impute <- function(req, inputs) {
   ms <- ps_mi_settings(req)
-  env <- ps_run(c(
-    "suppressPackageStartupMessages(library(mice))",
-    sprintf("imp <- mice(data, m = %d, seed = %d, printFlag = FALSE)", ms$m, ms$seed)
-  ), inputs)
-  env$imp
+  env <- ps_run(c("suppressPackageStartupMessages(library(mice))", ps_pls_mice_line(ms)), inputs)
+  method <- ps_pls_mi_method(ms)
+  note <- if (ms$method %in% c("amelia", "joint")) {
+    sprintf(
+      "PLS imputes with mice (predictive mean matching); the %s setting applies to CB-SEM.",
+      if (ms$method == "amelia") "Amelia II" else "joint-model imputation"
+    )
+  }
+  list(imp = env$imp, method = method, warnings = c(note, env$.warnings))
 }
 
 #' Average results over imputed data sets, element by element (Rubin's point estimate): numbers and
@@ -753,13 +777,15 @@ ps_avg <- function(xs) {
 
 #' PLS with multiple imputation: the model in every imputed data set, the estimates averaged.
 ps_pls_mi <- function(req, b) {
-  imp <- ps_impute(req, b$inputs)
+  mi <- ps_impute(req, b$inputs)
+  imp <- mi$imp
   outs <- lapply(seq_len(imp$m), function(k) ps_pls_out(req, b, ps_run(b$body, list(data = mice::complete(imp, k)))))
   res <- ps_avg(outs)
   res$n <- outs[[1]]$n
   res$droppedRows <- 0L
-  res$warnings <- unique(unlist(lapply(outs, function(o) unlist(o$warnings))))
+  res$warnings <- unique(c(mi$warnings, unlist(lapply(outs, function(o) unlist(o$warnings)))))
   res$imputations <- imp$m
+  res$imputationMethod <- mi$method
   # (the sign diagnostics over all imputations, reported once; a pair undefined in any is NA in the average)
   flags <- lapply(outs, `[[`, "htmtFlags")
   res$htmtFlags <- list(

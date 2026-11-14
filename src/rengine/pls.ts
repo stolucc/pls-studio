@@ -128,6 +128,9 @@ export function parsePlsOutput(raw: Record<string, any>): PlsResultR {
     notes: rStrings(raw.notes),
     engine: raw.engine,
     ...(typeof raw.imputations === 'number' ? { imputations: raw.imputations } : {}),
+    ...(raw.imputationMethod === 'mice' || raw.imputationMethod === 'micenorm'
+      ? { imputationMethod: raw.imputationMethod }
+      : {}),
     ...(Array.isArray(raw.ordinal) && raw.ordinal.length ? { ordinal: rStrings(raw.ordinal) } : {}),
     ...(Array.isArray(raw.higherOrder) && raw.higherOrder.length
       ? {

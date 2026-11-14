@@ -262,13 +262,15 @@ ps_pls_boot <- function(req_json, export = FALSE) {
     if (export) {
       stop("The bootstrap with multiple imputation runs per imputed data set and is not exported as one script; export the estimation script.")
     }
-    imp <- ps_impute(req, b$inputs)
+    mi <- ps_impute(req, b$inputs)
+    imp <- mi$imp
     envs <- lapply(seq_len(imp$m), function(k) ps_run(body, list(data = mice::complete(imp, k))))
     pooled <- ps_rubin(lapply(envs, function(e) e$result), conf)
     return(ps_json(list(
-      stats = ps_boot_keys(pooled, b, req), samples = B, imputations = imp$m,
+      stats = ps_boot_keys(pooled, b, req), samples = B, imputations = imp$m, imputationMethod = mi$method,
       failed = max(vapply(envs, function(e) B - sum(rowSums(is.finite(e$draws)) > 0), 0)),
-      confidence = conf, warnings = unique(unlist(lapply(envs, function(e) ps_quiet_2ndorder(e$.warnings))))
+      confidence = conf,
+      warnings = unique(c(mi$warnings, unlist(lapply(envs, function(e) ps_quiet_2ndorder(e$.warnings)))))
     )))
   }
   if (export) {

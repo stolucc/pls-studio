@@ -110,7 +110,7 @@ function runR(kind: JobKind, key: string) {
     consistent: st.consistent,
     approach: st.plsApproach,
     hocApproach: st.hocApproach,
-    mi: { m: st.miImputations, seed: st.seed },
+    mi: { m: st.miImputations, seed: st.seed, method: st.miMethod },
   };
   const boot = {
     samples: Math.max(2, Math.floor(st.bootSamples)),

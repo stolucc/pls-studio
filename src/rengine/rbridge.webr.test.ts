@@ -11,6 +11,7 @@ import type { ModelSpec } from '../engine/types';
 import { rCall } from './bridge';
 import { cbRequest, estimateCbLavaan } from './lavaan';
 import { mcChunkRequest, runMcChunkR } from './mc';
+import { estimatePlsR, plsScriptR } from './pls';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
 beforeAll(startTestRuntime);
@@ -115,4 +116,43 @@ it('values per group go to the groups in the order of their codes, whatever the 
     expect(cov(r, '1')).toBeCloseTo(0.2, 12);
     expect(cov(r, '2')).toBeCloseTo(0.4, 12);
   }
+}, 600_000);
+
+it('PLS multiple imputation reports the method it used and passes mice’s warnings on', async () => {
+  // Some missing values in x1 and x5.
+  const holes = {
+    names: hs.names,
+    cols: hs.cols.map((c, j) =>
+      Float64Array.from(c, (v, i) => ((j === 0 || j === 4) && i % 17 === 3 ? NaN : v)),
+    ),
+  };
+  const f = (name: string, indicators: string[]) => ({
+    name,
+    type: 'composite' as const,
+    mode: 'A' as const,
+    indicators,
+  });
+  const spec: ModelSpec = {
+    constructs: [f('visual', ['x1', 'x2', 'x3']), f('textual', ['x4', 'x5', 'x6'])],
+    paths: [{ from: 'visual', to: 'textual' }],
+  };
+  const options = (method: 'amelia' | 'micenorm') => ({
+    scheme: 'path' as const,
+    maxIter: 300,
+    tolerance: 1e-7,
+    missing: 'mi' as const,
+    consistent: false,
+    mi: { m: 3, seed: 7, method },
+  });
+  const amelia = await estimatePlsR(holes, spec, options('amelia'), 'seminr');
+  expect(amelia.imputations).toBe(3);
+  expect(amelia.imputationMethod).toBe('mice');
+  expect(amelia.warnings.join(' ')).toMatch(
+    /PLS imputes with mice .*Amelia II setting applies to CB-SEM/,
+  );
+  const norm = await estimatePlsR(holes, spec, options('micenorm'), 'seminr');
+  expect(norm.imputationMethod).toBe('micenorm');
+  expect(norm.pathCoef[0][1]).not.toBe(amelia.pathCoef[0][1]);
+  const script = await plsScriptR(holes, spec, options('micenorm'), 'seminr');
+  expect(script).toContain('method = "norm"');
 }, 600_000);
