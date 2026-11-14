@@ -17,7 +17,6 @@
 package main
 
 import (
-	"crypto/subtle"
 	"net/http"
 	"strings"
 )
@@ -70,6 +69,10 @@ func withAuth(cfg *config, requireBearer bool, h http.HandlerFunc) http.HandlerF
 			http.Error(w, "host not allowed", http.StatusForbidden)
 			return
 		}
+
+		// Pick up command-line edits of the config file (`rotate`,
+		// `allow-origin`, `deny-origin`) before deciding anything.
+		cfg.refresh()
 
 		// CORS preflight: many browsers send OPTIONS before POST. Respond
 		// with the same allowlist + Authorization header so the actual
@@ -125,9 +128,9 @@ func withAuth(cfg *config, requireBearer bool, h http.HandlerFunc) http.HandlerF
 				return
 			}
 			provided := auth[len(prefix):]
-			// constant-time compare to avoid timing attacks revealing
-			// partial token matches over the network.
-			if subtle.ConstantTimeCompare([]byte(provided), []byte(cfg.BearerToken)) != 1 {
+			// constant-time compare (config.tokenMatches) to avoid timing
+			// attacks revealing partial token matches over the network.
+			if !cfg.tokenMatches(provided) {
 				http.Error(w, "invalid bearer token", http.StatusUnauthorized)
 				return
 			}
@@ -138,6 +141,8 @@ func withAuth(cfg *config, requireBearer bool, h http.HandlerFunc) http.HandlerF
 }
 
 func originAllowed(cfg *config, origin string) bool {
+	cfg.mu.RLock()
+	defer cfg.mu.RUnlock()
 	for _, allowed := range cfg.AllowedOrigins {
 		if strings.EqualFold(origin, allowed) {
 			return true

@@ -105,13 +105,26 @@ func (s *server) handlePair(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no pairing window open, or wrong code", http.StatusForbidden)
 		return
 	}
-	s.cfg.BearerToken = generateToken()
-	if err := saveConfig(s.cfg); err != nil {
+	token, err := s.rotateToken()
+	if err != nil {
 		s.logger.Printf("save config after pair: %v", err)
 		http.Error(w, "failed to persist new token", http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, map[string]string{"token": s.cfg.BearerToken})
+	writeJSON(w, map[string]string{"token": token})
+}
+
+// rotateToken replaces the bearer token (in memory and in the config file,
+// keeping edits made on disk meanwhile) and returns the new one.
+func (s *server) rotateToken() (string, error) {
+	token := generateToken()
+	err := s.cfg.update(func(f *configFile) {
+		f.BearerToken = token
+	})
+	if err != nil {
+		return "", err
+	}
+	return token, nil
 }
 
 // /connect — unauthenticated POST from a trusted origin: asks the person at
@@ -133,13 +146,13 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
-	s.cfg.BearerToken = generateToken()
-	if err := saveConfig(s.cfg); err != nil {
+	token, err := s.rotateToken()
+	if err != nil {
 		s.logger.Printf("save config after connect: %v", err)
 		http.Error(w, "failed to persist new token", http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, map[string]string{"token": s.cfg.BearerToken})
+	writeJSON(w, map[string]string{"token": token})
 }
 
 // /version — the helper's build, R, worker count and the hash of its R

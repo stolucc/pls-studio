@@ -42,7 +42,8 @@ Then connect this browser once:
 
 The status line then shows the R version and the number of R processes.
 **Disconnect** forgets the connection in this browser;
-`pls-studio-helper rotate` disconnects every browser.
+`pls-studio-helper rotate` disconnects every browser (a running helper
+refuses the old token from its next request on).
 
 Without a tray (Linux, or `--no-tray`) there is no dialog. Either start the
 helper with `--allow-first-connection` (it approves the first browser that
@@ -56,6 +57,9 @@ A PLS Studio deployment on its own address must be trusted first:
 ```bash
 ./pls-studio-helper allow-origin https://pls.example.edu
 ```
+
+A running helper re-reads its config file when it changes, so `rotate`,
+`allow-origin` and `deny-origin` need no restart.
 
 ## Updating
 

@@ -67,7 +67,7 @@ func onTrayReady() {
 			} else {
 				rMI.SetTitle(fmt.Sprintf("%s · %d workers", strings.TrimPrefix(rv, "R version "), n))
 			}
-			if tray.cfg.BearerToken != "" {
+			if tray.cfg.hasToken() {
 				statusMI.SetTitle("● Ready for pairing / paired")
 			}
 			<-t.C
