@@ -1,0 +1,36 @@
+{
+  "coefficients": {
+    "(Intercept)": -1.70786007135975,
+    "spontaneous": 1.19720503529305,
+    "induced": 0.418129395047792
+  },
+  "model": {
+    "(Intercept)": 0.267709465631953,
+    "spontaneous": 0.211643273000287,
+    "induced": 0.205627444695605
+  },
+  "HC0": {
+    "(Intercept)": 0.249147996227094,
+    "spontaneous": 0.203625782172548,
+    "induced": 0.200118250134951
+  },
+  "HC0_hand": {
+    "(Intercept)": 0.249147997888438,
+    "spontaneous": 0.203625782225009,
+    "induced": 0.200118251533434
+  },
+  "HC3": {
+    "(Intercept)": 0.251775041299988,
+    "spontaneous": 0.206907762063412,
+    "induced": 0.203676848428132
+  },
+  "cluster": {
+    "(Intercept)": 0.166048560953914,
+    "spontaneous": 0.209606390495795,
+    "induced": 0.164831220109143
+  },
+  "versions": {
+    "R": "R version 4.6.2 (2026-10-29)",
+    "sandwich": "3.1.3"
+  }
+}

@@ -385,6 +385,44 @@ it('the zero-inflated Poisson written out (Mplus COUNT (i)) agrees with pscl::ze
   near('aic', own.fit.aic, ref.aic, 1e-6);
 }, 900_000);
 
+// The robust standard errors against sandwich natively (scripts/validation/regression_robust.R; HC0 also by hand there).
+const robust = JSON.parse(
+  readFileSync(
+    join(__dirname, '..', 'engine', '__fixtures__', 'regression', 'robust.json'),
+    'utf8',
+  ),
+) as Record<'model' | 'HC0' | 'HC3' | 'cluster', Record<string, number>>;
+
+it.each([
+  ['HC0', 'HC0', ''],
+  ['HC3', 'HC3', ''],
+  ['cluster', 'cluster-robust (by stratum)', 'stratum'],
+] as const)(
+  '%s standard errors on ?infert equal sandwich natively (1e-6)',
+  async (se, label, cluster) => {
+    const ex = PACKAGE_EXAMPLES.find((e) => e.id === 'datasets-infert')!;
+    const r = await regressionR(await load(ex), {
+      outcome: 'case',
+      predictors: ['spontaneous', 'induced'],
+      categorical: [],
+      interactions: [],
+      family: 'binomial',
+      link: 'logit',
+      trials: '',
+      weights: '',
+      se,
+      cluster,
+      confidence: 0.95,
+    });
+    for (const [term, want] of Object.entries(robust[se])) {
+      const mine = r.coefficients.find((c) => same(term, c.term));
+      expect(mine, term).toBeTruthy();
+      near(`${label} SE of ${term}`, mine!.se, want, 1e-6);
+    }
+  },
+  900_000,
+);
+
 it('robust and cluster-robust standard errors come from sandwich', async () => {
   const ex = PACKAGE_EXAMPLES.find((e) => e.id === 'datasets-infert')!;
   const data = await load(ex);

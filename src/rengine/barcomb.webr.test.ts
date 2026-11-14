@@ -11,6 +11,7 @@ import { parseCsv } from '../engine/dataset';
 import type { ModelSpec } from '../engine/types';
 import { estimatePlsR } from './pls';
 import { rebusR } from './segment';
+import { near, same } from '../validation/record';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
 const file = process.env.BARCOMB_DATA;
@@ -57,7 +58,7 @@ describe.skipIf(!run)('Barcomb et al. (ICSE 2019)', () => {
 
   it('the global model: R² .774 (and the loadings of Table IV)', async () => {
     const r = await estimatePlsR(data, spec, options, 'cSEM');
-    expect(r.rSquared[r.constructs.indexOf('IR')]!).toBeCloseTo(0.774, 3);
+    expect(r.rSquared[r.constructs.indexOf('IR')]!, 'R² of IR').toBeCloseTo(0.774, 3);
     const load = (i: string) => r.loadings[r.indicators.findIndex((x) => x.name === i)];
     // Table IV: sn2 .755, sn7 (R) .726, cc2 (R) .701, cc8 .850, s2 .900, ir8 .845.
     for (const [i, v] of [
@@ -78,16 +79,24 @@ describe.skipIf(!run)('Barcomb et al. (ICSE 2019)', () => {
       iterMax: 100,
       seed: 1,
     });
-    expect(r.globalGof).toBeCloseTo(0.699, 3);
+    expect(r.globalGof, 'global GoF').toBeCloseTo(0.699, 3);
     const four = r.models.find((m) => m.k === 4)!;
-    expect(four.gqi).toBeCloseTo(0.795, 3);
-    expect(four.sizes).toEqual([31, 19, 20, 31]);
-    const p = (from: string) =>
-      four.paths.find((x) => x.from === from)!.byClass.map((v) => +v.toFixed(2));
-    // Table VIII, classes in plspm's order: satisfied, social, classic, obligated.
-    expect(p('SAT')).toEqual([1.05, 0.35, 0.19, 0.01]);
-    expect(p('CC')).toEqual([0.08, 0.42, 0.24, 1.03]);
-    expect(p('SN')).toEqual([-0.1, 0.42, 0.45, -0.09]);
-    expect(four.gof.map((v) => +v.toFixed(3))).toEqual([0.871, 0.858, 0.883, 0.807]);
+    expect(four.gqi, 'GQI (4 classes)').toBeCloseTo(0.795, 3);
+    // Table VIII, classes in plspm's order: satisfied, social, classic, obligated. Each number is recorded on its own
+    // (the paper gives paths to 2 decimals, GoF to 3: the tolerance is half a unit of the last digit).
+    const names = ['satisfied', 'social', 'classic', 'obligated'];
+    [31, 19, 20, 31].forEach((n, c) => same(`size of class ${names[c]}`, four.sizes[c], n));
+    const table: Record<string, number[]> = {
+      SAT: [1.05, 0.35, 0.19, 0.01],
+      CC: [0.08, 0.42, 0.24, 1.03],
+      SN: [-0.1, 0.42, 0.45, -0.09],
+    };
+    for (const [from, want] of Object.entries(table)) {
+      const byClass = four.paths.find((x) => x.from === from)!.byClass;
+      want.forEach((v, c) => near(`${from} → IR in class ${names[c]}`, byClass[c], v, 0.005));
+    }
+    [0.871, 0.858, 0.883, 0.807].forEach((v, c) =>
+      near(`GoF of class ${names[c]}`, four.gof[c], v, 0.0005),
+    );
   }, 900_000);
 });
