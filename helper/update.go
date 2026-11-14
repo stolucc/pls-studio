@@ -367,6 +367,17 @@ func performUpdate(ctx context.Context) (updateInfo, string, error) {
 		return updateInfo{Current: helperVersion}, "", errors.New("an update is already running")
 	}
 	defer updating.Unlock()
+	// ... and over all processes: the running helper (tray, PLS Studio) and
+	// `pls-studio-helper update` replacing the binary at once could, on Windows,
+	// move each other's files aside and leave no binary at all.
+	lock, err := lockInConfigDir(updateLockName)
+	if errors.Is(err, errLocked) {
+		return updateInfo{Current: helperVersion}, "", errors.New("an update is already running (in another helper process)")
+	}
+	if err != nil {
+		return updateInfo{Current: helperVersion}, "", err
+	}
+	defer lock.unlock()
 	info, rel, err := checkUpdate(ctx)
 	if err != nil || !info.Available {
 		return info, "", err
