@@ -1,7 +1,8 @@
 // The Bayesian SEM examples (Mplus 3.18, 5.31, 5.32, 5.33, 11.7) run natively: the card's request goes to the app's
 // own R code (src/rengine/R, ps_bsem) in desktop R with blavaan and Stan, as the helper runs it (Rscript --vanilla),
 // and the posterior is compared with Mplus's printed output (bsemkit.ts: tolerances and their reasons). Each run is
-// recorded in src/engine/__fixtures__/blavaan/mplus.json, which bsem.test.ts checks without R.
+// recorded in src/engine/__fixtures__/blavaan/mplus.json, which bsem.test.ts checks without R, with hashes of the
+// request and of the R code it ran (bsemkit.ts currentRun): the recorded run is stale once either changes.
 //   NATIVE_R_TESTS=1 [PS_R_LIBRARY=<library with lavaan, blavaan, rstan, jsonlite>] npx vitest run src/examples/mplus/bsem.native
 // Skipped unless NATIVE_R_TESTS=1 and Rscript loads blavaan (Stan is not in CI; each example takes minutes).
 
@@ -18,6 +19,7 @@ import {
   bsemExample,
   bsemExampleRequest,
   compareWithMplus,
+  currentRun,
   FIXTURE,
   type Recorded,
 } from './bsemkit';
@@ -98,6 +100,8 @@ describe.skipIf(!!why)('Mplus’s Bayesian SEM examples in desktop R (blavaan)',
           seed: r.seed,
         },
         versions: { R: versions[0], blavaan: versions[1], rstan: versions[2] },
+        // (what the run was made from: bsem.test.ts fails once the card's request or the R code differs)
+        ...currentRun(key),
       };
       expect(compareWithMplus(key, recorded[key].result)).toBeGreaterThan(0);
     },

@@ -15,6 +15,7 @@ import {
   toSpec,
   type ModelState,
 } from '../model/project';
+import { rFilesHash } from '../validation/rSource';
 import { DESKTOP_ONLY, DesktopOnly, R_PACKAGES } from './bridge';
 import { bsemPackage, bsemR, bsemRequest, bsemResult, bsemScriptR, type BsemOptions } from './bsem';
 import {
@@ -137,6 +138,19 @@ describe('Bayesian SEM in the browser', () => {
   });
 });
 
+/**
+ * A reference a script wrote from the app's R code (`sources`: each file it sourced, by its MD5) is checked here without
+ * R: once one of those files changes, the reference no longer describes the app, and the script must be run again.
+ */
+function expectCurrentSources(ref: Record<string, any>, script: string) {
+  const rerun = `run R_LIBS=<the helper's library> Rscript ${script} again`;
+  const files = Object.keys(ref.sources ?? {});
+  expect(files, `the reference records no R sources; ${rerun}`).toContain('src/rengine/R/bayes.R');
+  expect(ref.sources, `the app's R code changed since the reference was written; ${rerun}`).toEqual(
+    rFilesHash(files),
+  );
+}
+
 describe('native check of the help page’s model (desktop R)', () => {
   const ref = JSON.parse(
     readFileSync(
@@ -144,6 +158,9 @@ describe('native check of the help page’s model (desktop R)', () => {
       'utf8',
     ),
   ) as Record<string, any>;
+  it('was written from the app’s R code as it is now (the MD5 of each file the script sourced)', () => {
+    expectCurrentSources(ref, 'scripts/validation/blavaan.R');
+  });
   it.each(['marker', 'unit'])('%s identification: the app equals blavaan, and converged', (k) => {
     expect(ref[k].identical).toBe(true);
     expect(ref[k].converged).toBe(true);
@@ -422,6 +439,9 @@ describe('native check of INLAvaan’s examples (desktop R, scripts/validation/i
       'utf8',
     ),
   ) as Record<string, any>;
+  it('was written from the app’s R code as it is now (the MD5 of each file the script sourced)', () => {
+    expectCurrentSources(ref, 'scripts/validation/inlavaan.R');
+  });
   it.each(['acfa', 'asem', 'bcfa'])(
     '%s: the app equals INLAvaan called directly, and the optimiser converged',
     (k) => {

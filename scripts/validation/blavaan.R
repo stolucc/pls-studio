@@ -3,14 +3,16 @@
 # (blavaan ?bcfa, Holzinger & Swineford) is sent as the app sends it, and the
 # result is compared with a direct blavaan call with the same settings and seed:
 # every posterior mean, SD, interval, R-hat and n_eff, and the fit measures.
-# Stops on any difference; writes src/engine/__fixtures__/blavaan/reference.json.
+# Stops on any difference; writes src/engine/__fixtures__/blavaan/reference.json, with the MD5
+# of each app R file it sourced (src/rengine/bsem.test.ts: the reference is stale once one changes).
 #   R_LIBS=<library with lavaan, blavaan, jsonlite> Rscript scripts/validation/blavaan.R
 suppressPackageStartupMessages({
   library(jsonlite)
   library(lavaan)
   library(blavaan)
 })
-for (f in c("common", "longitudinal", "regression", "tests", "lavaan", "bayes")) source(file.path("src/rengine/R", paste0(f, ".R")))
+ps_sources <- file.path("src/rengine/R", paste0(c("common", "longitudinal", "regression", "tests", "lavaan", "bayes"), ".R"))
+for (f in ps_sources) source(f)
 data(HolzingerSwineford1939, package = "lavaan")
 x <- HolzingerSwineford1939[, paste0("x", 1:9)]
 fac <- function(nm, ind) list(name = nm, type = "factor", mode = "A", indicators = ind)
@@ -89,6 +91,8 @@ for (ident in c("marker", "unit")) {
     sep = ""
   )
 }
+# (the app's R code this ran, each file's MD5: src/rengine/bsem.test.ts fails once one of them changes)
+out$sources <- as.list(tools::md5sum(ps_sources))
 out$versions <- list(
   R = R.version.string,
   lavaan = as.character(packageVersion("lavaan")),

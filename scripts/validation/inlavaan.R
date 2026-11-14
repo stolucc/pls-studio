@@ -10,14 +10,16 @@
 #     blavaan's MCMC posterior (src/engine/__fixtures__/blavaan/reference.json)
 #   - priors on labels (MODEL PRIORS), Mplus's priors, a 90% interval, a loop and
 #     plausible values: the run of each against its direct call
-# Stops on any difference; writes src/engine/__fixtures__/inlavaan/reference.json.
+# Stops on any difference; writes src/engine/__fixtures__/inlavaan/reference.json, with the MD5
+# of each app R file it sourced (src/rengine/bsem.test.ts: the reference is stale once one changes).
 #   R_LIBS=<library with lavaan, INLAvaan, jsonlite> Rscript scripts/validation/inlavaan.R
 suppressPackageStartupMessages({
   library(jsonlite)
   library(lavaan)
   library(INLAvaan)
 })
-for (f in c("common", "longitudinal", "regression", "tests", "lavaan", "bayes")) source(file.path("src/rengine/R", paste0(f, ".R")))
+ps_sources <- file.path("src/rengine/R", paste0(c("common", "longitudinal", "regression", "tests", "lavaan", "bayes"), ".R"))
+for (f in ps_sources) source(f)
 data(HolzingerSwineford1939, package = "lavaan")
 data(PoliticalDemocracy, package = "lavaan")
 fac <- function(nm, ind, labels = NULL) c(list(name = nm, type = "factor", mode = "A", indicators = ind), if (!is.null(labels)) list(loadingLabels = labels))
@@ -265,6 +267,8 @@ out$options <- list(labelPriors = list(maxRelDiff = w1, l2 = l2), mplus = list(
   priors = vapply(mp$parameters, function(p) p$prior %||% "", "")
 ))
 cat(sprintf("priors on labels: app = INLAvaan (%.2g); Mplus's priors, 90%% interval from draws, loop, plausible values: as the direct call\n", w1))
+# (the app's R code this ran, each file's MD5: src/rengine/bsem.test.ts fails once one of them changes)
+out$sources <- as.list(tools::md5sum(ps_sources))
 out$versions <- list(
   R = R.version.string,
   lavaan = as.character(packageVersion("lavaan")),
