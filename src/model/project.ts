@@ -473,6 +473,20 @@ export function pruneFixedLoadings(model: ModelState): ModelState {
 }
 
 /** Drop correlations whose constructs were deleted or whose indicators are no longer assigned. */
+/**
+ * Drop direct effects on indicators whose construct or indicator is no longer in the model
+ * (after a construct is deleted or an indicator unassigned).
+ */
+export function pruneIndicatorPaths(model: ModelState): ModelState {
+  if (!model.indicatorPaths?.length) return model;
+  const ids = new Set(model.constructs.map((c) => c.id));
+  const assigned = new Set(model.constructs.flatMap((c) => c.indicators));
+  const kept = model.indicatorPaths.filter((p) => ids.has(p.from) && assigned.has(p.to));
+  if (kept.length === model.indicatorPaths.length) return model;
+  const { indicatorPaths: _p, ...rest } = model;
+  return kept.length ? { ...rest, indicatorPaths: kept } : rest;
+}
+
 export function pruneCorrelations(model: ModelState): ModelState {
   if (!model.correlations?.length) return model;
   const ids = new Set(model.constructs.map((c) => c.id));
@@ -1271,11 +1285,23 @@ export interface Issue {
   action?: 'exogenous-correlations' | 'count-integration';
 }
 
-/** Does adding from→to create a cycle? (PLS-SEM requires a recursive model.) */
-export function createsCycle(paths: Path[], from: string, to: string): boolean {
-  if (from === to) return true;
+/** The paths as adjacency lists: each construct to the constructs its paths point to. */
+export function pathAdjacency(paths: Path[]): Map<string, string[]> {
   const out = new Map<string, string[]>();
-  for (const p of paths) out.set(p.from, [...(out.get(p.from) ?? []), p.to]);
+  for (const p of paths) addToAdjacency(out, p.from, p.to);
+  return out;
+}
+
+/** Add the edge from→to to adjacency lists (in place). */
+export function addToAdjacency(out: Map<string, string[]>, from: string, to: string): void {
+  const next = out.get(from);
+  if (next) next.push(to);
+  else out.set(from, [to]);
+}
+
+/** Would an edge from→to close a cycle in these adjacency lists? (built once by the caller) */
+export function closesCycle(out: Map<string, string[]>, from: string, to: string): boolean {
+  if (from === to) return true;
   const stack = [to];
   const seen = new Set<string>();
   while (stack.length) {
@@ -1283,9 +1309,14 @@ export function createsCycle(paths: Path[], from: string, to: string): boolean {
     if (cur === from) return true;
     if (seen.has(cur)) continue;
     seen.add(cur);
-    stack.push(...(out.get(cur) ?? []));
+    for (const next of out.get(cur) ?? []) stack.push(next);
   }
   return false;
+}
+
+/** Does adding from→to create a cycle? (PLS-SEM requires a recursive model.) */
+export function createsCycle(paths: Path[], from: string, to: string): boolean {
+  return closesCycle(pathAdjacency(paths), from, to);
 }
 
 /** The checks run before anything is estimated (validate.ts). */
@@ -1302,10 +1333,14 @@ export function serializeDataSection(data: Dataset, info: DataInfo) {
   };
 }
 
-/** Category labels of coded text columns, for columns that exist (labels are plain text). */
+/**
+ * Category labels of coded text columns, for columns that exist (labels are plain text). A
+ * null-prototype object: a column named __proto__ is an ordinary key, and constructor or
+ * toString find nothing inherited.
+ */
 function parseCategories(raw: unknown, names: string[]): { categories?: Record<string, string[]> } {
   if (!isObj(raw)) return {};
-  const out: Record<string, string[]> = {};
+  const out: Record<string, string[]> = Object.create(null);
   for (const [k, v] of Object.entries(raw)) {
     if (!names.includes(k) || !Array.isArray(v) || v.length > MAX_CATEGORIES) continue;
     out[k] = v.map((x: unknown) => str(x, 200));
@@ -1353,8 +1388,8 @@ function parseFilter(raw: unknown, data: Dataset): { filter?: { expr: string } }
  * Excluded rows of a project file; only the last may be the filter's, and only with a filter
  * (otherwise its rows stay excluded as an ordinary exclusion, restorable).
  */
-function parseExclusions(raw: unknown, names: string[], hasFilter: boolean) {
-  const dropped = parseDroppedRows(raw, names);
+function parseExclusions(raw: unknown, names: string[], rows: number, hasFilter: boolean) {
+  const dropped = parseDroppedRows(raw, names, rows);
   if (!dropped) return {};
   const last = dropped.length - 1;
   const out = dropped.map((d, k) => {
@@ -1379,6 +1414,10 @@ export function parseDataSection(d: Record<string, unknown>): { data: Dataset; i
     throw new Error('Invalid project file: data section is malformed.');
   }
   const names = d.names.map((n: unknown) => str(n));
+  if (names.some((n) => n.trim() === ''))
+    throw new Error('Invalid project file: a data column has no name.');
+  if (new Set(names).size !== names.length)
+    throw new Error('Invalid project file: two data columns have the same name.');
   const cols = d.columns.map((col: unknown) => {
     if (!Array.isArray(col)) throw new Error('Invalid project file: data column is malformed.');
     return Float64Array.from(col, (v: unknown) =>
@@ -1396,7 +1435,7 @@ export function parseDataSection(d: Record<string, unknown>): { data: Dataset; i
     excluded: [],
     ...parseReversed(d.info.reversed, names),
     ...parseComputed(d.info.computed, names),
-    ...parseExclusions(d.info.droppedRows, names, !!filter.filter),
+    ...parseExclusions(d.info.droppedRows, names, cols[0]?.length ?? 0, !!filter.filter),
     ...filter,
   };
   const variables = parseVariables(d.info.variables, data);
@@ -1801,8 +1840,14 @@ export function parseModelState(m: unknown): ModelState {
     };
     if (!ids.has(path.from) || !ids.has(path.to))
       throw new Error('Invalid project file: path references unknown construct.');
+    if (path.from === path.to)
+      throw new Error('Invalid project file: a path from a construct to itself.');
     return path;
   });
+  if (new Set(paths.map((p) => p.id)).size !== paths.length)
+    throw new Error('Invalid project file: duplicate path ids.');
+  if (new Set(paths.map((p) => `${p.from}\u0000${p.to}`)).size !== paths.length)
+    throw new Error('Invalid project file: two paths between the same constructs.');
 
   const pathIds = new Set(paths.map((p) => p.id));
   const rawMods = Array.isArray(m.moderations) ? m.moderations.slice(0, 1000) : [];

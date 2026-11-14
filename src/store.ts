@@ -22,6 +22,7 @@ import {
   newId,
   pruneCorrelations,
   pruneFixedLoadings,
+  pruneIndicatorPaths,
   toSpec,
   unconfirmedUncorrelated,
   type Construct,
@@ -157,6 +158,12 @@ export interface State {
   fitRequest: number;
 
   commit: (fn: (m: ModelState) => ModelState) => void;
+  /**
+   * A model edit and a settings change as one step: undo restores both, redo applies both (a
+   * method switch that converts the model). In a collaborative session the settings change is
+   * not part of the shared history.
+   */
+  commitWithSettings: (fn: (m: ModelState) => ModelState, patch: Partial<Settings>) => void;
   undo: () => void;
   redo: () => void;
   checkpoint: () => void;
@@ -253,6 +260,8 @@ export interface State {
   removeIndicator: (id: string, name: string) => void;
   addPath: (from: string, to: string) => boolean;
   removePaths: (ids: string[]) => void;
+  /** CB-SEM: remove direct effects on indicators (model.indicatorPaths) by id. */
+  removeIndicatorPaths: (ids: string[]) => void;
   /** The constant (triangle) for means and intercepts, placed left of the model; `addMean` draws its arrow to a construct. */
   addConstant: () => void;
   moveConstant: (x: number, y: number) => void;
@@ -334,6 +343,15 @@ export interface State {
 }
 
 const HISTORY = 100;
+
+/**
+ * Settings changed together with a model edit (commitWithSettings), keyed by the model the edit
+ * produced: undoing that model restores `before`, redoing it applies `after`.
+ */
+const linkedSettings = new WeakMap<
+  ModelState,
+  { before: Partial<Settings>; after: Partial<Settings> }
+>();
 
 let lastReadOnlyToast = 0;
 /** Viewers of shared projects cannot edit; tell them (at most every few seconds). */
@@ -426,16 +444,35 @@ export function historySlice(set: SetState, get: GetState) {
   return {
     commit: (fn) => {
       if (readOnly(get())) return;
+      // What a change leaves dangling (correlations, direct effects, means of removed constructs) goes with it.
+      const prune = (m: ModelState) =>
+        pruneMeans(pruneCorrelations(pruneIndicatorPaths(pruneFixedLoadings(m))));
       set((s) =>
         s.history
-          ? { model: pruneMeans(pruneCorrelations(pruneFixedLoadings(fn(s.model)))), dirty: true }
+          ? { model: prune(fn(s.model)), dirty: true }
           : {
-              model: pruneMeans(pruneCorrelations(pruneFixedLoadings(fn(s.model)))),
+              model: prune(fn(s.model)),
               past: [...s.past.slice(-HISTORY + 1), s.model],
               future: [],
               dirty: true,
             },
       );
+    },
+    commitWithSettings: (fn, patch) => {
+      if (readOnly(get())) return;
+      if (get().history) {
+        get().commit(fn);
+        get().setSettings(patch);
+        return;
+      }
+      const current = get().settings;
+      const before = Object.fromEntries(
+        Object.keys(patch).map((k) => [k, current[k as keyof Settings]]),
+      ) as Partial<Settings>;
+      // (a fresh object, so that the link belongs to this step only)
+      get().commit((m) => ({ ...fn(m) }));
+      linkedSettings.set(get().model, { before, after: patch });
+      set((s) => ({ settings: { ...s.settings, ...patch } }));
     },
     checkpoint: () => set((s) => ({ past: [...s.past.slice(-HISTORY + 1), s.model], future: [] })),
     undo: () => {
@@ -446,7 +483,9 @@ export function historySlice(set: SetState, get: GetState) {
       set((s) => {
         const prev = s.past.at(-1);
         if (!prev) return s;
+        const link = linkedSettings.get(s.model);
         return {
+          ...(link ? { settings: { ...s.settings, ...link.before } } : {}),
           model: prev,
           past: s.past.slice(0, -1),
           future: [s.model, ...s.future],
@@ -463,7 +502,9 @@ export function historySlice(set: SetState, get: GetState) {
       set((s) => {
         const next = s.future[0];
         if (!next) return s;
+        const link = linkedSettings.get(next);
         return {
+          ...(link ? { settings: { ...s.settings, ...link.after } } : {}),
           model: next,
           past: [...s.past, s.model],
           future: s.future.slice(1),
@@ -758,6 +799,14 @@ export function arrowSlice(set: SetState, get: GetState) {
       return true;
     },
     removePaths: (ids) => get().deleteItems([], ids),
+    removeIndicatorPaths: (ids) => {
+      if (!get().model.indicatorPaths?.some((p) => ids.includes(p.id))) return;
+      get().commit((m) => {
+        const kept = (m.indicatorPaths ?? []).filter((p) => !ids.includes(p.id));
+        const { indicatorPaths: _p, ...rest } = m;
+        return kept.length ? { ...rest, indicatorPaths: kept } : rest;
+      });
+    },
     updatePath: (id, patch) =>
       get().commit((m) => ({
         ...m,

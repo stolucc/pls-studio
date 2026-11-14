@@ -23,8 +23,9 @@ function related(model: ModelState, c: Construct): boolean {
   const errorCorrelated = (model.correlations ?? []).some(
     (k) => k.kind === 'indicator' && (c.indicators.includes(k.a) || c.indicators.includes(k.b)),
   );
+  // An indicator path runs from a construct (its id) to an indicator (its name).
   const indicatorPath = (model.indicatorPaths ?? []).some(
-    (p) => c.indicators.includes(p.from) || c.indicators.includes(p.to),
+    (p) => p.from === c.id || c.indicators.includes(p.to),
   );
   const hierarchical =
     (c.components?.length ?? 0) > 0 || model.constructs.some((k) => k.components?.includes(c.id));

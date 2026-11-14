@@ -61,6 +61,14 @@ export function keepInAccount(
           .toast('info', `${e.message} Until then this project is kept in this browser only.`);
       } else {
         lastFailure = Date.now();
+        // Created on the server, but the model was not confirmed there: the local copy stays.
+        if (useStore.getState().projectId.startsWith('cloud:'))
+          useStore
+            .getState()
+            .toast(
+              'info',
+              `“${name}” could not be confirmed in your account yet (${(e as Error).message}). Its copy in Recent projects in this browser is kept.`,
+            );
       }
       return false;
     } finally {

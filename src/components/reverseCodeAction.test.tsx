@@ -6,7 +6,8 @@ import { useStore } from '../store';
 import { DataPanel } from './DataPanel';
 import { DataWorkspace } from './DataViewer';
 import { ConfirmModal } from './Overlays';
-import { parseScale, reversibleColumns } from './reverseCodeAction';
+import { computeColumn } from '../data/compute';
+import { parseScale, reverseCodeColumns, reversibleColumns } from './reverseCodeAction';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -53,6 +54,18 @@ afterEach(() => {
 
 it('offers only numeric columns', () => {
   expect(reversibleColumns()).toEqual(['q1', 'q2', 'q3']);
+});
+
+it('does not offer a computed column, and refuses one with a toast pointing to reverse()', async () => {
+  const { data, dataInfo } = useStore.getState();
+  const c = computeColumn(data!, dataInfo!, 'total', 'sum(q1, q2)');
+  useStore.getState().setData(c.data, c.info);
+  expect(reversibleColumns()).toEqual(['q1', 'q2', 'q3']);
+  expect(await reverseCodeColumns(['total'])).toBe(false);
+  const toasts = useStore.getState().toasts;
+  expect(toasts[toasts.length - 1]).toMatchObject({ kind: 'error' });
+  expect(toasts[toasts.length - 1].text).toMatch(/computed column.*reverse\(\)/);
+  expect(Array.from(useStore.getState().data!.cols[4])).toEqual(Array.from(c.data.cols[4]));
 });
 
 it('reverse-codes from the Data tab: choose the items, then confirm the observed scale', async () => {

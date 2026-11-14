@@ -100,4 +100,27 @@ describe('keeping projects in the account', () => {
     expect(keepable()).toBe(false);
     expect(keepable(Date.now() + RETRY_MS + 1)).toBe(true);
   });
+
+  it('keeps the local copy and says so when the server never confirmed the model', async () => {
+    useAuth.setState({ user });
+    s().addConstruct(0, 0, ['x1']);
+    const local = s().projectId;
+    await saveRecent({
+      id: local,
+      name: 'Mine',
+      method: 'pls',
+      updated: 1,
+      constructs: 1,
+      dataLabel: 'no data',
+      text: '{}',
+    });
+    // Created on the server (the project is a cloud project now), then the sync failed.
+    const failing = async (u: CloudUser) => {
+      await share(u);
+      throw new Error('The connection to the server closed.');
+    };
+    expect(await keepInAccount(failing)).toBe(false);
+    expect((await listRecent()).map((r) => r.id)).toContain(local);
+    expect(s().toasts.at(-1)!.text).toMatch(/could not be confirmed.*copy in Recent projects/);
+  });
 });

@@ -23,7 +23,10 @@ export const FUNCTIONS: Record<string, { arity: [number, number]; doc: string }>
   exp: { arity: [1, 1], doc: 'exponential' },
   sqrt: { arity: [1, 1], doc: 'square root' },
   abs: { arity: [1, 1], doc: 'absolute value' },
-  round: { arity: [1, 2], doc: 'round(x, digits)' },
+  round: {
+    arity: [1, 2],
+    doc: 'round(x, digits); a half goes to the even digit, as in R (round(2.5) is 2)',
+  },
   floor: { arity: [1, 1], doc: 'round down' },
   ceiling: { arity: [1, 1], doc: 'round up' },
   min: { arity: [1, Infinity], doc: 'smallest of the values in the row' },
@@ -57,7 +60,52 @@ type Tok =
   | { k: 'op'; v: string };
 
 /** Words that read as the logical operators: `age >= 18 and group == 2`. */
-const WORD_OPS: Record<string, string> = { and: '&', or: '|', not: '!' };
+const WORD_OPS = new Map<string, string>([
+  ['and', '&'],
+  ['or', '|'],
+  ['not', '!'],
+]);
+
+/**
+ * The function `name`, if it is one. Own keys only: a name such as `constructor` or `toString`
+ * must not find Object.prototype's members.
+ */
+function functionNamed(name: string): { arity: [number, number]; doc: string } | undefined {
+  if (!Object.hasOwn(FUNCTIONS, name)) return undefined;
+  return FUNCTIONS[name];
+}
+
+/** The categories of a text column, or undefined for a numeric column (own keys only, as above). */
+function categoriesOf(data: Dataset, name: string): string[] | undefined {
+  if (!data.categories || !Object.hasOwn(data.categories, name)) return undefined;
+  return data.categories[name];
+}
+
+/** Infinite results (1e999, a sum that overflows) are missing values, as division by zero. */
+const finiteOrMissing = (v: number) => (Number.isFinite(v) ? v : NaN);
+
+/**
+ * round(x, digits) as R rounds: to the nearer of the two candidates, and half to even when x lies
+ * exactly between them (round(2.5) is 2, round(-2.5) is -2, round(3.5) is 4). The comparison is
+ * made on the doubles themselves, so round(0.15, 1) is 0.1 as in R (0.15 is stored a little
+ * below 0.15).
+ */
+export function roundHalfEven(x: number, digits: number): number {
+  const k = 10 ** digits;
+  if (k === 0) return 0;
+  const scaled = x * k;
+  if (!Number.isFinite(scaled) || Math.abs(scaled) >= 2 ** 52) return x;
+  const down = Math.floor(scaled);
+  const up = Math.ceil(scaled);
+  const low = down / k;
+  const high = up / k;
+  if (down === up) return low;
+  const below = x - low;
+  const above = high - x;
+  if (below < above) return low;
+  if (above < below) return high;
+  return down % 2 === 0 ? low : high;
+}
 const OPS = [
   '<=',
   '>=',
@@ -112,7 +160,7 @@ function tokenize(src: string): Tok[] {
     }
     const name = /^[A-Za-z_][A-Za-z0-9_.]*/.exec(src.slice(i));
     if (name) {
-      const word = WORD_OPS[name[0]];
+      const word = WORD_OPS.get(name[0]);
       if (word) out.push({ k: 'op', v: word });
       else out.push({ k: 'name', v: name[0] });
       i += name[0].length;
@@ -205,8 +253,10 @@ export function parseFormula(src: string): Node {
       return { t: 'un', op: '-', e: unary() };
     }
     if (isOp('!')) {
+      // As in R, ! takes the whole comparison after it (below the comparisons, above & and |):
+      // !group == 2 is !(group == 2), and !x + 1 is !(x + 1).
       p++;
-      return { t: 'un', op: '!', e: unary() };
+      return { t: 'un', op: '!', e: cmp() };
     }
     return pow();
   };
@@ -223,7 +273,7 @@ export function parseFormula(src: string): Node {
     if (!t) throw new Error('The formula ends too early.');
     if (t.k === 'num') {
       p++;
-      return { t: 'num', v: t.v };
+      return { t: 'num', v: finiteOrMissing(t.v) };
     }
     if (t.k === 'str') {
       p++;
@@ -232,7 +282,7 @@ export function parseFormula(src: string): Node {
     if (t.k === 'name') {
       p++;
       if (isOp('(')) {
-        const f = FUNCTIONS[t.v];
+        const f = functionNamed(t.v);
         if (!f)
           throw new Error(
             `Unknown function “${t.v}”. Available: ${Object.keys(FUNCTIONS).join(', ')}.`,
@@ -299,12 +349,13 @@ function categoryComparison(nd: Extract<Node, { t: 'bin' }>, data: Dataset): Flo
     text = nd.a;
   }
   if (text.t !== 'str') return null;
-  if (column.t !== 'col' || !data.categories?.[column.name])
+  const categories = column.t === 'col' ? categoriesOf(data, column.name) : undefined;
+  if (column.t !== 'col' || !categories)
     throw new Error(`“${text.v}”: text in quotes can only be compared with a text column.`);
   const j = data.names.indexOf(column.name);
   if (j < 0) throw new Error(`“${column.name}” is not a column of the dataset.`);
   // Codes are 1-based positions in the column's categories; an unknown category matches no row.
-  const code = data.categories[column.name].indexOf(text.v) + 1;
+  const code = categories.indexOf(text.v) + 1;
   const equal = nd.op === '==';
   return data.cols[j].map((v) => {
     if (Number.isNaN(v)) return NaN;
@@ -344,7 +395,7 @@ export function evaluate(node: Node, data: Dataset): Float64Array {
   const col = (name: string) => {
     const j = data.names.indexOf(name);
     if (j < 0) throw new Error(`“${name}” is not a column of the dataset.`);
-    if (data.categories?.[name])
+    if (categoriesOf(data, name))
       throw new Error(`“${name}” is a text column; formulas use numeric columns.`);
     return data.cols[j];
   };
@@ -442,7 +493,7 @@ export function evaluate(node: Node, data: Dataset): Float64Array {
           const out = new Float64Array(n);
           for (let i = 0; i < n; i++) {
             const vs = args.map((a) => a[i]);
-            out[i] = vs.some(Number.isNaN) ? NaN : f(vs);
+            out[i] = vs.some(Number.isNaN) ? NaN : finiteOrMissing(f(vs));
           }
           return out;
         };
@@ -465,8 +516,8 @@ export function evaluate(node: Node, data: Dataset): Float64Array {
             return one(Math.ceil);
           case 'round': {
             const d = args[1] ? args[1][0] : 0;
-            const k = 10 ** (Number.isFinite(d) ? Math.round(d) : 0);
-            return one((v) => Math.round(v * k) / k);
+            const digits = Number.isFinite(d) ? Math.round(d) : 0;
+            return one((v) => roundHalfEven(v, digits));
           }
           case 'min':
             return across((vs) => Math.min(...vs));
@@ -481,7 +532,7 @@ export function evaluate(node: Node, data: Dataset): Float64Array {
               out = new Float64Array(n);
             for (let i = 0; i < n; i++) {
               if (Number.isNaN(c[i])) out[i] = NaN;
-              else out[i] = c[i] !== 0 ? a[i] : b[i];
+              else out[i] = finiteOrMissing(c[i] !== 0 ? a[i] : b[i]);
             }
             return out;
           }
@@ -605,16 +656,27 @@ export function computeColumn(
   return { data: next, info: { ...info, computed, missingCells: countMissing(next) } };
 }
 
-/** Recompute every computed column in order (after the rows changed). */
+/** Recompute every computed column in order (after the data changed). */
 export function recomputeAll(data: Dataset, info: DataInfo): { data: Dataset; info: DataInfo } {
+  const computed = info.computed ?? [];
+  if (computed.length === 0) return { data, info };
   let out = { data, info };
-  for (const c of info.computed ?? []) {
+  for (const c of computed) {
     if (!out.data.names.includes(c.name)) continue;
     try {
       out = computeColumn(out.data, out.info, c.name, c.expr);
     } catch {
       /* a column it used is gone: the values stay as they are */
     }
+  }
+  // A computed column's values are its formula's: a reversal recorded for one (older projects
+  // allowed it) no longer holds once it is recomputed.
+  const names = new Set(computed.map((c) => c.name));
+  const reversed = out.info.reversed;
+  if (reversed?.some((r) => names.has(r.name))) {
+    const kept = reversed.filter((r) => !names.has(r.name));
+    const { reversed: _r, ...rest } = out.info;
+    out = { data: out.data, info: kept.length ? { ...rest, reversed: kept } : rest };
   }
   return out;
 }

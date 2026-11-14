@@ -35,6 +35,7 @@ import { useStore } from './store';
 import type { CbEstimator } from './engine/cbsem';
 import type { IpmaOptions } from './engine/ipma';
 import { processInput } from './process/input';
+import { switchMethod } from './methodSwitch';
 
 /**
  * The file dialog's filter per kind of file. AMOS models get none: browsers on macOS
@@ -57,19 +58,21 @@ function pickFile(accept: string): Promise<File | null> {
 /**
  * Before replacing the current project. Projects are kept in Recent projects,
  * so normally the current one is just flushed there; only when browser storage
- * is unavailable do we ask before discarding unsaved changes.
+ * is unavailable, or the flush fails (storage full), do we ask before
+ * discarding unsaved changes.
  */
 async function confirmDiscard(action: string): Promise<boolean> {
   const s = useStore.getState();
   if (s.model.constructs.length === 0 && !s.data) return true;
-  if (await recentPersistent()) {
-    await autosave();
-    return true;
-  }
+  const persistent = await recentPersistent();
+  if (persistent && (await autosave())) return true;
   if (!s.dirty) return true;
+  const why = persistent
+    ? 'the current model could not be kept in Recent projects (the browser’s storage is full or blocked)'
+    : 'this browser cannot keep the current model in Recent projects';
   return confirmDialog({
     title: 'Discard unsaved changes?',
-    body: `${action} will replace the current model, and this browser cannot keep it in Recent projects. Save it to a file first if you want to keep it.`,
+    body: `${action} will replace the current model, and ${why}. Save it to a file first if you want to keep it.`,
     confirmLabel: 'Discard changes',
     danger: true,
   });
@@ -225,11 +228,20 @@ async function importMatrix(
       hasNacov: !!nacov,
     },
   );
-  if (s.settings.method !== 'cbsem') s.setSettings({ method: 'cbsem' });
-  s.toast(
-    'success',
-    `Loaded a ${m.names.length}-variable covariance matrix (N = ${n})${nacov ? ' with NACOV' : ''}. Switched to CB-SEM.`,
-  );
+  // A matrix is estimated by CB-SEM only; the switch follows the method rules (main-effect paths
+  // when leaving process analysis, composites converted after confirmation).
+  const was = useStore.getState().settings.method;
+  const switched = was !== 'cbsem' && (await switchMethod('cbsem'));
+  let method = '';
+  if (switched) method = ' Switched to CB-SEM.';
+  else if (useStore.getState().settings.method !== 'cbsem')
+    method = ' Switch the method to CB-SEM to estimate the model from it.';
+  useStore
+    .getState()
+    .toast(
+      'success',
+      `Loaded a ${m.names.length}-variable covariance matrix (N = ${n})${nacov ? ' with NACOV' : ''}.${method}`,
+    );
 }
 
 export async function openProject() {
@@ -1141,11 +1153,16 @@ export function currentEntry(): RecentEntry | null {
   };
 }
 
-export async function autosave() {
+/**
+ * Keep the current project in Recent projects. Resolves false when it could not be stored;
+ * true when it was, or when it is not kept locally (empty, an example, a shared project).
+ */
+export async function autosave(): Promise<boolean> {
   const e = currentEntry();
-  if (e) await saveRecent(e);
+  const saved = e ? await saveRecent(e) : true;
   // Signed in: the project belongs in the account (cloud/keep.ts decides whether this one does, now).
   void import('./cloud/keep').then((m) => m.keepInAccount());
+  return saved;
 }
 
 /** Move a pre-home-screen localStorage autosave into Recent projects. */
@@ -1206,8 +1223,9 @@ export async function importModelSyntax() {
     )
       return;
     useStore.getState().commit(() => model);
-    if (useStore.getState().settings.method === 'process')
-      useStore.getState().setSettings({ method: 'cbsem' });
+    // Syntax describes a SEM: leave process analysis by the method rules (main-effect paths drawn,
+    // composites converted after confirmation).
+    if (useStore.getState().settings.method === 'process') await switchMethod('cbsem');
     const missing = s.data
       ? [...new Set(model.constructs.flatMap((c) => c.indicators))].filter(
           (i) => !s.data!.names.includes(i),

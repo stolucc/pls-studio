@@ -208,6 +208,30 @@ describe('correlations in the store', () => {
     expect(s().model.correlations).toHaveLength(1);
   });
 
+  it('drops direct effects on indicators with their construct or indicator, and removes one on request', () => {
+    const { a, b, x } = cfa();
+    useStore.setState({
+      model: {
+        ...s().model,
+        indicatorPaths: [
+          { id: 'ip1', from: x, to: 'a1' },
+          { id: 'ip2', from: x, to: 'b2' },
+          { id: 'ip3', from: b, to: 'a3' },
+        ],
+      },
+    });
+    s().removeIndicator(a, 'a1');
+    expect(s().model.indicatorPaths!.map((p) => p.id)).toEqual(['ip2', 'ip3']);
+    s().removeConstructs([b]);
+    expect(s().model.indicatorPaths).toBeUndefined();
+    s().undo();
+    expect(s().model.indicatorPaths!.map((p) => p.id)).toEqual(['ip2', 'ip3']);
+    s().removeIndicatorPaths(['ip3']);
+    expect(s().model.indicatorPaths!.map((p) => p.id)).toEqual(['ip2']);
+    s().undo();
+    expect(s().model.indicatorPaths!.map((p) => p.id)).toEqual(['ip2', 'ip3']);
+  });
+
   it('drawing a correlation does not invalidate PLS results', () => {
     const { a, b } = cfa();
     const keyOf = () => resultsKey(useStore.getState());

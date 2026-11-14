@@ -80,8 +80,15 @@ export function restoreRows(data: Dataset, info: DataInfo): { data: Dataset; inf
   };
 }
 
-/** Validate excluded rows from an (untrusted) project file against the data's column names. */
-export function parseDroppedRows(raw: unknown, names: string[]): RowExclusion[] | undefined {
+/**
+ * Validate excluded rows from an (untrusted) project file against the data's column names and
+ * its row count (`rows`, the rows left after every exclusion).
+ */
+export function parseDroppedRows(
+  raw: unknown,
+  names: string[],
+  rows: number,
+): RowExclusion[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const out: RowExclusion[] = [];
   for (const e of raw.slice(0, 50)) {
@@ -106,5 +113,24 @@ export function parseDroppedRows(raw: unknown, names: string[]): RowExclusion[] 
       ...(r.filter === true ? { filter: true as const } : {}),
     });
   }
-  return out.length ? out : undefined;
+  const inRange = withinRows(out, rows);
+  return inRange.length ? inRange : undefined;
+}
+
+/**
+ * The exclusions whose positions lie within the dataset as it was when they were made. They are
+ * restored last first, so exclusion k was made from the rows left plus the rows of exclusions
+ * k, k + 1, …; one whose positions reach beyond that is dropped (it does not count for the
+ * earlier ones).
+ */
+function withinRows(exclusions: RowExclusion[], rows: number): RowExclusion[] {
+  const kept: RowExclusion[] = [];
+  let total = Math.max(0, rows);
+  for (const ex of [...exclusions].reverse()) {
+    const size = total + ex.at.length;
+    if (ex.at[ex.at.length - 1] >= size) continue;
+    total = size;
+    kept.unshift(ex);
+  }
+  return kept;
 }

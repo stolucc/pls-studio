@@ -8,6 +8,7 @@ import {
   type ModelState,
 } from '../model/project';
 import { computeColumn, removeComputed } from './compute';
+import { reverseCode } from './recode';
 import {
   excludeCases,
   filterKeeps,
@@ -41,13 +42,14 @@ describe('the dataset filter', () => {
       false,
       false,
     ]);
-    expect(filterKeeps(data, 'country == "Ireland" or not group == 2')).toEqual([
-      true,
+    // `not group == 1` reads as R does, not (group == 1); (not group) == 1 would keep no row.
+    expect(filterKeeps(data, 'country == "Spain" and not group == 1')).toEqual([
       false,
       true,
+      false,
+      false,
+      false,
       true,
-      false,
-      false,
     ]);
   });
 
@@ -132,4 +134,43 @@ describe('the dataset filter', () => {
 
 it('refuses a filter that would leave no case', () => {
   expect(() => setFilter(data, info, 'age > 100')).toThrow(/leave none/);
+});
+
+describe('computed columns follow every change of the data', () => {
+  const likert: Dataset = {
+    names: ['q1', 'q2'],
+    cols: [Float64Array.from([1, 2, 3, 4, 5]), Float64Array.from([1, 1, 2, 2, 5])],
+  };
+  const likertInfo: DataInfo = { fileName: 'l.csv', rows: 5, missingCells: 0, excluded: [] };
+
+  it('recomputes z() and center() over the cases left after an exclusion (no filter)', () => {
+    const c = computeColumn(likert, likertInfo, 'cq', 'center(q1)');
+    const r = excludeCases(c.data, c.info, [5], 'outlier');
+    // The mean of q1 over the four cases left is 2.5.
+    expect(col(r.data, 'cq')).toEqual([-1.5, -0.5, 0.5, 1.5]);
+    const back = restoreCases(r.data, r.info);
+    expect(col(back.data, 'cq')).toEqual([-2, -1, 0, 1, 2]);
+  });
+
+  it('recomputes the columns computed from an item that is reverse-coded', () => {
+    const c = computeColumn(likert, likertInfo, 'm', 'mean(q1, q2)');
+    const r = transformData(c.data, c.info, (d, i) => reverseCode(d, i, ['q1'], 1, 5));
+    expect(col(r.data, 'q1')).toEqual([5, 4, 3, 2, 1]);
+    expect(col(r.data, 'm')).toEqual([3, 2.5, 2.5, 2, 3]);
+  });
+
+  it('refuses to reverse-code a computed column, pointing to reverse() in the formula', () => {
+    const c = computeColumn(likert, likertInfo, 'm', 'mean(q1, q2)');
+    expect(() => transformData(c.data, c.info, (d, i) => reverseCode(d, i, ['m'], 1, 5))).toThrow(
+      /computed column.*reverse\(\)/,
+    );
+  });
+
+  it('drops a recorded reversal of a computed column (older files) when it is recomputed', () => {
+    const c = computeColumn(likert, likertInfo, 'm', 'mean(q1, q2)');
+    const stale: DataInfo = { ...c.info, reversed: [{ name: 'm', min: 1, max: 5 }] };
+    const r = setFilter(c.data, stale, 'q1 > 1');
+    expect(r.info.reversed).toBeUndefined();
+    expect(col(r.data, 'm')).toEqual([1.5, 2.5, 3, 5]);
+  });
 });

@@ -64,12 +64,14 @@ export function filterKeeps(data: Dataset, expr: string): boolean[] {
 
 /**
  * Derive the analysed dataset from the base: mask the missing codes, recompute the computed
- * columns (when asked, or when codes or a filter may have changed what they read), then apply
- * the filter (evaluated with the codes missing; the rows it leaves out keep their values).
+ * columns, then apply the filter (evaluated with the codes missing; the rows it leaves out keep
+ * their values). The computed columns are recomputed on every change: excluded cases change
+ * z() and center(), and a changed input (reverse-coded, recoded) changes every formula that
+ * reads it. Without computed columns this costs nothing.
  */
-export function fromBase(data: Dataset, info: DataInfo, recompute = false): Data {
+export function fromBase(data: Dataset, info: DataInfo): Data {
   let out = mask(data, info);
-  if (recompute || info.filter || info.missingCodes?.length) out = recomputeAll(out.data, out.info);
+  out = recomputeAll(out.data, out.info);
   if (!info.filter) return out;
   const keeps = filterKeeps(out.data, info.filter.expr);
   const drop: number[] = [];
@@ -90,26 +92,26 @@ export function fromBase(data: Dataset, info: DataInfo, recompute = false): Data
 
 /**
  * Apply a change to the base dataset (every case, the filter's rows back in) and derive the
- * analysed dataset again, so that missing codes and the filter are applied to the changed data.
- * The change sees the codes as missing, unless `rows` (a change of the rows, which must keep the
- * original values). `recompute`: recompute the computed columns afterwards.
+ * analysed dataset again, so that missing codes, the computed columns and the filter follow the
+ * changed data. The change sees the codes as missing, unless `rows` (a change of the rows, which
+ * must keep the original values).
  */
 export function transformData(
   data: Dataset,
   info: DataInfo,
   change: (data: Dataset, info: DataInfo) => Data,
-  { recompute = false, rows = false }: { recompute?: boolean; rows?: boolean } = {},
+  { rows = false }: { rows?: boolean } = {},
 ): Data {
   const base = toBase(data, info);
   if (rows) {
     const changed = change(base.data, base.info);
-    return fromBase(changed.data, changed.info, recompute);
+    return fromBase(changed.data, changed.info);
   }
   // Masked for the change; its rows stay as they are, so the masked cells still line up.
   const masked = mask(base.data, base.info);
   const changed = change(masked.data, masked.info);
   const plain = unmask(changed.data, changed.info);
-  return fromBase(plain.data, plain.info, recompute);
+  return fromBase(plain.data, plain.info);
 }
 
 /** Set (expr) or remove (null) the dataset filter. Throws with a readable message. */
@@ -118,7 +120,7 @@ export function setFilter(data: Dataset, info: DataInfo, expr: string | null): D
     throw new Error('A filter needs raw data; this dataset is a covariance matrix.');
   const base = toBase(data, info);
   const { filter: _f, ...rest } = base.info;
-  if (expr === null) return fromBase(base.data, rest, true);
+  if (expr === null) return fromBase(base.data, rest);
   const text = expr.trim();
   const bad = filterError(text, base.data);
   if (bad) throw new Error(bad);
@@ -156,7 +158,7 @@ export function excludeCases(data: Dataset, info: DataInfo, rows: number[], reas
 
 /** Put back every excluded case (the filter stays and is applied again); computed columns are recomputed. */
 export function restoreCases(data: Dataset, info: DataInfo): Data {
-  return transformData(data, info, (d, i) => restoreRows(d, i), { recompute: true, rows: true });
+  return transformData(data, info, (d, i) => restoreRows(d, i), { rows: true });
 }
 
 /**
@@ -187,5 +189,5 @@ export function setMissingCodes(
   const bad = codesColumnError(data, info, name);
   if (bad) throw new Error(bad);
   const base = toBase(data, info);
-  return fromBase(base.data, withCodes(base.info, name, codes), true);
+  return fromBase(base.data, withCodes(base.info, name, codes));
 }

@@ -75,6 +75,15 @@ describe('two indicators per factor (Bollen 1989)', () => {
     const three = model([C('F', ['x1', 'x2', 'x3'])]);
     expect(isolatedTwoIndicatorFactor(three, three.constructs[0])).toBe(false);
   });
+
+  it('an indicator path from the factor (a construct id) or to one of its indicators counts', () => {
+    const base = [C('F', ['x1', 'x2', 'x3']), C('G', ['x4', 'x5'])];
+    const from = model(base, { indicatorPaths: [{ id: 'ip', from: 'G', to: 'x1' }] });
+    expect(isolatedTwoIndicatorFactor(from, from.constructs[1])).toBe(false);
+    expect(issues(from, data(HS)).some((t) => t.startsWith('error: "G"'))).toBe(false);
+    const to = model(base, { indicatorPaths: [{ id: 'ip', from: 'F', to: 'x5' }] });
+    expect(isolatedTwoIndicatorFactor(to, to.constructs[1])).toBe(false);
+  });
 });
 
 describe('second-order factors (Rindskopf & Rose 1988)', () => {

@@ -57,6 +57,31 @@ describe('IndexedDB backend', () => {
     expect(await getRecent('a')).toBeNull();
     expect((await listRecent()).map((e) => e.id)).toEqual(['b']);
   });
+  it('reports a write that the transaction aborts after the request succeeded (quota on commit)', async () => {
+    Object.defineProperty(globalThis, 'indexedDB', {
+      value: new IDBFactory(),
+      configurable: true,
+      writable: true,
+    });
+    resetRecentForTests(true);
+    expect(await saveRecent(entry('kept', 1))).toBe(true);
+    const put = IDBObjectStore.prototype.put;
+    const spy = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (
+      this: IDBObjectStore,
+      ...args: Parameters<IDBObjectStore['put']>
+    ) {
+      const req = put.apply(this, args);
+      // (registered before the code's own handlers: the request succeeds, then the commit fails)
+      req.addEventListener('success', () => this.transaction.abort());
+      return req;
+    });
+    try {
+      expect(await saveRecent(entry('lost', 2))).toBe(false);
+    } finally {
+      spy.mockRestore();
+    }
+    expect((await listRecent()).map((e) => e.id)).toEqual(['kept']);
+  });
   it('falls back to memory when IndexedDB is blocked', async () => {
     const open = () => {
       const r = {
@@ -97,7 +122,14 @@ describe('IndexedDB backend', () => {
     const db = {
       transaction: () => {
         if (++calls > 1) throw new Error('database is closing');
-        return { objectStore: () => ({ getAll: () => ok([]) }) };
+        const t = {
+          oncomplete: null as null | (() => void),
+          onerror: null,
+          onabort: null,
+          objectStore: () => ({ getAll: () => ok([]) }),
+        };
+        setTimeout(() => t.oncomplete?.(), 0);
+        return t;
       },
     };
     Object.defineProperty(globalThis, 'indexedDB', {
@@ -109,7 +141,7 @@ describe('IndexedDB backend', () => {
     expect(await recentPersistent()).toBe(true);
     expect(await listRecent()).toEqual([]);
     expect(await getRecent('z')).toBeNull();
-    await expect(saveRecent(entry('q', 2))).resolves.toBeUndefined();
+    await expect(saveRecent(entry('q', 2))).resolves.toBe(false);
     await expect(removeRecent('z')).resolves.toBeUndefined();
     expect(calls).toBeGreaterThan(1);
   });
