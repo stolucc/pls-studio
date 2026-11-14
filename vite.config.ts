@@ -144,6 +144,9 @@ export default defineConfig({
     port: 5175,
     strictPort: true,
     headers: ISOLATION_HEADERS,
+    // (agents' git worktrees under .claude are full copies of the repository: watching them slows the
+    //  dev server and their edits would trigger reloads here)
+    watch: { ignored: ['**/.claude/**'] },
     proxy: {
       '/api': { target: 'http://localhost:8787', changeOrigin: false },
       '/ws': { target: 'ws://localhost:8787', ws: true, changeOrigin: false },
