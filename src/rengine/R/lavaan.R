@@ -2106,6 +2106,9 @@ ps_cb <- function(req_json, export = FALSE) {
   out$modindices <- mi$items
   out$modindicesError <- mi$error
   out$modindicesNote <- mi$note
+  # The "Diagnose misfit" panel (misfit.R): one lavaan fit of a single-level model, ML-type or WLS-type.
+  misfit_ok <- !isTRUE(b$mi) && !levels2 && !isTRUE(b$robust) && !isTRUE(req$missing %in% c("twostage", "robusttwostage"))
+  if (misfit_ok) out$misfit <- ps_cb_misfit(fit, back, groups)
   if (isTRUE(b$mi)) out$imputations <- length(env$imp)
   # Robust ML (rsem): each analysed case's weight (below 1: down-weighted as atypical).
   if (isTRUE(b$robust)) out$caseWeights <- list(rows = env$case_row, weights = env$case_weight)

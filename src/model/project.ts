@@ -1,4 +1,5 @@
 import { clampStrict, isObj } from '../parse';
+import { parseModifications, type PostHocModification } from './posthoc';
 import { parseDroppedRows, type RowExclusion } from './rows';
 import { DEFAULT_FIGURE_STYLE, parseFigureStyle, type FigureStyle } from '../figure/style';
 import { parseEfaDesign, type EfaDesign } from './efa';
@@ -388,6 +389,8 @@ export interface ModelState {
   parameterization?: 'theta';
   /** CB-SEM: direct effects of constructs or covariates on indicators. */
   indicatorPaths?: IndicatorPath[];
+  /** CB-SEM: post hoc modifications made after seeing results (freed from the Diagnose misfit panel, non-significant paths deleted): model/posthoc.ts. */
+  modifications?: PostHocModification[];
 }
 
 /** An arrow from the constant: a latent mean (or an observed variable's intercept) of construct `target`. */
@@ -1975,6 +1978,7 @@ export function parseModelState(m: unknown): ModelState {
       ? { inequalities: str(m.inequalities, 2000) }
       : {}),
     ...(m.positiveVariances === true ? { positiveVariances: true } : {}),
+    ...modificationsOf(m.modifications),
     ...(m.parameterization === 'theta' ? { parameterization: 'theta' as const } : {}),
     ...(Array.isArray(m.indicatorPaths) && m.indicatorPaths.length
       ? {
@@ -2166,4 +2170,10 @@ export function parseSettings(raw: unknown): Settings {
         ? { xref: s.counterfactual.xref, xcf: s.counterfactual.xcf }
         : null,
   };
+}
+
+/** The post hoc modification log of a project file (model/posthoc.ts validates it strictly); absent when empty. */
+function modificationsOf(raw: unknown): Pick<ModelState, 'modifications'> {
+  const log = parseModifications(raw);
+  return log?.length ? { modifications: log } : {};
 }

@@ -2,6 +2,7 @@ import { create, type StoreApi } from 'zustand';
 import { constructGeometry } from './geometry';
 import { circlesFor, placeModel, type PlacedModel } from './placement';
 import { factorName } from './model/efa';
+import { appendModifications, removalEntries, removalWarning } from './model/posthoc';
 import type { FitTestResult } from './engine/bootstrap';
 import type { CbResult } from './engine/cbsem';
 import type { MiivResult } from './engine/miiv';
@@ -662,6 +663,10 @@ export function constructSlice(set: SetState, get: GetState) {
         correlationIds.length === 0
       )
         return;
+      // CB-SEM: deleted paths go in the post hoc modification log with their p in the last result.
+      const st = get();
+      const lastCb = st.settings.method === 'cbsem' ? st.results?.cb : null;
+      const removals = removalEntries(st.model, pathIds, lastCb, Date.now());
       get().commit((m) => {
         const paths = m.paths.filter(
           (p) =>
@@ -710,9 +715,12 @@ export function constructSlice(set: SetState, get: GetState) {
                 ),
               }
             : {}),
+          ...(removals.length ? appendModifications(m.modifications, removals) : {}),
         };
       });
       set({ selection: NO_SELECTION });
+      const streak = removals.length ? removalWarning(get().model.modifications) : null;
+      if (streak) get().toast('info', streak);
     },
   } satisfies Partial<State>;
 }
