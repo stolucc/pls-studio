@@ -656,16 +656,27 @@ export function computeColumn(
   return { data: next, info: { ...info, computed, missingCells: countMissing(next) } };
 }
 
-/** Recompute every computed column in order (after the rows changed). */
+/** Recompute every computed column in order (after the data changed). */
 export function recomputeAll(data: Dataset, info: DataInfo): { data: Dataset; info: DataInfo } {
+  const computed = info.computed ?? [];
+  if (computed.length === 0) return { data, info };
   let out = { data, info };
-  for (const c of info.computed ?? []) {
+  for (const c of computed) {
     if (!out.data.names.includes(c.name)) continue;
     try {
       out = computeColumn(out.data, out.info, c.name, c.expr);
     } catch {
       /* a column it used is gone: the values stay as they are */
     }
+  }
+  // A computed column's values are its formula's: a reversal recorded for one (older projects
+  // allowed it) no longer holds once it is recomputed.
+  const names = new Set(computed.map((c) => c.name));
+  const reversed = out.info.reversed;
+  if (reversed?.some((r) => names.has(r.name))) {
+    const kept = reversed.filter((r) => !names.has(r.name));
+    const { reversed: _r, ...rest } = out.info;
+    out = { data: out.data, info: kept.length ? { ...rest, reversed: kept } : rest };
   }
   return out;
 }

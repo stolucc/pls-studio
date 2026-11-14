@@ -146,9 +146,7 @@ export function ComputeDialog({ edit, onClose }: { edit?: string; onClose: () =>
     try {
       // Over every case (the filter applies afterwards); an edited formula changes the columns
       // computed from this one too.
-      const r = transformData(data, info, (d, i) => computeColumn(d, i, column, formula), {
-        recompute: !!current,
-      });
+      const r = transformData(data, info, (d, i) => computeColumn(d, i, column, formula));
       const s = useStore.getState();
       s.setData(r.data, r.info);
       const values = r.data.cols[r.data.names.indexOf(column)];

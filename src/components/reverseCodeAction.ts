@@ -3,7 +3,7 @@
 // data/recode.ts's reverseCode over every case.
 
 import { transformData } from '../data/pipeline';
-import { observedRange, reverseCode } from '../data/recode';
+import { computedReverseMessage, observedRange, reverseCode } from '../data/recode';
 import { useStore } from '../store';
 import { textDialog } from './Overlays';
 
@@ -19,11 +19,15 @@ export function parseScale(text: string): [number, number] | null {
   return [parts[0], parts[1]];
 }
 
-/** Numeric columns of the dataset, which are the ones that can be reverse-coded. */
+/**
+ * Numeric columns of the dataset that are not computed, which are the ones that can be
+ * reverse-coded (a computed column is reversed in its formula, with reverse()).
+ */
 export function reversibleColumns(): string[] {
-  const data = useStore.getState().data;
+  const { data, dataInfo } = useStore.getState();
   if (!data || data.cols.length === 0) return [];
-  return data.names.filter((n) => !data.categories?.[n]);
+  const computed = new Set((dataInfo?.computed ?? []).map((c) => c.name));
+  return data.names.filter((n) => !data.categories?.[n] && !computed.has(n));
 }
 
 /**
@@ -35,6 +39,11 @@ export function reversibleColumns(): string[] {
 export async function reverseCodeColumns(names: string[], afterward = ''): Promise<boolean> {
   const { data, dataInfo: info } = useStore.getState();
   if (!data || !info || names.length === 0) return false;
+  const computed = names.find((n) => (info.computed ?? []).some((c) => c.name === n));
+  if (computed) {
+    useStore.getState().toast('error', computedReverseMessage(computed));
+    return false;
+  }
   const reversed = new Map((info.reversed ?? []).map((r) => [r.name, r]));
   const done = names.filter((n) => reversed.has(n));
   // Every chosen item already reversed: the dialog offers to undo it, on its scale when they share one.

@@ -2,6 +2,18 @@ import type { Dataset } from '../engine/types';
 import type { DataInfo } from '../model/project';
 
 /**
+ * Why a computed column cannot be reverse-coded: its values come from its formula and are
+ * computed again whenever the data change, which would undo the reversal.
+ */
+export function computedReverseMessage(name: string): string {
+  return (
+    `“${name}” is a computed column, so its values follow its formula. ` +
+    'Reverse it inside its formula with reverse(), e.g. reverse(q3, 1, 5), or reverse-code ' +
+    'the items it is computed from.'
+  );
+}
+
+/**
  * Reverse-code Likert-type items: x becomes min + max - x on the scale min..max
  * (e.g. 1..5: 1 <-> 5, 2 <-> 4). Applying it again with the same scale undoes
  * it; DataInfo.reversed records which columns are reversed, and on which scale.
@@ -25,6 +37,8 @@ export function reverseCode(
     if (j < 0) throw new Error(`“${name}” is not in the dataset.`);
     if (data.categories?.[name])
       throw new Error(`“${name}” is a text column; only numeric items can be reverse-coded.`);
+    if ((info.computed ?? []).some((c) => c.name === name))
+      throw new Error(computedReverseMessage(name));
     const outside = Array.from(data.cols[j]).filter(
       (v) => !Number.isNaN(v) && (v < min || v > max),
     );

@@ -121,9 +121,7 @@ export function previewFormula(
   let column = name.trim();
   if (nameError(column, data, info, editing)) column = standInName(data);
   try {
-    const r = transformData(data, info, (d, i) => computeColumn(d, i, column, expr), {
-      recompute: !!editing,
-    });
+    const r = transformData(data, info, (d, i) => computeColumn(d, i, column, expr));
     const values = r.data.cols[r.data.names.indexOf(column)];
     const missing = values.filter(Number.isNaN).length;
     return { first: Array.from(values.slice(0, count)), missing, rows: values.length, column };
