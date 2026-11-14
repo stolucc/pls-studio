@@ -5,7 +5,7 @@
 // variance. Results are validated against lavaan in cbsem.test.ts.
 
 import type { MisfitResult } from '../rengine/misfit';
-import { cholesky, invert, invertPD, logDetPD, zeros, type Mat } from './linalg';
+import { cholesky, invert, invertPD, logDetPD, symEigen, zeros, type Mat } from './linalg';
 import { compileModel, extractColumns, htmt2Of, htmtOf, type CompiledModel } from './pls';
 import { bisect, chisqCdf, mean, ncChisqCdf, normalP } from './stats';
 import {
@@ -1440,6 +1440,33 @@ export function standardized(cm: CbModel, X: Matrices) {
   return { stdLoadings, stdPaths, total, indirect, lvCor, sdEta, sdX };
 }
 
+/**
+ * Why a sample covariance matrix is not positive definite, naming the
+ * variables involved, or null when it is. Every estimator needs S⁻¹ or log|S|
+ * (ML, GLS, and the ULS standard errors), so this is checked once up front. A
+ * constant variable is named as such; otherwise the variables with weight in
+ * the eigenvector of the smallest eigenvalue of the correlation matrix (the
+ * linear combination that is (nearly) constant) are listed, which finds, for
+ * example, a scale score entered next to its own items.
+ */
+export function notPositiveDefinite(S: Mat, names: string[]): string | null {
+  const constant = names.filter((_, i) => !(S[i][i] > 0));
+  if (constant.length)
+    return `The indicator covariance matrix is not positive definite: ${constant.join(', ')} ${constant.length === 1 ? 'has' : 'have'} no variance.`;
+  const d = S.map((row, i) => Math.sqrt(row[i]));
+  const R = S.map((row, i) => row.map((v, j) => v / (d[i] * d[j])));
+  const { values, vectors } = symEigen(R);
+  const smallest = Math.min(...values);
+  if (smallest > 1e-10 && cholesky(R)) return null;
+  const k = values.indexOf(smallest);
+  const involved = names.filter((_, i) => Math.abs(vectors[i][k]) > 0.1);
+  return (
+    'The indicator covariance matrix is not positive definite: ' +
+    `${involved.join(', ')} are (nearly) linearly dependent — for instance a sum or mean score next to its own items, or duplicated variables. ` +
+    'Remove one of them.'
+  );
+}
+
 export function estimateCb(
   data: Dataset,
   spec: ModelSpec,
@@ -1489,6 +1516,8 @@ export function estimateCb(
       'MLR needs raw data; with a covariance matrix use MLM or MLMV (with NACOV), ML, GLS or ULS.',
     );
   const S = covForEstimator(input.SN, n, estimator);
+  const singular = notPositiveDefinite(S, input.cm.m.indicatorNames);
+  if (singular) throw new Error(singular);
   const cm = bindSample(input.cm, S);
   const kx = cm.covariates.length;
   const df = (cm.p * (cm.p + 1)) / 2 - (kx * (kx + 1)) / 2 - cm.params.length;
