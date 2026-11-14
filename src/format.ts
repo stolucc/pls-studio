@@ -4,6 +4,22 @@ export function fmt(v: number | null | undefined, d = 3): string {
   return v.toFixed(d);
 }
 
+/**
+ * The smallest and largest of the values ([Infinity, -Infinity] when there
+ * are none, as Math.min() and Math.max()). A loop: spreading a long array into
+ * Math.min(...values) overflows the stack (above roughly 125,000 values).
+ */
+export function extent(values: ArrayLike<number>): [number, number] {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  return [lo, hi];
+}
+
 /** A p-value for a table cell: <0.001 or three decimals. */
 export function fmtP(p: number | null | undefined): string {
   if (p === null || p === undefined || Number.isNaN(p)) return '—';
