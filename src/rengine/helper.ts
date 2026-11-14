@@ -465,10 +465,19 @@ export async function helperCall(
 }
 
 /**
- * Many calls of one bridge function in one request (/batch): the helper runs
+ * Bytes one /batch request may carry. The helper reads a batch into memory
+ * whole and refuses one over 256 MiB (helper/server.go batchMaxBodyBytes);
+ * this leaves room for the envelope. Every call carries the data set, so a
+ * long bootstrap of a large data set is sent as several batches in turn.
+ */
+export const HELPER_BATCH_MAX_BYTES = 200 * 1024 * 1024;
+
+/**
+ * Many calls of one bridge function in few requests (/batch): the helper runs
  * them on all its R processes and streams each reply as it finishes (browsers
  * open at most six connections to a host, so separate calls would leave R
- * processes idle). Results in request order; `onDone` counts finished calls.
+ * processes idle). Calls go in batches of at most `maxBytes`, one after
+ * another. Results in request order; `onDone` counts finished calls.
  * The first failure rejects (R error: Error; helper problem: HelperUnavailable).
  */
 export async function helperBatch(
@@ -476,6 +485,7 @@ export async function helperBatch(
   reqs: string[],
   packages: string[],
   onDone?: (done: number) => void,
+  maxBytes = HELPER_BATCH_MAX_BYTES,
 ): Promise<string[]> {
   const ids = reqs.map(() => newId());
   const index = new Map(ids.map((id, i) => [id, i]));
@@ -494,64 +504,90 @@ export async function helperBatch(
     );
     return out;
   }
+
+  // Each call serialised once; groups of calls up to maxBytes (a call larger
+  // than that goes alone, and the helper answers 413 if it is too big for it).
+  const encoder = new TextEncoder();
+  const groups: string[][] = [];
+  let group: string[] = [];
+  let groupBytes = 0;
+  reqs.forEach((req, i) => {
+    const call = JSON.stringify({ id: ids[i], fn, req, export: false, packages });
+    const bytes = encoder.encode(call).length + 1;
+    if (group.length > 0 && groupBytes + bytes > maxBytes) {
+      groups.push(group);
+      group = [];
+      groupBytes = 0;
+    }
+    group.push(call);
+    groupBytes += bytes;
+  });
+  if (group.length > 0) groups.push(group);
+
+  const out = new Array<string>(reqs.length);
+  let done = 0;
   ids.forEach((id) => running.add(id));
   try {
-    let r: Response;
-    try {
-      r = await postRetrying(
-        '/batch',
-        JSON.stringify({
-          calls: reqs.map((req, i) => ({ id: ids[i], fn, req, export: false, packages })),
-        }),
-      );
-    } catch {
-      useHelper.setState({ state: 'absent', message: 'The helper stopped.' });
-      throw new HelperUnavailable('The desktop R helper is not reachable.');
+    for (const calls of groups) {
+      const answered = await postBatch(`{"calls":[${calls.join(',')}]}`, (rep) => {
+        const i = index.get(rep.id ?? '');
+        if (i === undefined) return false;
+        out[i] = resultOf(rep);
+        done++; // (not inside onDone?.(): without a callback its argument would not be evaluated)
+        onDone?.(done);
+        return true;
+      });
+      if (answered !== calls.length)
+        throw new HelperUnavailable('The helper did not answer every calculation.');
     }
-    if (r.status === 401) {
-      setToken('');
-      useHelper.setState({ state: 'unpaired', message: 'Pair again.' });
-      throw new HelperUnavailable('The helper no longer accepts this browser: connect again.');
-    }
-    if (!r.ok || !r.body) throw new HelperUnavailable(`The helper answered ${r.status}.`);
-    const out = new Array<string>(reqs.length);
-    let done = 0;
-    let buf = '';
-    const reader = r.body.getReader();
-    const decoder = new TextDecoder();
-    const take = (line: string) => {
-      if (!line.trim()) return;
-      const rep = JSON.parse(line) as Reply;
-      const i = index.get(rep.id ?? '');
-      if (i === undefined) return;
-      out[i] = resultOf(rep);
-      done++; // (not inside onDone?.(): without a callback its argument would not be evaluated)
-      onDone?.(done);
-    };
-    try {
-      for (;;) {
-        const { value, done: end } = await reader.read();
-        if (end) break;
-        buf += decoder.decode(value, { stream: true });
-        let nl: number;
-        while ((nl = buf.indexOf('\n')) >= 0) {
-          take(buf.slice(0, nl));
-          buf = buf.slice(nl + 1);
-        }
-      }
-      take(buf + decoder.decode());
-    } catch (e) {
-      void reader.cancel().catch(() => undefined); // (closing the stream stops the remaining calls)
-      if (e instanceof TypeError)
-        throw new HelperUnavailable('The connection to the helper broke off.');
-      throw e;
-    }
-    if (done !== reqs.length)
-      throw new HelperUnavailable('The helper did not answer every calculation.');
     return out;
   } finally {
     ids.forEach((id) => running.delete(id));
   }
+}
+
+/** One /batch request; `take` is called per reply (true if it was one of ours). Returns the count. */
+async function postBatch(body: string, take: (rep: Reply) => boolean): Promise<number> {
+  let r: Response;
+  try {
+    r = await postRetrying('/batch', body);
+  } catch {
+    useHelper.setState({ state: 'absent', message: 'The helper stopped.' });
+    throw new HelperUnavailable('The desktop R helper is not reachable.');
+  }
+  if (r.status === 401) {
+    setToken('');
+    useHelper.setState({ state: 'unpaired', message: 'Pair again.' });
+    throw new HelperUnavailable('The helper no longer accepts this browser: connect again.');
+  }
+  if (!r.ok || !r.body) throw new HelperUnavailable(`The helper answered ${r.status}.`);
+  let answered = 0;
+  let buf = '';
+  const reader = r.body.getReader();
+  const decoder = new TextDecoder();
+  const line = (text: string) => {
+    if (!text.trim()) return;
+    if (take(JSON.parse(text) as Reply)) answered++;
+  };
+  try {
+    for (;;) {
+      const { value, done: end } = await reader.read();
+      if (end) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        line(buf.slice(0, nl));
+        buf = buf.slice(nl + 1);
+      }
+    }
+    line(buf + decoder.decode());
+  } catch (e) {
+    void reader.cancel().catch(() => undefined); // (closing the stream stops the remaining calls)
+    if (e instanceof TypeError)
+      throw new HelperUnavailable('The connection to the helper broke off.');
+    throw e;
+  }
+  return answered;
 }
 
 /** Stop every calculation running in the helper. */

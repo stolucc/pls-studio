@@ -376,6 +376,28 @@ describe('helperBatch', () => {
     ]);
     expect(new Set(sent!.calls.map((c) => c.id)).size).toBe(3);
   });
+  it('sends calls in batches below the size cap', async () => {
+    const { helperBatch } = await import('./helper');
+    store.set('pls-studio.helper.token', TOKEN);
+    const sizes: number[] = [];
+    handler = (_p, init) => {
+      const body = String(init.body);
+      sizes.push(new TextEncoder().encode(body).length);
+      const calls = JSON.parse(body).calls as { id: string; req: string }[];
+      return {
+        raw: calls.map((c) => JSON.stringify({ id: c.id, ok: true, result: c.req })).join('\n'),
+      };
+    };
+    const data = 'x'.repeat(1000);
+    const reqs = Array.from({ length: 10 }, (_, i) => JSON.stringify({ i, data }));
+    const seen: number[] = [];
+    const out = await helperBatch('ps_mc', reqs, [], (d) => seen.push(d), 3500);
+    expect(out).toEqual(reqs);
+    expect(seen).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(sizes.length).toBeGreaterThan(3);
+    // (each body: the calls plus the {"calls":[ ]} envelope)
+    for (const size of sizes) expect(size).toBeLessThanOrEqual(3500 + 12);
+  });
   it('rejects on an R error, on missing packages, and when replies are missing', async () => {
     const { helperBatch, HelperMissingPackages, HelperUnavailable } = await import('./helper');
     store.set('pls-studio.helper.token', TOKEN);

@@ -31,6 +31,8 @@ type server struct {
 	limiter *callLimiter
 	// exampleLimiter caps example-data downloads (exampledata.go): an example takes two files.
 	exampleLimiter *callLimiter
+	// batchMaxBytes is the /batch body cap (batchMaxBodyBytes; lowered by tests).
+	batchMaxBytes int64
 	// restart shuts the helper down and starts the binary at path (set by main; nil in tests).
 	restart func(path string)
 }
@@ -43,7 +45,8 @@ const callMaxBodyBytes = 256 << 20
 
 func newServer(cfg *config, logger *log.Logger, pool *rPool) *server {
 	s := &server{cfg: cfg, logger: logger, pair: newPairStore(), jobs: newJobRegistry(), pool: pool, connect: &connectGate{},
-		limiter: newCallLimiter(callRateBurst, callRatePerMin), exampleLimiter: newCallLimiter(30, 60)}
+		limiter: newCallLimiter(callRateBurst, callRatePerMin), exampleLimiter: newCallLimiter(30, 60),
+		batchMaxBytes: batchMaxBodyBytes}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", withAuth(cfg, false, s.handleHealth))
 	mux.HandleFunc("/pair", withAuth(cfg, false, s.handlePair))
@@ -303,9 +306,17 @@ func (s *server) handleCall(w http.ResponseWriter, r *http.Request) {
 // maxBatchCalls bounds one /batch request (a 20,000-sample bootstrap is 200 chunks).
 const maxBatchCalls = 4096
 
-// batchMaxBodyBytes caps a /batch request: every call carries the data set,
-// so a long chunked bootstrap of a large data set is many times its size.
-const batchMaxBodyBytes = 1 << 30
+// batchMaxBodyBytes caps a /batch request, which is read into memory whole
+// (the JSON decoder buffers the value, and the decoded strings are a second
+// copy: up to about twice this while it is parsed). It was 1 GiB: two
+// concurrent batches of a paired page could take gigabytes. It is now the
+// cap on a single /call, so one batch never needs more memory than one call
+// may. Every call carries the data set, so a long bootstrap (chunks of 100
+// samples, src/rengine/compute.ts CHUNK_SAMPLES; up to 1,000 calls) of a
+// large data set is far bigger than this: the app splits such runs into
+// batches of at most 200 MiB sent one after another (src/rengine/helper.ts
+// HELPER_BATCH_MAX_BYTES). A larger body is refused with 413.
+const batchMaxBodyBytes = callMaxBodyBytes
 
 // /batch — POST {"calls": [callRequest, ...]}: runs the calls on the R pool
 // (as many at once as there are workers) and streams one reply per line
@@ -322,13 +333,19 @@ func (s *server) handleBatch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, batchMaxBodyBytes)
+	r.Body = http.MaxBytesReader(w, r.Body, s.batchMaxBytes)
 	var body struct {
 		Calls []callRequest `json:"calls"`
 	}
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(&body); err != nil || len(body.Calls) == 0 || len(body.Calls) > maxBatchCalls {
+	err := dec.Decode(&body)
+	var tooBig *http.MaxBytesError
+	if errors.As(err, &tooBig) {
+		http.Error(w, "batch too large", http.StatusRequestEntityTooLarge)
+		return
+	}
+	if err != nil || len(body.Calls) == 0 || len(body.Calls) > maxBatchCalls {
 		http.Error(w, "bad request body", http.StatusBadRequest)
 		return
 	}
