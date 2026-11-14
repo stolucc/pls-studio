@@ -1035,3 +1035,15 @@ table.grid.evidence-table th:last-child, table.grid.evidence-table td.hint { tex
 .recode-preview { margin-top: 8px; }
 .split-section + .split-section { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
 .split-heading { margin: 0 0 8px; font-size: 13px; }
+/* CB-SEM Model fit tab: fit-index guidance and the Diagnose misfit panel (components/results/FitGuide, MisfitPanel). */
+.fit-guide { margin-top: 4px; }
+.fit-guide details summary, .misfit-panel > details > summary { cursor: pointer; font-size: 12px; color: var(--text-2); padding: 4px 2px; }
+.fit-guide .table-note p { margin: 0 0 6px; }
+.misfit-panel { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 8px; }
+.misfit-panel > details > summary { font-size: 13px; }
+.misfit-free { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+.misfit-free .hint { flex-basis: 100%; }
+.misfit-log { margin: 4px 0; padding-left: 20px; font-size: 12px; line-height: 1.6; }
+.misfit-panel .r-code { font-family: var(--mono); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface-2, var(--surface-3)); border-radius: 6px; padding: 6px 8px; margin: 4px 0; }
+.misfit-body { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.misfit-body > * { max-width: 100%; }

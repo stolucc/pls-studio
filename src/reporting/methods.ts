@@ -5,6 +5,7 @@
 // it reports no estimates (those belong in the results section), and every
 // number in it comes from the settings, the model or the results themselves.
 
+import { describeModification, type PostHocModification } from '../model/posthoc';
 import type { BootstrapResult, PlsResult } from '../engine/types';
 import type { CbResult } from '../engine/cbsem';
 import type { MiivResult } from '../engine/miiv';
@@ -474,6 +475,7 @@ function cbDraft(input: ReportInput, cb: WithEngine<CbResult>, d: Draft) {
         `cut-offs that are guidelines rather than tests ${cite('jackson2009')}.`,
     );
   }
+  d.add(postHocText(m.modifications, cite));
   if (m.constructs.some((k) => k.type === 'factor' && k.indicators.length > 1))
     d.add(
       `Convergent validity was assessed by standardised loadings (at least 0.50, ideally 0.70), composite reliability (at least 0.70) and the average variance extracted (at least 0.50; ${citealp('fornell1981')}), and discriminant validity by the heterotrait–monotrait ratio (below 0.85; ${citealp('henseler2015')}).`,
@@ -657,4 +659,24 @@ export function methodsText(input: ReportInput): MethodsText {
     bibtex: bibtex(keys, d.versions),
     keys,
   };
+}
+
+/**
+ * The post hoc modifications of the project (model/posthoc.ts) as a sentence of the methods; null without any.
+ * `cite` formats a parenthetical citation.
+ */
+export function postHocText(
+  log: readonly PostHocModification[] | undefined,
+  cite: (...keys: string[]) => string,
+): string | null {
+  if (!log?.length) return null;
+  const items = log.map((e) => describeModification(e).replace(/^\w/, (x) => x.toLowerCase()));
+  const freed = log.some((e) => e.kind === 'free');
+  const rule = freed
+    ? ` Freed parameters were chosen by their standardised expected parameter change and the decision rule of ${cite('saris2009')}.`
+    : '';
+  return (
+    `After inspecting the results, the model was modified post hoc (${items.join('; ')}).${rule} ` +
+    `Such data-driven changes capitalise on chance, so the final model’s fit is optimistic and needs confirmation in new data ${cite('maccallum1992')}.`
+  );
 }

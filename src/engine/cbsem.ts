@@ -4,6 +4,7 @@
 // exogenous factors covary freely, single-indicator factors get a zero error
 // variance. Results are validated against lavaan in cbsem.test.ts.
 
+import type { MisfitResult } from '../rengine/misfit';
 import { cholesky, invert, invertPD, logDetPD, zeros, type Mat } from './linalg';
 import { compileModel, extractColumns, htmt2Of, htmtOf, type CompiledModel } from './pls';
 import { bisect, chisqCdf, mean, ncChisqCdf, normalP } from './stats';
@@ -221,6 +222,8 @@ export interface CbResult {
   fitNote?: string;
   /** A caveat on the modification indices (lavaan computes them ignoring equality constraints). */
   modindicesNote?: string;
+  /** The Diagnose misfit panel's numbers (lavaan; src/rengine/misfit.ts): absent for the built-in engine. */
+  misfit?: MisfitResult;
   droppedRows: number;
 }
 

@@ -345,6 +345,20 @@ const kitchenSink: Required<ModelState> = {
     { id: 'ip', from: 'b', to: 'a1', label: 'dir' },
     { id: 'ip2', from: 'f', to: 'a2', fixed: 0.1 },
   ],
+  modifications: [
+    {
+      id: 'h1',
+      kind: 'free',
+      lhs: 'a1',
+      op: '~~',
+      rhs: 'a2',
+      at: 1,
+      mi: 12.5,
+      sepc: 0.3,
+      decision: 'M',
+    },
+    { id: 'h2', kind: 'remove', lhs: 'b', op: '~', rhs: 'a', at: 2, p: 0.4, group: 'g1' },
+  ],
 };
 
 describe('every model field survives', () => {

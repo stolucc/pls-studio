@@ -5,6 +5,12 @@
 // CB-SEM, and the JARS-Quant SEM standards (Appelbaum et al., 2018, Table 7);
 // Hayes (2022) for conditional process analysis.
 
+import {
+  describeModification,
+  removalStreak,
+  STREAK_WARNING,
+  type PostHocModification,
+} from '../model/posthoc';
 import type { Issue } from '../model/project';
 import { ran, type ReportInput } from './methods';
 
@@ -457,7 +463,7 @@ function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] 
     label: 'Post hoc modifications reported and justified',
     sources: BOTH,
     status: 'author',
-    evidence: `${modindices}Report every change made after seeing the data, with its theoretical justification.`,
+    evidence: `${modindices}${postHocEvidence(input.model.modifications)}Report every change made after seeing the data, with its theoretical justification.`,
     link: tab('Modification indices'),
   });
   out.push({
@@ -913,3 +919,15 @@ export const statusCounts = (items: CheckItem[]) => ({
   author: items.filter((i) => i.status === 'author').length,
   na: items.filter((i) => i.status === 'na').length,
 });
+
+/** The project's logged post hoc modifications (model/posthoc.ts) for the checklist's evidence; '' without any. */
+export function postHocEvidence(log: readonly PostHocModification[] | undefined): string {
+  if (!log?.length) return '';
+  const items = log.map(describeModification).join('; ');
+  const streak = removalStreak(log);
+  const trimmed =
+    streak >= STREAK_WARNING
+      ? ` The last ${streak} were deletions of non-significant paths: trimming by p-values capitalises on chance (MacCallum, Roznowski & Necowitz 1992).`
+      : '';
+  return `Logged post hoc modifications (${log.length}): ${items}.${trimmed} `;
+}

@@ -40,6 +40,7 @@ import dsemR from './R/dsem.R?raw';
 import dfiR from './R/dfi.R?raw';
 import validityR from './R/validity.R?raw';
 import cbdiagR from './R/cbdiag.R?raw';
+import misfitR from './R/misfit.R?raw';
 import qcaR from './R/qca.R?raw';
 import invarianceR from './R/invariance.R?raw';
 import powerR from './R/power.R?raw';
@@ -110,6 +111,7 @@ export const SOURCES = {
   validity: validityR,
   qca: qcaR,
   cbdiag: cbdiagR,
+  misfit: misfitR,
   scoretest: scoreTestR,
   sensitivity: sensitivityR,
   search: searchR,

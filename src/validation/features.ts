@@ -132,6 +132,15 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
       'direct lavaan, semTools and nonnest2 calls (lavResiduals, lavTest, aux =, discriminantValidity, lavTestNET, lavTestLRT, vuongtest, icci, epcEquivFit)',
     ),
   ),
+  'rengine/misfit': native(
+    'Diagnose misfit: modification indices ranked by the standardised expected change, the decision rule of Saris, Satorra & van der Veld (2009), the largest residual correlations and their z-statistics',
+    'CB-SEM',
+    ['lavaan', 'semTools'],
+    script(
+      'misfit.R',
+      'direct lavaan and semTools calls (modindices sepc.all, lavResiduals, epcEquivFit decision.pow)',
+    ),
+  ),
   'rengine/cbExtras': native(
     'Bollen–Stine bootstrap, Wald tests, factor-score weights',
     'CB-SEM',

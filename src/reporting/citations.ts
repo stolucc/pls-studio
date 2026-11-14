@@ -317,6 +317,35 @@ const WORKS: Record<string, { cite: string; entry: (version?: string) => Entry }
         doi: '10.1080/00273171.2014.933697',
       }),
   },
+  maccallum1992: {
+    cite: 'MacCallum et al., 1992',
+    entry: () =>
+      art({
+        author: 'MacCallum, Robert C. and Roznowski, Mary and Necowitz, Lawrence B.',
+        title:
+          'Model modifications in covariance structure analysis: The problem of capitalization on chance',
+        journal: 'Psychological Bulletin',
+        year: '1992',
+        volume: '111',
+        number: '3',
+        pages: '490--504',
+        doi: '10.1037/0033-2909.111.3.490',
+      }),
+  },
+  saris2009: {
+    cite: 'Saris et al., 2009',
+    entry: () =>
+      art({
+        author: 'Saris, Willem E. and Satorra, Albert and van der Veld, William M.',
+        title: 'Testing structural equation models or detection of misspecifications?',
+        journal: 'Structural Equation Modeling',
+        year: '2009',
+        volume: '16',
+        number: '4',
+        pages: '561--582',
+        doi: '10.1080/10705510903203433',
+      }),
+  },
   arbuckle1996: {
     cite: 'Arbuckle, 1996',
     entry: () =>

@@ -25,6 +25,8 @@ import { RScriptButton } from './RScriptButton';
 import { InvarianceTable } from './InvarianceTable';
 import type { DfiForFit } from '../../analyses/dfiFit';
 import { dfiFitSlot } from './dfiSlot';
+import { FitGuide, openComparisonCard } from './FitGuide';
+import { MisfitPanel } from './MisfitPanel';
 
 export const CB_TABS = [
   { id: 'fit', label: 'Model fit' },
@@ -95,7 +97,12 @@ function CaseWeights({ w }: { w: NonNullable<CbResult['caseWeights']> }) {
 
 function Fit({ cb }: { cb: CbResult }) {
   const dfi = dfiFitSlot.use();
-  return <FitBody cb={cb} dfi={dfi} />;
+  return (
+    <>
+      <FitBody cb={cb} dfi={dfi} />
+      <MisfitPanel cb={cb} />
+    </>
+  );
 }
 
 /** The Dynamic fit cutoffs of a current run (analyses/dfiFit) as a column of the fit table, for the indices the run covers. */
@@ -231,6 +238,7 @@ export function FitBody({ cb, dfi }: { cb: CbResult; dfi: DfiForFit | null }) {
             </>
           }
         />
+        <FitGuide cb={cb} onCompare={openComparisonCard} onDynamic={() => dfiFitSlot.open()} />
         {cb.caseWeights && <CaseWeights w={cb.caseWeights} />}
         {cb.groups?.levels && cb.groups.icc && (
           <Table
