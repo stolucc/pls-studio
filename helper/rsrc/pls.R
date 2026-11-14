@@ -488,6 +488,11 @@ ps_pls_out <- function(req, b, env) {
         rhoA[j] <- as.numeric(sum(w^2)^2 * off_diagonal_s / off_diagonal_ww)
       }
     }
+    # rho_A is defined from PLS Mode A weights (Dijkstra & Henseler 2015). GSCA,
+    # PCA and unit weights are not Mode A weights, so rho_A is not reported there.
+    if ((b$o$approach %||% "PLS-PM") != "PLS-PM") {
+      rhoA[] <- NA_real_
+    }
     ave_first <- if (!is.null(a)) a$AVE else safe(cSEM::calculateAVE(fit1, .only_common_factors = FALSE), "AVE (cSEM::calculateAVE)")
     ave <- pick(ave_first, a2$AVE)
     # The HTMT assumes that the items of a construct correlate positively with each other

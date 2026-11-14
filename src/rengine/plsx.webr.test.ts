@@ -192,12 +192,19 @@ describe('PLS assessment (cSEM)', () => {
     const g = await estimatePlsR(d, spec, { ...options, approach: 'GSCA' }, 'cSEM');
     expect(path(g, 'VAL', 'SAT')).toBeCloseTo(ref2.gsca.SAT_VAL, 6);
     expect(path(g, 'SAT', 'LOY')).toBeCloseTo(ref2.gsca.LOY_SAT, 6);
+    // ρA is defined from PLS Mode A weights only, so these approaches do not report it.
+    expect(g.quality.every((q) => Number.isNaN(q.rhoA))).toBe(true);
     for (const a of ['PCA', 'unit'] as const) {
       const w = await estimatePlsR(d, spec, { ...options, approach: a }, 'cSEM');
       expect(path(w, 'VAL', 'SAT'), a).toBeCloseTo(ref3[a].SAT_VAL, 6);
       expect(path(w, 'SAT', 'LOY'), a).toBeCloseTo(ref3[a].LOY_SAT, 6);
+      expect(
+        w.quality.every((q) => Number.isNaN(q.rhoA)),
+        a,
+      ).toBe(true);
     }
     const pm = await estimatePlsR(d, spec, options, 'cSEM');
+    expect(pm.quality.some((q) => Number.isFinite(q.rhoA))).toBe(true);
     for (const [k, v] of Object.entries(ref2.redundancy as Record<string, number>))
       expect(pm.redundancy![k], k).toBeCloseTo(v, 6);
     const sw = await load('Switching');
