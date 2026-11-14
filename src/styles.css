@@ -1113,4 +1113,3 @@ table.grid.evidence-table th:last-child, table.grid.evidence-table td.hint { tex
 .builder-doc { color: var(--text-3); font-size: 11.5px; line-height: 1.35; }
 @media (max-width: 760px) { .formula-builder { grid-template-columns: 1fr; } }
 .data-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.modal.reverse-pick { width: min(520px, calc(100vw - 32px)); max-height: 90vh; overflow: auto; }

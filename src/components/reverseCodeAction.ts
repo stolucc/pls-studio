@@ -1,6 +1,6 @@
-// Reverse-coding the chosen items, from the model editor's variable list, the Data tab or the
-// negative-loading note in the results: one confirm dialog that asks for the answer scale (the observed range by default), then
-// data/recode.ts's reverseCode over every case.
+// Reverse-coding the chosen items, from the model editor's variable list or the negative-loading
+// note in the results: one confirm dialog that asks for the answer scale (the observed range by
+// default), then data/recode.ts's reverseCode over every case.
 
 import { transformData } from '../data/pipeline';
 import { computedReverseMessage, observedRange, reverseCode } from '../data/recode';
@@ -17,17 +17,6 @@ export function parseScale(text: string): [number, number] | null {
   if (!parts.every(Number.isFinite)) return null;
   if (parts[0] >= parts[1]) return null;
   return [parts[0], parts[1]];
-}
-
-/**
- * Numeric columns of the dataset that are not computed, which are the ones that can be
- * reverse-coded (a computed column is reversed in its formula, with reverse()).
- */
-export function reversibleColumns(): string[] {
-  const { data, dataInfo } = useStore.getState();
-  if (!data || data.cols.length === 0) return [];
-  const computed = new Set((dataInfo?.computed ?? []).map((c) => c.name));
-  return data.names.filter((n) => !data.categories?.[n] && !computed.has(n));
 }
 
 /**

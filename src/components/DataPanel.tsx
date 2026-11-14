@@ -15,6 +15,8 @@ import { IconEye, IconUpload } from './icons';
 export function DataPanel() {
   const data = useStore((s) => s.data);
   const info = useStore((s) => s.dataInfo);
+  // (the panel stays beside the Data tab, where "Inspect", which opens that tab, has nothing to do)
+  const inDataTab = useStore((s) => s.workspace === 'data');
   const constructs = useStore((s) => s.model.constructs);
   const selected = useStore((s) => s.selectedVars);
   const setSelected = useStore((s) => s.setSelectedVars);
@@ -150,13 +152,15 @@ export function DataPanel() {
         <span>Data</span>
         {data && (
           <span className="panel-actions">
-            <button
-              className="btn sm ghost"
-              onClick={() => useStore.getState().setWorkspace('data')}
-              title="See the rows and descriptive statistics of the dataset"
-            >
-              <IconEye size={13} /> Inspect
-            </button>
+            {!inDataTab && (
+              <button
+                className="btn sm ghost"
+                onClick={() => useStore.getState().setWorkspace('data')}
+                title="See the rows and descriptive statistics of the dataset"
+              >
+                <IconEye size={13} /> Inspect
+              </button>
+            )}
             {info?.kind !== 'matrix' && (
               <button
                 className="btn sm ghost"

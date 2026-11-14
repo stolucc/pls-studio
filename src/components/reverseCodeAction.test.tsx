@@ -7,7 +7,7 @@ import { DataPanel } from './DataPanel';
 import { DataWorkspace } from './DataViewer';
 import { ConfirmModal } from './Overlays';
 import { computeColumn } from '../data/compute';
-import { parseScale, reverseCodeColumns, reversibleColumns } from './reverseCodeAction';
+import { parseScale, reverseCodeColumns } from './reverseCodeAction';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -52,15 +52,10 @@ afterEach(() => {
   useStore.getState().newProject();
 });
 
-it('offers only numeric columns', () => {
-  expect(reversibleColumns()).toEqual(['q1', 'q2', 'q3']);
-});
-
-it('does not offer a computed column, and refuses one with a toast pointing to reverse()', async () => {
+it('refuses a computed column with a toast pointing to reverse()', async () => {
   const { data, dataInfo } = useStore.getState();
   const c = computeColumn(data!, dataInfo!, 'total', 'sum(q1, q2)');
   useStore.getState().setData(c.data, c.info);
-  expect(reversibleColumns()).toEqual(['q1', 'q2', 'q3']);
   expect(await reverseCodeColumns(['total'])).toBe(false);
   const toasts = useStore.getState().toasts;
   expect(toasts[toasts.length - 1]).toMatchObject({ kind: 'error' });
@@ -68,46 +63,11 @@ it('does not offer a computed column, and refuses one with a toast pointing to r
   expect(Array.from(useStore.getState().data!.cols[4])).toEqual(Array.from(c.data.cols[4]));
 });
 
-it('reverse-codes from the Data tab: choose the items, then confirm the observed scale', async () => {
-  useStore.getState().setSelectedVars(['q1']);
-  act(() =>
-    root.render(
-      <>
-        <DataWorkspace />
-        <ConfirmModal />
-      </>,
-    ),
-  );
-  act(() => byText(host, '⇅ Reverse-code…').click());
-  const dialog = host.querySelector('.reverse-pick')!;
-  expect(dialog.textContent).toContain('1 becomes 5');
-  // The item selected in the variable list is chosen; text columns are not offered.
-  const boxes = [...dialog.querySelectorAll('label.var-check')];
-  expect(boxes.map((b) => b.textContent)).toEqual(['q1', 'q2', 'q3']);
-  expect((boxes[0].querySelector('input') as HTMLInputElement).checked).toBe(true);
-  act(() => byText(dialog as HTMLElement, 'All').click());
-  act(() => byText(host, 'Next: answer scale…').click());
-  expect(host.querySelector('.reverse-pick')).toBeNull();
-  // The model editor's scale dialog, with the observed range of the items.
-  expect(host.querySelector('#dlg-title')!.textContent).toBe('Reverse-code 3 items?');
-  expect((host.querySelector('#dlg-text') as HTMLInputElement).value).toBe('1, 5');
-  act(() => byText(host, 'Reverse-code').click());
-  await flush();
-  const s = useStore.getState();
-  expect(Array.from(s.data!.cols[0])).toEqual([5, 4, 1, NaN]);
-  expect(Array.from(s.data!.cols[1])).toEqual([2, 4, 5, 1]);
-  expect(s.dataInfo!.reversed).toEqual([
-    { name: 'q1', min: 1, max: 5 },
-    { name: 'q2', min: 1, max: 5 },
-    { name: 'q3', min: 1, max: 5 },
-  ]);
-  expect(s.toasts.at(-1)?.text).toBe('Reverse-coded q1, q2, q3 (1–5).');
-});
-
-it('opens the formula builder from the Data tab', () => {
+it('leaves Compute and Reverse-code to the Data panel (not repeated in the Data tab header)', () => {
   act(() => root.render(<DataWorkspace />));
-  act(() => byText(host, 'ƒ Compute…').click());
-  expect(host.querySelector('#compute-title')!.textContent).toBe('Add a computed column');
+  const labels = [...host.querySelectorAll('button')].map((b) => b.textContent ?? '');
+  expect(labels.some((t) => t.includes('Compute'))).toBe(false);
+  expect(labels.some((t) => t.includes('Reverse-code'))).toBe(false);
 });
 
 it('the model editor’s button uses the same dialog, and offers to undo', async () => {
@@ -133,4 +93,14 @@ it('the model editor’s button uses the same dialog, and offers to undo', async
   await flush();
   expect(Array.from(useStore.getState().data!.cols[1])).toEqual([4, 2, 1, 5]);
   expect(useStore.getState().dataInfo!.reversed).toBeUndefined();
+});
+
+it('shows "Inspect" (which opens the Data tab) in the model editor only, not in the Data tab itself', () => {
+  const inspect = () =>
+    [...host.querySelectorAll('button')].some((b) => b.textContent?.includes('Inspect'));
+  act(() => useStore.getState().setWorkspace('model'));
+  act(() => root.render(<DataPanel />));
+  expect(inspect()).toBe(true);
+  act(() => useStore.getState().setWorkspace('data'));
+  expect(inspect()).toBe(false);
 });

@@ -6,8 +6,6 @@ import { c, Table } from './results/Table';
 import { FilterBadge } from './FilterBadge';
 import { VariablesView } from './VariablesView';
 import { labelOf } from '../data/columns';
-import { ComputeDialog } from './ComputeDialog';
-import { ReverseCodeDialog } from './ReverseCodeDialog';
 
 const PAGE = 100;
 const num = (v: number, d?: number) => c(Number.isFinite(v) ? v : null, undefined, d);
@@ -26,7 +24,6 @@ export function DataWorkspace() {
   const [page, setPage] = useState(0);
   const [query, setQuery] = useState('');
   // The data operations of the header: a computed column, reverse-coding.
-  const [dialog, setDialog] = useState<'compute' | 'reverse' | null>(null);
   useEffect(() => {
     setPage(0);
   }, [data]);
@@ -66,29 +63,9 @@ export function DataWorkspace() {
           <span className="muted">{datasetLine}</span>
         </div>
         <div className="data-actions">
-          {data && !matrix && (
-            <>
-              <button
-                className="btn sm"
-                onClick={() => setDialog('compute')}
-                title="Add a column computed from a formula over the existing columns (log, z-score, sums, reverse(x, 1, 5)…)"
-              >
-                ƒ Compute…
-              </button>
-              <button
-                className="btn sm"
-                onClick={() => setDialog('reverse')}
-                title="For negatively worded items: on a 1–5 scale, 1 becomes 5 and 5 becomes 1"
-              >
-                ⇅ Reverse-code…
-              </button>
-            </>
-          )}
           <FilterBadge />
         </div>
       </header>
-      {dialog === 'compute' && <ComputeDialog onClose={() => setDialog(null)} />}
-      {dialog === 'reverse' && <ReverseCodeDialog onClose={() => setDialog(null)} />}
       {!data ? (
         <div className="empty-results">
           No dataset yet: import a CSV file or load an example from the Data panel on the left.
