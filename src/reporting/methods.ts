@@ -266,6 +266,24 @@ function bootText(b: (BootstrapResult & { seed?: number }) | null | undefined): 
 }
 
 /** Has a card of one of these types run (in the analysis log)? */
+/**
+ * How the indirect effects were classified (reporting/mediation.ts): only when the bootstrap has
+ * indirect effects, as the results tabs show the typology only then.
+ */
+function mediationText(input: ReportInput, method: 'pls' | 'cbsem'): string | null {
+  const stats = input.boot?.stats ?? [];
+  const specific = stats.some((s) => s.group === 'specific');
+  if (!specific && !stats.some((s) => s.group === 'indirect')) return null;
+  const which = specific ? 'Each specific indirect effect' : 'Each indirect effect';
+  const adopted = method === 'pls' ? `, as adopted for PLS-SEM by ${citet('nitzl2016')}` : '';
+  return (
+    `${which} was classified as complementary, competitive or indirect-only mediation, or as direct-only ` +
+    `or no-effect non-mediation, following ${citet('zhao2010')}${adopted}: by whether its bootstrap confidence ` +
+    'interval and that of the direct effect exclude zero, and, when both do, by whether their signs agree. ' +
+    `A significant total effect was not required ${cite('zhao2010', 'hayes2009')}.`
+  );
+}
+
 export const ran = (input: ReportInput, ...types: string[]) =>
   (input.log ?? []).some((c) => c.run && types.includes(c.type));
 
@@ -366,6 +384,7 @@ function plsDraft(input: ReportInput, pls: WithEngine<PlsResult>, d: Draft) {
         `the effect size f² (0.02, 0.15 and 0.35 as small, medium and large; ${citealp('cohen1988')})${significance}.`,
     );
   }
+  d.add(mediationText(input, 'pls'));
   d.add(
     `As a measure of approximate model fit, the SRMR of the estimated model is reported against the threshold of 0.08 ${cite('henseler2014')}, with the caveat that fit measures are of limited use in PLS-SEM ${cite('hair2019')}.`,
   );
@@ -461,6 +480,7 @@ function cbDraft(input: ReportInput, cb: WithEngine<CbResult>, d: Draft) {
   if (m.weights) d.add(`Sampling weights from ${m.weights} were applied.`);
   d.add(missingText(input, cb.n, cb.droppedRows, cb.imputations));
   d.add(bootText(input.boot));
+  d.add(mediationText(input, 'cbsem'));
   const robust = cb.fit.cfiRobust !== undefined || cb.fit.rmseaRobust !== undefined;
   if (Number.isFinite(cb.fit.chisq)) {
     const scaled = cb.fit.chisqScaled !== undefined ? ' (scaled)' : '';

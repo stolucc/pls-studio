@@ -3,6 +3,7 @@ import type { FitTestResult } from '../../engine/bootstrap';
 import { binaryModeration, originalScaleCoefficients } from '../../engine/pls';
 import type { BootstrapResult, BootstrapStat, Discrepancies, PlsResult } from '../../engine/types';
 import { toSpec } from '../../model/project';
+import { mediationPairs } from '../../reporting/mediation';
 import { csvCell, downloadText, fmt, fmtP, safeFileName } from '../../format';
 import { run } from '../../runner';
 import { useStore } from '../../store';
@@ -10,6 +11,13 @@ import { IconDownload, IconRepeat } from '../icons';
 import { QuadraticCurve, SimpleSlopes } from '../SimpleSlopes';
 import { HocTab } from './HocTab';
 import { IpmaTab } from './IpmaTab';
+import {
+  MediationNeedsBoot,
+  MediationReport,
+  SpecificIndirectTable,
+  totalOf,
+  typeCell,
+} from './MediationPanel';
 import { RScriptButton } from './RScriptButton';
 import { SavePlsScores } from './SaveScores';
 import {
@@ -209,6 +217,10 @@ function Paths({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) 
 
 function Effects({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) {
   const C = pls.constructs;
+  // The mediation typology (Zhao et al., 2010) from the bootstrap intervals.
+  const pairs = boot
+    ? mediationPairs(boot, C, (a, b) => pls.hasPath[C.indexOf(a)]?.[C.indexOf(b)] ?? false)
+    : [];
   const rows = (kind: 'total' | 'indirect'): Row[] => {
     const out: Row[] = [];
     for (let i = 0; i < C.length; i++)
@@ -216,7 +228,8 @@ function Effects({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }
         const v = kind === 'total' ? pls.totalEffects[i][j] : pls.indirectEffects[i][j];
         if (i === j || Math.abs(v) < 1e-12) continue;
         const b = boot?.stats.find((s) => s.key === `${kind}:${C[i]}:${C[j]}`);
-        out.push([c(`${C[i]} → ${C[j]}`), c(v), ...(boot ? bootCells(b) : [])]);
+        const type = kind === 'indirect' && boot ? [typeCell(totalOf(pairs, C[i], C[j]))] : [];
+        out.push([c(`${C[i]} → ${C[j]}`), c(v), ...(boot ? bootCells(b) : []), ...type]);
       }
     return out;
   };
@@ -226,14 +239,23 @@ function Effects({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }
       <Table
         title="Total indirect effects"
         file="indirect-effects"
-        columns={['Effect', 'Estimate', ...(boot ? bootCols(boot) : [])]}
+        columns={[
+          'Effect',
+          'Estimate',
+          ...(boot ? bootCols(boot) : []),
+          // (the mediation type, when there is an indirect effect to classify)
+          ...(boot && ind.length ? ['Type'] : []),
+        ]}
         rows={ind}
         note={
           ind.length === 0
             ? 'The model has no mediated relationships.'
-            : 'Sum of all indirect paths between two constructs. Bootstrapped p-values test mediation.'
+            : 'Sum of all indirect paths between two constructs. Type: the mediation type from the bootstrap confidence intervals (Zhao et al., 2010); see “How the type is decided” below.'
         }
       />
+      {ind.length > 0 && !boot && <MediationNeedsBoot />}
+      {boot && <SpecificIndirectTable pairs={pairs} boot={boot} />}
+      {boot && <MediationReport pairs={pairs} boot={boot} symbol="β" />}
       <Table
         title="Total effects"
         file="total-effects"
@@ -519,6 +541,7 @@ function Correlations({ pls }: { pls: PlsResult }) {
 const GROUPS: { id: BootstrapStat['group']; label: string }[] = [
   { id: 'path', label: 'Paths' },
   { id: 'indirect', label: 'Indirect' },
+  { id: 'specific', label: 'Specific indirect' },
   { id: 'total', label: 'Total' },
   { id: 'loading', label: 'Loadings' },
   { id: 'weight', label: 'Weights' },

@@ -146,6 +146,14 @@ function plsParameters(
         });
       }
     }
+  for (const chain of pathChains(m.hasPath)) {
+    ps.push({
+      key: `specific:${chain.map((j) => C[j]).join(':')}`,
+      group: 'specific',
+      label: chain.map((j) => C[j]).join(' → '),
+      get: (s) => chainProduct(s.pathCoef, chain),
+    });
+  }
   m.indicatorNames.forEach((name, k) => {
     const c = C[m.indicatorConstruct[k]];
     ps.push({
@@ -166,6 +174,37 @@ function plsParameters(
       ps.push({ key: `r2:${c}`, group: 'r2', label: c, get: (s) => s.rSquared[j] as number });
   });
   return ps;
+}
+
+/** At most this many specific indirect effects (as the R bootstrap, boot.R's specific_indirect). */
+const MAX_CHAINS = 500;
+
+/**
+ * Every chain X → M (→ M2 ...) → Y of structural paths (construct indices, at least one mediator), in
+ * the order the R bootstrap lists them: depth first from each construct.
+ */
+export function pathChains(hasPath: boolean[][]): number[][] {
+  const J = hasPath.length;
+  const chains: number[][] = [];
+  const grow = (nodes: number[]) => {
+    const last = nodes[nodes.length - 1];
+    for (let to = 0; to < J; to++) {
+      if (!hasPath[last][to] || nodes.includes(to)) continue;
+      if (chains.length >= MAX_CHAINS) return;
+      const next = [...nodes, to];
+      if (next.length > 2) chains.push(next);
+      grow(next);
+    }
+  };
+  for (let from = 0; from < J; from++) grow([from]);
+  return chains;
+}
+
+/** A specific indirect effect: the product of the path coefficients along the chain. */
+export function chainProduct(pathCoef: number[][], chain: number[]): number {
+  let product = 1;
+  for (let k = 0; k + 1 < chain.length; k++) product *= pathCoef[chain[k]][chain[k + 1]];
+  return product;
 }
 
 function plsJob(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>): Job {

@@ -412,7 +412,8 @@ export interface BootstrapOptions {
 
 export interface BootstrapStat {
   key: string;
-  group: 'path' | 'total' | 'indirect' | 'loading' | 'weight' | 'r2' | 'estimate';
+  /** specific: one chain's indirect effect, key "specific:X:M:Y" (the R bootstrap of PLS-SEM). */
+  group: 'path' | 'total' | 'indirect' | 'specific' | 'loading' | 'weight' | 'r2' | 'estimate';
   label: string;
   original: number;
   mean: number;

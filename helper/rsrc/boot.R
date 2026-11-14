@@ -28,6 +28,41 @@ PS_BOOT_SUMMARY <- c(
   "}"
 )
 
+#' Specific indirect effects (Zhao, Lynch & Chen 2010; Nitzl, Roldan & Cepeda 2016): for every chain
+#' X -> M1 (-> M2 ...) -> Y of structural paths, the product of its path coefficients, as columns
+#' "specific: X -> M1 -> Y" of a draws matrix (rows = bootstrap samples, or the one row of the
+#' original estimates). Lines of R, so exported scripts compute them the same way. Re-running it on a
+#' matrix that has them already recomputes them (the parallel bootstrap's parts carry them).
+PS_SPECIFIC_INDIRECT <- c(
+  "# Specific indirect effects: per draw, the product of the path coefficients along every chain",
+  "# X -> M (-> M2 ...) -> Y (Zhao, Lynch & Chen 2010; Nitzl, Roldan & Cepeda 2016). cSEM names a",
+  "# path \"Y ~ X\", seminr \"X -> Y\". At most 500 chains (a larger model gets the first 500).",
+  "specific_indirect <- function(x) {",
+  "  x <- x[, !startsWith(colnames(x), \"specific: \"), drop = FALSE]",
+  "  pc <- colnames(x)[startsWith(colnames(x), \"path: \")]",
+  "  e <- sub(\"^path: \", \"\", pc)",
+  "  csem <- grepl(\" ~ \", e, fixed = TRUE)",
+  "  from <- ifelse(csem, sub(\".* ~ \", \"\", e), sub(\" -> .*\", \"\", e))",
+  "  to <- ifelse(csem, sub(\" ~ .*\", \"\", e), sub(\".* -> \", \"\", e))",
+  "  chains <- list()",
+  "  grow <- function(nodes, cols) {",
+  "    for (k in which(from == nodes[length(nodes)] & !(to %in% nodes))) {",
+  "      if (length(chains) >= 500) return(invisible())",
+  "      n2 <- c(nodes, to[k])",
+  "      c2 <- c(cols, pc[k])",
+  "      if (length(n2) > 2) chains[[length(chains) + 1]] <<- list(nodes = n2, cols = c2)",
+  "      grow(n2, c2)",
+  "    }",
+  "  }",
+  "  for (s in unique(from)) grow(s, character(0))",
+  "  if (!length(chains)) return(x)",
+  "  sp <- vapply(chains, function(ch) Reduce(`*`, lapply(ch$cols, function(cl) x[, cl])), numeric(nrow(x)))",
+  "  sp <- matrix(sp, nrow = nrow(x))",
+  "  colnames(sp) <- vapply(chains, function(ch) paste0(\"specific: \", paste(ch$nodes, collapse = \" -> \")), \"\")",
+  "  cbind(x, sp)",
+  "}"
+)
+
 #' The summary's options from the request: tails (1 or 2) and the jackknife for BCa.
 ps_boot_tails <- function(req) if (identical(as.integer(req$boot$tails %||% 2L), 1L)) 1L else 2L
 ps_boot_bca <- function(req) identical(req$boot$interval, "bca")
@@ -209,6 +244,10 @@ ps_pls_boot <- function(req_json, export = FALSE) {
   }
   body <- c(
     body,
+    PS_SPECIFIC_INDIRECT,
+    "draws <- specific_indirect(draws)",
+    "original <- specific_indirect(t(original))[1, ]",
+    if (bca) "jack <- specific_indirect(jack)",
     PS_BOOT_SUMMARY,
     sprintf(
       "result <- boot_summary(draws, original[colnames(draws)], confidence = %s, tails = %d%s)",
@@ -278,6 +317,11 @@ ps_boot_keys <- function(r, b, req) {
         rhs <- parts[1]
       }
     }
+    if (g == "specific") {
+      sk <- ps_boot_specific_key(x, lv)
+      if (!is.null(sk)) out[[length(out) + 1]] <- c(sk, ps_boot_row(r, i, g))
+      next
+    }
     # Skip package-internal entries (e.g. seminr's "X*M_intxn" pseudo-indicator).
     if (!(lhs %in% names(lv)) || (!is.na(rhs) && !(rhs %in% c(names(lv), names(ind))))) next
     # A second-order construct's loading / weight on a component (cSEM: "H =~ C", "H <~ C").
@@ -324,6 +368,33 @@ ps_boot_keys <- function(r, b, req) {
     ))
   }
   out
+}
+
+#' A specific indirect effect's key and label: "specific:X:M:Y", "X → M → Y" (NULL when a construct
+#' on the chain is not one of the model's, e.g. a package-internal name).
+ps_boot_specific_key <- function(x, lv) {
+  nodes <- strsplit(x, " -> ", fixed = TRUE)[[1]]
+  if (length(nodes) < 3 || !all(nodes %in% names(lv))) {
+    return(NULL)
+  }
+  names_app <- vapply(nodes, function(v) lv[[v]], "")
+  list(
+    key = paste0("specific:", paste(names_app, collapse = ":")),
+    label = paste(names_app, collapse = " → ")
+  )
+}
+#' One summary row's statistics, as the app's bootstrap statistics carry them.
+ps_boot_row <- function(r, i, g) {
+  list(
+    group = g,
+    original = r$original[i],
+    mean = r$mean[i],
+    sd = r$sd[i],
+    t = r$t[i],
+    p = r$p[i],
+    ciLow = r$ci_low[i],
+    ciHigh = r$ci_high[i]
+  )
 }
 
 #' The draws of a lavaan / modsem bootstrap: `draw` is the R code of one run of
