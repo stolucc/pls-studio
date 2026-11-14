@@ -42,3 +42,48 @@ it('closes on Escape only while active, before anything underneath sees the key'
   expect(latest).toHaveBeenCalledTimes(1);
   document.removeEventListener('keydown', below);
 });
+
+it('closes only the topmost of two open dialogs', () => {
+  const calls: string[] = [];
+  function Outer() {
+    useEscape(() => calls.push('outer'));
+    return null;
+  }
+  function Inner({ open }: { open: boolean }) {
+    useEscape(() => calls.push('inner'), open);
+    return null;
+  }
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  const press = () =>
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+
+  act(() => root.render(<Outer />));
+  // A confirmation opened from the dialog: Escape closes it, not the dialog.
+  act(() =>
+    root.render(
+      <>
+        <Outer />
+        <Inner open />
+      </>,
+    ),
+  );
+  press();
+  expect(calls).toEqual(['inner']);
+  act(() =>
+    root.render(
+      <>
+        <Outer />
+        <Inner open={false} />
+      </>,
+    ),
+  );
+  press();
+  expect(calls).toEqual(['inner', 'outer']);
+  act(() => root.unmount());
+  press();
+  expect(calls).toEqual(['inner', 'outer']);
+});
