@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ANALYSIS_TYPES } from './analyses/registry';
+import { TOUR } from './components/tour/steps';
 
 const html = readFileSync(join(process.cwd(), 'public', 'guide.html'), 'utf8');
 const text = html
@@ -54,5 +55,12 @@ describe('user guide', () => {
       'a banner over the diagram on the Model tab and above the log on the Analyses tab',
     );
     expect(text).toContain('Expected in this example');
+  });
+
+  it('points to the guided tour and names its chapters', () => {
+    expect(html).toContain('id="tour"');
+    expect(text).toContain('Take the tour');
+    expect(text).toContain('Do it for me');
+    for (const c of TOUR) expect(text, c.title).toContain(c.title);
   });
 });

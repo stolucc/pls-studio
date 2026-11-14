@@ -47,6 +47,7 @@ a { color: var(--accent); }
   <div class="brand">PLS Studio guide</div>
   <ol>
     <li><a href="#start">Getting started</a></li>
+    <li><a href="#tour">Guided tour</a></li>
     <li><a href="#data">Data</a></li>
     <li><a href="#model">Drawing the model</a></li>
     <li><a href="#methods">Estimation methods</a></li>
@@ -85,6 +86,22 @@ a { color: var(--accent); }
   <li><span class="ui">User guide</span>: this page.</li>
 </ul>
 <div class="note">The first calculation downloads the R runtime (a few hundred megabytes, cached by the browser). Later calculations start at once.</div>
+
+<h2 id="tour">Guided tour</h2>
+<p>The guided tour walks through the app in place, pointing at each panel in turn: ten short chapters, about ten minutes in all. Start it with <span class="ui">Take the tour</span> on the home screen (first-time visitors also see an invitation there), or from the <span class="ui">?</span> menu in the top bar, which can also start a single chapter.</p>
+<ol>
+  <li>Welcome and the home screen</li>
+  <li>The top bar and the three workspaces</li>
+  <li>The Data panel</li>
+  <li>The canvas</li>
+  <li>The Inspector</li>
+  <li>Calculating and reading results</li>
+  <li>The Analyses workspace</li>
+  <li>The Data workspace</li>
+  <li>Reproducibility and trust</li>
+  <li>Saving and sharing</li>
+</ol>
+<p>The tour works in the Customer experience example. If a project is open, it asks first; your project stays in Recent projects, and at the end the tour offers to reopen it. A few steps ask you to do something yourself, such as pressing <span class="ui">Calculate</span> or adding a card; each has <span class="ui">Do it for me</span>. If R is still loading when the example opens, the tour calculates with the built-in engine, which gives the same numbers. Move with <span class="ui">Next</span> and <span class="ui">Back</span> or the <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> keys, jump with <span class="ui">Contents</span>, and press <kbd>Esc</kbd> to end the tour. Finished chapters are ticked, in this browser.</p>
 
 <h2 id="data">Data</h2>
 <h3>Importing</h3>
