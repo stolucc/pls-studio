@@ -26,6 +26,7 @@ import {
   reliabilityOutside,
   reliabilityTooHigh,
   reliabilityTooLow,
+  rhoADefined,
 } from './thresholds';
 import type { CbResult } from '../engine/cbsem';
 import {
@@ -652,7 +653,13 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
         : 'Every Mode A loading is at least .708.',
       link: tab('Loadings & weights'),
     });
-    const rel = modeA.map((j) => ({ name: pls.constructs[j], ...quality(j) }));
+    // ρA only where it is defined (common factors); elsewhere n/a and not judged.
+    const rhoAOf = (j: number) => {
+      const k = m.constructs.find((x) => x.name === pls.constructs[j]);
+      return k && rhoADefined(k) ? quality(j).rhoA : NaN;
+    };
+    const rel = modeA.map((j) => ({ name: pls.constructs[j], ...quality(j), rhoA: rhoAOf(j) }));
+    const rhoAText = (v: number) => (Number.isFinite(v) ? f2(v) : 'n/a');
     const badRel = rel.filter((r) => reliabilityOutside(r.rhoC) || reliabilityOutside(r.rhoA));
     const redundant = badRel.some((r) => reliabilityTooHigh(r.rhoC) || reliabilityTooHigh(r.rhoA))
       ? ' (above .95: redundant items)'
@@ -666,7 +673,7 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
       label: 'Internal consistency: ρA and ρC between .70 and .95',
       sources: ['dijkstra2015', ...H],
       status: badRel.length ? 'issue' : 'done',
-      evidence: `${join(rel.map((r) => `${r.name}: ρA ${f2(r.rhoA)}, ρC ${f2(r.rhoC)}`))}.${outside}`,
+      evidence: `${join(rel.map((r) => `${r.name}: ρA ${rhoAText(r.rhoA)}, ρC ${f2(r.rhoC)}`))}.${outside}`,
       link: tab('Reliability'),
     });
     const badAve = rel.filter((r) => !aveMeets(r.ave));

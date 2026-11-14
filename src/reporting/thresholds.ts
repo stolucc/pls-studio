@@ -60,3 +60,23 @@ export function aveMeets(ave: number): boolean {
 export function htmtFails(value: number, threshold: number): boolean {
   return value >= threshold;
 }
+
+/**
+ * Whether ρA is defined for a construct: a common factor (Mode A) with two or more indicators and
+ * estimated weights (Dijkstra & Henseler 2015). The engines report 1 for composites and Mode B
+ * blocks, as cSEM and seminr do; that 1 is a convention, not a reliability, so it is shown as
+ * n/a and left out of the .70–.95 rule.
+ */
+export function rhoADefined(k: {
+  type: string;
+  mode: string;
+  indicators: string[];
+  predefinedWeights?: Record<string, number>;
+}): boolean {
+  return (
+    k.type === 'factor' &&
+    k.mode === 'A' &&
+    k.indicators.length > 1 &&
+    !Object.keys(k.predefinedWeights ?? {}).length
+  );
+}

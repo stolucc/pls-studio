@@ -6,7 +6,8 @@ import { htmtCls } from '../components/results/Table';
 import { htmtVerdict } from '../measurement/htmt';
 import { loadingBand } from '../measurement/loadings';
 import { reviewerChecklist } from './checklist';
-import { plsInput, plsResult } from './fixtures';
+import { plsInput, plsModel, plsResult } from './fixtures';
+import { methodsText } from './methods';
 import { HTMT_DISTINCT, LOADING_MIN } from './thresholds';
 
 const quality = (rhoA: number, rhoC = 0.85) => ({ alpha: 0.8, rhoC, rhoA, ave: 0.6 });
@@ -42,5 +43,33 @@ describe('shared thresholds', () => {
     });
     const item = reviewerChecklist(plsInput({ pls })).find((x) => x.id === 'htmt')!;
     expect(item.status).toBe('issue');
+  });
+});
+
+describe('ρA where it is not defined', () => {
+  // Image as a Mode A composite: the engines report ρA = 1 by convention (cSEM, seminr).
+  const model = {
+    ...plsModel,
+    constructs: plsModel.constructs.map((k) =>
+      k.name === 'Image' ? { ...k, type: 'composite' as const } : k,
+    ),
+  };
+  const pls = plsResult({
+    types: ['composite', 'composite', 'factor'],
+    quality: [quality(1), quality(0.8), quality(0.8)],
+  });
+
+  it('is n/a in the checklist and left out of the .70–.95 rule', () => {
+    const item = reviewerChecklist(plsInput({ model, pls })).find((x) => x.id === 'reliability')!;
+    expect(item.evidence).toContain('Image: ρA n/a, ρC 0.85');
+    expect(item.status).toBe('done');
+  });
+
+  it('is claimed in the methods text for the common factors only', () => {
+    const text = methodsText(plsInput({ model, pls })).text;
+    expect(text).toContain(
+      'Cronbach’s α, ρC and, for the common factors, ρA between 0.70 and 0.95',
+    );
+    expect(methodsText(plsInput()).text).toContain('Cronbach’s α, ρA and ρC between 0.70 and 0.95');
   });
 });
