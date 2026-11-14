@@ -4,6 +4,7 @@
 // linear combination of them, the classes' model and the blocks of observed variables, and the rows to report.
 
 import { qlogis } from '../engine/stats';
+import { extent } from '../format';
 import type { Dataset } from '../engine/types';
 
 /** A linear combination of the free parameters (`t`: pairs index, coefficient, flattened); c null = −∞ (a log-weight of 0). */
@@ -214,8 +215,12 @@ export function columnStats(data: Dataset, col: string, missing: number[] = []) 
   const n = v.length;
   const mean = v.reduce((a, b) => a + b, 0) / Math.max(1, n);
   const variance = v.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, n - 1);
-  const levels = [...new Set(v)].sort((a, b) => a - b);
-  const counts = levels.map((l) => v.filter((x) => x === l).length);
+  // How often each value occurs (one pass: filtering per level is n × levels).
+  const tally = new Map<number, number>();
+  for (const x of v) tally.set(x, (tally.get(x) ?? 0) + 1);
+  const levels = [...tally.keys()].sort((a, b) => a - b);
+  const counts = levels.map((l) => tally.get(l)!);
+  const [min, max] = extent(v);
   return {
     n,
     mean,
@@ -223,8 +228,8 @@ export function columnStats(data: Dataset, col: string, missing: number[] = []) 
     sd: Math.sqrt(variance > 0 ? variance : 1),
     levels,
     counts,
-    min: n ? Math.min(...v) : 0,
-    max: n ? Math.max(...v) : 0,
+    min: n ? min : 0,
+    max: n ? max : 0,
     zeros: v.filter((x) => x === 0).length,
   };
 }

@@ -9,7 +9,7 @@ import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import type { Dataset } from '../engine/types';
 import { mulberry32 } from '../engine/stats';
-import { fmt } from '../format';
+import { extent, fmt } from '../format';
 import { seriesColor } from '../figure/palette';
 import type { ExploreInput, ExploreResult, ExploreStats, ExploreTest } from '../rengine/explore';
 import {
@@ -376,7 +376,8 @@ function HistogramPlot({ p, label }: { p: ExplorePlot; label: string }) {
 
 /** Normal Q-Q plot with qqline's quartile line. */
 function QQPlotChart({ p, label }: { p: ExplorePlot; label: string }) {
-  const q = p.qq;
+  // (results stored before the points were thinned can hold one per case)
+  const q = thinQQ(p.qq, MAX_DOTS);
   if (!q) return null;
   const tx = q.points.map((x) => x.theoretical);
   const sv = q.points.map((x) => x.sample);
@@ -384,8 +385,8 @@ function QQPlotChart({ p, label }: { p: ExplorePlot; label: string }) {
     const m = (b - a || 1) * 0.05;
     return [a - m, b + m];
   };
-  const xs = margin(Math.min(...tx), Math.max(...tx));
-  const ys = margin(Math.min(...sv), Math.max(...sv));
+  const xs = margin(...extent(tx));
+  const ys = margin(...extent(sv));
   const sx = sxOf(xs);
   const sy = syOf(ys);
   const line = (x: number) => q.intercept + q.slope * x;
@@ -433,8 +434,7 @@ function RaincloudPlot({ plots, variable }: { plots: ExplorePlot[]; variable: st
   const shown = plots.filter((p) => p.box);
   if (!shown.length) return null;
   const all = shown.flatMap((p) => [...p.dots, ...p.density.map((d) => d.x)]);
-  let lo = Math.min(...all);
-  let hi = Math.max(...all);
+  let [lo, hi] = extent(all);
   if (lo === hi) {
     lo -= 1;
     hi += 1;
@@ -607,6 +607,20 @@ function thin(values: number[], max: number): number[] {
 }
 
 /**
+ * A Q-Q plot's points, at most `max` evenly spaced through the sorted sample,
+ * the smallest and largest always among them (the line is from all the data).
+ */
+function thinQQ(qq: QQPlot | null, max: number): QQPlot | null {
+  if (!qq || qq.points.length <= max) return qq;
+  const last = qq.points.length - 1;
+  const points = Array.from(
+    { length: max },
+    (_, i) => qq.points[Math.round((i * last) / (max - 1))],
+  );
+  return { ...qq, points };
+}
+
+/**
  * The plots of every variable in every group, from the data as the R run used it; `labels`: the groups' names as
  * R gave them (the same groups, in the same order).
  */
@@ -628,7 +642,7 @@ export function explorePlots(o: ExploreOptions, d: Dataset, labels: string[] = [
         group,
         hist: histogram(finite),
         density: kernelDensity(finite),
-        qq: qqPlot(finite),
+        qq: thinQQ(qqPlot(finite), MAX_DOTS),
         box: boxStats(finite, group),
         dots: thin(finite, MAX_DOTS),
       };

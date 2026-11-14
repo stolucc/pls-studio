@@ -47,6 +47,30 @@ describe('a card that works on the model', () => {
     expect(runs).toEqual(['estimate']);
   });
 
+  it('waits for a job already running, then calculates only if its results are not current', async () => {
+    useStore.getState().addConstruct(0, 0, ['a1']);
+    // An estimation under way (started elsewhere): its results are current when it ends.
+    useStore.getState().setJob({ kind: 'estimate', done: 0, total: 1, workers: 1, label: 'x' });
+    setTimeout(() => {
+      const s = useStore.getState();
+      useStore.setState({
+        results: { key: resultsKey(s), pls: null, cb: null, boot: null } as never,
+      });
+      s.setJob(null);
+    }, 10);
+    await ensureModelCalculated();
+    expect(useStore.getState().results?.key).toBe(resultsKey(useStore.getState()));
+    expect(runs).toEqual([]);
+
+    // A job that ends without current results (e.g. a bootstrap of an older model): then it calculates.
+    useStore.getState().addConstruct(100, 0, ['b1']);
+    useStore.getState().setJob({ kind: 'boot', done: 0, total: 1, workers: 1, label: 'x' });
+    setTimeout(() => useStore.getState().setJob(null), 10);
+    await ensureModelCalculated();
+    expect(runs).toEqual(['estimate']);
+    expect(useStore.getState().results?.key).toBe(resultsKey(useStore.getState()));
+  });
+
   it('does nothing without data', async () => {
     useStore.setState({ data: null });
     await ensureModelCalculated();

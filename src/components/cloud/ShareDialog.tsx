@@ -7,6 +7,7 @@ import { confirmDialog } from '../Overlays';
 import { IconTrash, IconX } from '../icons';
 import { Avatar } from './AccountMenu';
 import { useEscape } from '../useEscape';
+import { useModal } from '../useModal';
 
 interface Member {
   id: string;
@@ -95,6 +96,7 @@ export function ShareDialog({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     void load();
   }, [load]);
+  const modalRef = useModal();
   useEscape(onClose);
 
   const act = async (fn: () => Promise<unknown>, ok?: string) => {
@@ -152,7 +154,7 @@ export function ShareDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={onClose}>
       <div
         className="modal share"
         role="dialog"

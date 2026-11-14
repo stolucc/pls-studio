@@ -620,7 +620,8 @@ function CardView({
         )}
         {t && hasResult ? (
           <div className="card-result">
-            <ResultBoundary>
+            {/* keyed by the run: a later run's result is shown afresh, not the earlier failure */}
+            <ResultBoundary key={card.run?.at ?? 0}>
               <t.View
                 result={result}
                 options={ranWith(card)}

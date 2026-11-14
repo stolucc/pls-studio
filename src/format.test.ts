@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { csvCell, fmt, fmtP, noLeadingZero, pIs, safeFileName, safeUrl, stars } from './format';
+import {
+  csvCell,
+  fmt,
+  fmtP,
+  formulaSafe,
+  noLeadingZero,
+  pIs,
+  safeFileName,
+  safeUrl,
+  stars,
+} from './format';
 
 describe('number formatting', () => {
   it('formats numbers to three decimals by default, dashes for missing, ∞ for infinite', () => {
@@ -46,6 +56,15 @@ describe('CSV cells', () => {
     expect(csvCell('-1.5')).toBe('-1.5');
     expect(csvCell(-2)).toBe('-2');
     expect(csvCell('\tx')).toBe("'\tx");
+  });
+  it('exempts only plain numbers: a formula after a leading number is defused', () => {
+    expect(csvCell("-1+cmd|' /C calc'!A0")).toBe("'-1+cmd|' /C calc'!A0");
+    expect(csvCell('-1e-7')).toBe('-1e-7');
+    expect(csvCell('+2.5')).toBe('+2.5');
+    expect(csvCell('-.5')).toBe('-.5');
+    expect(formulaSafe('-2-3')).toBe("'-2-3");
+    expect(formulaSafe('=1')).toBe("'=1");
+    expect(formulaSafe('0.5')).toBe('0.5');
   });
 });
 

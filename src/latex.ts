@@ -65,9 +65,17 @@ const SPECIAL: Record<string, string> = {
 /** Escape text for LaTeX and convert the app's symbols. */
 export function latexText(s: string): string {
   let out = '';
-  for (const ch of s) out += SPECIAL[ch] ?? SYMBOLS[ch] ?? ch;
-  // Adjacent math snippets merge ("$\chi$$^2$" → "$\chi^2$").
-  return out.replace(/\$\$/g, '');
+  let afterMath = false;
+  for (const ch of s) {
+    const t = SPECIAL[ch] ?? SYMBOLS[ch] ?? ch;
+    const math = t.length > 2 && t.startsWith('$') && t.endsWith('$');
+    // Adjacent math snippets merge ("$\chi$" "$^2$" → "$\chi^2$"): merged here, snippet by
+    // snippet, so an escaped dollar (\$) next to a snippet is left alone.
+    if (math && afterMath) out = out.slice(0, -1) + t.slice(1);
+    else out += t;
+    afterMath = math;
+  }
+  return out;
 }
 
 /** A number as displayed, with a proper minus sign. */

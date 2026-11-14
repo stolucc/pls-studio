@@ -34,6 +34,7 @@ export async function editValueLabels(name: string) {
       {
         label: 'Labels',
         multiline: true,
+        allowEmpty: true,
         initial: labelsToText(valueLabels(s.dataInfo, name)),
         placeholder: '1 = Strongly disagree\n5 = Strongly agree',
         check: (text) => {
@@ -69,6 +70,7 @@ export async function editMissingCodes(name: string) {
     fields: [
       {
         label: 'Codes',
+        allowEmpty: true,
         initial: current ? codesToText(current) : '',
         placeholder: 'e.g. -99, 999, 990 to 999',
         check: (text) => {

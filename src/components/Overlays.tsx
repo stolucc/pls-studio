@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { useStore } from '../store';
 import { IconAlert, IconCheck, IconInfo, IconX } from './icons';
 import { useEscape } from './useEscape';
+import { useModal } from './useModal';
 
 interface ConfirmOpts {
   title: string;
@@ -38,6 +39,8 @@ interface FormField {
   placeholder?: string;
   hint?: string;
   multiline?: boolean;
+  /** Empty text is acceptable (e.g. "leave empty to remove"); otherwise an empty field blocks confirming. */
+  allowEmpty?: boolean;
   check: (text: string, all: string[]) => string | null;
   /** When another field (`changed`) is edited: this field's new text, or undefined to keep it (e.g. the current value of what field 0 now names). */
   follow?: (all: string[], changed: number) => string | undefined;
@@ -61,39 +64,41 @@ interface DialogState {
 }
 const useDialog = create<DialogState>(() => ({ current: null }));
 
+/**
+ * Show a dialog. There is one dialog at a time: one still open is answered
+ * as cancelled first, so the code waiting on it goes on (its promise settles).
+ */
+function openDialog(next: NonNullable<DialogState['current']>) {
+  const previous = useDialog.getState().current;
+  useDialog.setState({ current: next });
+  previous?.resolve(false);
+}
+
 /** On-theme replacement for window.confirm. */
 export function confirmDialog(opts: ConfirmOpts): Promise<boolean> {
-  return new Promise((resolve) =>
-    useDialog.setState({ current: { ...opts, resolve: (ok) => resolve(ok) } }),
-  );
+  return new Promise((resolve) => openDialog({ ...opts, resolve: (ok) => resolve(ok) }));
 }
 
 /** On-theme replacement for window.prompt, for a single validated number. Resolves null on cancel. */
 export function numberDialog(opts: ConfirmOpts & { field: NumberField }): Promise<number | null> {
   return new Promise((resolve) =>
-    useDialog.setState({
-      current: { ...opts, resolve: (ok, v) => resolve(ok && v !== undefined ? v : null) },
-    }),
+    openDialog({ ...opts, resolve: (ok, v) => resolve(ok && v !== undefined ? v : null) }),
   );
 }
 
 /** On-theme replacement for window.prompt, for validated text. Resolves null on cancel. */
 export function textDialog(opts: ConfirmOpts & { text: TextField }): Promise<string | null> {
   return new Promise((resolve) =>
-    useDialog.setState({
-      current: { ...opts, resolve: (ok, _v, t) => resolve(ok && t !== undefined ? t : null) },
-    }),
+    openDialog({ ...opts, resolve: (ok, _v, t) => resolve(ok && t !== undefined ? t : null) }),
   );
 }
 
 /** A small form: resolves the trimmed values of the fields, or null on cancel. */
 export function formDialog(opts: ConfirmOpts & { fields: FormField[] }): Promise<string[] | null> {
   return new Promise((resolve) =>
-    useDialog.setState({
-      current: {
-        ...opts,
-        resolve: (ok, _v, _t, _c, values) => resolve(ok && values ? values : null),
-      },
+    openDialog({
+      ...opts,
+      resolve: (ok, _v, _t, _c, values) => resolve(ok && values ? values : null),
     }),
   );
 }
@@ -101,16 +106,13 @@ export function formDialog(opts: ConfirmOpts & { fields: FormField[] }): Promise
 /** A question with several answers; resolves the chosen id, or null on cancel. */
 export function choiceDialog(opts: ConfirmOpts & { choices: Choice[] }): Promise<string | null> {
   return new Promise((resolve) =>
-    useDialog.setState({
-      current: { ...opts, resolve: (ok, _v, _t, choice) => resolve(ok && choice ? choice : null) },
-    }),
+    openDialog({ ...opts, resolve: (ok, _v, _t, choice) => resolve(ok && choice ? choice : null) }),
   );
 }
 
 export function ConfirmModal() {
   const current = useDialog((s) => s.current);
   const okRef = useRef<HTMLButtonElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState('');
   const [values, setValues] = useState<string[]>([]);
   const field = current?.field;
@@ -140,9 +142,12 @@ export function ConfirmModal() {
     setValues(next);
   };
   const trimmed = vals.map((v) => v.trim());
-  const fieldErrors = fields
-    ? fields.map((f, i) => (trimmed[i] === '' ? '' : f.check(trimmed[i], trimmed)))
-    : [];
+  // null: the field is fine; '' blocks confirming without a message (an empty required field).
+  const fieldError = (f: FormField, i: number): string | null => {
+    if (trimmed[i] !== '') return f.check(trimmed[i], trimmed);
+    return f.allowEmpty ? null : '';
+  };
+  const fieldErrors = fields ? fields.map(fieldError) : [];
   // Can the dialog be confirmed: every field, the text or the number is acceptable.
   let valid: boolean;
   if (fields) valid = fieldErrors.every((e) => e === null);
@@ -170,15 +175,19 @@ export function ConfirmModal() {
     setText(current?.field?.initial ?? current?.text?.initial ?? '');
     setValues(current?.fields?.map((f) => f.initial ?? '') ?? []);
   }, [current]);
-  // Focus the first field (or OK) once, when a dialog opens: not on every render, or typing in another field jumps back.
+  // Focus trap, inert page and focus restored on closing; declared before the
+  // focusing below, so that it sees where the focus was before the dialog opened.
+  const modalRef = useModal(!!current);
+  // Focus the first field, a text box too (or OK) once, when a dialog opens: not on every render, or typing in another field jumps back.
   useEffect(() => {
     if (!current) return;
-    (current.field || current.text || current.fields ? inputRef.current : okRef.current)?.focus();
-  }, [current]);
+    const firstField = modalRef.current?.querySelector<HTMLElement>('input, textarea');
+    (current.field || current.text || current.fields ? firstField : okRef.current)?.focus();
+  }, [current, modalRef]);
   useEscape(() => close(false), !!current);
   if (!current) return null;
   return (
-    <div className="modal-backdrop" onMouseDown={() => close(false)}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={() => close(false)}>
       <div
         className="modal"
         role="dialog"
@@ -193,7 +202,6 @@ export function ConfirmModal() {
             <label htmlFor="dlg-num">{field.label}</label>
             <input
               id="dlg-num"
-              ref={inputRef}
               className="input num"
               type="number"
               min={field.min}
@@ -217,7 +225,6 @@ export function ConfirmModal() {
             <label htmlFor="dlg-text">{textField.label}</label>
             <input
               id="dlg-text"
-              ref={inputRef}
               className="input"
               value={text}
               autoComplete="off"
@@ -251,7 +258,6 @@ export function ConfirmModal() {
             ) : (
               <input
                 id={`dlg-f${i}`}
-                ref={i === 0 ? inputRef : undefined}
                 className="input"
                 value={vals[i]}
                 autoComplete="off"

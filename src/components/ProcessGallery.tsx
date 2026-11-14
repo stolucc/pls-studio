@@ -14,6 +14,7 @@ import { useStore } from '../store';
 import { IconX } from './icons';
 import { confirmDialog } from './Overlays';
 import { useEscape } from './useEscape';
+import { useModal } from './useModal';
 
 const NODE_W = 34;
 const NODE_H = 20;
@@ -211,6 +212,7 @@ function Card({ tp, onPick }: { tp: Template; onPick: (tp: Template, k: number) 
 /** Pick a PROCESS model: its diagram replaces the canvas, with empty slots for the variables. */
 export function ProcessGallery({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('');
+  const modalRef = useModal();
   useEscape(onClose);
   const pick = async (tp: Template, k: number) => {
     const s = useStore.getState();
@@ -238,7 +240,7 @@ export function ProcessGallery({ onClose }: { onClose: () => void }) {
   );
   const families = [...new Set(shown.map(familyOf))];
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={onClose}>
       <div
         className="modal tpl-gallery"
         role="dialog"

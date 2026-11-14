@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import type { CbEstimator } from '../engine/cbsem';
-import { fmt } from '../format';
+import { extent, fmt } from '../format';
 import { toSpec, validateModel } from '../model/project';
 import {
   farOut,
@@ -393,12 +393,10 @@ function IndexPlot({ inf }: { inf: InfluenceResult }) {
   const [picked, setPicked] = useState<number | null>(null);
   const s = influenceSeries(inf, stat);
   if (!s.rows.length) return null;
-  const xs: [number, number] = [Math.min(...s.rows), Math.max(...s.rows)];
-  let lo = Math.min(0, ...s.values);
-  let hi = Math.max(
-    ...s.values,
-    s.fence !== null && Number.isFinite(s.fence) ? s.fence : -Infinity,
-  );
+  const xs = extent(s.rows);
+  const [valueLo, valueHi] = extent(s.values);
+  let lo = Math.min(0, valueLo);
+  let hi = Math.max(valueHi, s.fence !== null && Number.isFinite(s.fence) ? s.fence : -Infinity);
   const m = (hi - lo || 1) * 0.05;
   lo -= stat === 'gcd' || stat === 'md' || stat === 'kurtosis' ? 0 : m;
   hi += m;

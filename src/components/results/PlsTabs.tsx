@@ -23,6 +23,7 @@ import {
   totalOf,
   typeCell,
 } from './MediationPanel';
+import { LiveOnly, useFrozenResult } from './frozen';
 import { RScriptButton } from './RScriptButton';
 import { SavePlsScores } from './SaveScores';
 import {
@@ -67,9 +68,15 @@ export type PlsTabId = (typeof PLS_TABS)[number]['id'];
 export const plsTabsFor = (pls: PlsResult | null) =>
   pls?.higherOrder?.length ? PLS_TABS : PLS_TABS.filter((t) => t.id !== 'hoc');
 
-function useTypes() {
+/** Each construct's type: the current model's, or in a frozen view the result's own. */
+function useTypes(pls: PlsResult) {
+  const frozen = useFrozenResult();
   const constructs = useStore((s) => s.model.constructs);
-  return useMemo(() => new Map(constructs.map((k) => [k.name, k.type])), [constructs]);
+  return useMemo(() => {
+    if (!frozen) return new Map(constructs.map((k) => [k.name, k.type]));
+    const types = pls.types ?? [];
+    return new Map(pls.constructs.map((name, j) => [name, types[j]]));
+  }, [frozen, constructs, pls]);
 }
 
 /** The algorithm card of the overview: "PLS", "PLSc", "OrdPLS", "GSCA", ... */
@@ -178,7 +185,9 @@ function Overview({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null 
           <button className="btn" onClick={scoresCsv}>
             <IconDownload size={14} /> Download scores (CSV)
           </button>
-          <SavePlsScores pls={pls} />
+          <LiveOnly>
+            <SavePlsScores pls={pls} />
+          </LiveOnly>
           <div className="table-note">Standardised proxy scores for each observation.</div>
         </div>
       </div>
@@ -290,7 +299,7 @@ const HOC_NOTE = {
 };
 
 function Outer({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) {
-  const types = useTypes();
+  const types = useTypes(pls);
   // Per construct, whether its loadings are mostly negative (then a positive one is the odd one out).
   const negative = new Set(
     pls.constructs.filter((_, j) =>
@@ -378,7 +387,7 @@ function Outer({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) 
 }
 
 function Reliability({ pls }: { pls: PlsResult }) {
-  const types = useTypes();
+  const types = useTypes(pls);
   const rows: Row[] = pls.constructs.map((name, j) => {
     const q = pls.quality[j];
     const single = pls.indicators.filter((i) => i.construct === j).length === 1;
@@ -512,9 +521,11 @@ function Fit({ pls, test }: { pls: PlsResult; test: FitTestResult | null }) {
           Test of overall model fit
           <FitHelpTip id="plsTest" />
         </h3>
-        <button className="btn sm" onClick={() => run('fittest')} disabled={!!job}>
-          <IconRepeat size={13} /> {test ? 'Re-run' : 'Run'} bootstrap test ({samples})
-        </button>
+        <LiveOnly>
+          <button className="btn sm" onClick={() => run('fittest')} disabled={!!job}>
+            <IconRepeat size={13} /> {test ? 'Re-run' : 'Run'} bootstrap test ({samples})
+          </button>
+        </LiveOnly>
         <RScriptButton what="fittest" />
       </div>
       <div className="tables">
@@ -593,9 +604,11 @@ export function BootstrapTab({ boot, std }: { boot: BootstrapResult | null; std?
     return (
       <div className="empty-results">
         No bootstrap results yet.{' '}
-        <button className="btn sm" onClick={() => run('boot')}>
-          <IconRepeat size={13} /> Run bootstrapping
-        </button>
+        <LiveOnly>
+          <button className="btn sm" onClick={() => run('boot')}>
+            <IconRepeat size={13} /> Run bootstrapping
+          </button>
+        </LiveOnly>
       </div>
     );
   }
@@ -820,7 +833,9 @@ function Moderation({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | nul
           </>
         }
       />
-      <BinaryModerators pls={pls} />
+      <LiveOnly>
+        <BinaryModerators pls={pls} />
+      </LiveOnly>
       <div className="tables" style={{ marginTop: 20 }}>
         {pls.moderations.map((mo) => {
           const j = C.indexOf(mo.to);
@@ -883,7 +898,9 @@ export function PlsTab({
       return (
         <>
           <Paths pls={pls} boot={boot} />
-          <OriginalScale pls={pls} />
+          <LiveOnly>
+            <OriginalScale pls={pls} />
+          </LiveOnly>
           <Copulas pls={pls} boot={boot} />
         </>
       );
@@ -892,9 +909,13 @@ export function PlsTab({
     case 'outer':
       return (
         <>
-          <PlsNegativeLoadings pls={pls} />
+          <LiveOnly>
+            <PlsNegativeLoadings pls={pls} />
+          </LiveOnly>
           <Outer pls={pls} boot={boot} />
-          <LoadingTriage pls={pls} />
+          <LiveOnly>
+            <LoadingTriage pls={pls} />
+          </LiveOnly>
         </>
       );
     case 'reliability':
@@ -903,7 +924,9 @@ export function PlsTab({
       return (
         <>
           <Discriminant pls={pls} />
-          <HtmtHelper pls={pls} />
+          <LiveOnly>
+            <HtmtHelper pls={pls} />
+          </LiveOnly>
         </>
       );
     case 'hoc':

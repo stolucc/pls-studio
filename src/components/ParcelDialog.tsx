@@ -18,6 +18,7 @@ import type { Construct } from '../model/project';
 import { useStore } from '../store';
 import { IconX } from './icons';
 import { useEscape } from './useEscape';
+import { useModal } from './useModal';
 
 export function ParcelDialog({ c, onClose }: { c: Construct; onClose: () => void }) {
   const data = useStore((s) => s.data);
@@ -31,6 +32,7 @@ export function ParcelDialog({ c, onClose }: { c: Construct; onClose: () => void
     Object.fromEntries(c.indicators.map((i, r) => [i, r % Math.min(3, Math.floor(n / 2))])),
   );
   const [error, setError] = useState<string | null>(null);
+  const modalRef = useModal();
   useEscape(onClose);
 
   const loadings = useMemo(() => {
@@ -92,7 +94,7 @@ export function ParcelDialog({ c, onClose }: { c: Construct; onClose: () => void
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={onClose}>
       <div
         className="modal parcel-dialog"
         role="dialog"

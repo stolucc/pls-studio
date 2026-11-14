@@ -4,7 +4,7 @@
 
 import type { CbEstimator } from '../engine/cbsem';
 import { mean, quantileOf } from '../engine/stats';
-import { downloadText, fmt } from '../format';
+import { downloadText, extent, fmt } from '../format';
 import { toSpec, validateModel } from '../model/project';
 import type {
   BollenStineResult,
@@ -294,7 +294,8 @@ export function scoreSummary(s: FactorScores) {
     const x = col(j);
     const m = x.reduce((a, b) => a + b, 0) / (x.length || 1);
     const sd = Math.sqrt(x.reduce((a, b) => a + (b - m) ** 2, 0) / Math.max(1, x.length - 1));
-    return { name, n: x.length, mean: m, sd, min: Math.min(...x), max: Math.max(...x) };
+    const [min, max] = extent(x);
+    return { name, n: x.length, mean: m, sd, min, max };
   });
   const cor = s.names.map((_, i) =>
     s.names.map((__, j) => {

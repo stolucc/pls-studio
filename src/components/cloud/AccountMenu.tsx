@@ -3,6 +3,7 @@ import { api } from '../../cloud/api';
 import { useAuth } from '../../cloud/auth';
 import { colorFor } from '../../cloud/collab';
 import { useStore } from '../../store';
+import { useModal } from '../useModal';
 
 const initials = (name: string) =>
   name
@@ -57,8 +58,9 @@ function TotpSetup({ onClose }: { onClose: () => void }) {
       setError((e as Error).message);
     }
   };
+  const modalRef = useModal();
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={onClose}>
       <div
         className="modal"
         role="dialog"
@@ -151,8 +153,9 @@ function PasswordChange({ onClose }: { onClose: () => void }) {
       setError((e as Error).message);
     }
   };
+  const modalRef = useModal();
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={onClose}>
       <div
         className="modal"
         role="dialog"

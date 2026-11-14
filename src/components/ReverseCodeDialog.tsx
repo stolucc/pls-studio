@@ -8,6 +8,7 @@ import { IconX } from './icons';
 import { reverseCodeColumns, reversibleColumns } from './reverseCodeAction';
 import { useEscape } from './useEscape';
 import { VariablePicker } from './VariablePicker';
+import { useModal } from './useModal';
 
 export function ReverseCodeDialog({ onClose }: { onClose: () => void }) {
   const columns = reversibleColumns();
@@ -15,6 +16,7 @@ export function ReverseCodeDialog({ onClose }: { onClose: () => void }) {
   const [chosen, setChosen] = useState(() =>
     useStore.getState().selectedVars.filter((v) => columns.includes(v)),
   );
+  const modalRef = useModal();
   useEscape(onClose);
 
   const next = () => {
@@ -23,7 +25,7 @@ export function ReverseCodeDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={onClose}>
       <div
         className="modal reverse-pick"
         role="dialog"

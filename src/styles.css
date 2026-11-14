@@ -104,6 +104,10 @@ button, input, select { font: inherit; color: inherit; }
 .card-bar .btn { margin-left: auto; }
 .card-bar.stale { background: var(--warn-soft); color: var(--warn); }
 .card-bar.bad { background: var(--bad-soft); color: var(--bad); }
+/* A part of the window that failed to render (ErrorBoundary), and the whole app. */
+.crash { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin: 12px; padding: 12px 14px; border-radius: var(--radius); background: var(--bad-soft); color: var(--bad); font-size: 13px; }
+.crash p { margin: 0; }
+.crash-app { max-width: 480px; margin: 15vh auto; }
 .card-bar.run { background: var(--accent-soft); color: var(--accent-strong); }
 .card-bar .bar { flex: 1; min-width: 80px; height: 6px; border-radius: 99px; background: var(--surface); overflow: hidden; }
 .card-bar .fill { display: block; height: 100%; background: var(--accent); transition: width 0.15s; }

@@ -19,6 +19,7 @@ import {
 } from '../../reporting/mediation';
 import { run } from '../../runner';
 import { useStore } from '../../store';
+import { LiveOnly } from './frozen';
 import { IconCopy, IconInfo, IconRepeat } from '../icons';
 import { bootCells, bootCols, c, Table, type Cell, type Row } from './Table';
 
@@ -57,9 +58,11 @@ export function MediationNeedsBoot() {
     <div className="hint">
       The mediation type of each indirect effect (Zhao et al., 2010) is decided by bootstrap
       confidence intervals, which are not there yet.{' '}
-      <button className="btn sm" onClick={() => run('boot')}>
-        <IconRepeat size={13} /> Run bootstrapping
-      </button>
+      <LiveOnly>
+        <button className="btn sm" onClick={() => run('boot')}>
+          <IconRepeat size={13} /> Run bootstrapping
+        </button>
+      </LiveOnly>
     </div>
   );
 }

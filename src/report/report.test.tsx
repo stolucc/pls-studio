@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { chartAnalysis, chartResult, type ChartOptions } from '../analyses/charts';
 import {
   addFrozenCard,
@@ -33,6 +33,7 @@ import {
   diagramAlt,
   dropEmptySections,
   engineTags,
+  renderOffscreen,
   softwareTable,
 } from './build';
 import { reportDocx, wordText } from './docx';
@@ -371,6 +372,23 @@ describe('Word report', () => {
 describe('report pieces', () => {
   beforeEach(() => {
     g.IS_REACT_ACT_ENVIRONMENT = true;
+  });
+
+  it('writes a short note, not the internal error text, for a result that fails to render', async () => {
+    g.IS_REACT_ACT_ENVIRONMENT = false;
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    function Broken(): never {
+      throw new RangeError('Maximum call stack size exceeded');
+    }
+    try {
+      const blocks = await renderOffscreen(<Broken />);
+      const text = JSON.stringify(blocks);
+      expect(text).toContain('This result cannot be shown in the report.');
+      expect(text).not.toContain('Maximum call stack');
+    } finally {
+      spy.mockRestore();
+      g.IS_REACT_ACT_ENVIRONMENT = true;
+    }
   });
 
   it('reads tables from the Table component’s own data, with their notes', () => {

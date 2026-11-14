@@ -39,7 +39,8 @@ function reviver(_k: string, v: unknown) {
   return v;
 }
 
-function toBase64(bytes: Uint8Array): string {
+/** Base64 of bytes, in chunks (spreading a large array into one call overflows the stack). */
+export function toBase64(bytes: Uint8Array): string {
   let s = '';
   for (let i = 0; i < bytes.length; i += 0x8000)
     s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));

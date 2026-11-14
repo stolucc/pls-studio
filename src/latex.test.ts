@@ -5,6 +5,11 @@ describe('LaTeX tables', () => {
   it('escapes special characters and converts symbols', () => {
     expect(latexText('R² & 50% of $x_1 → y')).toBe('R$^2$ \\& 50\\% of \\$x\\_1 $\\rightarrow$ y');
     expect(latexText('χ² (scaled)')).toBe('$\\chi^2$ (scaled)');
+    // An escaped dollar next to a math snippet stays escaped (the snippet balanced).
+    expect(latexText('$α')).toBe('\\$$\\alpha$');
+    expect(latexText('α$')).toBe('$\\alpha$\\$');
+    expect(latexText('$$')).toBe('\\$\\$');
+    expect(latexText('αβ²')).toBe('$\\alpha\\beta^2$');
     expect(latexText('ζ dem60 ↔ ζ dem65')).toBe(
       '$\\zeta$ dem60 $\\leftrightarrow$ $\\zeta$ dem65',
     );

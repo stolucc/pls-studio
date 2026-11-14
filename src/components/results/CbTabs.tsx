@@ -24,6 +24,7 @@ import {
 } from './Table';
 import { runInvariance } from '../../runner';
 import { useFreshResults, useStore } from '../../store';
+import { LiveOnly, useFrozenResult } from './frozen';
 import { RScriptButton } from './RScriptButton';
 import { InvarianceTable } from './InvarianceTable';
 import type { DfiForFit } from '../../analyses/dfiFit';
@@ -107,7 +108,9 @@ function Fit({ cb }: { cb: CbResult }) {
   return (
     <>
       <FitBody cb={cb} dfi={dfi} />
-      <MisfitPanel cb={cb} />
+      <LiveOnly>
+        <MisfitPanel cb={cb} />
+      </LiveOnly>
     </>
   );
 }
@@ -494,7 +497,53 @@ function ModIndices({ cb }: { cb: CbResult }) {
   );
 }
 
+/** The score tests of a multigroup model's equality constraints (lavTestScore). */
+type ScoreTest = NonNullable<CbResult['groups']>['score'][number];
+
+function ScoreTests({ score, model }: { score: ScoreTest[]; model: string }) {
+  return (
+    <Table
+      title={`Score tests of the equality constraints (${model})`}
+      file="cb-score-tests"
+      columns={['Parameter', 'Groups', 'χ²', 'df', 'p']}
+      rows={[...score]
+        .sort((a, b) => b.x2 - a.x2)
+        .map((t) => [
+          c(t.param),
+          c(t.groups.join(' = ')),
+          c(t.x2, t.p < 0.05 ? 'warn' : ''),
+          c(t.df, '', 0),
+          pCell(t.p),
+        ])}
+      note="How much χ² would drop if this single equality across groups were released (lavaan::lavTestScore). The largest significant one is the first candidate for partial invariance (right-click the indicator → Free across groups)."
+    />
+  );
+}
+
+/**
+ * Invariance of a frozen result (snapshot or earlier run): only what the
+ * result holds. The configural-to-strict comparison is run for the current
+ * model, so it is not shown here.
+ */
+function FrozenInvariance({ cb }: { cb: CbResult }) {
+  const score = cb.groups?.score ?? [];
+  return (
+    <div className="tables">
+      <div className="empty-results">
+        {cb.groups && !cb.groups.levels
+          ? 'The comparison of configural, metric, scalar and strict models is not part of this frozen result: run it for the model on the Model tab (Invariance).'
+          : 'This result is not of a multigroup model.'}
+      </div>
+      {score.length > 0 && <ScoreTests score={score} model="as estimated" />}
+    </div>
+  );
+}
+
 function Invariance({ cb }: { cb: CbResult }) {
+  return useFrozenResult() ? <FrozenInvariance cb={cb} /> : <LiveInvariance cb={cb} />;
+}
+
+function LiveInvariance({ cb }: { cb: CbResult }) {
   const multigroup = useStore((s) => s.model.multigroup);
   const matrix = useStore(
     (s) => !!s.data?.moments && s.data.cols.length === 0 && !s.data.moments.groups,
@@ -536,23 +585,7 @@ function Invariance({ cb }: { cb: CbResult }) {
           constraints="Each model adds equality constraints to the one before (loadings; intercepts or thresholds; residual variances); partial invariance as set under Groups applies throughout."
         />
       )}
-      {score.length > 0 && (
-        <Table
-          title={`Score tests of the equality constraints (${multigroup.invariance} model)`}
-          file="cb-score-tests"
-          columns={['Parameter', 'Groups', 'χ²', 'df', 'p']}
-          rows={[...score]
-            .sort((a, b) => b.x2 - a.x2)
-            .map((t) => [
-              c(t.param),
-              c(t.groups.join(' = ')),
-              c(t.x2, t.p < 0.05 ? 'warn' : ''),
-              c(t.df, '', 0),
-              pCell(t.p),
-            ])}
-          note="How much χ² would drop if this single equality across groups were released (lavaan::lavTestScore). The largest significant one is the first candidate for partial invariance (right-click the indicator → Free across groups)."
-        />
-      )}
+      {score.length > 0 && <ScoreTests score={score} model={`${multigroup.invariance} model`} />}
     </div>
   );
 }
@@ -1291,7 +1324,9 @@ export function CbTab({
     case 'loadings':
       return (
         <>
-          <CbNegativeLoadings cb={cb} />
+          <LiveOnly>
+            <CbNegativeLoadings cb={cb} />
+          </LiveOnly>
           <Loadings cb={cb} />
         </>
       );
