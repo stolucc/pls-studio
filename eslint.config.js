@@ -14,6 +14,8 @@ export default tseslint.config(
       'server/**',
       'src/generated/**',
       'scripts/webr/**',
+      // (agents' git worktrees: copies of the repository, linted in their own checkout)
+      '.claude/**',
     ],
   },
   js.configs.recommended,
