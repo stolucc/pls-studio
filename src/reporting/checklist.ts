@@ -18,6 +18,12 @@ import { ran, type ReportInput } from './methods';
 import { deletedItemsCheck, htmtCutOf } from '../measurement/report';
 import { checkAdmissibility } from '../engine/admissibility';
 import type { CbResult } from '../engine/cbsem';
+import {
+  cbNegativeLoadingFlags,
+  flagText,
+  plsNegativeLoadingFlags,
+  type NegativeLoadingFlag,
+} from '../measurement/negativeLoadings';
 
 export type CheckStatus = 'done' | 'issue' | 'na' | 'author';
 /** Where the user can address an item: a tab of the Model tab's results, or an analysis card to add. */
@@ -90,6 +96,29 @@ const HEAD = {
   index: head('index', 'Structural model', 'Index of moderated mediation reported'),
   scales: head('scales', 'Measurement model', 'Reliability of the multi-item scales reported'),
 };
+
+/**
+ * Loadings whose sign suggests a forgotten reverse-coding (measurement/negativeLoadings.ts); only
+ * when there are some, so a model without them has no extra item.
+ */
+function negativeLoadingItem(
+  flags: NegativeLoadingFlag[],
+  sources: string[],
+  tabLabel: string,
+): CheckItem | null {
+  if (!flags.length) return null;
+  return {
+    id: 'negativeloadings',
+    section: 'Measurement model',
+    label: 'Negative loadings checked for negatively worded (reverse-coded) items',
+    sources,
+    status: 'issue',
+    evidence:
+      `${flags.map(flagText).join(' ')} Reverse-code such items in the Data tab and estimate again, ` +
+      `or dismiss the note on the ${tabLabel} tab if the item is not reverse-coded.`,
+    link: tab(tabLabel),
+  };
+}
 
 /** A chain X → M → Y in the diagram (an indirect effect to test). */
 function hasMediation(input: ReportInput): boolean {
@@ -389,6 +418,12 @@ function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] 
         cb.indicators.filter((x) => x.construct === j).length > 1 &&
         input.model.constructs.find((k) => k.name === cb.constructs[j])?.type !== 'composite',
     );
+  const negativeCb = negativeLoadingItem(
+    cbNegativeLoadingFlags(input.model, input.info, cb),
+    JA,
+    'Loadings',
+  );
+  if (negativeCb) out.push(negativeCb);
   if (factorIdx.length) {
     const low = cb.indicators.flatMap((x, i) =>
       factorIdx.includes(x.construct) && Math.abs(cb.stdLoadings[i]) < 0.5
@@ -572,6 +607,12 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
     .filter((k) => !k.components?.length && k.indicators.length > 1 && k.mode === 'B')
     .map((k) => at(k.name))
     .filter((j) => j >= 0);
+  const negativePls = negativeLoadingItem(
+    plsNegativeLoadingFlags(m, input.info, pls),
+    H,
+    'Loadings & weights',
+  );
+  if (negativePls) out.push(negativePls);
   if (modeA.length) {
     const quality = (j: number) => pls.quality[j];
     // A loading below .708 can stay when it is above .40 and its construct is reliable.

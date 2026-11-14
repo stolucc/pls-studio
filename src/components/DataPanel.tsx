@@ -8,12 +8,12 @@ import {
   columnsIn,
   removeComputed,
 } from '../data/compute';
-import { observedRange, reverseCode } from '../data/recode';
 import { restoreCases, transformData } from '../data/pipeline';
 import { editFilter, FilterBadge } from './FilterBadge';
 import { RecodeDialog } from './RecodeDialog';
+import { reverseCodeItems } from './reverseCodeDialog';
 import { importCsv, loadSample } from '../io';
-import { formDialog, confirmDialog, textDialog } from './Overlays';
+import { formDialog, confirmDialog } from './Overlays';
 import { useStore } from '../store';
 import { VARS_MIME } from './dnd';
 import { IconEye, IconUpload } from './icons';
@@ -95,65 +95,8 @@ export function DataPanel() {
   const reversed = new Map((info?.reversed ?? []).map((r) => [r.name, r]));
   /** Reverse-code the selected items on a scale the user confirms (defaults to the observed range). */
   const reverseSelected = async () => {
-    if (!data || !info) return;
     const names = visible.map((v) => v.name).filter((n) => selected.includes(n));
-    const done = names.filter((n) => reversed.has(n));
-    const known =
-      done.length === names.length &&
-      new Set(done.map((n) => `${reversed.get(n)!.min},${reversed.get(n)!.max}`)).size === 1
-        ? reversed.get(done[0])
-        : undefined;
-    const range = known ? [known.min, known.max] : observedRange(data, names);
-    const parse = (t: string) => {
-      const m = t
-        .split(/[\s,;–-]+/)
-        .filter(Boolean)
-        .map(Number);
-      return m.length === 2 && m.every(Number.isFinite) && m[0] < m[1] ? m : null;
-    };
-    // Every chosen item already reversed: the dialog offers to undo it.
-    const undo = done.length === names.length;
-    const what = names.length === 1 ? names[0] : `${names.length} items`;
-    const itemList = names.length > 1 ? ` Items: ${names.join(', ')}.` : '';
-    const text = await textDialog({
-      title: undo ? `Undo the reverse-coding of ${what}?` : `Reverse-code ${what}?`,
-      body:
-        'Each value x becomes lowest + highest − x on the answer scale (on 1–5: 1 ↔ 5, 2 ↔ 4), for negatively worded items. ' +
-        `Doing it again on the same scale undoes it.${itemList}`,
-      confirmLabel: undo ? 'Undo' : 'Reverse-code',
-      text: {
-        label: 'Answer scale: lowest, highest',
-        initial: range ? `${range[0]}, ${range[1]}` : '1, 5',
-        check: (t) =>
-          parse(t) ? null : 'Enter the lowest and highest value of the scale, e.g. 1, 5.',
-      },
-    });
-    if (text === null) return;
-    const [min, max] = parse(text)!;
-    try {
-      // (on the base dataset: the cases the filter leaves out are reverse-coded too)
-      let undone: string[] = [];
-      const r = transformData(data, info, (d, i) => {
-        const rc = reverseCode(d, i, names, min, max);
-        undone = rc.undone;
-        return rc;
-      });
-      useStore.getState().setData(r.data, r.info);
-      const changed = names.filter((n) => !undone.includes(n));
-      useStore
-        .getState()
-        .toast(
-          'success',
-          [
-            changed.length ? `Reverse-coded ${changed.join(', ')} (${min}–${max}).` : '',
-            undone.length ? `Back to the original coding: ${undone.join(', ')}.` : '',
-          ]
-            .filter(Boolean)
-            .join(' '),
-        );
-    } catch (e) {
-      useStore.getState().toast('error', (e as Error).message);
-    }
+    await reverseCodeItems(names);
   };
 
   const computed = new Map((info?.computed ?? []).map((c) => [c.name, c]));

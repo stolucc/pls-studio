@@ -26,6 +26,7 @@ import {
 } from '../../measurement/reestimate';
 import { deletedItemText } from '../../measurement/report';
 import { withDeletedItem, withoutDeletedItem } from '../../measurement/state';
+import { skipOf } from '../../measurement/negativeLoadings';
 import { toSpec } from '../../model/project';
 import { resultsKey, useStore } from '../../store';
 import { confirmDialog, textDialog } from '../Overlays';
@@ -49,6 +50,11 @@ const BAND_TEXT: Record<LoadingBand, string> = {
   keep: '0.70 or more: keep',
 };
 
+/** The decision of a negative loading, before the deletion rules apply. */
+export const NEGATIVE_FIRST =
+  'Negative loading: first check whether it is a negatively worded item that needs reverse-coding ' +
+  '(the note above the table). Consider deleting it only if it is not.';
+
 export function LoadingTriage({ pls }: { pls: PlsResult }) {
   const model = useStore((s) => s.model);
   const data = useStore((s) => s.data);
@@ -57,7 +63,12 @@ export function LoadingTriage({ pls }: { pls: PlsResult }) {
   const key = useStore((s) => resultsKey(s));
   const state = useTriage();
   const [error, setError] = useState<string | null>(null);
+  const info = useStore((s) => s.dataInfo);
   const items = useMemo(() => triageItems(model, pls), [model, pls]);
+  // A negative loading may be a forgotten reverse-coding: say so before the deletion rules.
+  const skip = skipOf(model, info);
+  const askReverse = (item: TriageItem) =>
+    item.loading < 0 && !skip.reversed.has(item.indicator) && !skip.dismissed.has(item.indicator);
   const log = model.measurement?.deletedItems ?? [];
   if (!items.length && !log.length) return null;
 
@@ -228,6 +239,7 @@ export function LoadingTriage({ pls }: { pls: PlsResult }) {
                 key={removalKey(item)}
                 item={item}
                 run={runs[removalKey(item)]}
+                askReverse={askReverse(item)}
                 onDelete={() => void remove(item)}
               />
             ))}
@@ -267,15 +279,19 @@ export function LoadingTriage({ pls }: { pls: PlsResult }) {
 function TriageRow({
   item,
   run,
+  askReverse,
   onDelete,
 }: {
   item: TriageItem;
   run: RemovalRun | undefined;
+  /** The loading is negative and the item is neither reversed nor dismissed. */
+  askReverse: boolean;
   onDelete: () => void;
 }) {
   const after = run?.after ?? null;
   let decision: string;
-  if (item.band === 'keep') decision = 'Keep.';
+  if (askReverse) decision = NEGATIVE_FIRST;
+  else if (item.band === 'keep') decision = 'Keep.';
   else if (!canRemove(item)) decision = 'Removal would leave a single indicator: keep it.';
   else if (run?.error) decision = `Not re-estimated: ${run.error}`;
   else if (item.band === 'delete') decision = 'Candidate for deletion, if content validity allows.';

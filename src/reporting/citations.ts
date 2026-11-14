@@ -732,6 +732,151 @@ const WORKS: Record<string, { cite: string; entry: (version?: string) => Entry }
         doi: '10.1037/1082-989X.9.3.275',
       }),
   },
+  // Fit indices (the fit tables' hover help: reporting/fitHelp.ts)
+  bentler1990: {
+    cite: 'Bentler, 1990',
+    entry: () =>
+      art({
+        author: 'Bentler, Peter M.',
+        title: 'Comparative fit indexes in structural models',
+        journal: 'Psychological Bulletin',
+        year: '1990',
+        volume: '107',
+        number: '2',
+        pages: '238--246',
+        doi: '10.1037/0033-2909.107.2.238',
+      }),
+  },
+  tucker1973: {
+    cite: 'Tucker & Lewis, 1973',
+    entry: () =>
+      art({
+        author: 'Tucker, Ledyard R. and Lewis, Charles',
+        title: 'A reliability coefficient for maximum likelihood factor analysis',
+        journal: 'Psychometrika',
+        year: '1973',
+        volume: '38',
+        number: '1',
+        pages: '1--10',
+        doi: '10.1007/BF02291170',
+      }),
+  },
+  browne1993: {
+    cite: 'Browne & Cudeck, 1993',
+    entry: () =>
+      art(
+        {
+          author: 'Browne, Michael W. and Cudeck, Robert',
+          title: 'Alternative ways of assessing model fit',
+          booktitle: 'Testing Structural Equation Models',
+          editor: 'Bollen, Kenneth A. and Long, J. Scott',
+          publisher: 'Sage',
+          address: 'Newbury Park, CA',
+          year: '1993',
+          pages: '136--162',
+        },
+        'incollection',
+      ),
+  },
+  maccallum1996: {
+    cite: 'MacCallum et al., 1996',
+    entry: () =>
+      art({
+        author: 'MacCallum, Robert C. and Browne, Michael W. and Sugawara, Hazuki M.',
+        title: 'Power analysis and determination of sample size for covariance structure modeling',
+        journal: 'Psychological Methods',
+        year: '1996',
+        volume: '1',
+        number: '2',
+        pages: '130--149',
+        doi: '10.1037/1082-989X.1.2.130',
+      }),
+  },
+  kenny2015: {
+    cite: 'Kenny et al., 2015',
+    entry: () =>
+      art({
+        author: 'Kenny, David A. and Kaniskan, Burcu and McCoach, D. Betsy',
+        title: 'The performance of {RMSEA} in models with small degrees of freedom',
+        journal: 'Sociological Methods \\& Research',
+        year: '2015',
+        volume: '44',
+        number: '3',
+        pages: '486--507',
+        doi: '10.1177/0049124114543236',
+      }),
+  },
+  marsh2004rules: {
+    cite: 'Marsh, Hau & Wen, 2004',
+    entry: () =>
+      art({
+        author: 'Marsh, Herbert W. and Hau, Kit-Tai and Wen, Zhonglin',
+        title:
+          "In search of golden rules: Comment on hypothesis-testing approaches to setting cutoff values for fit indexes and dangers in overgeneralizing {H}u and {B}entler's (1999) findings",
+        journal: 'Structural Equation Modeling',
+        year: '2004',
+        volume: '11',
+        number: '3',
+        pages: '320--341',
+        doi: '10.1207/s15328007sem1103_2',
+      }),
+  },
+  mcneish2023: {
+    cite: 'McNeish & Wolf, 2023',
+    entry: () =>
+      art({
+        author: 'McNeish, Daniel and Wolf, Melissa G.',
+        title: 'Dynamic fit index cutoffs for confirmatory factor analysis models',
+        journal: 'Psychological Methods',
+        year: '2023',
+        volume: '28',
+        number: '1',
+        pages: '61--88',
+        doi: '10.1037/met0000425',
+      }),
+  },
+  akaike1974: {
+    cite: 'Akaike, 1974',
+    entry: () =>
+      art({
+        author: 'Akaike, Hirotugu',
+        title: 'A new look at the statistical model identification',
+        journal: 'IEEE Transactions on Automatic Control',
+        year: '1974',
+        volume: '19',
+        number: '6',
+        pages: '716--723',
+        doi: '10.1109/TAC.1974.1100705',
+      }),
+  },
+  schwarz1978: {
+    cite: 'Schwarz, 1978',
+    entry: () =>
+      art({
+        author: 'Schwarz, Gideon',
+        title: 'Estimating the dimension of a model',
+        journal: 'The Annals of Statistics',
+        year: '1978',
+        volume: '6',
+        number: '2',
+        pages: '461--464',
+        doi: '10.1214/aos/1176344136',
+      }),
+  },
+  henseler2016imds: {
+    cite: 'Henseler, Hubona & Ray, 2016',
+    entry: () =>
+      art({
+        author: 'Henseler, J{\\"o}rg and Hubona, Geoffrey and Ray, Pauline Ash',
+        title: 'Using {PLS} path modeling in new technology research: Updated guidelines',
+        journal: 'Industrial Management \\& Data Systems',
+        year: '2016',
+        volume: '116',
+        number: '1',
+        pages: '2--20',
+        doi: '10.1108/IMDS-09-2015-0382',
+      }),
+  },
   // Software
   rcore: {
     cite: 'R Core Team',

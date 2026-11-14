@@ -33,10 +33,17 @@ export interface MeasurementLog {
   /** Construct id pairs (sorted) marked as conceptually similar. */
   similarPairs?: [string, string][];
   deletedItems?: DeletedItem[];
+  /**
+   * Indicators whose negative loading the author confirmed is not a forgotten reverse-coding
+   * (the negative-loading note's "Not reverse-coded — dismiss"; measurement/negativeLoadings.ts).
+   */
+  notReversed?: string[];
 }
 
 const MAX_PAIRS = 2000;
 const MAX_DELETED = 1000;
+const MAX_NOT_REVERSED = 5000;
+const MAX_NAME = 200;
 /** Loadings, AVE and reliabilities are near the unit interval; anything far outside is not ours. */
 const LIMIT = 10;
 
@@ -101,12 +108,36 @@ function parsePairs(raw: unknown, ids: Set<string>): [string, string][] {
 }
 
 /**
+ * The dismissed negative-loading notes: a list of indicator names, or the file is invalid (any
+ * other value throws). Names that are no longer indicators of the model are dropped, and
+ * duplicates are kept once.
+ */
+function parseNotReversed(raw: unknown, indicators: ReadonlySet<string> | undefined): string[] {
+  if (raw === undefined) return [];
+  const invalid =
+    'Invalid project file: measurement.notReversed must be a list of indicator names.';
+  if (!Array.isArray(raw) || raw.length > MAX_NOT_REVERSED) throw new Error(invalid);
+  const out: string[] = [];
+  for (const name of raw) {
+    if (typeof name !== 'string' || name === '' || name.length > MAX_NAME) throw new Error(invalid);
+    if (indicators && !indicators.has(name)) continue;
+    if (!out.includes(name)) out.push(name);
+  }
+  return out;
+}
+
+/**
  * Parse and strictly validate a file's `measurement` field: pairs of existing construct ids,
  * deleted-item entries with every number finite. Returns `{}` when nothing valid is left, so
  * it spreads into a parsed model without adding an empty field.
  */
-export function parseMeasurement(raw: unknown, ids: Set<string>): { measurement?: MeasurementLog } {
+export function parseMeasurement(
+  raw: unknown,
+  ids: Set<string>,
+  indicators?: ReadonlySet<string>,
+): { measurement?: MeasurementLog } {
   if (!isObj(raw)) return {};
+  const notReversed = parseNotReversed(raw.notReversed, indicators);
   const similarPairs = parsePairs(raw.similarPairs, ids);
   const deletedItems = Array.isArray(raw.deletedItems)
     ? raw.deletedItems
@@ -114,11 +145,12 @@ export function parseMeasurement(raw: unknown, ids: Set<string>): { measurement?
         .map(parseDeleted)
         .filter((d): d is DeletedItem => d !== null)
     : [];
-  if (!similarPairs.length && !deletedItems.length) return {};
+  if (!similarPairs.length && !deletedItems.length && !notReversed.length) return {};
   return {
     measurement: {
       ...(similarPairs.length ? { similarPairs } : {}),
       ...(deletedItems.length ? { deletedItems } : {}),
+      ...(notReversed.length ? { notReversed } : {}),
     },
   };
 }
@@ -159,10 +191,20 @@ export function withoutDeletedItem(
   return compact({ ...log, deletedItems });
 }
 
+/** The log with the indicator's negative loading marked as not a reverse-coding problem. */
+export function withNotReversed(
+  log: MeasurementLog | undefined,
+  indicator: string,
+): MeasurementLog | undefined {
+  const rest = (log?.notReversed ?? []).filter((n) => n !== indicator);
+  return compact({ ...log, notReversed: [...rest, indicator] });
+}
+
 /** Empty lists dropped; undefined when nothing is left. */
 function compact(log: MeasurementLog): MeasurementLog | undefined {
   const out: MeasurementLog = {};
   if (log.similarPairs?.length) out.similarPairs = log.similarPairs;
   if (log.deletedItems?.length) out.deletedItems = log.deletedItems;
-  return out.similarPairs || out.deletedItems ? out : undefined;
+  if (log.notReversed?.length) out.notReversed = log.notReversed;
+  return out.similarPairs || out.deletedItems || out.notReversed ? out : undefined;
 }

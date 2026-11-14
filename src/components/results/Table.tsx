@@ -12,6 +12,8 @@ export type Cell = {
   d?: number;
   bold?: boolean;
   /** background (shading, e.g. a correlation's size) */ bg?: string;
+  /** Help shown beside the value (e.g. a HelpTip); not part of the copied or exported table. */
+  tip?: ReactNode;
 };
 export type Row = Cell[];
 export const c = (v: number | string | null, cls?: string, d?: number): Cell => ({ v, cls, d });
@@ -111,6 +113,7 @@ export function Table({
                   style={cellStyle(cell)}
                 >
                   {typeof cell.v === 'number' ? fmt(cell.v, cell.d ?? 3) : (cell.v ?? '—')}
+                  {cell.tip}
                 </td>
               ))}
             </tr>

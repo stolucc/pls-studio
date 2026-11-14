@@ -13,6 +13,9 @@ import { HocTab } from './HocTab';
 import { HtmtHelper } from './HtmtHelper';
 import { IpmaTab } from './IpmaTab';
 import { LoadingTriage } from './LoadingTriage';
+import { FitHelpTip, withFitHelp } from './FitHelpTip';
+import { PlsNegativeLoadings } from './NegativeLoadingNote';
+import { PLS_FIT_ROWS } from '../../reporting/fitHelp';
 import {
   MediationNeedsBoot,
   MediationReport,
@@ -498,7 +501,10 @@ function Fit({ pls, test }: { pls: PlsResult; test: FitTestResult | null }) {
   return (
     <>
       <div className="table-tools">
-        <h3>Test of overall model fit</h3>
+        <h3>
+          Test of overall model fit
+          <FitHelpTip id="plsTest" />
+        </h3>
         <button className="btn sm" onClick={() => run('fittest')} disabled={!!job}>
           <IconRepeat size={13} /> {test ? 'Re-run' : 'Run'} bootstrap test ({samples})
         </button>
@@ -511,7 +517,7 @@ function Fit({ pls, test }: { pls: PlsResult; test: FitTestResult | null }) {
             title={which === 'saturated' ? 'Saturated model' : 'Estimated model'}
             file={`fit-${which}`}
             columns={['Discrepancy', 'Value', 'HI95', 'HI99', 'Decision']}
-            rows={rows(which)}
+            rows={withFitHelp(rows(which), PLS_FIT_ROWS)}
           />
         ))}
       </div>
@@ -879,6 +885,7 @@ export function PlsTab({
     case 'outer':
       return (
         <>
+          <PlsNegativeLoadings pls={pls} />
           <Outer pls={pls} boot={boot} />
           <LoadingTriage pls={pls} />
         </>

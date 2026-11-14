@@ -30,6 +30,9 @@ import { dfiFitSlot } from './dfiSlot';
 import { FitGuide, openComparisonCard } from './FitGuide';
 import { MisfitPanel } from './MisfitPanel';
 import { AdmissibilityPanel, WarningList } from './Admissibility';
+import { withFitHelp } from './FitHelpTip';
+import { CbNegativeLoadings } from './NegativeLoadingNote';
+import { CB_FIT_ROWS } from '../../reporting/fitHelp';
 
 export const CB_TABS = [
   { id: 'fit', label: 'Model fit' },
@@ -219,7 +222,10 @@ export function FitBody({ cb, dfi }: { cb: CbResult; dfi: DfiForFit | null }) {
             robust ? 'Robust / scaled' : '',
             ...(dfi ? [`Dynamic cutoffs (dynamic::${dfi.result.fn})`] : []),
           ]}
-          rows={dfi ? rows.map((r) => (r.length < 4 ? [...r, c(null)] : r)) : rows}
+          rows={withFitHelp(
+            dfi ? rows.map((r) => (r.length < 4 ? [...r, c(null)] : r)) : rows,
+            CB_FIT_ROWS,
+          )}
           note={
             <>
               {dfi
@@ -1277,7 +1283,12 @@ export function CbTab({
     case 'paths':
       return <Paths cb={cb} boot={boot} />;
     case 'loadings':
-      return <Loadings cb={cb} />;
+      return (
+        <>
+          <CbNegativeLoadings cb={cb} />
+          <Loadings cb={cb} />
+        </>
+      );
     case 'variances':
       return <Variances cb={cb} />;
     case 'effects':
