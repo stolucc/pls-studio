@@ -163,6 +163,36 @@ export function ModelChecks() {
   );
 }
 
+/**
+ * Direct effects on indicators (CB-SEM; from syntax or a project file), each removable with a
+ * click. Shown under every method, so that a model switched away from CB-SEM can drop them.
+ */
+export function IndicatorPathsSection() {
+  const model = useStore((s) => s.model);
+  const removeIndicatorPaths = useStore((s) => s.removeIndicatorPaths);
+  const nm = (id: string) => model.constructs.find((c) => c.id === id)?.name ?? id;
+  return (
+    <div className="section">
+      <div className="section-title">Direct effects on indicators</div>
+      {(model.indicatorPaths ?? []).map((p) => (
+        <div className="ind" key={p.id}>
+          <span>
+            {nm(p.from)} → {p.to}
+          </span>
+          <span />
+          <button
+            className="btn sm ghost always"
+            onClick={() => removeIndicatorPaths([p.id])}
+            title="Remove this direct effect"
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** CB-SEM: covariances fixed at zero (not drawn), each freed again with a click. */
 export function ZeroCovariances() {
   const model = useStore((s) => s.model);

@@ -22,6 +22,7 @@ import {
   newId,
   pruneCorrelations,
   pruneFixedLoadings,
+  pruneIndicatorPaths,
   toSpec,
   unconfirmedUncorrelated,
   type Construct,
@@ -253,6 +254,8 @@ export interface State {
   removeIndicator: (id: string, name: string) => void;
   addPath: (from: string, to: string) => boolean;
   removePaths: (ids: string[]) => void;
+  /** CB-SEM: remove direct effects on indicators (model.indicatorPaths) by id. */
+  removeIndicatorPaths: (ids: string[]) => void;
   /** The constant (triangle) for means and intercepts, placed left of the model; `addMean` draws its arrow to a construct. */
   addConstant: () => void;
   moveConstant: (x: number, y: number) => void;
@@ -426,11 +429,14 @@ export function historySlice(set: SetState, get: GetState) {
   return {
     commit: (fn) => {
       if (readOnly(get())) return;
+      // What a change leaves dangling (correlations, direct effects, means of removed constructs) goes with it.
+      const prune = (m: ModelState) =>
+        pruneMeans(pruneCorrelations(pruneIndicatorPaths(pruneFixedLoadings(m))));
       set((s) =>
         s.history
-          ? { model: pruneMeans(pruneCorrelations(pruneFixedLoadings(fn(s.model)))), dirty: true }
+          ? { model: prune(fn(s.model)), dirty: true }
           : {
-              model: pruneMeans(pruneCorrelations(pruneFixedLoadings(fn(s.model)))),
+              model: prune(fn(s.model)),
               past: [...s.past.slice(-HISTORY + 1), s.model],
               future: [],
               dirty: true,
@@ -758,6 +764,14 @@ export function arrowSlice(set: SetState, get: GetState) {
       return true;
     },
     removePaths: (ids) => get().deleteItems([], ids),
+    removeIndicatorPaths: (ids) => {
+      if (!get().model.indicatorPaths?.some((p) => ids.includes(p.id))) return;
+      get().commit((m) => {
+        const kept = (m.indicatorPaths ?? []).filter((p) => !ids.includes(p.id));
+        const { indicatorPaths: _p, ...rest } = m;
+        return kept.length ? { ...rest, indicatorPaths: kept } : rest;
+      });
+    },
     updatePath: (id, patch) =>
       get().commit((m) => ({
         ...m,

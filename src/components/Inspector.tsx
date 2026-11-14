@@ -43,6 +43,7 @@ import {
   ProcessEngine,
   ProcessOptions,
   ZeroCovariances,
+  IndicatorPathsSection,
 } from './inspector/ModelSections';
 
 function ConstructInspector({ c }: { c: Construct }) {
@@ -751,6 +752,7 @@ function ModelInspector() {
       {settings.method === 'cbsem' && model.correlations?.some((k) => k.zero) && (
         <ZeroCovariances />
       )}
+      {!!model.indicatorPaths?.length && <IndicatorPathsSection />}
       <MethodChoice />
       {proc && <ProcessEngine where={where} />}
       {settings.method === 'pls' && hasHoc && <HocApproach />}

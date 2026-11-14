@@ -473,6 +473,20 @@ export function pruneFixedLoadings(model: ModelState): ModelState {
 }
 
 /** Drop correlations whose constructs were deleted or whose indicators are no longer assigned. */
+/**
+ * Drop direct effects on indicators whose construct or indicator is no longer in the model
+ * (after a construct is deleted or an indicator unassigned).
+ */
+export function pruneIndicatorPaths(model: ModelState): ModelState {
+  if (!model.indicatorPaths?.length) return model;
+  const ids = new Set(model.constructs.map((c) => c.id));
+  const assigned = new Set(model.constructs.flatMap((c) => c.indicators));
+  const kept = model.indicatorPaths.filter((p) => ids.has(p.from) && assigned.has(p.to));
+  if (kept.length === model.indicatorPaths.length) return model;
+  const { indicatorPaths: _p, ...rest } = model;
+  return kept.length ? { ...rest, indicatorPaths: kept } : rest;
+}
+
 export function pruneCorrelations(model: ModelState): ModelState {
   if (!model.correlations?.length) return model;
   const ids = new Set(model.constructs.map((c) => c.id));
