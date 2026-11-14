@@ -13,7 +13,8 @@ npm install
 npm run webr:fetch # webR + pinned R packages (and their sources) into public/webr (~300 MB, once)
 npm run data:fetch # example data the app may not distribute (Mplus User's Guide, RI-CLPM) into .cache/, for the tests
 npm run dev        # http://localhost:5175
-npm test           # client tests; npm run test:webr runs the R packages in webR; npm run test:server
+npm test           # client unit tests (no R); npm run test:webr runs the R packages in webR; npm run test:server
+npm run test:gate  # before a commit: type check, lint, formatting, unit tests and the core R-bridge tests in desktop R
 npm run build      # production build in dist/ (fetches public/webr if missing; strict CSP injected)
 ```
 
@@ -119,20 +120,36 @@ front end talks to R (webR and the desktop helper), the Analyses log, collaborat
 
 ## Validation
 
-Three layers, run by `.github/workflows/ci.yml` on every push:
+Three layers, below. **What runs where.** `.github/workflows/ci.yml` describes a CI run on every push, but CI is
+currently switched off: nothing runs unless it is run locally. `npm test` runs only the plain unit tests: every
+`*.webr.test.ts` (the R bridge) is left out unless `WEBR_TESTS` is set, so on its own it checks nothing of what R
+computes. `npm run test:gate` (`scripts/test-gate.mjs`) is the local gate before a commit: type check, lint,
+formatting, the unit tests, then about twenty of the bridge's most important webR test files (request validation and
+code injection, quoting, lavaan, cSEM, seminr, the published PLS results, the core CB-SEM and PLS analyses) with R in
+desktop R (`WEBR_TESTS=1 PS_NATIVE_R=1`, the helper's library), in well under a minute of R. The full webR suites
+(`npm run test:webr`, `test:webr:all`), the evidence run (`npm run validate:evidence`) and the server tests
+(`npm run test:server`, PostgreSQL) are run by hand. Some suites skip themselves silently when what they need is
+missing: the Bayesian desktop runs (`src/examples/mplus/bsem.native.test.ts`, `dsem.native.test.ts`: only with
+`NATIVE_R_TESTS=1` and blavaan/rstan with a C++ toolchain in desktop R), the RI-CLPM data conversion and reshape
+(`src/examples/remote/convert.test.ts`, `reshape.test.ts`: only with the data in `.cache/`, from
+`npm run data:fetch`, and `python3`), and the ICSE 2019 BARCOMB replication (`src/rengine/barcomb.webr.test.ts`: only
+with `BARCOMB_DATA` pointing to its CSV). The recorded Bayesian runs those native tests write
+(`src/engine/__fixtures__/blavaan/mplus.json`, `dsem/mplus.json`) carry hashes of the card's request and of the R
+code they ran; `bsem.test.ts` and `dsem.test.ts` fail once either has changed, until the native test is run again.
 
 1. **The estimators are the R packages themselves.** lavaan, cSEM, seminr, MIIVsem, semTools, modsem, mice and
    the rest run unchanged in webR (versions pinned in `scripts/webr/webr-lock.json`). Only the built-in PLS
    engine (`src/engine`) and the simulation engine are reimplementations.
-2. **Native R references.** `npm test` runs ~900 client tests, among them a reference corpus in
+2. **Native R references.** `npm test` runs the client unit tests, among them a reference corpus in
    `src/engine/__fixtures__/validation` (54 cases) produced by `npm run validate:generate`
    (`scripts/validation/generate.R`) and further fixtures from the 37 scripts in `scripts/validation/`, all
-   written by native R. `npm run test:webr` (~900 tests) re-runs the packages in webR, through the same bridge
+   written by native R. `npm run test:webr` re-runs the packages in webR, through the same bridge
    code the app uses, and compares with those fixtures; the slowest checks run only with `WEBR_SLOW=1`
-   (`npm run test:webr:all`, nightly in CI). `npm run test:native` runs the same tests with the bridge's calls
+   (`npm run test:webr:all`). `npm run test:native` runs the same tests with the bridge's calls
    in desktop R instead of webR (the helper's R workers and library, `src/rengine/nativeR.ts`): several times
    faster, for development; the validation record is always produced with webR, which is what the browser
-   computes. `npm run test:server` runs the server's 61 integration tests against a real PostgreSQL database.
+   computes. `npm run test:server` runs the server's integration tests against a real PostgreSQL database (a database whose name
+   ends in `_test`: the tests drop its schema).
 3. **Published results.** `src/rengine/published.webr.test.ts` reproduces, to the printed three decimals and
    with every engine (seminr, cSEM, built-in), values printed by other people with other software: the
    corporate reputation models of Hair et al. (2021), *PLS-SEM Using R*, chapters 4 and 6 (reliabilities,

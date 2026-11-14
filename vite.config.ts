@@ -166,7 +166,7 @@ export default defineConfig({
   // Statistical tests (Monte Carlo, bootstrap) run long under mutation-testing instrumentation.
   // setupFiles: the validation evidence (src/validation/setup.ts), recorded only with PS_VALIDATION_DIR set.
   // The slow webR tests (src/rengine/webrSlow.ts: slowIt, and files named *.slow.webr.test.ts) run with WEBR_SLOW set
-  // (npm run validate:evidence, the nightly CI job); the webR files start slowest first (src/validation/webrSequencer.ts).
+  // (npm run validate:evidence, npm run test:webr:all); the webR files start slowest first (src/validation/webrSequencer.ts).
   // The webR files of desktop-only packages (src/validation/evidenceRuns.json `desktop`) run only in desktop R (PS_NATIVE_R).
   test: {
     environment: 'node',

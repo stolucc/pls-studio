@@ -12,6 +12,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx}\" \"scripts/**/*.{mjs,js,ts}\" \"server/src/**/*.ts\" \"server/tests/**/*.ts\" vite.config.ts eslint.config.js server/vitest.config.ts",
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"scripts/**/*.{mjs,js,ts}\" \"server/src/**/*.ts\" \"server/tests/**/*.ts\" vite.config.ts eslint.config.js server/vitest.config.ts",
     "validate:generate": "Rscript scripts/validation/generate.R",
+    "test:gate": "node scripts/test-gate.mjs",
     "test:server": "cd server && npm test",
     "server": "cd server && npm run dev",
     "test:webr": "WEBR_TESTS=1 vitest run webr.test",

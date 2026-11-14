@@ -1014,9 +1014,12 @@ helpers hold the packages' defaults). Opening an example resets the estimation s
 
 Correctness rests on three layers (README, "Validation"): the estimators are the packages
 themselves; fixtures from native R check the bridge and the built-in engine at 1e-5; printed
-results from the literature check the whole chain. `npm test` (unit, ~930), `npm run test:webr`
-(R in webR, ~370), `npm run test:server` (Postgres, 53), `go test ./...` in helper/; CI runs all
-four.
+results from the literature check the whole chain. `npm test` (unit tests, no R), `npm run test:webr`
+(R in webR), `npm run test:server` (Postgres), `go test ./...` in helper/. CI is switched off: they run
+locally, and `npm run test:gate` (type check, lint, formatting, unit tests and the core R-bridge tests in
+desktop R) is the gate before a commit. Some suites skip themselves when what they need is missing (README,
+"Validation": the Bayesian desktop runs, the RI-CLPM conversion without `.cache/` and Python, BARCOMB
+without its data).
 
 ## 9. Build and deploy
 
