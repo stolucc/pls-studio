@@ -101,6 +101,16 @@ describe('request values never become R code', () => {
     );
   }, 900_000);
 
+  it('validated fields under a longer name ($ matches a unique partial name)', async () => {
+    // (the bridges read req$estimator, which returns req$estimatorX when there is no
+    //  req$estimator: the check must see the same value, or the payload reaches sem())
+    const { estimator: _e, ...cb } = base('ps_cb');
+    const bad = { ...cb, estimatorX: `ML", se = {PWNED_CANARY(); "standard"}, test = "standard` };
+    await refused('ps_cb', bad, 'lavaan', /Invalid estimator/);
+    const { missing: _m, ...cb2 } = base('ps_cb');
+    await refused('ps_cb', { ...cb2, missingX: PAYLOAD }, 'lavaan', /Invalid missing-value/);
+  }, 900_000);
+
   it('names that are not variables of the request', async () => {
     const cpa = base('ps_cpa');
     await refused('ps_cpa', { ...cpa, moderators: [PAYLOAD] }, 'manymome', /Unknown variable/);

@@ -10,20 +10,33 @@ ps_parse <- function(req_json) ps_validate(jsonlite::fromJSON(req_json, simplify
 #' Fields that are written into R code as they are must be one of their known
 #' values: requests can come from imported or shared project files.
 ps_validate <- function(req) {
-  # [[ ]] matches names exactly ($ would match req$estimators for req$estimator).
+  # The bridges read these fields with $, which also matches a unique partial name: with no
+  # req$estimator, req$estimator returns req$estimatorX. So check what $ returns, not only the exact
+  # name, or a request could carry R code past this check under a longer name. Longer names that are
+  # request fields of their own (req$estimators, req$interactions: read under their own names, and
+  # checked or quoted there) are not what $ is meant to find for the shorter one.
+  own_fields <- c("estimators", "interactions")
+  dollar <- function(x, k) {
+    if (!is.list(x)) {
+      return(NULL)
+    }
+    exact <- x[[k, exact = TRUE]]
+    if (!is.null(exact)) {
+      return(exact)
+    }
+    hit <- pmatch(k, names(x))
+    if (is.na(hit) || names(x)[hit] %in% own_fields) NULL else x[[hit]]
+  }
+  get <- function(x, ...) {
+    for (k in c(...)) {
+      x <- dollar(x, k)
+    }
+    x
+  }
   one_of <- function(x, allowed, what) {
     if (!is.null(x) && !(length(x) == 1 && is.character(x) && x %in% allowed)) {
       stop(sprintf("Invalid %s in the request.", what))
     }
-  }
-  get <- function(x, ...) {
-    for (k in c(...)) {
-      if (!is.list(x)) {
-        return(NULL)
-      }
-      x <- x[[k, exact = TRUE]]
-    }
-    x
   }
   cb_est <- c("ML", "MLM", "MLMV", "MLR", "GLS", "ULS", "WLS", "WLSMV", "2SLS", "RML")
   one_of(get(req, "estimator"), cb_est, "estimator")
