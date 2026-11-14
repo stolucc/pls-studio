@@ -71,7 +71,7 @@ const without = <T>(o: Record<string, T>, id: string) => {
   return rest;
 };
 
-/** Add a frozen card (a model snapshot) with its result, after the selected card or at the end; selects it. */
+/** Add a frozen card (a model snapshot or a model run) with its result, at the end of the log; selects it. */
 export async function addFrozenCard(
   type: string,
   options: unknown,
@@ -256,18 +256,9 @@ export function nudgeCard(id: string, delta: -1 | 1) {
 
 export const selectCard = (id: string | null) => useAnalyses.setState({ selected: id });
 
-/**
- * Calculate the model on the Model tab when its results are not current (a card that works on the model is about
- * to run): the estimation job of the Model tab's Calculate, awaited. Returns when the job has ended, whether or not
- * it produced results (an error is shown on the Model tab; the card's own check then says what is missing).
- */
-export async function ensureModelCalculated(): Promise<void> {
-  const st = useStore.getState();
-  if (!st.data || (st.results && st.results.key === resultsKey(st)) || st.job) return;
-  const { run } = await import('../runner');
-  run('estimate');
-  // (the job is set synchronously by run(); when validation refuses, it is not set and there is nothing to await)
-  await new Promise<void>((resolve) => {
+/** Resolves when no job runs on the Model tab (at once when none does). */
+function jobEnded(): Promise<void> {
+  return new Promise<void>((resolve) => {
     if (!useStore.getState().job) {
       resolve();
       return;
@@ -279,6 +270,23 @@ export async function ensureModelCalculated(): Promise<void> {
       }
     });
   });
+}
+
+/**
+ * Calculate the model on the Model tab when its results are not current (a card that works on the model is about
+ * to run): the estimation job of the Model tab's Calculate, awaited. A job already running (e.g. an estimation
+ * started by auto-recalculate) is awaited first, then the results are looked at again. Returns when the job has
+ * ended, whether or not it produced results (an error is shown on the Model tab; the card's own check then says
+ * what is missing).
+ */
+export async function ensureModelCalculated(): Promise<void> {
+  await jobEnded();
+  const st = useStore.getState();
+  if (!st.data || (st.results && st.results.key === resultsKey(st))) return;
+  const { run } = await import('../runner');
+  run('estimate');
+  // (the job is set synchronously by run(); when validation refuses, it is not set and there is nothing to await)
+  await jobEnded();
 }
 
 export async function runCard(id: string) {

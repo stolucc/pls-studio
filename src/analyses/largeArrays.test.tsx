@@ -72,7 +72,7 @@ describe('200,000 values', () => {
   it('the index plot of influential cases', () => {
     const rows = Array.from({ length: N }, (_, i) => i + 1);
     const inf: InfluenceResult = {
-      approach: 'approx',
+      approach: 'approximate',
       rows,
       gcd: Array.from(values, (v) => v / 1000),
       md: Array.from(values),
@@ -84,7 +84,7 @@ describe('200,000 values', () => {
       engine: { package: 'semfindr', version: '0.2.1' } as InfluenceResult['engine'],
     };
     const html = renderToStaticMarkup(
-      <influenceAnalysis.View result={inf} options={{ approach: 'approx' }} current />,
+      <influenceAnalysis.View result={inf} options={{ approach: 'approximate' }} current />,
     );
     expect(html).toContain('Index plot of Generalized Cook’s distance');
   });
