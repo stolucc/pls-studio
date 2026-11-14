@@ -1,5 +1,5 @@
-// Reverse-coding the chosen items, from the model editor's variable list or the Data tab: one
-// confirm dialog that asks for the answer scale (the observed range by default), then
+// Reverse-coding the chosen items, from the model editor's variable list, the Data tab or the
+// negative-loading note in the results: one confirm dialog that asks for the answer scale (the observed range by default), then
 // data/recode.ts's reverseCode over every case.
 
 import { transformData } from '../data/pipeline';
@@ -29,9 +29,10 @@ export function reversibleColumns(): string[] {
 /**
  * Reverse-code `names` on a scale the user confirms (it defaults to the observed range, or to
  * the scale they are reversed on already). When every item is reversed already, the dialog
- * offers to undo it. Resolves true when the data changed.
+ * offers to undo it. `afterward` is added to the success message (e.g. that the model needs
+ * estimating again). Resolves true when the data changed.
  */
-export async function reverseCodeColumns(names: string[]): Promise<boolean> {
+export async function reverseCodeColumns(names: string[], afterward = ''): Promise<boolean> {
   const { data, dataInfo: info } = useStore.getState();
   if (!data || !info || names.length === 0) return false;
   const reversed = new Map((info.reversed ?? []).map((r) => [r.name, r]));
@@ -73,6 +74,7 @@ export async function reverseCodeColumns(names: string[]): Promise<boolean> {
     const parts: string[] = [];
     if (changed.length) parts.push(`Reverse-coded ${changed.join(', ')} (${min}–${max}).`);
     if (undone.length) parts.push(`Back to the original coding: ${undone.join(', ')}.`);
+    if (afterward) parts.push(afterward);
     store.toast('success', parts.join(' '));
     return true;
   } catch (e) {

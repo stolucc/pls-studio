@@ -2087,7 +2087,7 @@ export function parseModelState(m: unknown): ModelState {
           })(),
         }
       : {}),
-    ...parseMeasurement(m.measurement, ids),
+    ...parseMeasurement(m.measurement, ids, indicatorNames),
   };
 }
 
