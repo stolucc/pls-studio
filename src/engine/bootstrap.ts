@@ -10,8 +10,7 @@
 import { fitEstimator, prepareCb, sampleCov, standardized, type CbEstimator } from './cbsem';
 import { matMul, symEigen, symMatFn } from './linalg';
 import {
-  compileModel,
-  extractColumns,
+  hasNonlinearTerms,
   impliedConstructCor,
   impliedIndicatorCor,
   modelFit,
@@ -361,11 +360,15 @@ function fitTestJob(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>
     throw new Error(
       'The test of exact fit is not available with sampling weights (its bootstrap is unweighted).',
     );
-  const m = compileModel(spec);
-  const { cols } = extractColumns(data, m, opts.missing);
-  const Z = standardizeColumns(cols, m.indicatorNames);
-  const core = plsCore(Z, m, opts);
-  const st = structural(m, Z, core, opts.consistent);
+  if (hasNonlinearTerms(spec))
+    throw new Error(
+      'The test of exact fit is not available for models with interaction or copula terms: their model-implied correlations are not defined.',
+    );
+  // The same preparation as estimatePls (categorical constructs expanded,
+  // missing values treated alike), so the test refers to the fit shown.
+  const prep = preparePls(data, spec, opts);
+  const { cols } = prep;
+  const { m, X: Z, core, st } = prep.estimate(cols);
   const R = Z.map((a) => Z.map((b) => corStd(a, b)));
   const observed = modelFit(m, R, st);
   const implied = {

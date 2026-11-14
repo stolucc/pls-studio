@@ -486,6 +486,18 @@ export function discrepancies(S: Mat, Sig: Mat): { srmr: number; dULS: number; d
   return { srmr: Math.sqrt(ss / ((p * (p + 1)) / 2)), dULS: 0.5 * uls, dG };
 }
 
+/** Discrepancies of a model whose fit is not defined. */
+const NO_DISCREPANCIES = { srmr: NaN, dULS: NaN, dG: NaN };
+
+/**
+ * Overall fit is not defined for a model with interaction or copula terms:
+ * the model-implied correlations of a nonlinear model do not exist (the
+ * results show why), so the built-in engine reports none, as for the R engine.
+ */
+export function hasNonlinearTerms(spec: ModelSpec): boolean {
+  return !!(spec.moderations?.length || spec.threeWay?.length || spec.copulas?.length);
+}
+
 export function modelFit(m: CompiledModel, R: Mat, st: ReturnType<typeof structural>): ModelFit {
   const sat = impliedIndicatorCor(m, R, st.loadings, st.C);
   const est = impliedIndicatorCor(
@@ -1079,7 +1091,9 @@ export function estimatePls(
     quality: quality(m, R, st.rhoA, loadings),
     htmt: htmtOf(m, R),
     htmt2: htmt2Of(m, R),
-    fit: modelFit(m, R, st),
+    fit: hasNonlinearTerms(spec)
+      ? { saturated: NO_DISCREPANCIES, estimated: NO_DISCREPANCIES }
+      : modelFit(m, R, st),
     consistent: opts.consistent,
     types: m.types,
     moderations: prep.moderations,
