@@ -339,6 +339,13 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     ['cSEM', 'seminr'],
     script('hoc-approaches.R', 'desktop cSEM and seminr'),
   ),
+  'rengine/specificIndirect': native(
+    'Specific indirect effects (mediation typology)',
+    'PLS-SEM',
+    ['seminr', 'cSEM'],
+    script('specific_indirect.R', 'seminr::specific_effect_significance'),
+    { label: 'cSEM’s indirect effects in the same R (sum and single-chain identity)' },
+  ),
   'rengine/bca': native('BCa bootstrap intervals', 'PLS-SEM', ['cSEM'], {
     label: 'cSEM::infer in the same R',
   }),

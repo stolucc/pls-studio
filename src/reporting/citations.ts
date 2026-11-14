@@ -437,6 +437,66 @@ const WORKS: Record<string, { cite: string; entry: (version?: string) => Entry }
         'book',
       ),
   },
+  zhao2010: {
+    cite: 'Zhao et al., 2010',
+    entry: () =>
+      art({
+        author: 'Zhao, Xinshu and Lynch, John G., Jr. and Chen, Qimei',
+        title: 'Reconsidering {Baron} and {Kenny}: Myths and truths about mediation analysis',
+        journal: 'Journal of Consumer Research',
+        year: '2010',
+        volume: '37',
+        number: '2',
+        pages: '197--206',
+        doi: '10.1086/651257',
+      }),
+  },
+  nitzl2016: {
+    cite: 'Nitzl et al., 2016',
+    entry: () =>
+      art({
+        author: "Nitzl, Christian and Rold{\\'a}n, Jos{\\'e} L. and Cepeda, Gabriel",
+        title:
+          'Mediation analysis in partial least squares path modeling: Helping researchers discuss more sophisticated models',
+        journal: 'Industrial Management \\& Data Systems',
+        year: '2016',
+        volume: '116',
+        number: '9',
+        pages: '1849--1864',
+        doi: '10.1108/IMDS-07-2015-0302',
+      }),
+  },
+  hayes2009: {
+    cite: 'Hayes, 2009',
+    entry: () =>
+      art({
+        author: 'Hayes, Andrew F.',
+        title: 'Beyond {Baron} and {Kenny}: Statistical mediation analysis in the new millennium',
+        journal: 'Communication Monographs',
+        year: '2009',
+        volume: '76',
+        number: '4',
+        pages: '408--420',
+        doi: '10.1080/03637750903310360',
+      }),
+  },
+  hair2021: {
+    cite: 'Hair et al., 2021',
+    entry: () =>
+      art(
+        {
+          author:
+            'Hair, Joseph F., Jr. and Hult, G. Tomas M. and Ringle, Christian M. and Sarstedt, Marko and Danks, Nicholas P. and Ray, Soumya',
+          title:
+            'Partial Least Squares Structural Equation Modeling ({PLS-SEM}) Using {R}: A Workbook',
+          publisher: 'Springer',
+          address: 'Cham',
+          year: '2021',
+          doi: '10.1007/978-3-030-80519-7',
+        },
+        'book',
+      ),
+  },
   hayes2007: {
     cite: 'Hayes & Cai, 2007',
     entry: () =>

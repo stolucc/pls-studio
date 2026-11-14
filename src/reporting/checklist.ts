@@ -6,6 +6,7 @@
 // Hayes (2022) for conditional process analysis.
 
 import type { Issue } from '../model/project';
+import { mediationCheck } from './mediationCheck';
 import { ran, type ReportInput } from './methods';
 
 export type CheckStatus = 'done' | 'issue' | 'na' | 'author';
@@ -433,6 +434,8 @@ function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] 
       JARS,
     ),
   );
+  const mediation = mediationCheck(input, cb.constructs, cb.hasPath, ['zhao2010']);
+  if (mediation) out.push(mediation);
   if (input.model.paths.length) {
     const r2 = cb.constructs.flatMap((name, j) => {
       const value = cb.r2Constructs[j];
@@ -665,6 +668,12 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
     out.push(
       bootItem(input, true, 'Path coefficients tested with bootstrap confidence intervals', H),
     );
+    const mediation = mediationCheck(input, pls.constructs, pls.hasPath, [
+      'zhao2010',
+      'nitzl2016',
+      'hair2021',
+    ]);
+    if (mediation) out.push(mediation);
     if (ran(input, 'plspredict'))
       out.push({
         ...HEAD.predict,

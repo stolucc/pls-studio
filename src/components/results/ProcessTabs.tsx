@@ -1,6 +1,8 @@
 import { fmt, pIs } from '../../format';
 import { processJn, type At, type CpaResult } from '../../rengine/cpa';
+import { processMediationPair } from '../../reporting/mediation';
 import { JohnsonNeymanPlot } from '../JohnsonNeymanPlot';
+import { MediationReport } from './MediationPanel';
 import { RScriptButton } from './RScriptButton';
 import { c, pCell, Table, type Cell, type Row } from './Table';
 
@@ -294,6 +296,7 @@ function Effects({ res, level }: { res: CpaResult; level: number }) {
           note={`A confidence interval that excludes zero (green) is evidence that the indirect effect depends on the moderator (Hayes, 2015; 2018). Indices are differences of conditional indirect effects, with percentile intervals from the same ${res.inference === 'montecarlo' ? 'Monte Carlo draws' : 'bootstrap samples'}.`}
         />
       )}
+      <ProcessMediation res={res} level={level} />
       {res.indirect.length > 0 && (
         <div className="hint">
           {res.inference === 'montecarlo' ? (
@@ -313,6 +316,13 @@ function Effects({ res, level }: { res: CpaResult; level: number }) {
       )}
     </div>
   );
+}
+
+/** The mediation typology of a model without moderated effects (unstandardised effects: b). */
+function ProcessMediation({ res, level }: { res: CpaResult; level: number }) {
+  const pair = processMediationPair(res);
+  if (!pair) return null;
+  return <MediationReport pairs={[pair]} boot={{ confidence: level }} symbol="b" />;
 }
 
 /** Where the Johnson–Neyman boundaries were searched, and with which standard errors. */

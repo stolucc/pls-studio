@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { johnsonNeyman } from '../../engine/jn';
 import { normalP, pnorm } from '../../engine/stats';
 import { mcIndirect, type McIndirect } from '../../engine/mcci';
+import { mediationPairs } from '../../reporting/mediation';
+import { MediationNeedsBoot, MediationReport, totalOf, typeCell } from './MediationPanel';
 import { JohnsonNeymanPlot } from '../JohnsonNeymanPlot';
 import { BootstrapTab } from './PlsTabs';
 import {
@@ -603,23 +605,37 @@ function Effects({ cb, boot }: { cb: CbResult; boot: BootstrapResult | null }) {
         const v = kind === 'total' ? cb.stdTotal[i][j] : cb.stdIndirect[i][j];
         if (i === j || Math.abs(v) < 1e-12) continue;
         const b = boot?.stats.find((s) => s.key === `${kind}:${C[i]}:${C[j]}`);
-        out.push([c(`${C[i]} → ${C[j]}`), c(v), ...(boot ? bootCells(b) : [])]);
+        const type = kind === 'indirect' && boot ? [typeCell(totalOf(pairs, C[i], C[j]))] : [];
+        out.push([c(`${C[i]} → ${C[j]}`), c(v), ...(boot ? bootCells(b) : []), ...type]);
       }
     return out;
   };
+  // The mediation typology (Zhao et al., 2010) from the bootstrap intervals of the standardised effects.
+  const pairs = boot
+    ? mediationPairs(boot, C, (a, b) => cb.hasPath[C.indexOf(a)]?.[C.indexOf(b)] ?? false)
+    : [];
+  const indirectRows = rows('indirect');
   return (
     <div className="tables">
       <Table
         title="Standardised indirect effects"
         file="cb-indirect"
-        columns={['Effect', 'Estimate', ...(boot ? bootCols(boot) : [])]}
-        rows={rows('indirect')}
+        columns={[
+          'Effect',
+          'Estimate',
+          ...(boot ? bootCols(boot) : []),
+          // (the mediation type, when there is an indirect effect to classify)
+          ...(boot && indirectRows.length ? ['Type'] : []),
+        ]}
+        rows={indirectRows}
         note={
           boot
-            ? 'Percentile bootstrap intervals are the recommended test of mediation.'
+            ? 'Percentile bootstrap intervals are the recommended test of mediation. Type: the mediation type from the bootstrap confidence intervals (Zhao et al., 2010); see “How the type is decided” below.'
             : 'Run bootstrapping for confidence intervals of indirect effects.'
         }
       />
+      {indirectRows.length > 0 && !boot && <MediationNeedsBoot />}
+      {boot && <MediationReport pairs={pairs} boot={boot} symbol="β" />}
       <Table
         title="Standardised total effects"
         file="cb-total"
