@@ -8,7 +8,8 @@
 // signature (SHA256SUMS.sig) by the release key, whose public half is built
 // into the helper (updatekey.go): a checksum from the same release would only
 // catch a corrupted download, not a tampered release. The release workflow
-// signs with the private key, a repository secret (helper/cmd/sign-release).
+// signs with the private key, a secret of the helper-release environment
+// (helper/cmd/sign-release).
 //
 // The signature over SHA256SUMS says nothing about the version: the tag comes
 // from GitHub's unsigned release information, so an old, validly signed

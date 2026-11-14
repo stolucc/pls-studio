@@ -3,7 +3,7 @@
 //	go run ./cmd/sign-release keygen <private-key-file>
 //	    makes a key pair: the private key (base64) into the file (mode 0600;
 //	    keep it out of the repository: it becomes the HELPER_SIGNING_KEY
-//	    secret) and the public key (base64) on stdout, for updatekey.go.
+//	    secret of the helper-release environment) and the public key (base64) on stdout, for updatekey.go.
 //	HELPER_SIGNING_KEY=<base64> go run ./cmd/sign-release sign <file>
 //	    writes <file>.sig: the base64 Ed25519 signature of the file (the
 //	    release workflow signs SHA256SUMS and the version manifest

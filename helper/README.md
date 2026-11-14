@@ -90,9 +90,34 @@ Helpers up to 0.1.10 ignore the manifest and keep checking `SHA256SUMS` as
 before; 0.1.11 and later cannot self-update to a release without a manifest
 (install such a release by hand).
 
-Releases are signed by the release workflow with the repository secret
+Releases are signed by the release workflow with the secret
 `HELPER_SIGNING_KEY` (`go run ./cmd/sign-release keygen <file>` makes a key
 pair; the workflow refuses to publish without the secret).
+
+### Release key
+
+Only the publish job of `.github/workflows/helper-release.yml` uses the key,
+and it runs in the GitHub environment `helper-release`; its third-party
+actions are pinned by commit SHA. To make a release need your approval and
+keep the key away from branches, move the secret into that environment
+(once, on GitHub):
+
+1. Repository **Settings → Environments → New environment**, name
+   `helper-release` (it may already be listed: the workflow creates it,
+   unprotected, on its first run).
+2. **Required reviewers**: tick it and add yourself; Save protection rules.
+3. **Deployment branches and tags**: choose **Selected branches and tags**,
+   **Add deployment branch or tag rule** → Ref type **Tag**, pattern
+   `helper-v*`.
+4. **Environment secrets → Add environment secret**: name
+   `HELPER_SIGNING_KEY`, the same value as the repository secret (the
+   base64 private key from `sign-release keygen`).
+5. **Settings → Secrets and variables → Actions → Repository secrets**:
+   delete `HELPER_SIGNING_KEY` there.
+
+Until then the repository secret keeps working. Afterwards every release
+waits for your approval in the run's page (**Review deployments**) before
+it is signed and published.
 
 ## 3 · What runs where
 
