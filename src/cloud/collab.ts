@@ -351,6 +351,8 @@ export class CollabSession {
   private undo: Y.UndoManager;
   private applying = false;
   private fetchingData = false;
+  /** The data revision the dataset in the store was loaded at or uploaded as (null: unknown). */
+  private dataRevision: number | null = null;
   private initialised = false;
   /** The shared state could not be read: stop writing to it (it would overwrite collaborators' work). */
   private broken = false;
@@ -568,17 +570,55 @@ export class CollabSession {
 
   private async fetchData() {
     this.fetchingData = true;
+    const before = useStore.getState().data;
+    const editedHere = () => useStore.getState().data !== before;
+    // The revision the local data were made from (null: none was loaded or uploaded).
+    let base = this.dataRevision;
+    let upload = false;
     try {
-      const text = await api.getText(`/api/projects/${this.projectId}/dataset`);
-      const { data, info } = parseDataSection(JSON.parse(text));
-      useStore.getState().setData(data, info);
+      // The revision first: read before the dataset, it is at most as new as the dataset, so an
+      // upload from it is refused rather than overwriting a newer one.
+      const meta = await api.get<{ data_revision?: number }>(`/api/projects/${this.projectId}`);
+      const revision = typeof meta.data_revision === 'number' ? meta.data_revision : null;
+      const text = await this.datasetText();
+      if (text === null) {
+        // No shared dataset: data added here meanwhile are uploaded (from this revision).
+        base = revision;
+        upload = editedHere();
+      } else if (editedHere() && base !== null) {
+        // Changed here while loading: keep the local edit and upload it from the revision it was
+        // made from (refused, and then reported, if the shared dataset changed meanwhile).
+        upload = true;
+      } else {
+        const { data, info } = parseDataSection(JSON.parse(text));
+        if (editedHere())
+          useStore
+            .getState()
+            .toast(
+              'info',
+              'The shared dataset arrived while you changed the data here, and replaces your change. Make it again if you still need it.',
+            );
+        base = revision;
+        useStore.getState().setData(data, info);
+      }
     } catch (err) {
-      if ((err as { status?: number }).status !== 404)
-        useStore
-          .getState()
-          .toast('error', `Could not load the shared dataset: ${(err as Error).message}`);
+      useStore
+        .getState()
+        .toast('error', `Could not load the shared dataset: ${(err as Error).message}`);
     } finally {
+      this.dataRevision = base;
       this.fetchingData = false;
+    }
+    if (upload) await this.uploadData();
+  }
+
+  /** The shared dataset as JSON text, or null when the project has none. */
+  private async datasetText(): Promise<string | null> {
+    try {
+      return await api.getText(`/api/projects/${this.projectId}/dataset`);
+    } catch (err) {
+      if ((err as { status?: number }).status === 404) return null;
+      throw err;
     }
   }
 
@@ -589,10 +629,20 @@ export class CollabSession {
       const { revision } = await api.put<{ revision: number }>(
         `/api/projects/${this.projectId}/dataset`,
         JSON.stringify(serializeDataSection(s.data, s.dataInfo)),
+        this.dataRevision === null ? undefined : { 'If-Match': `"${this.dataRevision}"` },
       );
+      this.dataRevision = revision;
       this.doc.transact(() => this.doc.getMap('sys').set('dataRevision', revision), LOCAL);
       s.toast('success', 'Dataset shared with collaborators (stored encrypted).');
     } catch (err) {
+      if ((err as { status?: number }).status === 409) {
+        s.toast(
+          'error',
+          'A collaborator changed the shared dataset at the same time, so your change was not shared. Their version is loaded now; make your change again.',
+        );
+        await this.fetchData();
+        return;
+      }
       s.toast('error', `Could not share the dataset: ${(err as Error).message}`);
     }
   }
@@ -679,6 +729,8 @@ export async function shareCurrentProject(user: {
     await api.put(
       `/api/projects/${id}/dataset`,
       JSON.stringify(serializeDataSection(s.data, s.dataInfo)),
+      // (a new project: no one else can have uploaded one)
+      { 'If-Match': '"0"' },
     );
   useStore.setState({ projectId: `cloud:${id}` });
   const session = startSession(id, 'owner', user, true);

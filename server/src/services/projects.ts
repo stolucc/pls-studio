@@ -277,16 +277,34 @@ export async function acceptInvitation(
 
 // ---------- datasets (encrypted at rest) ----------
 
+/**
+ * Store the dataset; returns the new data revision. `expectedRevision` (the client's If-Match):
+ * the revision the upload was made from; when the dataset has changed since, nothing is stored
+ * and a 409 tells the client to load the newer one (no last-writer-wins over a collaborator).
+ */
 export async function putDataset(
   db: Db,
   master: Buffer,
   projectId: string,
   userId: string,
   json: string,
+  expectedRevision?: number,
 ): Promise<number> {
   await requireRole(db, projectId, userId, 'editor');
   const { ciphertext, wrappedKey } = encryptDataset(master, projectId, json);
   return tx(db, async (c) => {
+    if (expectedRevision !== undefined) {
+      // (the row lock orders concurrent uploads: the second sees the first one's revision)
+      const current = await c.query('SELECT data_revision FROM projects WHERE id = $1 FOR UPDATE', [
+        projectId,
+      ]);
+      if (current.rows[0]?.data_revision !== expectedRevision)
+        throw new AccessError(
+          'Someone else changed the shared dataset since you loaded it.',
+          409,
+          'dataset-changed',
+        );
+    }
     await c.query(
       `INSERT INTO datasets (project_id, ciphertext, wrapped_key, byte_size, updated_by) VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (project_id) DO UPDATE SET ciphertext = $2, wrapped_key = $3, byte_size = $4, updated_by = $5, updated_at = now()`,

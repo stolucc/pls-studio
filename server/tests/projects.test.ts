@@ -278,6 +278,25 @@ describe('datasets are encrypted at rest', () => {
     ).toBe(400);
   });
 
+  it('stores an upload with If-Match only when it was made from the current revision', async () => {
+    const url = `/api/projects/${projectId}/dataset`;
+    const base = (await viewer.get(`/api/projects/${projectId}`)).body.data_revision as number;
+    const mine = await editor.put(url, dataset).set('If-Match', `"${base}"`);
+    expect(mine.status).toBe(200);
+    expect(mine.body.revision).toBe(base + 1);
+    // A collaborator's upload from the old revision is refused, and nothing changes.
+    const stale = await owner
+      .put(url, JSON.stringify({ names: ['other'] }))
+      .set('If-Match', `"${base}"`);
+    expect(stale.status).toBe(409);
+    expect(stale.body.code).toBe('dataset-changed');
+    expect((await viewer.get(`/api/projects/${projectId}`)).body.data_revision).toBe(base + 1);
+    expect(JSON.parse((await viewer.get(url)).text)).toEqual(JSON.parse(dataset));
+    expect((await editor.put(url, dataset).set('If-Match', 'W/"x"')).status).toBe(400);
+    // Without If-Match an upload is unconditional, as before.
+    expect((await editor.put(url, dataset)).status).toBe(200);
+  });
+
   it('lets only the owner delete the project, removing its data', async () => {
     expect((await viewer.del(`/api/projects/${projectId}`)).status).toBe(403);
     expect((await owner.del(`/api/projects/${projectId}`)).status).toBe(200);

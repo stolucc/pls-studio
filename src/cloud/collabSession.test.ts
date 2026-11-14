@@ -62,6 +62,7 @@ vi.mock('./api', () => ({
   },
 }));
 
+import { serializeDataSection } from '../model/project';
 import { useStore } from '../store';
 import {
   awaitServerEcho,
@@ -167,5 +168,67 @@ describe('a shared state that cannot be read', () => {
     expect(useStore.getState().toasts.at(-1)!.text).toMatch(/no longer sent/);
     useStore.getState().addConstruct(0, 0, ['x9']);
     expect([...constructs.keys()]).toEqual(['c1']);
+  });
+});
+
+describe('the shared dataset', () => {
+  const info = { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] };
+  const shared = { names: ['q1'], cols: [Float64Array.from([1, 2, 3])] };
+  const local = { names: ['q1'], cols: [Float64Array.from([5, 4, 3])] };
+  const text = JSON.stringify(serializeDataSection(shared, info));
+  const put = vi.mocked(api.put);
+  const getText = vi.mocked(api.getText);
+  const get = vi.mocked(api.get);
+
+  beforeEach(() => {
+    put.mockReset();
+    getText.mockReset();
+    get.mockReset();
+    get.mockResolvedValue({ id: 'p1', name: 'Shared', role: 'editor', data_revision: 3 });
+  });
+
+  it('uploads from the revision it loaded; when refused (409) it loads the newer one and says so', async () => {
+    getText.mockResolvedValue(text);
+    await openCloudProject('p1', user);
+    providers.at(-1)!.emit('sync', [true]);
+    await flush();
+    await flush();
+    expect(Array.from(useStore.getState().data!.cols[0])).toEqual([1, 2, 3]);
+    put.mockRejectedValueOnce(Object.assign(new Error('changed'), { status: 409 }));
+    useStore.getState().setData(local, info);
+    await flush();
+    await flush();
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(put.mock.calls[0][2]).toEqual({ 'If-Match': '"3"' });
+    expect(useStore.getState().toasts.some((t) => /changed the shared dataset/.test(t.text))).toBe(
+      true,
+    );
+    expect(getText).toHaveBeenCalledTimes(2);
+    expect(Array.from(useStore.getState().data!.cols[0])).toEqual([1, 2, 3]);
+  });
+
+  it('keeps a local edit made while the dataset loads, and uploads it from its revision', async () => {
+    getText.mockResolvedValueOnce(text);
+    put.mockResolvedValue({ revision: 4 });
+    await openCloudProject('p1', user);
+    providers.at(-1)!.emit('sync', [true]);
+    await flush();
+    await flush();
+    // A collaborator's change announced: loading it is slow, and the data change here meanwhile.
+    let answer: (t: string) => void = () => {};
+    getText.mockImplementationOnce(() => new Promise((r) => (answer = r)));
+    currentSession()!.doc.transact(
+      () => currentSession()!.doc.getMap('sys').set('dataRevision', 3),
+      'remote',
+    );
+    await flush();
+    useStore.getState().setData(local, info);
+    expect(put).not.toHaveBeenCalled();
+    answer(text);
+    await flush();
+    await flush();
+    expect(Array.from(useStore.getState().data!.cols[0])).toEqual([5, 4, 3]);
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(put.mock.calls[0][2]).toEqual({ 'If-Match': '"3"' });
   });
 });

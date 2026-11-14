@@ -24,8 +24,14 @@ export function setCsrf(token: string | null | undefined) {
   csrf = token ?? null;
 }
 
-async function request<T>(method: string, url: string, body?: unknown, raw = false): Promise<T> {
-  const headers: Record<string, string> = {};
+async function request<T>(
+  method: string,
+  url: string,
+  body?: unknown,
+  raw = false,
+  extraHeaders: Record<string, string> = {},
+): Promise<T> {
+  const headers: Record<string, string> = { ...extraHeaders };
   if (method !== 'GET') {
     const token = readCsrfCookie() ?? csrf;
     if (token) headers['X-CSRF-Token'] = token;
@@ -58,7 +64,8 @@ export const api = {
   get: <T>(url: string) => request<T>('GET', url),
   getText: (url: string) => request<string>('GET', url, undefined, true),
   post: <T>(url: string, body?: unknown) => request<T>('POST', url, body ?? {}),
-  put: <T>(url: string, body: unknown) => request<T>('PUT', url, body),
+  put: <T>(url: string, body: unknown, headers?: Record<string, string>) =>
+    request<T>('PUT', url, body, false, headers),
   patch: <T>(url: string, body: unknown) => request<T>('PATCH', url, body),
   del: <T>(url: string) => request<T>('DELETE', url),
 };

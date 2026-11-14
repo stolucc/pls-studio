@@ -196,7 +196,15 @@ export function projectRoutes(deps: AppDeps) {
       ) {
         return res.status(400).json({ error: 'Dataset must contain a names array.' });
       }
-      const revision = await P.putDataset(db, master, id, requireUser(req), text);
+      // If-Match: "<revision>" makes the upload conditional on the revision it was made from.
+      const ifMatch = req.get('If-Match');
+      let expected: number | undefined;
+      if (ifMatch !== undefined) {
+        const m = /^"?(\d{1,15})"?$/.exec(ifMatch.trim());
+        if (!m) return res.status(400).json({ error: 'If-Match must be a dataset revision.' });
+        expected = Number(m[1]);
+      }
+      const revision = await P.putDataset(db, master, id, requireUser(req), text, expected);
       res.json({ revision });
     }),
   );
