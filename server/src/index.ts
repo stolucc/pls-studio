@@ -13,7 +13,11 @@ await migrate(db);
 const deps: AppDeps = {
   config,
   db,
-  mailer: createMailer(config.SMTP_URL, config.MAIL_FROM),
+  mailer: createMailer(
+    config.SMTP_URL,
+    config.MAIL_FROM,
+    config.NODE_ENV === 'production' ? 'summary' : 'full',
+  ),
   google:
     config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET
       ? await createGoogleClient(config.GOOGLE_CLIENT_ID, config.GOOGLE_CLIENT_SECRET)

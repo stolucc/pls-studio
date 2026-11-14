@@ -40,7 +40,7 @@ export async function startEnv(
   const deps: AppDeps = {
     config,
     db,
-    mailer: createMailer(undefined, config.MAIL_FROM, false),
+    mailer: createMailer(undefined, config.MAIL_FROM, 'none'),
     google,
     ...more,
   };

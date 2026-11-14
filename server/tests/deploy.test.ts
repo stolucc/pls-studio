@@ -35,7 +35,7 @@ beforeAll(async () => {
     APP_ORIGIN: ORIGIN,
     STATIC_DIR: staticDir,
   });
-  app = createApp({ config, db, mailer: createMailer(undefined, config.MAIL_FROM, false) });
+  app = createApp({ config, db, mailer: createMailer(undefined, config.MAIL_FROM, 'none') });
 });
 
 afterAll(async () => {
@@ -63,7 +63,7 @@ describe('GET /api/health', () => {
       },
     } as unknown as Db;
     const res = await request(
-      createApp({ config, db: broken, mailer: createMailer(undefined, config.MAIL_FROM, false) }),
+      createApp({ config, db: broken, mailer: createMailer(undefined, config.MAIL_FROM, 'none') }),
     ).get('/api/health');
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: 'Internal error.' });
