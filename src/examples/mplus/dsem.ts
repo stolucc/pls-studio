@@ -19,6 +19,7 @@ const RUN: Record<
   'ex6.27': { chains: 4, warmup: 1000, draws: 1000 },
   'ex6.28': { warmup: 2000, draws: 4000 },
   'ex9.27': { chains: 4, warmup: 2000, draws: 2000 },
+  'ex9.30': { chains: 4, warmup: 3000, draws: 3000 },
   'ex9.30b': { chains: 4, warmup: 3000, draws: 3000 },
   'ex9.34': { chains: 4, warmup: 1000, draws: 1000 },
   'ex9.37': { chains: 4, warmup: 2000, draws: 2000 },
