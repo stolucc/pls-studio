@@ -348,6 +348,12 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     ['cSEM', 'seminr'],
     script('hoc-approaches.R', 'desktop cSEM and seminr'),
   ),
+  'reporting/hocCheck': native(
+    'Higher-order constructs: the guided check’s derived statistics',
+    'PLS-SEM',
+    ['cSEM', 'seminr'],
+    script('hoc-check.R', 'desktop cSEM and seminr'),
+  ),
   'rengine/bca': native('BCa bootstrap intervals', 'PLS-SEM', ['cSEM'], {
     label: 'cSEM::infer in the same R',
   }),

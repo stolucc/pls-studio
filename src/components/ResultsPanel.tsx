@@ -8,7 +8,7 @@ import { ExampleResultsBadge } from './validation/ExampleResultsBadge';
 import { CB_TABS, CbTab, type CbTabId } from './results/CbTabs';
 import '../analyses/dfiFit'; // (fills the fit tab's Dynamic-cutoffs slot)
 import { MIIV_TABS, MiivTab, type MiivTabId } from './results/MiivTabs';
-import { PLS_TABS, PlsTab, type PlsTabId } from './results/PlsTabs';
+import { PlsTab, plsTabsFor, type PlsTabId } from './results/PlsTabs';
 import { PROCESS_TABS, ProcessTab, type ProcessTabId } from './results/ProcessTabs';
 import { processGraph } from '../process/fromModel';
 import { MessagesView } from './results/Messages';
@@ -81,8 +81,8 @@ export function ResultsPanel({
     tabs = PROCESS_TABS;
     active = processTab;
   } else if (method === 'pls') {
-    tabs = PLS_TABS;
-    active = plsTab;
+    tabs = plsTabsFor(pls);
+    active = plsTab === 'hoc' && !pls?.higherOrder?.length ? 'overview' : plsTab;
   } else if (isMiiv) {
     tabs = MIIV_TABS;
     active = miivTab;
@@ -105,7 +105,15 @@ export function ResultsPanel({
   else if (proc)
     body = <ProcessTab tab={processTab} res={proc} title={procTitle} level={confidence} />;
   else if (pls)
-    body = <PlsTab tab={plsTab} pls={pls} boot={boot} fitTest={results?.fitTest ?? null} />;
+    body = (
+      <PlsTab
+        tab={active as PlsTabId}
+        pls={pls}
+        boot={boot}
+        fitTest={results?.fitTest ?? null}
+        onTab={setPlsTab}
+      />
+    );
   else if (miiv) body = <MiivTab tab={miivTab} miiv={miiv} />;
   else if (cb && !isMiiv)
     body = (

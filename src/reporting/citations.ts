@@ -90,6 +90,67 @@ const WORKS: Record<string, { cite: string; entry: (version?: string) => Entry }
         doi: '10.1016/j.ausmj.2019.05.003',
       }),
   },
+  ringle2012: {
+    cite: 'Ringle et al., 2012',
+    entry: () =>
+      art({
+        author: 'Ringle, Christian M. and Sarstedt, Marko and Straub, Detmar W.',
+        title: 'A critical look at the use of {PLS-SEM} in {MIS Quarterly}',
+        journal: 'MIS Quarterly',
+        year: '2012',
+        volume: '36',
+        number: '1',
+        pages: 'iii--xiv',
+        doi: '10.2307/41410402',
+      }),
+  },
+  cenfetelli2009: {
+    cite: 'Cenfetelli & Bassellier, 2009',
+    entry: () =>
+      art({
+        author: 'Cenfetelli, Ronald T. and Bassellier, Genevi{\\`e}ve',
+        title: 'Interpretation of formative measurement in information systems research',
+        journal: 'MIS Quarterly',
+        year: '2009',
+        volume: '33',
+        number: '4',
+        pages: '689--707',
+        doi: '10.2307/20650323',
+      }),
+  },
+  cheah2018: {
+    cite: 'Cheah et al., 2018',
+    entry: () =>
+      art({
+        author:
+          'Cheah, Jun-Hwa and Sarstedt, Marko and Ringle, Christian M. and Ramayah, T. and Ting, Hiram',
+        title:
+          'Convergent validity assessment of formatively measured constructs in {PLS-SEM}: On using single-item versus multi-item measures in redundancy analyses',
+        journal: 'International Journal of Contemporary Hospitality Management',
+        year: '2018',
+        volume: '30',
+        number: '11',
+        pages: '3192--3210',
+        doi: '10.1108/IJCHM-10-2017-0649',
+      }),
+  },
+  hair2021: {
+    cite: 'Hair et al., 2021',
+    entry: () =>
+      art(
+        {
+          author:
+            'Hair, Joseph F. and Hult, G. Tomas M. and Ringle, Christian M. and Sarstedt, Marko and Danks, Nicholas P. and Ray, Soumya',
+          title:
+            'Partial Least Squares Structural Equation Modeling ({PLS-SEM}) Using {R}: A Workbook',
+          publisher: 'Springer',
+          address: 'Cham',
+          year: '2021',
+          doi: '10.1007/978-3-030-80519-7',
+        },
+        'book',
+      ),
+  },
   henseler2015: {
     cite: 'Henseler et al., 2015',
     entry: () =>

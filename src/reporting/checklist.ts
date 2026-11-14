@@ -12,6 +12,7 @@ import {
   type PostHocModification,
 } from '../model/posthoc';
 import type { Issue } from '../model/project';
+import { hocChecklistItems, hocHtmtExclusions, type HocInput } from './hoc';
 import { ran, type ReportInput } from './methods';
 
 export type CheckStatus = 'done' | 'issue' | 'na' | 'author';
@@ -510,6 +511,15 @@ function htmtItem(
 
 // ---------------------------------------------------------------- PLS-SEM
 
+/** The guided higher-order construct check's input (reporting/hoc.ts). */
+const hocInput = (input: ReportInput): HocInput => ({
+  model: input.model,
+  pls: input.pls!,
+  boot: input.boot ?? null,
+  approach: input.settings.hocApproach,
+  plsPackage: input.settings.plsPackage,
+});
+
 function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] {
   const pls = input.pls!;
   const H = ['hair2019'];
@@ -591,8 +601,12 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
       evidence: `${join(rel.map((r) => `${r.name}: ${f2(r.ave)}`))}.${belowAve}`,
       link: tab('Reliability'),
     });
-    out.push(htmtItem(pls.constructs, pls.htmt, 0.85, ['henseler2015', ...H]));
+    // (a higher-order construct's HTMT with its own dimensions, or on repeated indicators, is no criterion: its own item below)
+    const skip = hocHtmtExclusions(hocInput(input));
+    const htmt = pls.htmt.map((row, i) => row.map((v, j) => (skip(i, j) ? null : v)));
+    out.push(htmtItem(pls.constructs, htmt, 0.85, ['henseler2015', ...H]));
   }
+  out.push(...hocChecklistItems(hocInput(input)));
   if (modeB.length) {
     const vifs = modeB.flatMap((j) =>
       block(j).map((x) => ({ name: x.name, v: pls.vifOuter[x.i] })),
