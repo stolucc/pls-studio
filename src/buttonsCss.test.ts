@@ -31,3 +31,14 @@ describe('button sizing (text always fits)', () => {
     expect(seg.body).toMatch(/flex-wrap:\s*wrap/);
   });
 });
+
+describe('the Data panel header', () => {
+  // The buttons sit on their own row under the title in every view (three in the model editor,
+  // two beside the Data tab), so the header does not change shape between the two.
+  it('stacks the title and the buttons, buttons from the left', () => {
+    const head = rules.find((r) => r.sel === '.panel.left .panel-head');
+    expect(head?.body).toMatch(/flex-direction:\s*column/);
+    const actions = rules.find((r) => r.sel === '.panel.left .panel-actions');
+    expect(actions?.body).toMatch(/justify-content:\s*flex-start/);
+  });
+});
