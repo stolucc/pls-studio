@@ -10,6 +10,7 @@ import type { CbEstimator, CbResult } from './engine/cbsem';
 import type { McDesign, McPart, McSummaryRow } from './engine/montecarlo';
 import type { PlsOptions } from './engine/types';
 import { toSpec, validateModel } from './model/project';
+import { bootOptionsOf, plsOptionsOf } from './runOptions';
 import { processGraph } from './process/fromModel';
 import { indirectPaths as processPlanPaths } from './process/plan';
 import { processInput } from './process/input';
@@ -102,23 +103,8 @@ function runR(kind: JobKind, key: string) {
   const cb = st.method === 'cbsem';
   const data = s.data!;
   const spec = toSpec(s.model);
-  const options: PlsOptions = {
-    scheme: st.scheme,
-    maxIter: st.maxIter,
-    tolerance: 10 ** -st.stopExp,
-    missing: st.missing,
-    consistent: st.consistent,
-    approach: st.plsApproach,
-    hocApproach: st.hocApproach,
-    mi: { m: st.miImputations, seed: st.seed, method: st.miMethod },
-  };
-  const boot = {
-    samples: Math.max(2, Math.floor(st.bootSamples)),
-    seed: st.seed,
-    confidence: st.confidence,
-    tails: st.bootTails === 'one' ? (1 as const) : (2 as const),
-    interval: st.bootInterval === 'bca' ? ('bca' as const) : ('percentile' as const),
-  };
+  const options: PlsOptions = plsOptionsOf(st);
+  const boot = bootOptionsOf(st);
   const token = ++rToken;
   const modsem = cb && st.interaction !== 'product' && s.model.moderations.length > 0;
   // The R package doing the work, for the progress label.

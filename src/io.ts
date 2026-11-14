@@ -1,4 +1,5 @@
 import type { RPackage } from './rengine/bridge';
+import { bootOptionsOf, plsOptionsOf } from './runOptions';
 import { MAX_FILE_BYTES, parseCsv } from './engine/dataset';
 import { choiceDialog, confirmDialog, numberDialog } from './components/Overlays';
 import { parseCovMatrixCsv, parseNacovCsv } from './examples/matrix';
@@ -326,19 +327,9 @@ export async function buildRScript(
         pkg: 'lavaan',
       };
     }
-    const options = {
-      scheme: st.scheme,
-      maxIter: st.maxIter,
-      tolerance: 10 ** -st.stopExp,
-      missing: st.missing,
-      consistent: st.consistent,
-      approach: st.plsApproach,
-    };
-    const boot = {
-      samples: Math.max(2, Math.floor(st.bootSamples)),
-      seed: st.seed,
-      confidence: st.confidence,
-    };
+    // (the same options as the calculation: runOptions.ts)
+    const options = plsOptionsOf(st);
+    const boot = bootOptionsOf(st);
     // The fit test and IPMA are cSEM's; otherwise the package that estimates the model.
     let pkg: string;
     if (what === 'fittest' || typeof what === 'object') pkg = 'cSEM';
