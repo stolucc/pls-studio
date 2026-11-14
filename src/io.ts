@@ -35,6 +35,7 @@ import { useStore } from './store';
 import type { CbEstimator } from './engine/cbsem';
 import type { IpmaOptions } from './engine/ipma';
 import { processInput } from './process/input';
+import { switchMethod } from './methodSwitch';
 
 /**
  * The file dialog's filter per kind of file. AMOS models get none: browsers on macOS
@@ -225,11 +226,20 @@ async function importMatrix(
       hasNacov: !!nacov,
     },
   );
-  if (s.settings.method !== 'cbsem') s.setSettings({ method: 'cbsem' });
-  s.toast(
-    'success',
-    `Loaded a ${m.names.length}-variable covariance matrix (N = ${n})${nacov ? ' with NACOV' : ''}. Switched to CB-SEM.`,
-  );
+  // A matrix is estimated by CB-SEM only; the switch follows the method rules (main-effect paths
+  // when leaving process analysis, composites converted after confirmation).
+  const was = useStore.getState().settings.method;
+  const switched = was !== 'cbsem' && (await switchMethod('cbsem'));
+  let method = '';
+  if (switched) method = ' Switched to CB-SEM.';
+  else if (useStore.getState().settings.method !== 'cbsem')
+    method = ' Switch the method to CB-SEM to estimate the model from it.';
+  useStore
+    .getState()
+    .toast(
+      'success',
+      `Loaded a ${m.names.length}-variable covariance matrix (N = ${n})${nacov ? ' with NACOV' : ''}.${method}`,
+    );
 }
 
 export async function openProject() {
@@ -1206,8 +1216,9 @@ export async function importModelSyntax() {
     )
       return;
     useStore.getState().commit(() => model);
-    if (useStore.getState().settings.method === 'process')
-      useStore.getState().setSettings({ method: 'cbsem' });
+    // Syntax describes a SEM: leave process analysis by the method rules (main-effect paths drawn,
+    // composites converted after confirmation).
+    if (useStore.getState().settings.method === 'process') await switchMethod('cbsem');
     const missing = s.data
       ? [...new Set(model.constructs.flatMap((c) => c.indicators))].filter(
           (i) => !s.data!.names.includes(i),
