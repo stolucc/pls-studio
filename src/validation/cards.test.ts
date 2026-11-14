@@ -32,6 +32,7 @@ import {
 } from '../analyses/tests';
 import { CMB_TYPES } from '../analyses/validity';
 import { HYP_MODES } from '../analyses/hypotheses';
+import { GUIDED_MODES } from '../analyses/guidedInvariance';
 import { APIM_MODES } from '../analyses/apim';
 import { EMM_MODES } from '../analyses/emm';
 import { RESAMPLING_MODES } from '../analyses/resampling';
@@ -81,6 +82,7 @@ const CARD_MODES: Record<string, readonly string[]> = {
   efa: [...EFA_METHODS.map((m) => m.id), ...EFA_EXTRA_MODES],
   cmb: CMB_TYPES,
   irt: IRT_MODELS,
+  guidedinvariance: GUIDED_MODES,
   lca: [...LCA_KINDS.map((k) => k.id), ...LCA_AUX_METHODS.map(([m]) => `aux:${m}`)],
   quadml: QUAD_SOURCES,
   network: [

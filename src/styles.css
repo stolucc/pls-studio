@@ -520,6 +520,7 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .verdict.ok { background: var(--good-soft); color: #08603c; }
 .verdict.bad { background: var(--bad-soft); color: #a3261c; }
 .verdict.na { background: var(--surface-3); color: var(--text-3); }
+.verdict.warn { background: var(--warn-soft); color: var(--warn); }
 .method-switch { width: 180px; }
 .method-switch button { min-height: 26px; }
 

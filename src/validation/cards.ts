@@ -476,6 +476,26 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   mnlfa: ex('mnlfa-mnlfa01-dif'),
   lsem: ex('sirt-lsem01-age'),
   dmacs: ex('lavaan-hs-dmacs'),
+  guidedinvariance: {},
+  'guidedinvariance:continuous': {
+    title: 'Continuous items (ML, MLR)',
+    features: ['rengine/guidedInvariance::continuous items'],
+    note: 'Fit, scaled difference tests, score tests, latent means and dMACS against plain lavaan group.equal / group.partial on Holzinger & Swineford by school (scripts/validation/guided_invariance.R).',
+  },
+  'guidedinvariance:delta': {
+    title: 'Ordinal items, delta parameterization (WLSMV)',
+    features: ['rengine/guidedInvariance::ordinal items'],
+    note: 'semTools’ own ?measEq.syntax example (datCat), Wu & Estabrook identification: fit, lavTestLRT (satorra.2000), score tests, modification indices and latent means.',
+  },
+  'guidedinvariance:theta': {
+    title: 'Ordinal items, theta parameterization with strict invariance (WLSMV)',
+    features: ['rengine/guidedInvariance::ordinal items'],
+  },
+  'guidedinvariance:binary': {
+    title: 'Binary items (scale held at 1 in the scalar model)',
+    features: ['rengine/guidedInvariance::binary items'],
+    note: 'The scalar model against lavaan’s own categorical group.equal (thresholds, loadings and intercepts equal; scale factors 1).',
+  },
   mimicdif: ft('rengine/invariance::DIF by MIMIC'),
   irt: {},
   'irt:rasch': { title: 'Rasch', examples: ['ltm-lsat'], features: ['rengine/items::matches ltm'] },
