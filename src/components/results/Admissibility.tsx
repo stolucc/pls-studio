@@ -15,6 +15,7 @@ import { explainWarning, type WarningExplanation } from '../../rengine/lavaanWar
 import { useEscape } from '../useEscape';
 import { IconAlert, IconCheck, IconInfo } from '../icons';
 import { c, Table, type Row } from './Table';
+import { useModal } from '../useModal';
 
 const SEVERITY_LABEL: Record<Severity, string> = {
   serious: 'Serious',
@@ -129,9 +130,10 @@ function ExplanationDialog({
   explanation: WarningExplanation;
   onClose: () => void;
 }) {
+  const modalRef = useModal();
   useEscape(onClose);
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={onClose}>
       <div
         className="modal warning-explain"
         role="dialog"

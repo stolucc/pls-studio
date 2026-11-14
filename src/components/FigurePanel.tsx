@@ -6,6 +6,7 @@ import { safeFileName } from '../format';
 import { useStore } from '../store';
 import { IconDownload, IconX } from './icons';
 import { useEscape } from './useEscape';
+import { useModal } from './useModal';
 
 const COLORS: [keyof FigureStyle, string][] = [
   ['constructFill', 'Construct fill'],
@@ -46,6 +47,7 @@ export function FigurePanel({ input, onClose }: { input: () => FigureInput; onCl
     setPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [figure.svg]);
+  const modalRef = useModal();
   useEscape(onClose);
 
   const doExport = async (format: FigureFormat) => {
@@ -67,7 +69,7 @@ export function FigurePanel({ input, onClose }: { input: () => FigureInput; onCl
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={onClose}>
       <div
         className="modal figure-panel"
         role="dialog"

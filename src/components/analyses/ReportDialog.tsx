@@ -7,6 +7,7 @@ import {
   type ReportOptions,
 } from '../../report/options';
 import { useStore } from '../../store';
+import { useModal } from '../useModal';
 
 /** Whether the report dialog is open (from the Analyses tab or the File menu). */
 export const useReportDialog = create<{ open: boolean }>(() => ({ open: false }));
@@ -43,6 +44,7 @@ export function ReportDialog() {
   const [format, setFormat] = useState<ReportFormat>('html');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const modalRef = useModal(open);
   useEffect(() => {
     if (!open) return;
     setError(null);
@@ -79,7 +81,7 @@ export function ReportDialog() {
     }
   };
   return (
-    <div className="modal-backdrop" onMouseDown={close}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={close}>
       <div
         className="modal replication"
         role="dialog"

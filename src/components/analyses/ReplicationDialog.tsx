@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { packageItems, type DataSharing, type PackageItem } from '../../replication/package';
 import { covarianceOnlyBlocked } from '../../io';
 import { useStore } from '../../store';
+import { useModal } from '../useModal';
 
 /** Whether the replication package dialog is open (from the Analyses tab or the File menu). */
 export const useReplication = create<{ open: boolean }>(() => ({ open: false }));
@@ -26,6 +27,7 @@ export function ReplicationDialog() {
   const [report, setReport] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const modalRef = useModal(open);
   useEffect(() => {
     if (!open) return;
     const list = packageItems();
@@ -72,7 +74,7 @@ export function ReplicationDialog() {
     }
   };
   return (
-    <div className="modal-backdrop" onMouseDown={close}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={close}>
       <div
         className="modal replication"
         role="dialog"

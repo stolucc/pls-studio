@@ -3,6 +3,7 @@ import thirdParty from '../generated/third-party.json';
 import { safeUrl } from '../format';
 import { IconX } from './icons';
 import { useEscape } from './useEscape';
+import { useModal } from './useModal';
 
 interface RLicences {
   webr: { version: string; r: string; license: string; source: string | null; url: string };
@@ -28,6 +29,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
       .then(setR)
       .catch(() => setFailed(true));
   }, []);
+  const modalRef = useModal();
   useEscape(onClose);
   const link = (url: string, label: string) =>
     safeUrl(url) ? (
@@ -38,7 +40,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
       label
     );
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={onClose}>
       <div
         className="modal about"
         role="dialog"

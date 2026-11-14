@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { useStore } from '../store';
 import { IconAlert, IconCheck, IconInfo, IconX } from './icons';
 import { useEscape } from './useEscape';
+import { useModal } from './useModal';
 
 interface ConfirmOpts {
   title: string;
@@ -112,7 +113,6 @@ export function choiceDialog(opts: ConfirmOpts & { choices: Choice[] }): Promise
 export function ConfirmModal() {
   const current = useDialog((s) => s.current);
   const okRef = useRef<HTMLButtonElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState('');
   const [values, setValues] = useState<string[]>([]);
   const field = current?.field;
@@ -175,15 +175,19 @@ export function ConfirmModal() {
     setText(current?.field?.initial ?? current?.text?.initial ?? '');
     setValues(current?.fields?.map((f) => f.initial ?? '') ?? []);
   }, [current]);
-  // Focus the first field (or OK) once, when a dialog opens: not on every render, or typing in another field jumps back.
+  // Focus trap, inert page and focus restored on closing; declared before the
+  // focusing below, so that it sees where the focus was before the dialog opened.
+  const modalRef = useModal(!!current);
+  // Focus the first field, a text box too (or OK) once, when a dialog opens: not on every render, or typing in another field jumps back.
   useEffect(() => {
     if (!current) return;
-    (current.field || current.text || current.fields ? inputRef.current : okRef.current)?.focus();
-  }, [current]);
+    const firstField = modalRef.current?.querySelector<HTMLElement>('input, textarea');
+    (current.field || current.text || current.fields ? firstField : okRef.current)?.focus();
+  }, [current, modalRef]);
   useEscape(() => close(false), !!current);
   if (!current) return null;
   return (
-    <div className="modal-backdrop" onMouseDown={() => close(false)}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={() => close(false)}>
       <div
         className="modal"
         role="dialog"
@@ -198,7 +202,6 @@ export function ConfirmModal() {
             <label htmlFor="dlg-num">{field.label}</label>
             <input
               id="dlg-num"
-              ref={inputRef}
               className="input num"
               type="number"
               min={field.min}
@@ -222,7 +225,6 @@ export function ConfirmModal() {
             <label htmlFor="dlg-text">{textField.label}</label>
             <input
               id="dlg-text"
-              ref={inputRef}
               className="input"
               value={text}
               autoComplete="off"
@@ -256,7 +258,6 @@ export function ConfirmModal() {
             ) : (
               <input
                 id={`dlg-f${i}`}
-                ref={i === 0 ? inputRef : undefined}
                 className="input"
                 value={vals[i]}
                 autoComplete="off"

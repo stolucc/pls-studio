@@ -21,6 +21,7 @@ import { fmt } from '../format';
 import { useStore } from '../store';
 import { IconX } from './icons';
 import { useEscape } from './useEscape';
+import { useModal } from './useModal';
 
 /** A key of the pad: what it shows, what it inserts, how it reads aloud. */
 interface Key {
@@ -95,6 +96,7 @@ export function ComputeDialog({ edit, onClose }: { edit?: string; onClose: () =>
   const pending = useRef<{ start: number; end: number } | null>(null);
   const [moves, setMoves] = useState(0);
   const field = useRef<HTMLInputElement>(null);
+  const modalRef = useModal();
   useEscape(onClose);
 
   useLayoutEffect(() => {
@@ -203,7 +205,7 @@ export function ComputeDialog({ edit, onClose }: { edit?: string; onClose: () =>
   );
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={onClose}>
       <div
         className="modal compute-dialog"
         role="dialog"

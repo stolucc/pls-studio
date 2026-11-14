@@ -21,6 +21,7 @@ import { toBase } from '../data/pipeline';
 import { useStore } from '../store';
 import { IconX } from './icons';
 import { useEscape } from './useEscape';
+import { useModal } from './useModal';
 
 type Mode = 'width' | 'count' | 'cuts' | 'values';
 const MODES: [Mode, string][] = [
@@ -72,6 +73,7 @@ export function RecodeDialog({ column, onClose }: { column: string; onClose: () 
     freeColumnName(data?.names ?? [], `${column.replace(/[^A-Za-z0-9_.]/g, '_')}_rec`),
   );
   const [error, setError] = useState<string | null>(null);
+  const modalRef = useModal();
   useEscape(onClose);
 
   // Over every case, as the column will be computed (the filter applies afterwards).
@@ -122,7 +124,7 @@ export function RecodeDialog({ column, onClose }: { column: string; onClose: () 
     typeof plan === 'string' ? '' : (plan.labels.find((l) => l.value === v)?.label ?? '');
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={onClose}>
       <div
         className="modal recode-dialog"
         role="dialog"

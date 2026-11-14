@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useAuth, type DialogMode } from '../../cloud/auth';
 import { useStore } from '../../store';
 import { useEscape } from '../useEscape';
+import { useModal } from '../useModal';
 
 /** Sign in / create account / second factor / confirm Google link, all on-theme. */
 const DIALOG_TITLE: Record<DialogMode, string> = {
@@ -35,6 +36,7 @@ export function AuthDialog() {
     setPassword2('');
     setTimeout(() => first.current?.focus(), 0);
   }, [d?.mode]);
+  const modalRef = useModal(!!d);
   useEscape(() => auth.closeDialog(), !!d);
   if (!d) return null;
 
@@ -65,7 +67,7 @@ export function AuthDialog() {
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={() => auth.closeDialog()}>
+    <div className="modal-backdrop" ref={modalRef} onMouseDown={() => auth.closeDialog()}>
       <div
         className="modal auth"
         role="dialog"
