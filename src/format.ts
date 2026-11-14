@@ -65,10 +65,22 @@ export function downloadBlob(filename: string, blob: Blob) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** A plain number as text (a sign, digits, a decimal point, an exponent): nothing a spreadsheet would run. */
+const NUMERIC = /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i;
+
+/**
+ * Text for a spreadsheet cell, with formula injection neutralised: text that
+ * starts with =, +, -, @, a tab or a carriage return gets a leading
+ * apostrophe, unless it is a plain number (-1.5 stays a number; -1+cmd does not).
+ */
+export function formulaSafe(v: string | number): string {
+  const s = String(v);
+  return /^[=+\-@\t\r]/.test(s) && !NUMERIC.test(s) ? `'${s}` : s;
+}
+
 /** CSV cell escaping, also neutralising spreadsheet formula injection. */
 export function csvCell(v: string | number): string {
-  let s = String(v);
-  if (/^[=+\-@\t\r]/.test(s) && !/^-?\d/.test(s)) s = `'${s}`;
+  const s = formulaSafe(v);
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

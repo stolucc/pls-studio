@@ -1,7 +1,16 @@
 import { isValidElement, type ReactNode } from 'react';
 import { toLatex } from '../../latex';
 import { registerTable } from '../../report/tableRegistry';
-import { copyText, csvCell, downloadText, fmt, fmtP, safeFileName, stars } from '../../format';
+import {
+  copyText,
+  csvCell,
+  downloadText,
+  fmt,
+  fmtP,
+  formulaSafe,
+  safeFileName,
+  stars,
+} from '../../format';
 import type { BootstrapResult, BootstrapStat } from '../../engine/types';
 import { useStore } from '../../store';
 import { IconCopy, IconDownload } from '../icons';
@@ -35,7 +44,9 @@ export function Table({
   const project = useStore((s) => s.projectName);
   const raw = (cell: Cell) => (cell.v === null ? '' : String(cell.v));
   const copy = async () => {
-    const tsv = [columns, ...rows.map((r) => r.map(raw))].map((r) => r.join('\t')).join('\n');
+    const tsv = [columns, ...rows.map((r) => r.map(raw))]
+      .map((r) => r.map(formulaSafe).join('\t'))
+      .join('\n');
     const ok = await copyText(tsv);
     toast(
       ok ? 'success' : 'error',
