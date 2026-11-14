@@ -7,6 +7,7 @@ import { startAutoCalculate } from './autoCalculate';
 import { scheduleRWarmUp } from './rengine/warmup';
 import { Canvas } from './components/Canvas';
 import { DataPanel } from './components/DataPanel';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Inspector } from './components/Inspector';
 import { ConfirmModal, Toasts } from './components/Overlays';
 import { ResultsPanel } from './components/ResultsPanel';
@@ -190,11 +191,17 @@ export default function App() {
           </div>
           {/* The diagram stays mounted (and laid out) behind the Data tab, so switching back keeps its viewport. */}
           <main className="center" inert={workspace !== 'model'}>
-            <Canvas onImport={() => void importCsv()} />
-            <ResultsPanel height={resultsHeight} onResize={setResultsHeight} />
+            <ErrorBoundary area="the diagram">
+              <Canvas onImport={() => void importCsv()} />
+            </ErrorBoundary>
+            <ErrorBoundary area="the results">
+              <ResultsPanel height={resultsHeight} onResize={setResultsHeight} />
+            </ErrorBoundary>
           </main>
           <div className="inspector-col" inert={workspace !== 'model'}>
-            <Inspector />
+            <ErrorBoundary area="the Inspector">
+              <Inspector />
+            </ErrorBoundary>
           </div>
           {workspace === 'data' && <DataWorkspace />}
           {workspace === 'analyses' && <AnalysesWorkspace />}
