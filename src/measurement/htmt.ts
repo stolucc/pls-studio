@@ -4,10 +4,11 @@
 // items that drive a high value.
 //
 // Rules and sources:
-// - HTMT at or above 0.85 (conceptually distinct constructs) or 0.90 (conceptually similar ones)
-//   indicates a lack of discriminant validity (Henseler, Ringle & Sarstedt 2015).
-// - The upper bound of the one-sided 95% bootstrap interval should be below the threshold too:
-//   a value just below the threshold whose upper bound reaches it does not establish
+// - HTMT above 0.85 (conceptually distinct constructs) or 0.90 (conceptually similar ones)
+//   indicates a lack of discriminant validity (Henseler, Ringle & Sarstedt 2015); at or below
+//   passes (the one rule of reporting/thresholds.ts, htmtFails).
+// - The upper bound of the one-sided 95% bootstrap interval must not be above the threshold
+//   either: a value below the threshold whose upper bound exceeds it does not establish
 //   discriminant validity (Franke & Sarstedt 2019).
 // - HTMT takes precedence over the Fornell–Larcker criterion, which misses most problems
 //   (Henseler et al. 2015; Hair et al. 2021).
@@ -17,7 +18,7 @@ import { compileModel, extractColumns } from '../engine/pls';
 import type { Dataset, MissingTreatment, ModelSpec, PlsResult } from '../engine/types';
 import { HTMT_DISTINCT, HTMT_SIMILAR, htmtFails } from '../reporting/thresholds';
 
-// The thresholds and the at-or-above rule are shared with the checklist (reporting/thresholds.ts).
+// The thresholds and the above-the-threshold rule are shared with the checklist (reporting/thresholds.ts).
 export { HTMT_DISTINCT, HTMT_SIMILAR };
 /** One-sided 95% interval: its upper bound is the 95th percentile (Franke & Sarstedt 2019). */
 export const HTMT_UPPER_PROBABILITY = 0.95;
@@ -28,14 +29,14 @@ export function htmtThreshold(similar: boolean): number {
 }
 
 /**
- * - `fails`: the HTMT itself is at or above the threshold.
- * - `boundFails`: the HTMT is below, but the bootstrap upper bound reaches the threshold: not established.
- * - `established`: both below the threshold.
- * - `unconfirmed`: the HTMT is below, and no bootstrap upper bound has been computed yet.
+ * - `fails`: the HTMT itself is above the threshold.
+ * - `boundFails`: the HTMT is not, but the bootstrap upper bound is above the threshold: not established.
+ * - `established`: neither is above the threshold.
+ * - `unconfirmed`: the HTMT is not above, and no bootstrap upper bound has been computed yet.
  */
 export type HtmtVerdict = 'fails' | 'boundFails' | 'established' | 'unconfirmed';
 
-/** The verdict for a pair (at or above the threshold counts as failing, as the reviewer checklist does). */
+/** The verdict for a pair (above the threshold fails, as everywhere: reporting/thresholds.ts). */
 export function htmtVerdict(
   value: number,
   upper: number | null | undefined,

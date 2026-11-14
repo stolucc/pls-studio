@@ -13,6 +13,7 @@ import {
   bootCells,
   bootCols,
   c,
+  htmtCellDigits,
   htmtCls,
   loadingCls,
   mostlyNegative,
@@ -815,13 +816,13 @@ function Discriminant({ cb }: { cb: CbResult }) {
         title="HTMT"
         file="cb-htmt"
         columns={['', ...C]}
-        rows={matrixRows(C, (i, j) => cb.htmt[i][j], htmtCls)}
+        rows={matrixRows(C, (i, j) => cb.htmt[i][j], htmtCls, htmtCellDigits)}
       />
       <Table
         title="HTMT2"
         file="cb-htmt2"
         columns={['', ...C]}
-        rows={matrixRows(C, (i, j) => cb.htmt2[i][j], htmtCls)}
+        rows={matrixRows(C, (i, j) => cb.htmt2[i][j], htmtCls, htmtCellDigits)}
       />
       <Table
         title="Fornell–Larcker (model-implied factor correlations)"

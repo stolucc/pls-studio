@@ -21,6 +21,7 @@ import {
   aveMeets,
   HTMT_DISTINCT,
   htmtFails,
+  htmtText,
   LOADING_DELETE,
   loadingMeets,
   reliabilityOutside,
@@ -570,7 +571,7 @@ function htmtItem(
       if (v !== null && Number.isFinite(v) && i !== j) {
         max = Math.max(max, v);
         if (htmtFails(v, cutOf ? cutOf(i, j) : cut))
-          pairs.push(`${names[i]}–${names[j]} (${f2(v)})`);
+          pairs.push(`${names[i]}–${names[j]} (${htmtText(v, 2)})`);
       }
     }),
   );
@@ -578,12 +579,12 @@ function htmtItem(
   return {
     id: 'htmt',
     section: 'Measurement model',
-    label: `Discriminant validity: HTMT below ${threshold}`,
+    label: `Discriminant validity: HTMT not above ${threshold}`,
     sources,
     status: pairs.length ? 'issue' : 'done',
     evidence: pairs.length
-      ? `At or above ${cutOf ? 'the threshold (.90 for pairs marked similar)' : '.85'}: ${join(pairs)}.`
-      : `Largest HTMT ${f2(max)}.`,
+      ? `Above ${cutOf ? 'the threshold (.90 for pairs marked similar)' : '.85'}: ${join(pairs)}.`
+      : `Largest HTMT ${htmtText(max, 2)}.`,
     link: { kind: 'tab', label: 'Discriminant validity' },
   };
 }

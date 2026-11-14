@@ -31,16 +31,19 @@ describe('thresholds and verdicts (Henseler et al. 2015; Franke & Sarstedt 2019)
     expect(htmtThreshold(true)).toBe(0.9);
   });
 
-  it('fails at or above the threshold, whatever the bound', () => {
-    expect(htmtVerdict(0.85, null, 0.85)).toBe('fails');
+  it('fails above the threshold, whatever the bound; exactly at it passes (Henseler et al. 2015)', () => {
+    expect(htmtVerdict(0.85, null, 0.85)).toBe('unconfirmed');
+    expect(htmtVerdict(0.8501, null, 0.85)).toBe('fails');
     expect(htmtVerdict(0.851, 0.8, 0.85)).toBe('fails');
-    expect(htmtVerdict(0.9, null, 0.9)).toBe('fails');
+    expect(htmtVerdict(0.9, null, 0.9)).toBe('unconfirmed');
+    expect(htmtVerdict(0.9001, null, 0.9)).toBe('fails');
     expect(htmtVerdict(0.89, null, 0.9)).toBe('unconfirmed');
   });
 
-  it('a value just below the threshold with an upper bound reaching it is not established', () => {
-    expect(htmtVerdict(0.84, 0.85, 0.85)).toBe('boundFails');
+  it('a value below the threshold with an upper bound above it is not established', () => {
+    expect(htmtVerdict(0.84, 0.8501, 0.85)).toBe('boundFails');
     expect(htmtVerdict(0.84, 0.91, 0.85)).toBe('boundFails');
+    expect(htmtVerdict(0.84, 0.85, 0.85)).toBe('established');
     expect(htmtVerdict(0.84, 0.8499, 0.85)).toBe('established');
     // marked similar: the same values pass the 0.90 threshold
     expect(htmtVerdict(0.84, 0.88, htmtThreshold(true))).toBe('established');

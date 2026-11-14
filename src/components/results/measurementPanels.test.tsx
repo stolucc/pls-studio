@@ -49,7 +49,7 @@ describe('HTMT: what now?', () => {
     const text = host.textContent ?? '';
     expect(text).toContain('HTMT inference');
     expect(text).toContain('Quality and Image');
-    expect(text).toContain('HTMT at or above the threshold');
+    expect(text).toContain('HTMT above the threshold');
     expect(text).not.toContain('HTMT takes precedence');
     act(() => button('What')!.click());
     const open = host.textContent ?? '';

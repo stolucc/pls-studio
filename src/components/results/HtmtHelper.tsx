@@ -27,6 +27,7 @@ import {
 } from '../../measurement/htmt';
 import { isSimilarPair, withSimilarPair } from '../../measurement/state';
 import { toSpec } from '../../model/project';
+import { htmtDigits, htmtFails, htmtText } from '../../reporting/thresholds';
 import { resultsKey, useStore } from '../../store';
 import { IconChevronDown, IconChevronUp, IconPlay, IconX } from '../icons';
 import { c, Table, type Row } from './Table';
@@ -92,11 +93,18 @@ export function cancelHtmtBootstrap() {
 }
 
 const VERDICT_TEXT: Record<HtmtVerdict, string> = {
-  fails: 'HTMT at or above the threshold',
-  boundFails: 'Upper bound reaches the threshold',
+  fails: 'HTMT above the threshold',
+  boundFails: 'Upper bound above the threshold',
   established: 'Established',
-  unconfirmed: 'Below; not yet bootstrapped',
+  unconfirmed: 'Not above; not yet bootstrapped',
 };
+/** The upper bound against 1 (Henseler et al. 2015) and against the threshold (above fails). */
+function upperBoundSentence(upper: number, threshold: number): string {
+  const againstOne = upper < 1 ? 'below 1' : 'not below 1';
+  const againstThreshold = htmtFails(upper, threshold) ? 'above' : 'not above';
+  return ` Here the upper bound is ${htmtText(upper, 3)}: ${againstOne}, and ${againstThreshold} the threshold.`;
+}
+
 const VERDICT_CLASS: Record<HtmtVerdict, string> = {
   fails: 'bad',
   boundFails: 'bad',
@@ -163,8 +171,8 @@ export function HtmtHelper({ pls }: { pls: PlsResult }) {
 
   const tableRows: Row[] = rows.map((r) => [
     c(`${r.p.a} – ${r.p.b}`),
-    c(r.p.htmt, r.verdict === 'fails' ? 'bad' : ''),
-    c(r.upper, r.verdict === 'boundFails' ? 'bad' : ''),
+    c(r.p.htmt, r.verdict === 'fails' ? 'bad' : '', htmtDigits(r.p.htmt, 3)),
+    c(r.upper, r.verdict === 'boundFails' ? 'bad' : '', htmtDigits(r.upper ?? NaN, 3)),
     c(r.threshold, 'dim', 2),
     c(VERDICT_TEXT[r.verdict], r.verdict === 'established' ? 'good' : 'dim'),
   ]);
@@ -203,10 +211,10 @@ export function HtmtHelper({ pls }: { pls: PlsResult }) {
         )}
       </div>
       <p className="mq-text">
-        A pair passes when its HTMT is below {fmt(HTMT_DISTINCT, 2)} ({fmt(HTMT_SIMILAR, 2)} for
-        constructs you mark as conceptually similar; Henseler, Ringle &amp; Sarstedt 2015) and the
-        upper bound of its one-sided 95% bootstrap interval is below that threshold too (Franke
-        &amp; Sarstedt 2019).
+        A pair fails when its HTMT is above {fmt(HTMT_DISTINCT, 2)} ({fmt(HTMT_SIMILAR, 2)} for
+        constructs you mark as conceptually similar; Henseler, Ringle &amp; Sarstedt 2015). It
+        passes when neither its HTMT nor the upper bound of its one-sided 95% bootstrap interval is
+        above that threshold (Franke &amp; Sarstedt 2019).
         {current
           ? ` Bootstrap: ${current.samples - current.failed} of ${current.samples} samples, seed ${current.seed}.`
           : ''}
@@ -325,9 +333,9 @@ function PairPanel({
         </span>
       </label>
       <div className="mq-facts">
-        <Fact k="HTMT" v={fmt(pair.htmt)} />
+        <Fact k="HTMT" v={htmtText(pair.htmt, 3)} />
         <Fact k="Threshold" v={fmt(threshold, 2)} />
-        <Fact k="95% upper bound" v={upper === null ? '—' : fmt(upper)} />
+        <Fact k="95% upper bound" v={upper === null ? '—' : htmtText(upper, 3)} />
         <Fact k="HTMT2" v={pair.htmt2 === null ? '—' : fmt(pair.htmt2)} />
         {fl && (
           <Fact
@@ -340,7 +348,7 @@ function PairPanel({
       {upper === null && (
         <div className="mq-actions">
           <span className="hint">
-            No bootstrap upper bound yet. Without it, a value below the threshold is not
+            No bootstrap upper bound yet. Without it, a value not above the threshold is not
             established.
           </span>
           {onBootstrap && (
@@ -358,10 +366,11 @@ function PairPanel({
           {fl?.met ? ' Here Fornell–Larcker is met, but that does not overrule the HTMT.' : ''}
         </li>
         <li>
-          A value just below the threshold whose bootstrap upper bound reaches the threshold does
+          A value just below the threshold whose bootstrap upper bound is above the threshold does
           not establish discriminant validity (Franke &amp; Sarstedt 2019).
-          {verdict === 'boundFails'
-            ? ` That is the case here: ${fmt(pair.htmt)} is below ${fmt(threshold, 2)}, but the upper bound is ${fmt(upper)}.`
+          {verdict === 'boundFails' && upper !== null
+            ? ` That is the case here: ${htmtText(pair.htmt, 3)} is not above ` +
+              `${fmt(threshold, 2)}, but the upper bound is ${htmtText(upper, 3)}.`
             : ''}
         </li>
       </ul>
@@ -408,10 +417,10 @@ function PairPanel({
           </li>
           <li>
             <strong>Report HTMT inference.</strong> An upper bound below 1 shows that the constructs
-            are empirically distinct (Henseler et al. 2015); the stricter test is an upper bound
-            below the threshold of {fmt(threshold, 2)} (Franke &amp; Sarstedt 2019).
+            are empirically distinct (Henseler et al. 2015); the stricter test is an upper bound not
+            above the threshold of {fmt(threshold, 2)} (Franke &amp; Sarstedt 2019).
             {upper !== null
-              ? ` Here the upper bound is ${fmt(upper)}: ${upper < 1 ? 'below 1' : 'not below 1'}, and ${upper < threshold ? 'below' : 'not below'} the threshold.`
+              ? upperBoundSentence(upper, threshold)
               : ' Run the HTMT bootstrap to get it.'}
           </li>
         </ol>

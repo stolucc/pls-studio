@@ -2,14 +2,14 @@
 // helper and the result tables agree on the boundary values.
 
 import { describe, expect, it } from 'vitest';
-import { htmtCls } from '../components/results/Table';
+import { htmtCellDigits, htmtCls, matrixRows } from '../components/results/Table';
 import { htmtVerdict } from '../measurement/htmt';
 import { loadingBand } from '../measurement/loadings';
 import { reviewerChecklist } from './checklist';
 import { plsInput, plsModel, plsResult } from './fixtures';
 import { methodsText } from './methods';
 import type { PlsResult } from '../engine/types';
-import { HTMT_DISTINCT, LOADING_MIN, rhoADefined } from './thresholds';
+import { HTMT_DISTINCT, htmtDigits, htmtText, LOADING_MIN, rhoADefined } from './thresholds';
 
 const quality = (rhoA: number, rhoC = 0.85) => ({ alpha: 0.8, rhoC, rhoA, ave: 0.6 });
 
@@ -30,20 +30,52 @@ describe('shared thresholds', () => {
     expect(item.evidence).toContain('im3 (0.705)');
   });
 
-  it('counts an HTMT at the threshold as failing in the table, the helper and the checklist', () => {
-    expect(htmtCls(HTMT_DISTINCT)).toBe('warn');
-    expect(htmtCls(0.9)).toBe('bad');
-    expect(htmtCls(0.849)).toBe('');
-    expect(htmtVerdict(HTMT_DISTINCT, null, HTMT_DISTINCT)).toBe('fails');
-    const pls = plsResult({
-      htmt: [
-        [null, null, null],
-        [0.6, null, null],
-        [0.85, 0.7, null],
-      ],
-    });
-    const item = reviewerChecklist(plsInput({ pls })).find((x) => x.id === 'htmt')!;
-    expect(item.status).toBe('issue');
+  it('fails an HTMT above the threshold, passes one at it, in the table, the helper and the checklist', () => {
+    expect(htmtCls(HTMT_DISTINCT)).toBe('');
+    expect(htmtCls(0.8501)).toBe('warn');
+    expect(htmtCls(0.9)).toBe('warn');
+    expect(htmtCls(0.9001)).toBe('bad');
+    expect(htmtVerdict(HTMT_DISTINCT, null, HTMT_DISTINCT)).toBe('unconfirmed');
+    expect(htmtVerdict(0.8501, null, HTMT_DISTINCT)).toBe('fails');
+    const htmtAt = (v: number) =>
+      plsResult({
+        htmt: [
+          [null, null, null],
+          [0.6, null, null],
+          [v, 0.7, null],
+        ],
+      });
+    const at = reviewerChecklist(plsInput({ pls: htmtAt(0.85) })).find((x) => x.id === 'htmt')!;
+    expect(at.status).toBe('done');
+    expect(at.label).toBe(
+      'Discriminant validity: HTMT not above .85 (.90 for conceptually similar constructs)',
+    );
+    const above = reviewerChecklist(plsInput({ pls: htmtAt(0.8504) })).find(
+      (x) => x.id === 'htmt',
+    )!;
+    expect(above.status).toBe('issue');
+    // Not "0.85": shown as the threshold, it would read as passing.
+    expect(above.evidence).toBe('Above .85: Loyalty–Image (0.8504).');
+    // Just below rounds to the threshold and passes: no contradiction, two decimals.
+    const below = reviewerChecklist(plsInput({ pls: htmtAt(0.8496) })).find(
+      (x) => x.id === 'htmt',
+    )!;
+    expect(below.status).toBe('done');
+    expect(below.evidence).toBe('Largest HTMT 0.85.');
+  });
+
+  it('shows an HTMT above a threshold with the decimals that keep it above', () => {
+    expect(htmtDigits(0.8504, 2)).toBe(4);
+    expect(htmtText(0.8504, 2)).toBe('0.8504');
+    expect(htmtText(0.8504, 3)).toBe('0.8504');
+    expect(htmtText(0.8506, 3)).toBe('0.851');
+    expect(htmtText(0.90004, 3)).toBe('0.90004');
+    expect(htmtText(0.85, 2)).toBe('0.85');
+    expect(htmtText(0.8496, 2)).toBe('0.85');
+    expect(htmtText(0.42, 3)).toBe('0.420');
+    expect(htmtText(NaN, 3)).toBe('—');
+    const [row] = matrixRows(['A', 'B'], () => 0.8504, htmtCls, htmtCellDigits).slice(1);
+    expect(row[1]).toMatchObject({ v: 0.8504, cls: 'warn', d: 4 });
   });
 });
 

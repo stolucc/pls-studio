@@ -12,9 +12,14 @@
 //   redundant (Hair et al. 2019; Dijkstra & Henseler 2015 for ρA).
 // - AVE of at least 0.50 (Fornell & Larcker 1981; Hair et al. 2019).
 // - HTMT: Henseler, Ringle & Sarstedt (2015) speak of a lack of discriminant validity when the
-//   HTMT is "above" 0.85 (conceptually distinct constructs) or 0.90 (conceptually similar ones).
-//   The app counts a value at the threshold as failing too (at or above), the conservative
-//   reading, which a reported HTMT of exactly .85 makes visible either way.
+//   HTMT is above 0.85 (conceptually distinct constructs) or 0.90 (conceptually similar ones);
+//   Hair et al. (2019) use the same wording. The rule, used everywhere (htmtFails): a value
+//   ABOVE the threshold fails, a value at or below it passes. The same holds for the upper
+//   bound of the bootstrap interval (Franke & Sarstedt 2019; Henseler et al. 2015's HTMT
+//   inference compares it with 1 or the threshold); a bound exactly at the threshold has
+//   probability zero, so the strict reading of their test changes nothing in practice.
+//   Displayed HTMT values never contradict the verdict: a value above a threshold that would
+//   round to it (0.8504 at two decimals) is shown with more decimals (htmtDigits).
 
 /** Indicator reliability: keep at or above (Hair et al. 2019, 2021). */
 export const LOADING_MIN = 0.708;
@@ -56,9 +61,34 @@ export function aveMeets(ave: number): boolean {
   return ave >= AVE_MIN;
 }
 
-/** An HTMT that indicates a lack of discriminant validity at a threshold (at or above). */
+/** An HTMT (or its upper bound) that indicates a lack of discriminant validity: above the threshold. */
 export function htmtFails(value: number, threshold: number): boolean {
-  return value >= threshold;
+  return value > threshold;
+}
+
+/** The most decimals htmtDigits adds. */
+const HTMT_MAX_DIGITS = 10;
+
+/**
+ * The decimals to show an HTMT with: `digits`, or more when the value is above a threshold
+ * (0.85, 0.90) but would be displayed as the threshold itself, which reads as passing.
+ * 0.8504 at two decimals is "0.8504", not "0.85"; 0.8496 stays "0.85" (at most .85 passes).
+ */
+export function htmtDigits(value: number, digits: number): number {
+  if (!Number.isFinite(value)) return digits;
+  const looksLikeThreshold = (d: number) =>
+    [HTMT_DISTINCT, HTMT_SIMILAR].some(
+      (t) => htmtFails(value, t) && value.toFixed(d) === t.toFixed(d),
+    );
+  let d = digits;
+  while (d < HTMT_MAX_DIGITS && looksLikeThreshold(d)) d++;
+  return d;
+}
+
+/** An HTMT as text, with htmtDigits' decimals ("—" when not finite). */
+export function htmtText(value: number, digits: number): string {
+  if (!Number.isFinite(value)) return '—';
+  return value.toFixed(htmtDigits(value, digits));
 }
 
 /**

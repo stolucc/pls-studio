@@ -31,6 +31,7 @@ import {
   bootCells,
   bootCols,
   c,
+  htmtCellDigits,
   htmtCls,
   loadingCls,
   mostlyNegative,
@@ -480,14 +481,14 @@ function Discriminant({ pls }: { pls: PlsResult }) {
         title="HTMT"
         file="htmt"
         columns={['', ...C]}
-        rows={matrixRows(C, (i, j) => pls.htmt[i][j], htmtCls)}
+        rows={matrixRows(C, (i, j) => pls.htmt[i][j], htmtCls, htmtCellDigits)}
         note={`Heterotrait–monotrait ratio (Henseler, Ringle & Sarstedt 2015). Above 0.90 (0.85 for distinct concepts) indicates a problem.${htmtNotes(pls)}`}
       />
       <Table
         title="HTMT2"
         file="htmt2"
         columns={['', ...C]}
-        rows={matrixRows(C, (i, j) => pls.htmt2[i][j], htmtCls)}
+        rows={matrixRows(C, (i, j) => pls.htmt2[i][j], htmtCls, htmtCellDigits)}
         note={`Geometric-mean HTMT (Roemer, Schuberth & Henseler 2021); consistent for congeneric measures.${htmtNotes(pls)}`}
       />
       <Table
