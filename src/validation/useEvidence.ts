@@ -1,7 +1,8 @@
 // The validation evidence (public/validation.json), fetched once when first needed.
 
 import { useEffect, useState } from 'react';
-import type { Check, Evidence, EvidenceLevel } from './types';
+import { ESTIMATE_LEVELS, isEstimateComparison } from './types';
+import type { Check, Comparison, Evidence, EvidenceLevel } from './types';
 
 let cached: Promise<Evidence | null> | null = null;
 
@@ -62,7 +63,12 @@ export const LEVEL_TEXT: Record<EvidenceLevel, { short: string; long: string; hi
   native: {
     short: 'Native R',
     long: 'Matches the R package run natively',
-    hint: 'The app’s numbers equal the same R package run in desktop R on the same data (a reference script), or the package’s own documented output.',
+    hint: 'The app’s numbers equal the same R package run in desktop R on the same data (a reference script, or values recorded from desktop R), or the package’s own documented output.',
+  },
+  'same-r': {
+    short: 'Same R',
+    long: 'Matches the package’s own function in the same R',
+    hint: 'The app’s numbers equal the package’s function called directly (or a computation by hand) in the same R session that computed them: this checks the app’s request, options and reading of the result, not R or the package itself.',
   },
   recovery: {
     short: 'Simulated',
@@ -77,17 +83,35 @@ export const LEVEL_TEXT: Record<EvidenceLevel, { short: string; long: string; hi
 };
 
 /**
+ * An example's comparisons against the sources of one kind of evidence (for "runs": those of the run itself, with
+ * no source); for a method check, all of them.
+ */
+export function kindComparisons(c: Check, k: EvidenceLevel): Comparison[] {
+  if (c.subject !== 'example') return c.comparisons;
+  if (k === 'runs') return c.comparisons.filter((x) => !x.source);
+  const labels = new Set(c.sources.filter((s) => s.level === k).map((s) => s.label));
+  return c.comparisons.filter((x) => !!x.source && labels.has(x.source));
+}
+
+/**
  * The kinds of evidence a check has: for an example, those of the sources it was actually compared with
  * (published, native R; often both, which are different evidence, not one stronger than the other), or
- * "runs" when it was compared with none; for a method check, its own.
+ * "runs" when it was compared with none; for a method check, its own. Published and native evidence need a
+ * comparison of an estimated quantity (types.ts isEstimateComparison): counts alone do not give it.
  */
 export function evidenceKinds(c: Check): EvidenceLevel[] {
   if (c.subject !== 'example') return [c.level];
-  const used = new Set(c.comparisons.map((x) => x.source).filter(Boolean));
-  const kinds = (['published', 'native', 'recovery'] as const).filter((k) =>
-    c.sources.some((s) => s.level === k && used.has(s.label)),
-  );
+  const kinds = (['published', 'native', 'same-r', 'recovery'] as const).filter((k) => {
+    const compared = kindComparisons(c, k);
+    return ESTIMATE_LEVELS.includes(k) ? compared.some(isEstimateComparison) : compared.length > 0;
+  });
   return kinds.length ? [...kinds] : ['runs'];
+}
+
+/** "12 numbers compared", for a badge's tooltip: the comparisons behind one kind of evidence. */
+export function comparedText(c: Check, k: EvidenceLevel): string {
+  const n = kindComparisons(c, k).length;
+  return `${n} number${n === 1 ? '' : 's'} compared`;
 }
 
 /** The largest difference of a check's numeric comparisons. */

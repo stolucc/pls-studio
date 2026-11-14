@@ -1087,6 +1087,14 @@
     },
     "identical": true
   },
+  "sources": {
+    "src/rengine/R/common.R": "c6ab1dfbc683ad31a07172ee86f3960a",
+    "src/rengine/R/longitudinal.R": "758844d91253e472d9db7c1f13d00334",
+    "src/rengine/R/regression.R": "f66169780f1446acacfa73990170367d",
+    "src/rengine/R/tests.R": "968fc3a0e8641487f2f93fe6afd4cea6",
+    "src/rengine/R/lavaan.R": "9732881755d3c2d3d31815ff9a08df54",
+    "src/rengine/R/bayes.R": "461aaff17b148f3cf87ec7596346f41c"
+  },
   "versions": {
     "R": "R version 4.6.2 (2026-10-29)",
     "lavaan": "0.7.3",

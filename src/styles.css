@@ -989,6 +989,7 @@ a.btn { text-decoration: none; }
 .chip.evidence { cursor: help; white-space: nowrap; max-width: none; flex: none; overflow: visible; }
 .chip.evidence.published { background: var(--good-soft); color: var(--good); }
 .chip.evidence.native { background: var(--accent-soft); color: var(--accent-strong); }
+.chip.evidence.same-r { background: var(--accent-soft); color: var(--accent); }
 .chip.evidence.recovery { background: var(--warn-soft); color: var(--warn); }
 button.chip.evidence { border: 0; font: inherit; cursor: pointer; }
 .validation-body { display: block; max-width: 980px; }

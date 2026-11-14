@@ -1,6 +1,7 @@
 // Mplus's Bayesian SEM examples (3.18, 5.31, 5.32, 5.33, 11.7): the run recorded by bsem.native.test.ts (the card's
 // R code in desktop R, blavaan and Stan) against the Mplus output, without R: every free parameter Mplus prints,
 // its posterior median and SD within Monte Carlo error (bsemkit.ts), and the card's options as the examples open it.
+// A run recorded from another request or other R code than the card's now fails (bsemkit.ts currentRecorded).
 
 import { describe, expect, it } from 'vitest';
 import { bsemAnalysis } from '../../analyses/bsem';
@@ -11,6 +12,7 @@ import {
   bsemExample,
   bsemExampleRequest,
   compareWithMplus,
+  currentRecorded,
   readRecorded,
 } from './bsemkit';
 
@@ -20,11 +22,7 @@ describe('the recorded desktop runs against Mplus', () => {
   it.each(BSEM_EXAMPLES.map((e) => [e.key]))(
     '%s: converged, and within Monte Carlo error of every printed parameter',
     (key) => {
-      const r = recorded[key];
-      expect(
-        r,
-        `${key}: run NATIVE_R_TESTS=1 npx vitest run src/examples/mplus/bsem.native`,
-      ).toBeDefined();
+      const r = currentRecorded(recorded, key);
       expect(r.result.converged).toBe(true);
       expect(r.result.maxRhat).toBeLessThan(1.05);
       expect(r.result.priors).toBe('mplus');
@@ -35,10 +33,11 @@ describe('the recorded desktop runs against Mplus', () => {
   );
 
   it('3.18: the indirect effect over the moderator (Mplus LOOP, PLOT): b·(γ1 + γ2·mod) from −2 to 2', () => {
-    const l = recorded['ex3.18'].result.loop!;
+    const run = currentRecorded(recorded, 'ex3.18').result;
+    const l = run.loop!;
     expect(l.x).toHaveLength(41);
-    const b = recorded['ex3.18'].result.parameters.find((p) => p.label === 'b')!;
-    const g1 = recorded['ex3.18'].result.parameters.find((p) => p.label === 'gamma1')!;
+    const b = run.parameters.find((p) => p.label === 'b')!;
+    const g1 = run.parameters.find((p) => p.label === 'gamma1')!;
     // At mod = 0 the indirect effect is b·γ1: its median near the product of the medians (both well away from 0 here).
     expect(l.median[20]).toBeCloseTo(b.median! * g1.median!, 1);
     // γ2 < 0 (−0.18): the indirect effect falls with the moderator.
@@ -46,7 +45,7 @@ describe('the recorded desktop runs against Mplus', () => {
   });
 
   it('11.7: plausible values of the factors as Mplus summarises them (means within Monte Carlo error)', () => {
-    const pv = recorded['ex11.7'].result.plausible!;
+    const pv = currentRecorded(recorded, 'ex11.7').result.plausible!;
     expect(pv.draws).toBe(20);
     expect(pv.cases).toBe(500);
     // SUMMARIES OF PLAUSIBLE VALUES: the means of F1, F2, F3, I, S over 500 × 20 draws, and the cases' SDs averaged.

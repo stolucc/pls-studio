@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { PACKAGE_EXAMPLES } from '../../examples/packages';
 import { safeUrl } from '../../format';
 import type { SelfCheckOutcome } from '../../validation/selfCheck';
-import type { Check, Evidence, EvidenceLevel } from '../../validation/types';
+import type { Check, Comparison, Evidence, EvidenceLevel } from '../../validation/types';
 import { EVIDENCE_LEVELS } from '../../validation/types';
 import {
   evidenceKinds,
+  kindComparisons,
   largestDifference,
   LEVEL_TEXT,
   useEvidenceStatus,
@@ -31,7 +32,15 @@ function diff(v: number | null): string {
   return v.toExponential(1);
 }
 
+/** The tolerance: exact, a bound, or a bound that is Monte Carlo error (random draws on both sides). */
+function allowed(x: Comparison): string {
+  if (x.tolerance === 0) return 'exact';
+  if (x.monteCarlo) return `< ${num(x.tolerance)}, within Monte Carlo error`;
+  return `< ${num(x.tolerance)}`;
+}
+
 function Sources({ c }: { c: Check }) {
+  const compared = (label: string) => c.comparisons.filter((x) => x.source === label).length;
   return (
     <ul className="evidence-sources">
       {c.sources.map((s) => (
@@ -45,6 +54,7 @@ function Sources({ c }: { c: Check }) {
             s.label
           )}
           {s.script && <span className="hint"> ({s.script})</span>}
+          {c.subject === 'example' && <span className="hint"> ({compared(s.label)} compared)</span>}
         </li>
       ))}
       {c.runtime === 'desktop' && (
@@ -56,6 +66,13 @@ function Sources({ c }: { c: Check }) {
         <li className="hint">
           Computed without R (the built-in engine, or a desktop run recorded in a fixture and
           compared again).
+        </li>
+      )}
+      {c.comparisons.some((x) => x.monteCarlo) && (
+        <li className="hint">
+          {c.comparisons.filter((x) => x.monteCarlo).length} of the comparisons are within Monte
+          Carlo error: both sides are random draws (imputations, MCMC), and the bound, estimated by
+          the test, can be wide next to the value.
         </li>
       )}
       {c.subject === 'example' && c.runtime !== 'fixture' && (
@@ -95,7 +112,7 @@ function Comparisons({ c }: { c: Check }) {
                   <td className="num">{num(x.value)}</td>
                   <td className="num">{num(x.reference)}</td>
                   <td className="num">{diff(d)}</td>
-                  <td className="num">{x.tolerance === 0 ? 'exact' : `< ${num(x.tolerance)}`}</td>
+                  <td className="num">{allowed(x)}</td>
                   {c.subject === 'example' && (
                     <td className="hint">{x.source ?? 'the run itself'}</td>
                   )}
@@ -138,7 +155,7 @@ function CheckRow({
         <span className="evidence-title">{title}</span>
         <span className="evidence-badges">
           {evidenceKinds(c).map((k) => (
-            <LevelChip key={k} level={k} />
+            <LevelChip key={k} level={k} compared={kindComparisons(c, k).length} />
           ))}
           {c.runtime === 'desktop' && (
             <span className="chip coverage runtime" title="Computed in desktop R, not in webR">
@@ -189,7 +206,10 @@ function Summary({ e }: { e: Evidence }) {
               Kinds of evidence, not a ranking: published results show that another author or
               program gets the same numbers (to the decimals printed), native R that the browser
               computes exactly what the package does in desktop R (every estimate, to four to six
-              decimals). {ex.filter((c) => evidenceKinds(c).length > 1).length} examples have both.
+              decimals); same R that the app asks the package what a direct call in the same R
+              session asks, and reads its answer correctly.{' '}
+              {ex.filter((c) => evidenceKinds(c).length > 1).length} examples have more than one
+              kind.
             </td>
           </tr>
         </tfoot>

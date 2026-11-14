@@ -430,6 +430,8 @@ export function run(kind: JobKind) {
     const w = spawn();
     s.setJob({ kind, done: 0, total: 1, workers: 1 });
     w.onmessage = (e: MessageEvent<WorkerResponse>) => {
+      // (a message from a worker already terminated, by cancelJob or a newer run, is stale)
+      if (!pool.includes(w)) return;
       const msg = e.data;
       if (msg.kind === 'progress') return;
       terminateAll();
@@ -491,6 +493,8 @@ export function run(kind: JobKind) {
   ranges.forEach(([start, end], i) => {
     const w = spawn();
     w.onmessage = (e: MessageEvent<WorkerResponse>) => {
+      // (a message from a worker already terminated, by cancelJob or a failed part, is stale)
+      if (!pool.includes(w)) return;
       const msg = e.data;
       if (msg.kind === 'progress') {
         done[i] = msg.done;

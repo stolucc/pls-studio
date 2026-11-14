@@ -7,7 +7,13 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, type ModelState } from '../../model/project';
 import { estimationKey } from '../../validation/exampleState';
-import { evidenceKinds, resetEvidence } from '../../validation/useEvidence';
+import {
+  comparedText,
+  evidenceKinds,
+  kindComparisons,
+  LEVEL_TEXT,
+  resetEvidence,
+} from '../../validation/useEvidence';
 import type { Evidence } from '../../validation/types';
 import { useStore } from '../../store';
 import { ValidationPage } from './ValidationPage';
@@ -115,6 +121,44 @@ describe('ValidationPage', () => {
         .dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(host.textContent).toContain('Exploratory SEM and bifactor rotations');
+  });
+
+  it('counts the comparisons per source and per kind, and marks bounds that are Monte Carlo error', async () => {
+    const mc: Evidence = {
+      ...evidence,
+      checks: [
+        {
+          ...evidence.checks[0],
+          comparisons: [
+            ...evidence.checks[0].comparisons,
+            {
+              quantity: 'y4 ~~ y4 (pooled)',
+              value: 0.444,
+              reference: 0.34,
+              tolerance: 0.336,
+              source: 'Mplus User’s Guide, example 5.25',
+              monteCarlo: true,
+            },
+          ],
+        },
+      ],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, json: async () => mc })),
+    );
+    act(() => {
+      createRoot(host).render(
+        <ValidationPage onBack={() => {}} focus="mplus-ex5.25" titles={{}} />,
+      );
+    });
+    await flush();
+    const text = host.textContent!;
+    expect(text).toContain('< 0.336, within Monte Carlo error');
+    expect(text).toContain('1 of the comparisons are within Monte Carlo error');
+    expect(text).toContain('(2 compared)');
+    const chip = [...host.querySelectorAll('.evidence-head .chip.evidence.published')][0];
+    expect(chip.getAttribute('title')).toContain('2 numbers compared.');
   });
 });
 
@@ -242,6 +286,34 @@ describe('evidenceKinds', () => {
     expect(evidenceKinds({ ...both, comparisons: [both.comparisons[0]] })).toEqual(['published']);
     expect(evidenceKinds(evidence.checks[1])).toEqual(['runs']);
     expect(evidenceKinds(evidence.checks[2])).toEqual(['native']); // a method check: its own kind
+  });
+
+  it('same R is a kind of its own; published and native need an estimated quantity, not counts alone', () => {
+    const c = {
+      ...evidence.checks[0],
+      sources: [
+        { label: 'counts', level: 'published' as const },
+        { label: 'direct call', level: 'same-r' as const },
+      ],
+      comparisons: [
+        { quantity: 'df', value: 24, reference: 24, tolerance: 0, source: 'counts' },
+        { quantity: 'logLik', value: -1, reference: -1, tolerance: 1e-6, source: 'direct call' },
+      ],
+    };
+    expect(evidenceKinds(c)).toEqual(['same-r']);
+    expect(kindComparisons(c, 'published')).toHaveLength(1);
+    expect(comparedText(c, 'same-r')).toBe('1 number compared');
+    const withEstimate = {
+      ...c,
+      comparisons: [
+        ...c.comparisons,
+        { quantity: 'χ²', value: 85.3, reference: 85.3, tolerance: 0.05, source: 'counts' },
+      ],
+    };
+    expect(evidenceKinds(withEstimate)).toEqual(['published', 'same-r']);
+    expect(comparedText(withEstimate, 'published')).toBe('2 numbers compared');
+    expect(LEVEL_TEXT['same-r'].hint).toMatch(/same R session/);
+    expect(LEVEL_TEXT.native.hint).toMatch(/desktop R/);
   });
 });
 

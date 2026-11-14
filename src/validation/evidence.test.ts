@@ -16,7 +16,8 @@ import { FEATURES } from './features';
 import { definitionHash } from './record';
 import { SELF_CHECK_IDS } from './selfCheck';
 import { builtinDefinition } from './textbook';
-import type { Evidence } from './types';
+import { ESTIMATE_LEVELS, isEstimateComparison, type Evidence } from './types';
+import { kindComparisons } from './useEvidence';
 
 const root = join(__dirname, '..', '..');
 const evidence = JSON.parse(
@@ -58,13 +59,15 @@ describe('the validation evidence', () => {
     for (const id of ids) expect(exampleCheck(id)!.comparisons.length, id).toBeGreaterThan(0);
   });
 
-  it('a level above “runs” comes with a source that has comparisons', () => {
+  it('a level above “runs” comes with a source that has comparisons; published and native with an estimated quantity', () => {
     for (const c of evidence.checks.filter((x) => x.subject === 'example' && x.level !== 'runs')) {
-      const used = new Set(c.comparisons.map((x) => x.source));
-      expect(
-        c.sources.some((s) => s.level === c.level && used.has(s.label)),
-        `${c.id}: ${c.level}`,
-      ).toBe(true);
+      const compared = kindComparisons(c, c.level);
+      expect(compared.length, `${c.id}: ${c.level}`).toBeGreaterThan(0);
+      if (ESTIMATE_LEVELS.includes(c.level))
+        expect(
+          compared.some(isEstimateComparison),
+          `${c.id}: ${c.level} rests on counts alone (${compared.length} exact comparisons); compare an estimate`,
+        ).toBe(true);
     }
   });
 

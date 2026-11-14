@@ -1,6 +1,7 @@
 // Mplus's Bayesian multilevel and DSEM examples on the DSEM card: the model the card reads from each example's syntax
 // has Mplus's free parameters (as many as Mplus counts, every one it prints), and the run recorded by
 // dsem.native.test.ts (the card's R code in desktop R, Stan) is within Monte Carlo error of the Mplus output (dsemkit.ts).
+// A run recorded from another request or other R code than the card's now fails (dsemkit.ts currentRecorded).
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,6 +12,7 @@ import { DESKTOP_ONLY, R_PACKAGES } from '../../rengine/bridge';
 import { useCompute } from '../../rengine/compute';
 import {
   compareWithMplus,
+  currentRecorded,
   DSEM_EXAMPLES,
   dsemExample,
   dsemExampleRequest,
@@ -84,11 +86,7 @@ describe('the recorded desktop runs against Mplus', () => {
   it.each(DSEM_EXAMPLES.map((e) => [e.key]))(
     '%s: converged, and within Monte Carlo error of every printed parameter',
     (k) => {
-      const r = recorded[k];
-      expect(
-        r,
-        `${k}: run NATIVE_R_TESTS=1 npx vitest run src/examples/mplus/dsem.native`,
-      ).toBeDefined();
+      const r = currentRecorded(recorded, k);
       expect(r.result.converged).toBe(true);
       expect(r.result.maxRhat!).toBeLessThan(1.05);
       expect(compareWithMplus(k, r.result)).toBe(MPLUS[k].estimates.filter((p) => p.se > 0).length);
@@ -115,11 +113,7 @@ describe('the card’s example (lme4 ?lmer, sleepstudy) against lmer', () => {
     ]);
   });
   it('the recorded run: fixed effects at lmer’s estimates, the variances above them (flat priors, 18 subjects)', () => {
-    const r = recorded[k];
-    expect(
-      r,
-      `${k}: run NATIVE_R_TESTS=1 npx vitest run src/examples/mplus/dsem.native`,
-    ).toBeDefined();
+    const r = currentRecorded(recorded, k);
     expect(r.result.converged).toBe(true);
     const get = (lhs: string, op: string, rhs: string, block: string) =>
       r.result.parameters.find(

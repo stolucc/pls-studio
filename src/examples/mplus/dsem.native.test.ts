@@ -1,7 +1,8 @@
 // Mplus's Bayesian multilevel and DSEM examples run natively: the DSEM card's request goes to the app's own R code
 // (src/rengine/R, ps_dsem) in desktop R with rstan, as the helper runs it (Rscript --vanilla), and the posterior is
 // compared with Mplus's printed output (dsemkit.ts: tolerances and their reasons). Each run is recorded in
-// src/engine/__fixtures__/dsem/mplus.json, which dsem.test.ts checks without R.
+// src/engine/__fixtures__/dsem/mplus.json, which dsem.test.ts checks without R, with hashes of the request and of the
+// R code it ran (dsemkit.ts currentRun): the recorded run is stale once either changes.
 //   NATIVE_R_TESTS=1 [PS_R_LIBRARY=<library with rstan, jsonlite>] [DSEM_ONLY=ex9.30,ex6.26] npx vitest run src/examples/mplus/dsem.native
 // Skipped unless NATIVE_R_TESTS=1 and Rscript loads rstan and can compile a Stan program (a C++ toolchain; not in CI).
 
@@ -15,6 +16,7 @@ import { useCompute } from '../../rengine/compute';
 import type { DsemResult } from '../../rengine/dsem';
 import {
   compareWithMplus,
+  currentRun,
   DSEM_EXAMPLES,
   dsemExample,
   dsemExampleRequest,
@@ -170,6 +172,8 @@ describe.skipIf(!!why)('Mplus’s Bayesian multilevel and DSEM examples in deskt
           clusters: r.clusters,
         },
         versions: { R: versions[0], rstan: versions[1] },
+        // (what the run was made from: dsem.test.ts fails once the card's request or the R code differs)
+        ...currentRun(key),
       };
       ran.add(key);
       save();

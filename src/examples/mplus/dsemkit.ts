@@ -27,7 +27,8 @@ import type { Dataset } from '../../engine/types';
 import type { AnalysisCtx } from '../../analyses/types';
 import { DEFAULT_SETTINGS } from '../../model/project';
 import { dsemRequest, type DsemResult } from '../../rengine/dsem';
-import { near } from '../../validation/record';
+import { definitionHash, near } from '../../validation/record';
+import { rCodeHash } from '../../validation/rSource';
 import { examplePanels, exampleSettings, PACKAGE_EXAMPLES, panelPreset } from '../packages';
 import { exampleTestData } from '../testData';
 import { evidence, example, load, MPLUS } from './testkit';
@@ -96,6 +97,13 @@ export type Recorded = Record<
       | 'clusters'
     >;
     versions?: Record<string, string>;
+    /**
+     * definitionHash of the card's request (dsemExampleRequest without `given`, and without the cores the run used;
+     * for the card's example, whose data desktop R reads from lme4, the request with its columns' stubs).
+     */
+    request?: string;
+    /** rCodeHash of the R code ps_dsem reaches (src/validation/rSource.ts), as the run sourced it. */
+    rCode?: string;
   }
 >;
 export const readRecorded = (): Recorded => {
@@ -105,6 +113,31 @@ export const readRecorded = (): Recorded => {
     return {};
   }
 };
+
+/** What the recorded run must have been made from: the card's request now, and the app's R code now. */
+export const currentRun = (key: string) => ({
+  request: definitionHash(dsemExampleRequest(key)),
+  rCode: rCodeHash(['ps_dsem']),
+});
+
+/**
+ * The recorded run of an example, made from the card's current request and R code: a run recorded before either
+ * changed is not evidence for them, and the test says to record it again.
+ */
+export function currentRecorded(recorded: Recorded, key: string): Recorded[string] {
+  const rerun = `run NATIVE_R_TESTS=1 DSEM_ONLY=${key} npx vitest run src/examples/mplus/dsem.native to record it again`;
+  const r = recorded[key];
+  expect(r, `${key}: not recorded; ${rerun}`).toBeDefined();
+  const now = currentRun(key);
+  expect(r.request, `${key}: the card's request changed since the recorded run; ${rerun}`).toBe(
+    now.request,
+  );
+  expect(
+    r.rCode,
+    `${key}: the R code (ps_dsem and what it calls, src/rengine/R) changed since the recorded run; ${rerun}`,
+  ).toBe(now.rCode);
+  return r;
+}
 
 /** The example's card, as the app opens it: its data, settings and options. */
 /**

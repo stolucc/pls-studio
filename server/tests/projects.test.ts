@@ -270,6 +270,39 @@ describe('datasets are encrypted at rest', () => {
     expect((await owner.get(`/api/projects/${other}/dataset`)).status).toBe(500);
   });
 
+  it('deletes the dataset for editors only, bumping the data revision', async () => {
+    const revision = async () =>
+      (await env.db.query('SELECT data_revision FROM projects WHERE id = $1', [projectId])).rows[0]
+        .data_revision as number;
+    const rows = async () =>
+      (
+        await env.db.query('SELECT count(*)::int AS n FROM datasets WHERE project_id = $1', [
+          projectId,
+        ])
+      ).rows[0].n as number;
+    expect((await editor.put(`/api/projects/${projectId}/dataset`, dataset)).status).toBe(200);
+    const before = await revision();
+    // A viewer, and anyone who is not a member, may not remove it.
+    expect((await viewer.del(`/api/projects/${projectId}/dataset`)).status).toBe(403);
+    expect((await stranger.del(`/api/projects/${projectId}/dataset`)).status).toBe(404);
+    expect(await rows()).toBe(1);
+    expect(await revision()).toBe(before);
+    // An editor may: the data are gone, the revision moves, and the deletion is audited.
+    const del = await editor.del(`/api/projects/${projectId}/dataset`);
+    expect(del.status).toBe(200);
+    expect(del.body).toEqual({ ok: true });
+    expect(await rows()).toBe(0);
+    expect(await revision()).toBe(before + 1);
+    expect((await viewer.get(`/api/projects/${projectId}/dataset`)).status).toBe(404);
+    const audited = await env.db.query(
+      "SELECT count(*)::int AS n FROM audit_log WHERE project_id = $1 AND action = 'dataset.delete'",
+      [projectId],
+    );
+    expect(audited.rows[0].n).toBe(1);
+    // (put back for the tests that follow)
+    expect((await editor.put(`/api/projects/${projectId}/dataset`, dataset)).status).toBe(200);
+  });
+
   it('validates uploads', async () => {
     expect((await editor.put(`/api/projects/${projectId}/dataset`, 'not json')).status).toBe(400);
     expect(

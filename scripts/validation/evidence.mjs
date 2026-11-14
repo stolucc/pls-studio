@@ -1,5 +1,6 @@
-// Merge the validation evidence the webR tests wrote (PS_VALIDATION_DIR, one JSON file per test file;
-// src/validation/record.ts) into public/validation.json, with the R and package versions from the webR lock.
+// Merge the validation evidence the webR tests wrote (PS_VALIDATION_DIR, one JSON file per test file, named after it
+// with ".webr" kept: rengine__pls.json, rengine__pls.webr.json; src/validation/collector.ts evidenceFile) into
+// public/validation.json, with the R and package versions from the webR lock.
 //
 //   npm run validate:evidence          (the webR tests, then the plain tests recorded without R, then this)
 //   npm run validate:evidence:desktop  (the desktop-only packages' files in desktop R, then this with --desktop)
@@ -32,7 +33,7 @@ for (const f of readdirSync(dir)
     }
     // The same example checked in several test files: one check with every source and comparison (the app shows each kind of
     // evidence; `level` keeps one, published before native, for sorting).
-    const rank = { published: 0, native: 1, recovery: 2, runs: 3 };
+    const rank = { published: 0, native: 1, 'same-r': 2, recovery: 3, runs: 4 };
     prev.level = rank[c.level] < rank[prev.level] ? c.level : prev.level;
     prev.comparisons.push(...c.comparisons);
     for (const s of c.sources)

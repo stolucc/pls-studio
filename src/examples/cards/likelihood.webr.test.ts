@@ -66,7 +66,7 @@ it('stats-customml-cars: the regression written as a normal likelihood gives lm�
   const { run } = await open('stats-customml-cars', 'Custom likelihood', ['stats']);
   against({
     label: 'R, ?cars: lm(log(dist) ~ log(speed)) and logLik() in the same R',
-    level: 'native',
+    level: 'same-r',
     url: 'https://rdrr.io/r/datasets/cars.html',
   });
   const r = await run<CustomMlResult>();
@@ -125,7 +125,7 @@ it('stats-bmvreg-mtcars: the posterior medians are lm’s coefficients and the i
   against({
     label:
       'R: lm(cbind(mpg, qsec) ~ wt + hp, mtcars) and the inverse-gamma median (Box & Tiao 1973, ch. 8) in the same R',
-    level: 'native',
+    level: 'same-r',
   });
   const r = await run<BmvregResult>();
   expect(r.df).toBe(26);
@@ -167,7 +167,7 @@ it('lavaan-efa2l-twolevel: one factor per level is the tutorial’s two-level me
   against({
     label:
       'lavaan tutorial (multilevel SEM): its measurement model fitted by lavaan and standardizedSolution() in the same R',
-    level: 'native',
+    level: 'same-r',
     url: 'https://lavaan.ugent.be/tutorial/multilevel.html',
   });
   const r = await run<TwoLevelEfaResult>();

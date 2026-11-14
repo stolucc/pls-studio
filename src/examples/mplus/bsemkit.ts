@@ -30,7 +30,8 @@ import type { AnalysisCtx } from '../../analyses/types';
 import { computeColumn } from '../../data/compute';
 import { DEFAULT_SETTINGS, toSpec } from '../../model/project';
 import { bsemRequest, type BsemOptions, type BsemResult } from '../../rengine/bsem';
-import { near, same } from '../../validation/record';
+import { definitionHash, near, same } from '../../validation/record';
+import { rCodeHash } from '../../validation/rSource';
 import { exampleModel, examplePanels, exampleSettings, panelPreset } from '../packages';
 import { evidence, example, load, MPLUS, type Printed } from './testkit';
 
@@ -78,9 +79,38 @@ export type Recorded = Record<
       | 'seed'
     >;
     versions?: Record<string, string>;
+    /** definitionHash of the card's request (bsemExampleRequest, without the cores the run used). */
+    request?: string;
+    /** rCodeHash of the R code ps_bsem reaches (src/validation/rSource.ts), as the run sourced it. */
+    rCode?: string;
   }
 >;
 export const readRecorded = (): Recorded => JSON.parse(readFileSync(FIXTURE, 'utf8')) as Recorded;
+
+/** What the recorded run must have been made from: the card's request now, and the app's R code now. */
+export const currentRun = (key: string) => ({
+  request: definitionHash(bsemExampleRequest(key)),
+  rCode: rCodeHash(['ps_bsem']),
+});
+
+/**
+ * The recorded run of an example, made from the card's current request and R code: a run recorded before either
+ * changed is not evidence for them, and the test says to record it again.
+ */
+export function currentRecorded(recorded: Recorded, key: string): Recorded[string] {
+  const rerun = `run NATIVE_R_TESTS=1 npx vitest run src/examples/mplus/bsem.native to record ${key} again`;
+  const r = recorded[key];
+  expect(r, `${key}: not recorded; ${rerun}`).toBeDefined();
+  const now = currentRun(key);
+  expect(r.request, `${key}: the card's request changed since the recorded run; ${rerun}`).toBe(
+    now.request,
+  );
+  expect(
+    r.rCode,
+    `${key}: the R code (ps_bsem and what it calls, src/rengine/R) changed since the recorded run; ${rerun}`,
+  ).toBe(now.rCode);
+  return r;
+}
 
 /** The example's card, as the app opens it: its data (with computed columns), model and options. */
 export function bsemExample(key: string) {

@@ -15,7 +15,8 @@ import { expect } from 'vitest';
 import { cardsOfCheck } from './cards';
 import { checks, current, fileName, runtime } from './collector';
 import { FEATURES } from './features';
-import type { Check, EvidenceLevel, EvidenceSource } from './types';
+import { ESTIMATE_LEVELS, isEstimateComparison, type Check, type Comparison } from './types';
+import type { EvidenceLevel, EvidenceSource } from './types';
 
 /**
  * Fields of an example that describe it or the test suite's allowances, not what is estimated: left out of its
@@ -128,7 +129,13 @@ export function example(
   return check;
 }
 
-const RANK: Record<EvidenceLevel, number> = { published: 0, native: 1, recovery: 2, runs: 3 };
+const RANK: Record<EvidenceLevel, number> = {
+  published: 0,
+  native: 1,
+  'same-r': 2,
+  recovery: 3,
+  runs: 4,
+};
 
 /** The source the next comparisons are made against. */
 export function against(source: EvidenceSource & { level: EvidenceLevel }) {
@@ -145,27 +152,34 @@ export function recordComparison(
   reference: number | string,
   tolerance: number,
   passed: boolean,
+  monteCarlo = false,
 ) {
+  const flag = monteCarlo ? { monteCarlo: true as const } : {};
   const check = current.example;
   if (!check) {
     const f = featureCheck();
     if (f) {
-      f.comparisons.push({ quantity, value, reference, tolerance });
+      f.comparisons.push({ quantity, value, reference, tolerance, ...flag });
       if (!passed) f.passed = false;
     }
     return;
   }
   const label = current.source;
-  check.comparisons.push({
+  const comparison: Comparison = {
     quantity,
     value,
     reference,
     tolerance,
     ...(label ? { source: label } : {}),
-  });
+    ...flag,
+  };
+  check.comparisons.push(comparison);
   if (!passed) check.passed = false;
   const src = label ? check.sources.find((s) => s.label === label) : undefined;
-  if (src?.level && RANK[src.level] < RANK[check.level]) check.level = src.level;
+  // (a published or native source raises the level only with an estimated quantity: one count or df does not)
+  const grades =
+    !!src?.level && (!ESTIMATE_LEVELS.includes(src.level) || isEstimateComparison(comparison));
+  if (src?.level && grades && RANK[src.level] < RANK[check.level]) check.level = src.level;
 }
 
 /** An exact comparison (counts, df, labels), asserted and recorded. */
@@ -179,9 +193,25 @@ export function recordDigest(d: Record<string, number>) {
   if (current.example) current.example.digest = d;
 }
 
-/** |got − want| ≤ tolerance, asserted and recorded. */
-export function near(quantity: string, got: number, want: number, tolerance: number) {
-  recordComparison(quantity, got, want, tolerance, Math.abs(got - want) <= tolerance);
+/**
+ * |got − want| ≤ tolerance, asserted and recorded. `monteCarlo`: the tolerance is the Monte Carlo error of random
+ * draws on both sides (Comparison.monteCarlo), shown as such.
+ */
+export function near(
+  quantity: string,
+  got: number,
+  want: number,
+  tolerance: number,
+  options: { monteCarlo?: boolean } = {},
+) {
+  recordComparison(
+    quantity,
+    got,
+    want,
+    tolerance,
+    Math.abs(got - want) <= tolerance,
+    !!options.monteCarlo,
+  );
   expect(Math.abs(got - want), `${quantity}: |${got} − ${want}|`).toBeLessThanOrEqual(tolerance);
 }
 

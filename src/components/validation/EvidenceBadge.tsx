@@ -1,4 +1,5 @@
 import {
+  comparedText,
   evidenceKinds,
   exampleEvidence,
   LEVEL_TEXT,
@@ -17,7 +18,7 @@ export function EvidenceBadge({ id, onOpen }: { id: string; onOpen: (id: string)
           key={k}
           className={`chip evidence ${c.passed ? k : 'runs'}`}
           onClick={() => onOpen(id)}
-          title={`${LEVEL_TEXT[k].long}. ${LEVEL_TEXT[k].hint} ${n} number${n === 1 ? '' : 's'} compared by the test suite in all${c.passed ? '' : ', and a check FAILED'}. Click for the details.`}
+          title={`${LEVEL_TEXT[k].long}. ${LEVEL_TEXT[k].hint} ${comparedText(c, k)} for this kind, ${n} by the test suite in all${c.passed ? '' : ', and a check FAILED'}. Click for the details.`}
         >
           {c.passed ? (k === 'runs' ? '' : '✓ ') : '✗ '}
           {LEVEL_TEXT[k].short}

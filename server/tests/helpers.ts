@@ -13,8 +13,35 @@ import { attachCollab, type Collab } from '../src/ws.ts';
 export const TEST_DB = process.env.TEST_DATABASE_URL ?? 'postgres:///pls_studio_test';
 export const ORIGIN = 'http://localhost:5175';
 
-/** Fresh schema for a test file. */
+/**
+ * The database a connection string names: libpq's `dbname` parameter, else the URL's path, else PGDATABASE (as
+ * libpq falls back to it), else the user name libpq would connect as.
+ */
+export function databaseName(url: string, env: NodeJS.ProcessEnv = process.env): string {
+  const u = new URL(url);
+  const fromParam = u.searchParams.get('dbname');
+  if (fromParam) return fromParam;
+  const fromPath = decodeURIComponent(u.pathname.replace(/^\//, ''));
+  if (fromPath) return fromPath;
+  return env.PGDATABASE || decodeURIComponent(u.username) || env.PGUSER || env.USER || '';
+}
+
+/**
+ * freshDb drops the whole schema of the database it is given: it refuses any database whose name does not end in
+ * `_test`, so that a TEST_DATABASE_URL pointing at a development or production database cannot be wiped.
+ */
+export function assertTestDatabase(url: string, env: NodeJS.ProcessEnv = process.env): void {
+  const name = databaseName(url, env);
+  if (!/_test$/.test(name)) {
+    throw new Error(
+      `Refusing to reset database "${name}": the tests drop its schema, so its name must end in _test (TEST_DATABASE_URL).`,
+    );
+  }
+}
+
+/** Fresh schema for a test file (a database named *_test only). */
 export async function freshDb(): Promise<Db> {
+  assertTestDatabase(TEST_DB);
   const db = createPool(TEST_DB);
   await db.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
   await migrate(db);

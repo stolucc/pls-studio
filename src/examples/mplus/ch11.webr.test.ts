@@ -404,6 +404,8 @@ it('ex11.5: means and covariances averaged over 10 data sets from the joint H1 i
       e.est,
       k.want,
       3 * Math.sqrt((2 * B) / 10) + 0.0005,
+      // (B from this run's own imputations: near 0 the bound is wider than the value; shown as Monte Carlo error)
+      { monteCarlo: true },
     );
     const z = (k.want - big.E[idx]) / Math.sqrt(B / 10);
     n++;
@@ -477,6 +479,8 @@ it('ex11.6: growth on 10 imputed data sets (mice, Bayesian normal regression; la
       e.est,
       p.est,
       3 * Math.sqrt((2 * b) / 10) + 0.0005,
+      // (up to the size of the value itself for y4's residual variance: shown as Monte Carlo error, not precision)
+      { monteCarlo: true },
     );
     // A pooled SE varies with the imputations mostly through the estimated between variance: T = W + 1.1B, and B
     // estimated from 10 data sets has SD B·√(2/9), so SE = √T has Monte Carlo SD about 1.1·B·√(2/9) / (2·SE) (plus W's, √(B_se/10)).
@@ -485,6 +489,7 @@ it('ex11.6: growth on 10 imputed data sets (mice, Bayesian normal regression; la
       e.se!,
       p.se,
       3 * Math.sqrt(2) * ((1.1 * b * Math.sqrt(2 / 9)) / (2 * p.se) + Math.sqrt(bse / 10)) + 0.0005,
+      { monteCarlo: true },
     );
     n++;
   }
