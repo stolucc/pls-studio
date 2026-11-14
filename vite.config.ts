@@ -164,13 +164,14 @@ export default defineConfig({
   // The server package has its own (database-backed) test run: `cd server && npm test`.
   // *.webr.test.ts start R (webR) and need public/webr (npm run webr:fetch): run them with npm run test:webr.
   // Statistical tests (Monte Carlo, bootstrap) run long under mutation-testing instrumentation.
-  // setupFiles: the validation evidence (src/validation/setup.ts), recorded only with PS_VALIDATION_DIR set.
+  // setupFiles: the validation evidence (src/validation/setup.ts), recorded only with PS_VALIDATION_DIR set; no
+  // network in the unit tests (src/testNetwork.ts: a request no test stubbed fails it).
   // The slow webR tests (src/rengine/webrSlow.ts: slowIt, and files named *.slow.webr.test.ts) run with WEBR_SLOW set
   // (npm run validate:evidence, npm run test:webr:all); the webR files start slowest first (src/validation/webrSequencer.ts).
   // The webR files of desktop-only packages (src/validation/evidenceRuns.json `desktop`) run only in desktop R (PS_NATIVE_R).
   test: {
     environment: 'node',
-    setupFiles: ['src/validation/setup.ts'],
+    setupFiles: ['src/validation/setup.ts', 'src/testNetwork.ts'],
     testTimeout: process.env.STRYKER_SLOW ? 1_800_000 : 60_000,
     ...(process.env.WEBR_TESTS ? { sequence: { sequencer: WebrSequencer } } : {}),
     // (webR starts in beforeAll: under a full parallel run that can take longer than vitest's 10 s)
