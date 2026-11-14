@@ -422,13 +422,20 @@ function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] 
       link: card('dynamicfit', 'Add Dynamic fit cutoffs'),
     });
   }
+  // The model's factors only: a latent interaction the estimation generated (its product
+  // indicators) is in the results' constructs but is no construct to grade.
+  const generated = new Set((cb.moderations ?? []).map((mo) => mo.construct));
   const factorIdx = cb.constructs
     .map((_, j) => j)
-    .filter(
-      (j) =>
-        cb.indicators.filter((x) => x.construct === j).length > 1 &&
-        input.model.constructs.find((k) => k.name === cb.constructs[j])?.type !== 'composite',
-    );
+    .filter((j) => {
+      const k = input.model.constructs.find((x) => x.name === cb.constructs[j]);
+      return (
+        !!k &&
+        !generated.has(j) &&
+        k.type !== 'composite' &&
+        cb.indicators.filter((x) => x.construct === j).length > 1
+      );
+    });
   const negativeCb = negativeLoadingItem(
     cbNegativeLoadingFlags(input.model, input.info, cb),
     JA,
@@ -469,7 +476,10 @@ function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] 
         : `Met by every factor (${join(rel.map((r) => `${r.name}: CR ${f2(r.cr)}, AVE ${f2(r.ave)}`))}).`,
       link: tab('Reliability'),
     });
-    out.push(htmtItem(cb.constructs, cb.htmt, HTMT_DISTINCT, ['henseler2015']));
+    const htmt = cb.htmt.map((row, i) =>
+      row.map((v, j) => (generated.has(i) || generated.has(j) ? null : v)),
+    );
+    out.push(htmtItem(cb.constructs, htmt, HTMT_DISTINCT, ['henseler2015']));
   }
   // Groups: invariance before comparing them.
   out.push(cbInvarianceItem(input));
