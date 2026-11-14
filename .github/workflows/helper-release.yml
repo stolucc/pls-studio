@@ -128,8 +128,25 @@ jobs:
           sha256sum pls-studio-helper-* PLS-Studio-Helper-*.dmg > SHA256SUMS
           cat SHA256SUMS
 
-      # The helper's self-update installs a release only if SHA256SUMS carries the
-      # release key's signature (helper/update.go; public key in helper/updatekey.go).
+      # The signed version manifest: binds the version and tag to this
+      # SHA256SUMS, so an old signed release cannot be republished under a new
+      # tag (helper 0.1.11+ requires it; older helpers ignore it).
+      - name: Version manifest
+        working-directory: dist
+        run: |
+          VERSION="${GITHUB_REF_NAME#helper-v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "::error::tag $GITHUB_REF_NAME is not helper-v<major>.<minor>.<patch>"; exit 1; fi
+          jq -n -c \
+            --arg version "$VERSION" \
+            --arg tag "$GITHUB_REF_NAME" \
+            --arg sums "$(sha256sum SHA256SUMS | cut -d' ' -f1)" \
+            --arg published "$(date -u +%FT%TZ)" \
+            '{version: $version, tag: $tag, sha256sums: $sums, published: $published}' > RELEASE.json
+          cat RELEASE.json
+
+      # The helper's self-update installs a release only if SHA256SUMS and
+      # RELEASE.json carry the release key's signature (helper/update.go;
+      # public key in helper/updatekey.go).
       - uses: actions/checkout@v6
         with:
           path: src
@@ -137,15 +154,17 @@ jobs:
         with:
           go-version: '1.27'
           cache-dependency-path: src/helper/go.sum
-      - name: Sign SHA256SUMS
+      - name: Sign SHA256SUMS and RELEASE.json
         env:
           HELPER_SIGNING_KEY: ${{ secrets.HELPER_SIGNING_KEY }}
         run: |
           if [ -z "$HELPER_SIGNING_KEY" ]; then echo "::error::the repository secret HELPER_SIGNING_KEY is not set: the release would not be updatable"; exit 1; fi
           cd src/helper
-          go run ./cmd/sign-release sign "$GITHUB_WORKSPACE/dist/SHA256SUMS"
           KEY=$(sed -n 's/^var updatePublicKey = "\(.*\)"$/\1/p' updatekey.go)
-          go run ./cmd/sign-release verify "$KEY" "$GITHUB_WORKSPACE/dist/SHA256SUMS"
+          for f in SHA256SUMS RELEASE.json; do
+            go run ./cmd/sign-release sign "$GITHUB_WORKSPACE/dist/$f"
+            go run ./cmd/sign-release verify "$KEY" "$GITHUB_WORKSPACE/dist/$f"
+          done
 
       - name: Create release
         env:
@@ -165,8 +184,8 @@ jobs:
 
           Then in PLS Studio: Inspector → Calculated by → Desktop R (helper) → Connect, and click Allow. Install the R packages once with: pls-studio-helper setup
 
-          Verify downloads against SHA256SUMS (signed: SHA256SUMS.sig, Ed25519). Already installed? Update from the helper: menu-bar icon → Check for updates…, or pls-studio-helper update." \
+          Verify downloads against SHA256SUMS (signed: SHA256SUMS.sig, Ed25519; RELEASE.json, signed too, names the version). Already installed? Update from the helper: menu-bar icon → Check for updates…, or pls-studio-helper update." \
             dist/pls-studio-helper-darwin-arm64 dist/pls-studio-helper-darwin-amd64 \
             dist/pls-studio-helper-linux-amd64 dist/pls-studio-helper-windows-amd64.exe \
             dist/PLS-Studio-Helper-arm64.dmg dist/PLS-Studio-Helper-amd64.dmg \
-            dist/SHA256SUMS dist/SHA256SUMS.sig
+            dist/SHA256SUMS dist/SHA256SUMS.sig dist/RELEASE.json dist/RELEASE.json.sig

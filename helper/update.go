@@ -9,6 +9,15 @@
 // into the helper (updatekey.go): a checksum from the same release would only
 // catch a corrupted download, not a tampered release. The release workflow
 // signs with the private key, a repository secret (helper/cmd/sign-release).
+//
+// The signature over SHA256SUMS says nothing about the version: the tag comes
+// from GitHub's unsigned release information, so an old, validly signed
+// release could be republished under a new tag (a downgrade to a vulnerable
+// build, and no update past it). From 0.1.11 each release also carries a
+// signed version manifest (RELEASE.json + RELEASE.json.sig) that names the
+// version, the tag and the SHA-256 of SHA256SUMS; an update requires it,
+// requires it to match the tag, and requires a version newer than this one.
+// Older helpers ignore the manifest and check SHA256SUMS as before.
 
 package main
 
@@ -197,9 +206,9 @@ func download(ctx context.Context, url string) ([]byte, error) {
 	return data, nil
 }
 
-// verifySums checks the release key's signature over SHA256SUMS
-// (SHA256SUMS.sig: the base64 Ed25519 signature).
-func verifySums(sums, sig []byte, publicKey string) error {
+// verifySignature checks the release key's signature over a release file
+// (SHA256SUMS or RELEASE.json; <file>.sig: the base64 Ed25519 signature).
+func verifySignature(data, sig []byte, publicKey string) error {
 	pub, err := base64.StdEncoding.DecodeString(publicKey)
 	if err != nil || len(pub) != ed25519.PublicKeySize {
 		return errors.New("the built-in release key is invalid")
@@ -208,7 +217,7 @@ func verifySums(sums, sig []byte, publicKey string) error {
 	if err != nil || len(s) != ed25519.SignatureSize {
 		return errors.New("the release signature is malformed")
 	}
-	if !ed25519.Verify(ed25519.PublicKey(pub), sums, s) {
+	if !ed25519.Verify(ed25519.PublicKey(pub), data, s) {
 		return errors.New("the release signature is not valid: the release was not made by PLS Studio's release workflow")
 	}
 	return nil
@@ -226,10 +235,81 @@ func sumFor(sums []byte, name string) (string, error) {
 	return "", fmt.Errorf("SHA256SUMS does not list %s", name)
 }
 
+// releaseManifest is RELEASE.json, the signed statement of what a release is.
+type releaseManifest struct {
+	Version    string `json:"version"`    // "0.1.11"
+	Tag        string `json:"tag"`        // "helper-v0.1.11"
+	SHA256Sums string `json:"sha256sums"` // SHA-256 (hex) of the release's SHA256SUMS
+	Published  string `json:"published"`  // RFC 3339, informational
+}
+
+// checkManifest checks a release manifest whose signature was verified: it
+// must describe the release GitHub lists under tag, and be newer than the
+// version running (current).
+func checkManifest(data []byte, tag, current string) (releaseManifest, error) {
+	var m releaseManifest
+	if err := json.Unmarshal(data, &m); err != nil {
+		return m, fmt.Errorf("RELEASE.json is unreadable: %w", err)
+	}
+	version, ok := parseVersion(m.Version)
+	if !ok || strings.HasPrefix(m.Version, "helper-v") {
+		return m, fmt.Errorf("RELEASE.json names no release version (%q)", m.Version)
+	}
+	if m.Tag != "helper-v"+m.Version || m.Tag != tag {
+		return m, fmt.Errorf("the signed release manifest is for %s (tag %s), but the release is tagged %s: refusing it as a republished older release", m.Version, m.Tag, tag)
+	}
+	cur, ok := parseVersion(current)
+	if !ok {
+		return m, errors.New("a development build does not update itself")
+	}
+	if !isNewer(cur, version) {
+		return m, fmt.Errorf("the signed release manifest names version %s, which is not newer than this helper (%s): refusing a downgrade", m.Version, current)
+	}
+	if len(m.SHA256Sums) != 64 {
+		return m, errors.New("RELEASE.json has no SHA-256 of SHA256SUMS")
+	}
+	if _, err := hex.DecodeString(m.SHA256Sums); err != nil {
+		return m, errors.New("RELEASE.json has no SHA-256 of SHA256SUMS")
+	}
+	if _, err := time.Parse(time.RFC3339, m.Published); err != nil {
+		return m, fmt.Errorf("RELEASE.json has no publication time: %w", err)
+	}
+	return m, nil
+}
+
+// verifiedManifest downloads a release's RELEASE.json, checks the release
+// key's signature over it (RELEASE.json.sig) and its content (checkManifest).
+func verifiedManifest(ctx context.Context, rel *release) (releaseManifest, error) {
+	manifestAsset, err := rel.asset("RELEASE.json")
+	if err != nil {
+		return releaseManifest{}, fmt.Errorf("%w: the release has no signed version manifest (releases before 0.1.11 cannot be installed by the self-update; download the helper from the releases page)", err)
+	}
+	sigAsset, err := rel.asset("RELEASE.json.sig")
+	if err != nil {
+		return releaseManifest{}, fmt.Errorf("%w: the version manifest is not signed", err)
+	}
+	data, err := download(ctx, manifestAsset.URL)
+	if err != nil {
+		return releaseManifest{}, err
+	}
+	sig, err := download(ctx, sigAsset.URL)
+	if err != nil {
+		return releaseManifest{}, err
+	}
+	if err := verifySignature(data, sig, updatePublicKey); err != nil {
+		return releaseManifest{}, fmt.Errorf("RELEASE.json: %w", err)
+	}
+	return checkManifest(data, rel.Tag, helperVersion)
+}
+
 // verifiedBinary downloads this platform's binary of a release and checks it
-// against the signed SHA256SUMS.
+// against the signed SHA256SUMS, which the signed version manifest names.
 func verifiedBinary(ctx context.Context, rel *release, goos, goarch string) ([]byte, error) {
 	name, err := assetName(goos, goarch)
+	if err != nil {
+		return nil, err
+	}
+	manifest, err := verifiedManifest(ctx, rel)
 	if err != nil {
 		return nil, err
 	}
@@ -253,8 +333,12 @@ func verifiedBinary(ctx context.Context, rel *release, goos, goarch string) ([]b
 	if err != nil {
 		return nil, err
 	}
-	if err := verifySums(sums, sig, updatePublicKey); err != nil {
+	if err := verifySignature(sums, sig, updatePublicKey); err != nil {
 		return nil, err
+	}
+	sumsHash := sha256.Sum256(sums)
+	if hex.EncodeToString(sumsHash[:]) != strings.ToLower(manifest.SHA256Sums) {
+		return nil, errors.New("SHA256SUMS is not the one the signed release manifest names: the release was assembled from different releases")
 	}
 	want, err := sumFor(sums, name)
 	if err != nil {
