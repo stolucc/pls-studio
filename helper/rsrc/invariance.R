@@ -911,3 +911,373 @@ ps_dmacs <- function(req_json, export = FALSE) {
     engine = ps_engine("lavaan")
   ))
 }
+
+#' Fit indices of the invariance steps: each index robust where lavaan gives it for every step, else scaled, else
+#' standard (lavaan 0.7 has no robust CFI/RMSEA for some models, e.g. most categorical ones: the scaled ones are then
+#' shown, and named). One kind for all steps, so that their differences compare like with like.
+ps_guided_fits <- function(fits) {
+  ms <- lapply(fits, lavaan::fitMeasures)
+  kind_of <- function(index) {
+    for (kind in c("robust", "scaled")) {
+      if (all(vapply(ms, function(m) !is.na(m[paste0(index, ".", kind)]), TRUE))) return(kind)
+    }
+    "standard"
+  }
+  ck <- kind_of("cfi")
+  rk <- kind_of("rmsea")
+  at <- function(m, index, kind) unname(m[if (kind == "standard") index else paste0(index, ".", kind)])
+  lapply(ms, function(m) {
+    scaled <- !is.na(m["chisq.scaled"])
+    list(
+      chisq = unname(if (scaled) m["chisq.scaled"] else m["chisq"]),
+      df = unname(m["df"]),
+      pvalue = unname(if (scaled) m["pvalue.scaled"] else m["pvalue"]),
+      cfi = at(m, "cfi", ck),
+      rmsea = at(m, "rmsea", rk),
+      srmr = unname(m["srmr"]),
+      cfiKind = ck,
+      rmseaKind = rk
+    )
+  })
+}
+
+#' Score tests of the candidate parameters of one step (those the step held equal and the user has not freed),
+#' largest first. Parameters held equal through shared labels (`==` constraints) get lavTestScore's test of
+#' releasing all of a parameter's constraints at once (df = groups - 1; the scaled statistic where lavaan has one).
+#' Parameters fixed to the same value in every group (an ordinal item's latent intercept, 0, under Wu & Estabrook's
+#' scalar model; a residual variance, 1, under the theta parameterisation) have no constraint to release: their
+#' score test is the modification index of freeing them in a group after the first (modindices; the largest over
+#' the groups, 1 df, not scaled).
+ps_guided_candidates <- function(fit, kind, iv, fv, freed) {
+  pt <- lavaan::parTable(fit)
+  rows <- switch(kind,
+    loading = pt$op == "=~" & pt$rhs %in% iv,
+    threshold = pt$op == "|" & pt$lhs %in% iv,
+    intercept = pt$op == "~1" & pt$lhs %in% iv,
+    residual = pt$op == "~~" & pt$lhs == pt$rhs & pt$lhs %in% iv
+  )
+  keys <- unique(paste(pt$lhs[rows], pt$op[rows], pt$rhs[rows], sep = "\r"))
+  eq <- pt[pt$op == "==", ]
+  groups <- max(pt$group)
+  out <- list()
+  mi <- NULL
+  for (key in keys) {
+    if (key %in% freed) next
+    # (the key's last field may be empty: an intercept's rhs)
+    p <- c(strsplit(key, "\r", fixed = TRUE)[[1]], "")[1:3]
+    at <- pt$lhs == p[1] & pt$op == p[2] & pt$rhs == p[3] & pt$group > 0
+    labels <- pt$plabel[at]
+    release <- which(eq$lhs %in% labels | eq$rhs %in% labels)
+    if (length(release)) {
+      t <- lavaan::lavTestScore(fit, release = release, univariate = FALSE, cumulative = FALSE, epc = FALSE)$test
+      row <- if ("score.scaled" %in% t$test && !is.na(t$X2[t$test == "score.scaled"])) "score.scaled" else "score"
+      x2 <- t$X2[t$test == row]
+      df <- t$df[t$test == row]
+      how <- if (row == "score.scaled") "score.scaled" else "score"
+    } else if (all(pt$free[at] == 0) && length(unique(pt$ustart[at])) == 1) {
+      if (is.null(mi)) {
+        mi <- suppressWarnings(lavaan::modindices(fit, free.remove = FALSE, sort. = FALSE, minimum.value = 0))
+      }
+      m <- mi[mi$lhs == p[1] & mi$op == p[2] & mi$rhs == p[3] & mi$group > 1, ]
+      if (!nrow(m)) next
+      x2 <- max(m$mi)
+      df <- 1
+      how <- "mi"
+    } else {
+      next
+    }
+    out[[length(out) + 1]] <- list(lhs = p[1], op = p[2], rhs = p[3], x2 = x2, df = df,
+      p = stats::pchisq(x2, df, lower.tail = FALSE), test = how)
+  }
+  if (!length(out)) return(list())
+  out[order(-vapply(out, function(x) x$x2, 0))]
+}
+
+#' Guided measurement invariance across the groups of a column (the diagram's factors as a CFA): configural, then
+#' (ordinal indicators) equal thresholds as Wu & Estabrook (2016) propose, equal loadings (metric), equal intercepts
+#' (scalar; for ordinal indicators the latent responses' intercepts), optionally equal residual variances (strict),
+#' each model written by semTools::measEq.syntax (ID.fac = "std.lv", ID.cat = "Wu.Estabrook.2016": each factor
+#' standardised in the first group, its means and variances freed in the others as the constraints identify them)
+#' and fitted by lavaan::cfa as semTools' help recommends; successive steps compared by lavTestLRT (its default
+#' method: scaled-and-shifted, Satorra 2000, for WLSMV; Satorra-Bentler 2001 for MLR). Parameters the user frees at a
+#' step stay free in the later steps (partial invariance). Per step: score tests of the step's constraints (ranked);
+#' under (partial) scalar invariance the factors' mean differences (z and Wald tests) and, for continuous items with
+#' freed loadings or intercepts, dMACS (Nye & Drasgow 2011). Binary items: Wu & Estabrook show that their
+#' thresholds and intercepts cannot be told apart, and with equal intercepts their scale (delta) or residual
+#' variance (theta) is not identified either, so in the scalar and strict models it is held at 1 in every group.
+ps_guided_invariance <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  group <- req$group
+  if (!(is.character(group) && length(group) == 1 && nzchar(group))) stop("Choose a grouping column.")
+  f <- ps_inv_factors(req, group)
+  if (group %in% unlist(f$inds)) stop("The grouping column is an indicator of a chosen factor.")
+  all_items <- unlist(f$inds)
+  ordered <- as.character(unlist(req$ordered))
+  if (length(setdiff(ordered, all_items))) stop("An ordinal variable in the request is not an indicator of the factors.")
+  ov <- unname(f$fr$v[ordered])
+  ordinal <- length(ov) > 0
+  est <- req$estimator %||% if (ordinal) "WLSMV" else "ML"
+  if (ordinal && !identical(est, "WLSMV")) stop("Ordinal indicators are estimated with WLSMV.")
+  if (!ordinal && !est %in% c("ML", "MLR")) stop("Continuous indicators use the ML or MLR estimator.")
+  missing <- req$missing %||% "casewise"
+  if (ordinal && !missing %in% c("casewise", "pairwise")) {
+    stop("With ordinal indicators (WLSMV) choose casewise or pairwise deletion for the missing values.")
+  }
+  if (!missing %in% c("casewise", names(PS_LAVAAN_MISSING))) stop("Invalid missing-data option in the request.")
+  param <- req$parameterization %||% "delta"
+  if (!param %in% c("delta", "theta")) stop("Invalid parameterization in the request.")
+  if (!ordinal && param == "theta") stop("The theta parameterization applies to ordinal indicators.")
+  strict <- isTRUE(req$strict)
+  if (ordinal && strict && param == "delta") {
+    stop("Equal residual variances of ordinal items can be tested only with the theta parameterization (semTools).")
+  }
+  steps <- c("configural", if (ordinal) "thresholds", "metric", "scalar", if (strict) "strict")
+  equal <- list(
+    configural = character(0),
+    thresholds = "thresholds",
+    metric = c(if (ordinal) "thresholds", "loadings"),
+    scalar = c(if (ordinal) "thresholds", "loadings", "intercepts"),
+    strict = c(if (ordinal) "thresholds", "loadings", "intercepts", "residuals")
+  )
+  kind_of <- c(thresholds = "threshold", metric = "loading", scalar = "intercept", strict = "residual")
+  gv <- unname(f$fr$v[group])
+  data <- f$fr$data
+  categories <- vapply(ov, function(v) length(unique(stats::na.omit(data[[v]]))), 0)
+  binary <- ov[categories == 2]
+  # Parameters freed by the user: from their step on (validated against the factors, items and categories).
+  free <- req$free %||% list()
+  if (length(free) > 200) stop("Too many freed parameters in the request.")
+  partial <- setNames(lapply(steps, function(s) character(0)), steps)
+  freed_keys <- setNames(lapply(steps, function(s) character(0)), steps)
+  for (x in free) {
+    s <- x$step
+    if (!(is.character(s) && length(s) == 1 && s %in% steps[-1])) stop("Invalid step of a freed parameter.")
+    if (!identical(x$kind, kind_of[[s]])) stop("A freed parameter does not belong to its step.")
+    item <- x$item
+    if (!(is.character(item) && length(item) == 1 && item %in% all_items)) stop("A freed parameter's item is not an indicator.")
+    iv <- unname(f$fr$v[item])
+    if (x$kind == "loading") {
+      k <- match(x$factor, f$names)
+      if (is.na(k) || !item %in% f$inds[[k]]) stop("A freed loading's item is not an indicator of its factor.")
+      lhs <- f$fv[k]
+      op <- "=~"
+      rhs <- iv
+    } else if (x$kind == "threshold") {
+      th <- x$threshold
+      if (!iv %in% ov) stop("A freed threshold belongs to an item that is not ordinal.")
+      ok <- is.numeric(th) && length(th) == 1 && th == round(th) && th >= 1 && th < categories[[iv]]
+      if (!ok) stop("Invalid threshold of a freed parameter.")
+      lhs <- iv
+      op <- "|"
+      rhs <- paste0("t", th)
+    } else if (x$kind == "intercept") {
+      lhs <- iv
+      op <- "~1"
+      rhs <- ""
+    } else {
+      lhs <- iv
+      op <- "~~"
+      rhs <- iv
+    }
+    text <- switch(op, "~1" = paste(lhs, "~ 1"), paste(lhs, op, rhs))
+    later <- steps[match(s, steps):length(steps)]
+    for (l in later) {
+      partial[[l]] <- unique(c(partial[[l]], text))
+      freed_keys[[l]] <- unique(c(freed_keys[[l]], paste(lhs, op, rhs, sep = "\r")))
+    }
+  }
+  q <- function(x) if (length(x)) ps_q(x) else "\"\""
+  common <- sprintf(
+    "group = \"%s\"%s",
+    gv,
+    if (ordinal) sprintf(", ordered = ordered, parameterization = \"%s\"", param) else ", meanstructure = TRUE"
+  )
+  fit_args <- sprintf("%s, estimator = \"%s\"%s", common, est, ps_lavaan_missing(missing))
+  binary_fix <- if (length(binary)) {
+    op <- if (param == "theta") "~~" else "~*~"
+    c(
+      "# Binary items: with equal thresholds and intercepts their scale is not identified (Wu & Estabrook 2016),",
+      sprintf("# so it stays 1 in every group (%s)", if (param == "theta") "the residual variance, theta" else "the scale factor, delta"),
+      sprintf("binary <- %s", ps_q(binary)),
+      sprintf("n_groups <- length(unique(data$%s))", gv),
+      "hold_binary <- function(syntax) {",
+      "  lines <- strsplit(syntax, \"\\n\", fixed = TRUE)[[1]]",
+      "  ones <- paste0(\"c(\", paste(rep(\"1\", n_groups), collapse = \", \"), \")\")",
+      "  for (u in binary) {",
+      sprintf("    head <- paste0(u, \" %s c(\")", op),
+      "    at <- which(startsWith(lines, head) & grepl(paste0(\")*\", u), lines, fixed = TRUE))",
+      "    rest <- substring(lines[at], regexpr(\")*\", lines[at], fixed = TRUE) + 1)",
+      sprintf("    lines[at] <- paste0(u, \" %s \", ones, rest)", op),
+      "  }",
+      "  paste(lines, collapse = \"\\n\")",
+      "}"
+    )
+  }
+  body <- c(
+    "suppressPackageStartupMessages({ library(lavaan); library(semTools) })",
+    ps_missing_code(missing),
+    sprintf("data <- data[!is.na(data$%s), , drop = FALSE]  # (cases without a group are left out)", gv),
+    "model <- '", f$lines, "'",
+    if (ordinal) sprintf("ordered <- %s", ps_q(ov)),
+    binary_fix,
+    "# Each step holds more parameters equal across groups than the one before; parameters freed at a step",
+    "# (partial invariance) stay free in the later ones",
+    "equal <- list(",
+    paste0("  ", steps, " = ", vapply(steps, function(s) q(equal[[s]]), ""), c(rep(",", length(steps) - 1), "")),
+    ")",
+    "partial <- list(",
+    paste0("  ", steps, " = ", vapply(steps, function(s) q(partial[[s]]), ""), c(rep(",", length(steps) - 1), "")),
+    ")",
+    "syntax <- list()",
+    "fits <- list()",
+    "for (s in names(equal)) {",
+    "  # the model syntax by semTools (factor standardised in the first group; Wu & Estabrook 2016 for ordinal items)",
+    sprintf(
+      "  ms <- measEq.syntax(configural.model = model, data = data, %s, ID.fac = \"std.lv\", ID.cat = \"Wu.Estabrook.2016\", group.equal = equal[[s]], group.partial = partial[[s]])",
+      common
+    ),
+    "  syntax[[s]] <- as.character(ms)",
+    if (length(binary)) "  if (\"intercepts\" %in% equal[[s]]) syntax[[s]] <- hold_binary(syntax[[s]])",
+    "  # fitted in a separate step, as semTools' help recommends",
+    sprintf("  fits[[s]] <- cfa(syntax[[s]], data = data, %s)", fit_args),
+    "}",
+    "# Difference tests between successive steps (lavTestLRT's default method for the estimator)",
+    "converged <- sapply(fits, lavInspect, what = \"converged\")",
+    "lrt <- list()",
+    "for (i in seq_along(fits)[-1]) {",
+    "  if (!converged[i] || !converged[i - 1]) next",
+    "  # (binary and three-category items: equal thresholds alone are equivalent to the configural model, same df)",
+    "  if (fitMeasures(fits[[i]], \"df\") == fitMeasures(fits[[i - 1]], \"df\")) next",
+    "  lrt[[names(fits)[i]]] <- lavTestLRT(fits[[i - 1]], fits[[i]])",
+    "}"
+  )
+  if (export) {
+    report <- c(
+      "lrt",
+      "sapply(fits[converged], fitMeasures, fit.measures = c(\"chisq.scaled\", \"df\", \"cfi.robust\", \"rmsea.robust\", \"cfi\", \"rmsea\", \"srmr\"))",
+      "# Score tests of the constraints of a step (here the last), e.g. releasing each one:",
+      "lavTestScore(fits[[length(fits)]])",
+      "# Latent mean differences under scalar invariance (the first group's means are 0, its variances 1)",
+      "subset(parameterEstimates(fits$scalar), op == \"~1\" & lhs %in% lavNames(fits$scalar, \"lv\"))",
+      "# Wald test that a factor's means in the later groups are all 0 (their labels in the syntax: alpha.k.g2, ...)",
+      "lavTestWald(fits$scalar, constraints = \"alpha.1.g2 == 0\")",
+      "cat(syntax$scalar)"
+    )
+    return(ps_script(
+      "Guided measurement invariance (semTools::measEq.syntax, lavaan)", c("lavaan", "semTools"),
+      list(data = data), body, report
+    ))
+  }
+  env <- ps_run(body, list(data = data))
+  fits <- env$fits
+  back <- f$back
+  nm <- function(x) unname(ps_back(x, back))
+  groups <- as.character(lavaan::lavInspect(fits[[1]], "group.label"))
+  if (length(groups) < 2) stop("The grouping column has one group: invariance compares two or more.")
+  converged <- vapply(fits, function(x) isTRUE(lavaan::lavInspect(x, "converged")), TRUE)
+  fms <- ps_guided_fits(fits[converged])
+  out_steps <- lapply(seq_along(steps), function(i) {
+    s <- steps[i]
+    fit <- fits[[s]]
+    res <- list(step = s, converged = converged[[s]], syntax = env$syntax[[s]], freed = I(partial[[s]]))
+    if (!converged[[s]]) return(res)
+    fm <- fms[[s]]
+    res <- c(res, fm)
+    if (i > 1 && converged[[i - 1]]) {
+      prev <- fms[[steps[i - 1]]]
+      lr <- env$lrt[[s]]
+      res$cfiChange <- fm$cfi - prev$cfi
+      res$rmseaChange <- fm$rmsea - prev$rmsea
+      res$srmrChange <- fm$srmr - prev$srmr
+      if (is.null(lr)) {
+        res$equivalent <- TRUE
+      } else {
+        res$chisqDiff <- unname(lr[["Chisq diff"]][2])
+        res$dfDiff <- unname(lr[["Df diff"]][2])
+        res$p <- unname(lr[["Pr(>Chisq)"]][2])
+        res$method <- as.character(attr(lr, "method") %||% "standard")
+      }
+      # (no candidates where the step is not a test: equivalent to the step before)
+      cands <- if (isTRUE(res$equivalent)) list() else {
+        ps_guided_candidates(fit, kind_of[[s]], unlist(f$iv), f$fv, freed_keys[[s]])
+      }
+      res$candidates <- lapply(cands, function(x) {
+        item <- if (x$op == "=~") x$rhs else x$lhs
+        c(
+          list(kind = kind_of[[s]], item = nm(item), x2 = x$x2, df = x$df, p = x$p, test = x$test),
+          if (x$op == "=~") list(factor = nm(x$lhs)),
+          if (x$op == "|") list(threshold = as.integer(sub("^t", "", x$rhs)))
+        )
+      })
+    }
+    res
+  })
+  # Latent means under (partial) scalar invariance: the first group's are 0 (variances 1), the others' differences
+  # from it in its SD units; a Wald test per factor that all of them are 0.
+  means <- list()
+  wald <- list()
+  sc <- fits$scalar
+  if (isTRUE(lavaan::lavInspect(sc, "converged"))) {
+    pe <- lavaan::parameterEstimates(sc)
+    for (k in seq_along(f$fv)) {
+      lv <- f$fv[k]
+      m <- pe[pe$op == "~1" & pe$lhs == lv & pe$group > 1, ]
+      v <- pe[pe$op == "~~" & pe$lhs == lv & pe$rhs == lv & pe$group > 1, ]
+      for (j in seq_len(nrow(m))) {
+        vj <- v[v$group == m$group[j], ]
+        means[[length(means) + 1]] <- list(
+          factor = f$names[k], group = groups[m$group[j]], est = m$est[j], se = m$se[j], z = m$z[j],
+          p = m$pvalue[j], lo = m$ci.lower[j], hi = m$ci.upper[j], variance = vj$est, varianceSe = vj$se
+        )
+      }
+      labs <- m$label[nzchar(m$label)]
+      if (length(labs) == nrow(m) && nrow(m)) {
+        w <- ps_try(
+          lavaan::lavTestWald(sc, constraints = paste(sprintf("%s == 0", labs), collapse = "\n")),
+          "Wald test of the latent means (lavaan::lavTestWald)"
+        )
+        if (!is.null(w)) wald[[length(wald) + 1]] <- list(factor = f$names[k], x2 = w$stat, df = w$df, p = w$p.value)
+      }
+    }
+  }
+  # dMACS (Nye & Drasgow 2011) of continuous items whose loading or intercept is freed, from the scalar model:
+  # for eta ~ N(kappa_F, phi_F) in the focal group, E[(d_nu + d_lambda eta)^2] = (d_nu + d_lambda kappa_F)^2 +
+  # d_lambda^2 phi_F in closed form (the dMACS card integrates the same numerically); SD pooled within the two groups.
+  dmacs <- list()
+  if (!ordinal && isTRUE(lavaan::lavInspect(sc, "converged"))) {
+    pars <- lavaan::lavInspect(sc, "est")
+    kappa <- lavaan::lavInspect(sc, "mean.lv")
+    phi <- lavaan::lavInspect(sc, "cov.lv")
+    obs <- lavaan::lavInspect(sc, "data")
+    flagged <- unique(unlist(lapply(free, function(x) if (x$kind %in% c("loading", "intercept")) x$item)))
+    for (item in flagged) {
+      iv <- unname(f$fr$v[item])
+      k <- which(vapply(f$inds, function(x) item %in% x, TRUE))[1]
+      lv <- f$fv[k]
+      for (g in seq_along(groups)[-1]) {
+        lR <- pars[[1]]$lambda[iv, lv]
+        lF <- pars[[g]]$lambda[iv, lv]
+        dnu <- pars[[g]]$nu[iv, 1] - pars[[1]]$nu[iv, 1]
+        dl <- lF - lR
+        xr <- obs[[1]][, iv]
+        xf <- obs[[g]][, iv]
+        nr <- sum(!is.na(xr))
+        nf <- sum(!is.na(xf))
+        sd <- sqrt(((nr - 1) * stats::var(xr, na.rm = TRUE) + (nf - 1) * stats::var(xf, na.rm = TRUE)) / (nr + nf - 2))
+        mean_diff <- dnu + dl * kappa[[g]][[lv]]
+        dmacs[[length(dmacs) + 1]] <- list(
+          focal = groups[g], factor = f$names[k], item = item, lambdaRef = lR, lambdaFocal = lF,
+          nuRef = pars[[1]]$nu[iv, 1], nuFocal = pars[[g]]$nu[iv, 1], sd = sd,
+          dmacs = sqrt(mean_diff^2 + dl^2 * phi[[g]][lv, lv]) / sd, signed = mean_diff / sd
+        )
+      }
+    }
+  }
+  ps_json(list(
+    ordinal = ordinal, binary = I(nm(binary)), parameterization = param, estimator = est,
+    groups = I(groups), n = I(unname(as.numeric(lavaan::lavInspect(fits[[1]], "nobs")))),
+    factors = lapply(seq_along(f$names), function(k) list(name = f$names[k], indicators = I(f$inds[[k]]))),
+    steps = out_steps, means = means, wald = wald, dmacs = dmacs,
+    warnings = env$.warnings, engine = ps_engine("semTools", lavaan = "lavaan")
+  ))
+}

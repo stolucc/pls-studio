@@ -90,13 +90,13 @@ export function modelFactors(ctx: AnalysisCtx): InvFactor[] {
     .map((k) => ({ name: k.name, indicators: [...k.indicators] }));
 }
 /** The chosen factors (all eligible ones when none is chosen). */
-const chosen = (sel: string[], ctx: AnalysisCtx) => {
+export const chosen = (sel: string[], ctx: AnalysisCtx) => {
   const all = modelFactors(ctx);
   return sel.length ? all.filter((f) => sel.includes(f.name)) : all;
 };
 
 /** Why the model's factors cannot be used (null when they can). */
-function factorsBlocked(
+export function factorsBlocked(
   fs: InvFactor[],
   sel: string[],
   ctx: AnalysisCtx,
@@ -116,7 +116,7 @@ function factorsBlocked(
 }
 
 /** Checkboxes for the diagram's factors (none ticked: all of them). */
-function FactorPicker({
+export function FactorPicker({
   value,
   onChange,
   ctx,
@@ -1636,7 +1636,13 @@ function LongInvarianceForm({
 }
 
 /** The lavaan syntax of each level as measEq.syntax generated it: read-only, one level at a time, copyable. */
-export function GeneratedSyntax({ r }: { r: LongInvarianceResult }) {
+export function GeneratedSyntax({
+  r,
+  title = 'Generated lavaan syntax (semTools::measEq.syntax)',
+}: {
+  r: { levels: { level: string; syntax?: string }[] };
+  title?: string;
+}) {
   const levels = r.levels.filter((l) => typeof l.syntax === 'string' && l.syntax.length > 0);
   const [pick, setPick] = useState(levels[0]?.level ?? '');
   if (!levels.length) return null;
@@ -1655,7 +1661,7 @@ export function GeneratedSyntax({ r }: { r: LongInvarianceResult }) {
   };
   return (
     <details className="generated-syntax">
-      <summary>Generated lavaan syntax (semTools::measEq.syntax)</summary>
+      <summary>{title}</summary>
       <div className="table-tools">
         <div className="segmented" role="tablist" aria-label="Invariance level">
           {levels.map((l) => (

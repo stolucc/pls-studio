@@ -537,3 +537,229 @@ export function detectOccasions(names: string[]): { occasions: string[][]; label
     labels: occs.map(String),
   };
 }
+
+// ---------------------------------------------------------------- guided measurement invariance
+
+/** The steps of the guided sequence, in order (thresholds only with ordinal items, strict only when asked). */
+export type GuidedStepName = 'configural' | 'thresholds' | 'metric' | 'scalar' | 'strict';
+/** The kind of parameter each constrained step holds equal (and the user may free). */
+export type GuidedParamKind = 'threshold' | 'loading' | 'intercept' | 'residual';
+export const STEP_KIND: Record<Exclude<GuidedStepName, 'configural'>, GuidedParamKind> = {
+  thresholds: 'threshold',
+  metric: 'loading',
+  scalar: 'intercept',
+  strict: 'residual',
+};
+
+/** A parameter freed across groups from `step` on (partial invariance). */
+export interface GuidedFreed {
+  step: Exclude<GuidedStepName, 'configural'>;
+  kind: GuidedParamKind;
+  item: string;
+  /** The factor of a loading. */
+  factor?: string;
+  /** Which threshold of an ordinal item (1 = the lowest). */
+  threshold?: number;
+}
+
+export interface GuidedInvarianceInput {
+  factors: InvFactor[];
+  group: string;
+  /** The ordinal indicators among the factors' (WLSMV); none: continuous (ML or MLR). */
+  ordered: string[];
+  estimator: 'ML' | 'MLR' | 'WLSMV';
+  missing: MissingTreatment;
+  parameterization: 'delta' | 'theta';
+  /** Add the strict step (equal residual variances; for ordinal items only with theta). */
+  strict: boolean;
+  free: GuidedFreed[];
+}
+
+/** A candidate parameter to free at a step: its score test (lavTestScore; `mi`: a modification index). */
+export interface GuidedCandidate {
+  kind: GuidedParamKind;
+  item: string;
+  factor?: string;
+  threshold?: number;
+  x2: number;
+  df: number;
+  p: number;
+  test: 'score' | 'score.scaled' | 'mi';
+}
+
+export type FitKind = 'robust' | 'scaled' | 'standard';
+
+export interface GuidedStep {
+  step: GuidedStepName;
+  converged: boolean;
+  /** The lavaan syntax semTools::measEq.syntax wrote for the step. */
+  syntax?: string;
+  /** The parameters freed at this step or before (lavaan's group.partial form). */
+  freed: string[];
+  chisq?: number;
+  df?: number;
+  pvalue?: number;
+  cfi?: number;
+  rmsea?: number;
+  srmr?: number;
+  cfiKind?: FitKind;
+  rmseaKind?: FitKind;
+  chisqDiff?: number;
+  dfDiff?: number;
+  p?: number;
+  /** lavTestLRT's method (e.g. satorra.2000, satorra.bentler.2001, standard). */
+  method?: string;
+  cfiChange?: number;
+  rmseaChange?: number;
+  srmrChange?: number;
+  /** The step adds no testable constraint (binary or three-category items: equal thresholds ≡ configural). */
+  equivalent?: boolean;
+  candidates: GuidedCandidate[];
+}
+
+export interface GuidedMean {
+  factor: string;
+  group: string;
+  est: number;
+  se: number;
+  z: number;
+  p: number;
+  lo: number;
+  hi: number;
+  variance: number;
+  varianceSe: number;
+}
+
+export interface GuidedDmacs {
+  focal: string;
+  factor: string;
+  item: string;
+  lambdaRef: number;
+  lambdaFocal: number;
+  nuRef: number;
+  nuFocal: number;
+  sd: number;
+  dmacs: number;
+  signed: number;
+}
+
+export interface GuidedInvarianceResult {
+  ordinal: boolean;
+  binary: string[];
+  parameterization: 'delta' | 'theta';
+  estimator: GuidedInvarianceInput['estimator'];
+  groups: string[];
+  n: number[];
+  /** The factors analysed (their items as data columns). */
+  factors: InvFactor[];
+  steps: GuidedStep[];
+  means: GuidedMean[];
+  wald: { factor: string; x2: number; df: number; p: number }[];
+  dmacs: GuidedDmacs[];
+  warnings: string[];
+  engine: REngineInfo & { lavaan?: string };
+}
+
+const guidedCols = (i: GuidedInvarianceInput) => [
+  ...i.factors.flatMap((f) => f.indicators),
+  i.group,
+];
+export const guidedInvarianceRequest = (data: Dataset, i: GuidedInvarianceInput) =>
+  invRequest(data, 'guidedinvariance', guidedCols(i), i);
+
+const num = (v: unknown) => (typeof v === 'number' ? v : NaN);
+const optNum = (v: unknown) => (typeof v === 'number' ? v : undefined);
+
+function guidedStep(s: Record<string, any>): GuidedStep {
+  const step: GuidedStep = {
+    step: s.step,
+    converged: s.converged === true,
+    freed: rStrings(s.freed),
+    candidates: rList<any>(s.candidates).map((c) => ({
+      kind: c.kind,
+      item: String(c.item),
+      ...(typeof c.factor === 'string' ? { factor: c.factor } : {}),
+      ...(typeof c.threshold === 'number' ? { threshold: c.threshold } : {}),
+      x2: num(c.x2),
+      df: num(c.df),
+      p: num(c.p),
+      test: c.test,
+    })),
+  };
+  if (typeof s.syntax === 'string') step.syntax = s.syntax;
+  const numbers = [
+    'chisq',
+    'df',
+    'pvalue',
+    'cfi',
+    'rmsea',
+    'srmr',
+    'chisqDiff',
+    'dfDiff',
+    'p',
+    'cfiChange',
+    'rmseaChange',
+    'srmrChange',
+  ] as const;
+  for (const k of numbers) {
+    const v = optNum(s[k]);
+    if (v !== undefined) step[k] = v;
+  }
+  if (typeof s.cfiKind === 'string') step.cfiKind = s.cfiKind as FitKind;
+  if (typeof s.rmseaKind === 'string') step.rmseaKind = s.rmseaKind as FitKind;
+  if (typeof s.method === 'string') step.method = s.method;
+  if (s.equivalent === true) step.equivalent = true;
+  return step;
+}
+
+/** Guided measurement invariance (ps_guided_invariance): the steps, score tests, latent means and dMACS. */
+export async function guidedInvarianceR(
+  data: Dataset,
+  i: GuidedInvarianceInput,
+): Promise<GuidedInvarianceResult> {
+  const r = await rCall<Record<string, any>>(
+    'ps_guided_invariance',
+    guidedInvarianceRequest(data, i),
+    'lavaan',
+  );
+  const groups = groupNames(data, i.group, rStrings(r.groups));
+  // (group codes as their category names in the means and dMACS too)
+  const rawGroups = rStrings(r.groups);
+  const groupName = (g: unknown) => groups[rawGroups.indexOf(String(g))] ?? String(g);
+  return {
+    ordinal: r.ordinal === true,
+    binary: rStrings(r.binary),
+    parameterization: r.parameterization,
+    estimator: r.estimator,
+    groups,
+    n: rList<number>(r.n),
+    factors: rList<any>(r.factors).map((f) => ({
+      name: String(f.name),
+      indicators: rStrings(f.indicators),
+    })),
+    steps: rList<any>(r.steps).map(guidedStep),
+    means: rList<any>(r.means).map((m) => ({
+      factor: String(m.factor),
+      group: groupName(m.group),
+      est: num(m.est),
+      se: num(m.se),
+      z: num(m.z),
+      p: num(m.p),
+      lo: num(m.lo),
+      hi: num(m.hi),
+      variance: num(m.variance),
+      varianceSe: num(m.varianceSe),
+    })),
+    wald: rList<any>(r.wald).map((w) => ({
+      factor: String(w.factor),
+      x2: num(w.x2),
+      df: num(w.df),
+      p: num(w.p),
+    })),
+    dmacs: rList<any>(r.dmacs).map((d) => ({ ...d, focal: groupName(d.focal) })),
+    warnings: rStrings(r.warnings),
+    engine: r.engine,
+  };
+}
+export const guidedInvarianceScriptR = (data: Dataset, i: GuidedInvarianceInput) =>
+  rScript('ps_guided_invariance', guidedInvarianceRequest(data, i), 'lavaan');

@@ -493,6 +493,15 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     ['lavaan', 'semTools'],
     script('invariance_cards.R', 'desktop lavaan, the models written out by hand'),
   ),
+  'rengine/guidedInvariance': native(
+    'Guided measurement invariance (ordinal: Wu & Estabrook; continuous; binary)',
+    'CB-SEM',
+    ['lavaan', 'semTools'],
+    script(
+      'guided_invariance.R',
+      'desktop semTools ?measEq.syntax example and plain lavaan group.equal, written independently',
+    ),
+  ),
   'rengine/longitudinal': native(
     'Growth models, RI-CLPM',
     'Longitudinal',

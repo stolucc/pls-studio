@@ -67,6 +67,7 @@ import {
   mimicDifAnalysis,
   mnlfaAnalysis,
 } from './invariance';
+import { guidedInvarianceAnalysis } from './guidedInvariance';
 import type { AnalysisType } from './types';
 import { withSplit } from './split';
 
@@ -95,6 +96,7 @@ export const ANALYSIS_TYPES: AnalysisType[] = [
   twoLevelEfaAnalysis,
   ...VALIDITY_TYPES,
   scoreTestAnalysis,
+  guidedInvarianceAnalysis,
   alignmentAnalysis,
   dmacsAnalysis,
   mnlfaAnalysis,
