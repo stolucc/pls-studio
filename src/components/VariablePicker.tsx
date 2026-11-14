@@ -65,20 +65,22 @@ export function VariablePicker({
       </div>
       <div className="var-check-list" role="group" aria-label="Variables">
         {shown.map((v) => (
-          <label
-            key={v}
-            className="check var-check"
-            onClick={(e) => {
-              e.preventDefault();
-              onChange(
-                toggleVariables(shown, value, v, anchor, e.shiftKey)
-                  .concat(value.filter((x) => !shown.includes(x)))
-                  .filter((x, i, a) => a.indexOf(x) === i),
-              );
-              setAnchor(v);
-            }}
-          >
-            <input type="checkbox" checked={chosen.has(v)} readOnly tabIndex={-1} />
+          // The checkbox's own change event, which a click on the name reaches through the label: one
+          // toggle per click, drawn at once (the click's shift key chooses a range).
+          <label key={v} className="check var-check">
+            <input
+              type="checkbox"
+              checked={chosen.has(v)}
+              onChange={(e) => {
+                const range = (e.nativeEvent as MouseEvent).shiftKey === true;
+                onChange(
+                  toggleVariables(shown, value, v, anchor, range)
+                    .concat(value.filter((x) => !shown.includes(x)))
+                    .filter((x, i, a) => a.indexOf(x) === i),
+                );
+                setAnchor(v);
+              }}
+            />
             <span>{v}</span>
           </label>
         ))}
