@@ -748,6 +748,10 @@ export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
       );
     if (m1.indicatorNames.includes(wname))
       throw new Error(`“${wname}” cannot be both the sampling weights and an indicator.`);
+    // The weights are checked on the raw column: mean replacement must not fill in a missing
+    // weight, nor casewise deletion drop its row silently (lavaan stops here too).
+    const wcol = data.cols[data.names.indexOf(wname)];
+    if (wcol) normaliseWeights(wcol);
   }
   const { cols, dropped } = extractColumns(
     data,
