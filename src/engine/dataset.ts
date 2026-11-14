@@ -18,6 +18,8 @@ export interface ParsedData {
   rows: number;
   missingCells: number;
   excludedColumns: { name: string; reason: string }[];
+  /** Numeric columns whose few text cells were read as missing (see strayTokens), one line each. */
+  warnings: string[];
 }
 
 export const MAX_FILE_BYTES = 50 * 1024 * 1024;
@@ -93,10 +95,14 @@ export function parseCsv(text: string, opts: ParseOptions = {}): ParsedData {
   let missingCells = 0;
 
   const categories: Record<string, string[]> = {};
+  const warnings: string[] = [];
   names.forEach((name, c) => {
     const col = new Float64Array(body.length);
     let bad: string | null = null;
     let colMissing = 0;
+    let numbers = 0;
+    /** Text cells: their row numbers by token. */
+    const text = new Map<string, number[]>();
     for (let r = 0; r < body.length; r++) {
       const rawCell = (body[r][c] ?? '').trim();
       if (missing.has(rawCell.toUpperCase())) {
@@ -106,10 +112,26 @@ export function parseCsv(text: string, opts: ParseOptions = {}): ParsedData {
       }
       const v = Number(decimalComma ? rawCell.replace(',', '.') : rawCell);
       if (!Number.isFinite(v)) {
-        bad = rawCell;
-        break;
+        bad ??= rawCell;
+        text.set(rawCell, [...(text.get(rawCell) ?? []), r]);
+        continue;
       }
       col[r] = v;
+      numbers++;
+    }
+    if (bad !== null && strayTokens(numbers, text)) {
+      // A numeric column with a few placeholder cells: those cells are missing, not categories.
+      let cells = 0;
+      for (const rowsOf of text.values()) {
+        for (const r of rowsOf) col[r] = NaN;
+        cells += rowsOf.length;
+      }
+      colMissing += cells;
+      const tokens = [...text].map(([t, rowsOf]) => `“${t.slice(0, 20)}” ×${rowsOf.length}`);
+      warnings.push(
+        `${name}: ${cells} non-numeric ${cells === 1 ? 'cell was' : 'cells were'} read as missing (${tokens.join(', ')}); the other values are numbers.`,
+      );
+      bad = null;
     }
     if (bad !== null) {
       // A text column with few different values (groups, cluster ids, labels) is kept as
@@ -143,7 +165,25 @@ export function parseCsv(text: string, opts: ParseOptions = {}): ParsedData {
     cols,
     ...(Object.keys(categories).length ? { categories } : {}),
   };
-  return { dataset, rows: body.length, missingCells, excludedColumns };
+  return { dataset, rows: body.length, missingCells, excludedColumns, warnings };
+}
+
+/** At most this many different text tokens count as placeholders in a numeric column. */
+const MAX_STRAY_TOKENS = 3;
+
+/**
+ * Whether a column's text cells are placeholders for missing values in a
+ * numeric column rather than categories: the column has numbers, and its text
+ * cells are either all punctuation ("-", "?", "--", "*"), or words making up
+ * at most 10% of the non-missing cells with at most MAX_STRAY_TOKENS different
+ * ones ("missing", "refused"). Numeric codes such as 999 are never guessed.
+ */
+function strayTokens(numbers: number, text: Map<string, number[]>): boolean {
+  if (numbers === 0 || text.size === 0) return false;
+  const tokens = [...text.keys()];
+  if (tokens.every((t) => /^[^\p{L}\p{N}]+$/u.test(t))) return true;
+  const cells = [...text.values()].reduce((n, rowsOf) => n + rowsOf.length, 0);
+  return tokens.length <= MAX_STRAY_TOKENS && cells <= 0.1 * (numbers + cells);
 }
 
 /** Most categories a text column may have (beyond that it is treated as free text). */

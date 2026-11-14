@@ -163,11 +163,15 @@ export async function importCsv(file?: File | null) {
     const excluded = parsed.excludedColumns.length
       ? ` ${parsed.excludedColumns.length} non-numeric column(s) skipped.`
       : '';
+    for (const w of parsed.warnings) s.logMessage('warning', w, 'CSV import');
+    const stray = parsed.warnings.length
+      ? ` Non-numeric cells in ${parsed.warnings.length} numeric column(s) were read as missing (see Messages).`
+      : '';
     s.toast(
       missingInds.length ? 'error' : 'success',
       missingInds.length
         ? `Loaded ${f.name}, but ${missingInds.length} indicator(s) in the model are not in this file.`
-        : `Loaded ${parsed.rows} rows × ${parsed.dataset.names.length} variables.${excluded}`,
+        : `Loaded ${parsed.rows} rows × ${parsed.dataset.names.length} variables.${excluded}${stray}`,
     );
   } catch (err) {
     s.toast(

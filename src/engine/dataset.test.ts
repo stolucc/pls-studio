@@ -57,4 +57,24 @@ describe('parseCsv', () => {
   it('rejects files without data rows', () => {
     expect(() => parseCsv('a,b\n')).toThrow(/header row and at least one data row/);
   });
+  it('reads a stray placeholder in a numeric column as missing, with a warning', () => {
+    const r = parseCsv('a,b\n1,2.5\n3,2.10\n-,7\n5,3.0\n');
+    expect(Array.from(r.dataset.cols[0])).toEqual([1, 3, NaN, 5]);
+    expect(r.dataset.categories).toBeUndefined();
+    expect(r.missingCells).toBe(1);
+    expect(r.warnings).toEqual([
+      'a: 1 non-numeric cell was read as missing (“-” ×1); the other values are numbers.',
+    ]);
+  });
+  it('reads a few words in a mostly numeric column as missing, but keeps categories and numeric codes', () => {
+    const numbers = Array.from({ length: 19 }, (_, i) => String((i % 5) + 1));
+    const r = parseCsv(`q\n${[...numbers, 'refused'].join('\n')}\n`);
+    expect(r.dataset.cols[0].filter(Number.isNaN)).toHaveLength(1);
+    expect(r.warnings[0]).toMatch(/^q: 1 non-numeric cell .*“refused” ×1/);
+    // Half words: a categorical column, sorted numerically; 999 stays a number.
+    const mixed = parseCsv('g,v\n10,999\n2,1\nx,2\ny,3\n');
+    expect(mixed.dataset.categories?.g).toEqual(['2', '10', 'x', 'y']);
+    expect(Array.from(mixed.dataset.cols[1])).toEqual([999, 1, 2, 3]);
+    expect(mixed.warnings).toEqual([]);
+  });
 });
