@@ -5,7 +5,9 @@
 // work (bootstrap chunks) can use further sessions, each a webR in its own Worker.
 
 import type { WebR } from 'webr';
+import { Cancelled } from '../cancellable';
 import { cancelHelperCalls } from './helper';
+import { onRJobCancelled, rCallOwner, type RJob } from './jobs';
 import { R_STARTING, useR } from './status';
 
 export { useR };
@@ -22,28 +24,64 @@ const browserOptions = (): RRuntimeOptions => {
   return { baseUrl: root, repoUrl: `${root}repo/` };
 };
 
+/** A call waiting for, or running in, a session; `owner`: the job it works for (jobs.ts). */
+interface Call {
+  owner: RJob | null;
+  state: 'queued' | 'running' | 'cancelled';
+  cancel: () => void;
+}
+
 /** One R session (a webR instance, in its own Web Worker) with its packages and sources. */
 interface Session {
   webR: Promise<WebR> | null;
   installed: Set<string>;
   sourced: Set<string>;
   queue: Promise<unknown>;
+  /** Its calls not yet finished: the running one and the queued ones. */
+  calls: Set<Call>;
 }
 const newSession = (): Session => ({
   webR: null,
   installed: new Set(),
   sourced: new Set(),
   queue: Promise.resolve(),
+  calls: new Set(),
 });
 // Session 0 serves every calculation; sessions 1.. are started only for parallel work (useCompute.workers).
 const sessions: Session[] = [newSession()];
 let options: RRuntimeOptions | null = null;
 
-/** Interrupt the running R computations, in the browser and in the desktop helper (pending calls then reject). */
+/**
+ * Interrupt one session's running call. Only while a call runs: webR keeps an interrupt sent to an idle session and
+ * acts on it at the next evaluation, which would fail the next calculation instead.
+ */
+function interruptSession(s: Session) {
+  void s.webR?.then((w) => w.interrupt()).catch(() => undefined);
+}
+
+/**
+ * Interrupt every running R computation, in the browser and in the desktop helper (their calls then reject). Idle
+ * sessions are left alone. For a cancel without a job; a job's cancel (cancelRJob) stops only that job's calls.
+ */
 export function interruptR() {
-  for (const s of sessions) void s.webR?.then((w) => w.interrupt()).catch(() => undefined);
+  for (const s of sessions)
+    if ([...s.calls].some((c) => c.state === 'running')) interruptSession(s);
   cancelHelperCalls();
 }
+
+/** A cancelled job's calls: a queued one leaves its queue (rejects with Cancelled), a running one is interrupted. */
+function stopCallsOf(job: RJob) {
+  for (const s of sessions) {
+    let interrupt = false;
+    for (const c of s.calls) {
+      if (c.owner !== job) continue;
+      if (c.state === 'queued') c.cancel();
+      else if (c.state === 'running') interrupt = true;
+    }
+    if (interrupt) interruptSession(s);
+  }
+}
+onRJobCancelled(stopCallsOf);
 
 /** Use a non-default runtime location (tests in Node). Must precede the first call. */
 export function configureR(o: RRuntimeOptions) {
@@ -217,9 +255,33 @@ export function withSession<T>(
       );
     }
   };
-  const task = s.queue.then(() => run(false));
-  s.queue = task.catch(() => undefined);
-  return task;
+  // (attributed now, while the caller's job is known: jobs.ts)
+  let stop: (e: Error) => void = () => undefined;
+  const call: Call = {
+    owner: rCallOwner(),
+    state: 'queued',
+    cancel: () => {
+      call.state = 'cancelled';
+      s.calls.delete(call);
+      stop(new Cancelled());
+    },
+  };
+  s.calls.add(call);
+  const turn = s.queue.then(async () => {
+    // (a call cancelled while queued never runs; the queue moves on to the next)
+    if (call.state === 'cancelled') return undefined as T;
+    call.state = 'running';
+    try {
+      return await run(false);
+    } finally {
+      s.calls.delete(call);
+    }
+  });
+  s.queue = turn.catch(() => undefined);
+  return new Promise<T>((resolve, reject) => {
+    stop = reject;
+    turn.then(resolve, reject);
+  });
 }
 
 /**

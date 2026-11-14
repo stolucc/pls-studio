@@ -686,3 +686,38 @@ describe('helper self-update', () => {
     await expect(updateHelper(1000)).rejects.toThrow(/latest version/);
   });
 });
+
+describe('cancelling a job in the helper', () => {
+  it('cancels only the calls working for that job', async () => {
+    const { helperCall } = await import('./helper');
+    const { cancelRJob, newRJob, withRJob } = await import('./jobs');
+    store.set('pls-studio.helper.token', TOKEN);
+    const ids: Record<string, string> = {};
+    const cancelled: string[] = [];
+    const answers: (() => void)[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit = {}) => {
+        const path = url.slice('http://127.0.0.1:9878'.length);
+        if (path.startsWith('/cancel/')) {
+          cancelled.push(path.slice('/cancel/'.length));
+          return new Response('{}');
+        }
+        const body = JSON.parse(String(init.body));
+        ids[body.req] = body.id;
+        // (the call answers when the test says so)
+        await new Promise<void>((r) => answers.push(r));
+        return new Response(JSON.stringify({ ok: true, result: body.req }));
+      }),
+    );
+    const a = newRJob('A');
+    const pa = withRJob(a, () => helperCall('ps_pls', 'mine', []));
+    const pb = withRJob(null, () => helperCall('ps_pls', 'other', []));
+    await new Promise((r) => setTimeout(r, 0));
+    cancelRJob(a);
+    expect(cancelled).toEqual([ids.mine]);
+    answers.forEach((r) => r());
+    expect(await pa).toBe('mine');
+    expect(await pb).toBe('other');
+  });
+});

@@ -13,6 +13,7 @@ import { toSpec, validateModel } from './model/project';
 import { processGraph } from './process/fromModel';
 import { indirectPaths as processPlanPaths } from './process/plan';
 import { processInput } from './process/input';
+import { beginRJob, cancelRJob, endRJob, newRJob, type RJob } from './rengine/jobs';
 import { resultsKey, useStore, type JobKind } from './store';
 import type { WorkerRequest, WorkerResponse } from './worker';
 
@@ -41,9 +42,22 @@ function terminateAll() {
   pool = [];
 }
 
+// The Model tab's job as an R job (rengine/jobs.ts): live while useStore.job is set, so cancelling it stops only the
+// R calls it made (none for the built-in engine) and never another card's.
+let modelJob: RJob | null = null;
+useStore.subscribe((s) => {
+  if (s.job && !modelJob) {
+    modelJob = newRJob('model job');
+    beginRJob(modelJob);
+  } else if (!s.job && modelJob) {
+    endRJob(modelJob);
+    modelJob = null;
+  }
+});
+
 export function cancelJob() {
   terminateAll();
-  if (useStore.getState().job?.label) void import('./rengine/runtime').then((m) => m.interruptR());
+  if (modelJob) cancelRJob(modelJob);
   rToken++;
   useStore.getState().setJob(null);
   useStore.getState().toast('info', 'Calculation cancelled.');
@@ -573,13 +587,15 @@ export function cancelSimulation() {
   simPool.forEach((w) => w.terminate());
   simPool = [];
   rSimToken++;
-  void import('./rengine/runtime').then((m) => m.interruptR());
+  if (simJob) cancelRJob(simJob);
   const stop = simStop;
   simStop = null;
   void import('./cancellable').then(({ Cancelled }) => stop?.(new Cancelled()));
 }
 
 let rSimToken = 0;
+/** The running R simulation's job (rengine/jobs.ts): cancelling stops its R calls only. */
+let simJob: RJob | null = null;
 
 /**
  * Simulation by the R packages: replications in chunks (for progress and
@@ -687,12 +703,17 @@ export async function simulate(
 ): Promise<McSummaryRow[]> {
   if (simPool.length || simStop) throw new Error('A simulation is already running.');
   if (engine !== 'r') return simulateBuiltIn(design, progress);
+  const job = newRJob('simulation');
+  simJob = job;
+  beginRJob(job);
   return new Promise<McSummaryRow[]>((resolve, reject) => {
     simStop = reject;
     simulateR(design, progress)
       .then(resolve, reject)
       .finally(() => {
         if (simStop === reject) simStop = null;
+        endRJob(job);
+        if (simJob === job) simJob = null;
       });
   });
 }
