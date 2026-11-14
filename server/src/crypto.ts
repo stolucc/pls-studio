@@ -8,7 +8,15 @@ import {
   randomBytes,
   timingSafeEqual,
 } from 'node:crypto';
-import { gunzipSync, gzipSync } from 'node:zlib';
+import { promisify } from 'node:util';
+import { gunzip as gunzipCb, gzip as gzipCb } from 'node:zlib';
+
+// Asynchronous zlib: a dataset is up to MAX_DATASET_BYTES (tens of MB), and
+// compressing it is the bulk of an upload's work. The synchronous versions
+// would block the event loop (every other request and socket) for seconds;
+// these run on libuv's thread pool.
+const gzip = promisify(gzipCb);
+const gunzip = promisify(gunzipCb);
 
 const VERSION = 1;
 
@@ -34,30 +42,33 @@ export function open(key: Buffer, sealed: Buffer, aad: string): Buffer {
  * project id is bound in as associated data, so ciphertexts cannot be moved
  * between projects.
  */
-export function encryptDataset(
+export async function encryptDataset(
   master: Buffer,
   projectId: string,
   json: string,
-): { ciphertext: Buffer; wrappedKey: Buffer } {
+): Promise<{ ciphertext: Buffer; wrappedKey: Buffer }> {
+  const compressed = await gzip(Buffer.from(json, 'utf8'));
   const dek = randomBytes(32);
-  const ciphertext = seal(dek, gzipSync(Buffer.from(json, 'utf8')), `dataset:${projectId}`);
+  const ciphertext = seal(dek, compressed, `dataset:${projectId}`);
   const wrappedKey = seal(master, dek, `dek:${projectId}`);
   dek.fill(0);
   return { ciphertext, wrappedKey };
 }
 
-export function decryptDataset(
+export async function decryptDataset(
   master: Buffer,
   projectId: string,
   ciphertext: Buffer,
   wrappedKey: Buffer,
-): string {
+): Promise<string> {
   const dek = open(master, wrappedKey, `dek:${projectId}`);
+  let compressed: Buffer;
   try {
-    return gunzipSync(open(dek, ciphertext, `dataset:${projectId}`)).toString('utf8');
+    compressed = open(dek, ciphertext, `dataset:${projectId}`);
   } finally {
     dek.fill(0);
   }
+  return (await gunzip(compressed)).toString('utf8');
 }
 
 /** URL-safe random token and its SHA-256 (only the hash is stored). */

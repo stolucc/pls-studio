@@ -285,7 +285,7 @@ export async function putDataset(
   json: string,
 ): Promise<number> {
   await requireRole(db, projectId, userId, 'editor');
-  const { ciphertext, wrappedKey } = encryptDataset(master, projectId, json);
+  const { ciphertext, wrappedKey } = await encryptDataset(master, projectId, json);
   return tx(db, async (c) => {
     await c.query(
       `INSERT INTO datasets (project_id, ciphertext, wrapped_key, byte_size, updated_by) VALUES ($1, $2, $3, $4, $5)
