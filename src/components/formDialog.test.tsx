@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it } from 'vitest';
-import { ConfirmModal, formDialog } from './Overlays';
+import { ConfirmModal, confirmDialog, formDialog } from './Overlays';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -51,5 +51,31 @@ it('refills a following field when the field it follows changes, and keeps edits
     ).click(),
   );
   expect(await result).toEqual(['3', 'lab']);
+  act(() => root.unmount());
+});
+
+it('answers a dialog still open as cancelled when another one opens', async () => {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  act(() => root.render(<ConfirmModal />));
+  let first: Promise<boolean> = Promise.resolve(true);
+  let second: Promise<boolean> = Promise.resolve(false);
+  act(() => {
+    first = confirmDialog({ title: 'First', body: '', confirmLabel: 'One' });
+  });
+  act(() => {
+    second = confirmDialog({ title: 'Second', body: '', confirmLabel: 'Two' });
+  });
+  expect(await first).toBe(false);
+  expect(host.querySelector('h3')?.textContent).toBe('Second');
+  act(() =>
+    (
+      [...host.querySelectorAll('button')].find(
+        (b) => b.textContent === 'Two',
+      )! as HTMLButtonElement
+    ).click(),
+  );
+  expect(await second).toBe(true);
   act(() => root.unmount());
 });

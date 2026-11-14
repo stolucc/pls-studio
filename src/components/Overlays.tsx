@@ -63,39 +63,41 @@ interface DialogState {
 }
 const useDialog = create<DialogState>(() => ({ current: null }));
 
+/**
+ * Show a dialog. There is one dialog at a time: one still open is answered
+ * as cancelled first, so the code waiting on it goes on (its promise settles).
+ */
+function openDialog(next: NonNullable<DialogState['current']>) {
+  const previous = useDialog.getState().current;
+  useDialog.setState({ current: next });
+  previous?.resolve(false);
+}
+
 /** On-theme replacement for window.confirm. */
 export function confirmDialog(opts: ConfirmOpts): Promise<boolean> {
-  return new Promise((resolve) =>
-    useDialog.setState({ current: { ...opts, resolve: (ok) => resolve(ok) } }),
-  );
+  return new Promise((resolve) => openDialog({ ...opts, resolve: (ok) => resolve(ok) }));
 }
 
 /** On-theme replacement for window.prompt, for a single validated number. Resolves null on cancel. */
 export function numberDialog(opts: ConfirmOpts & { field: NumberField }): Promise<number | null> {
   return new Promise((resolve) =>
-    useDialog.setState({
-      current: { ...opts, resolve: (ok, v) => resolve(ok && v !== undefined ? v : null) },
-    }),
+    openDialog({ ...opts, resolve: (ok, v) => resolve(ok && v !== undefined ? v : null) }),
   );
 }
 
 /** On-theme replacement for window.prompt, for validated text. Resolves null on cancel. */
 export function textDialog(opts: ConfirmOpts & { text: TextField }): Promise<string | null> {
   return new Promise((resolve) =>
-    useDialog.setState({
-      current: { ...opts, resolve: (ok, _v, t) => resolve(ok && t !== undefined ? t : null) },
-    }),
+    openDialog({ ...opts, resolve: (ok, _v, t) => resolve(ok && t !== undefined ? t : null) }),
   );
 }
 
 /** A small form: resolves the trimmed values of the fields, or null on cancel. */
 export function formDialog(opts: ConfirmOpts & { fields: FormField[] }): Promise<string[] | null> {
   return new Promise((resolve) =>
-    useDialog.setState({
-      current: {
-        ...opts,
-        resolve: (ok, _v, _t, _c, values) => resolve(ok && values ? values : null),
-      },
+    openDialog({
+      ...opts,
+      resolve: (ok, _v, _t, _c, values) => resolve(ok && values ? values : null),
     }),
   );
 }
@@ -103,9 +105,7 @@ export function formDialog(opts: ConfirmOpts & { fields: FormField[] }): Promise
 /** A question with several answers; resolves the chosen id, or null on cancel. */
 export function choiceDialog(opts: ConfirmOpts & { choices: Choice[] }): Promise<string | null> {
   return new Promise((resolve) =>
-    useDialog.setState({
-      current: { ...opts, resolve: (ok, _v, _t, choice) => resolve(ok && choice ? choice : null) },
-    }),
+    openDialog({ ...opts, resolve: (ok, _v, _t, choice) => resolve(ok && choice ? choice : null) }),
   );
 }
 
