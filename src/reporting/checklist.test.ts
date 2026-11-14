@@ -63,6 +63,25 @@ describe('reviewer checklist: CB-SEM', () => {
     );
   });
 
+  it('adds the admissibility check’s improper values to the Heywood item: correlations beyond ±1', () => {
+    const over = reviewerChecklist(
+      cbInput({
+        cb: cbResult({
+          lvCor: [
+            [1, 1.02],
+            [1.02, 1],
+          ],
+        }),
+      }),
+    );
+    const h = item(over, 'heywood');
+    expect(h.status).toBe('issue');
+    expect(h.evidence).toBe('Implied correlation of Anxiety and Depression beyond ±1.');
+    expect(h.sources).toContain('chen2001');
+    expect(h.link).toEqual({ kind: 'tab', label: 'Model fit' });
+    expect(hasWork('chen2001')).toBe(true);
+  });
+
   it('checks HTMT, the N:q ratio, the estimator and missing data', () => {
     expect(item(items, 'htmt')).toMatchObject({ status: 'done', evidence: 'Largest HTMT 0.62.' });
     expect(item(items, 'samplesize').status).toBe('done');

@@ -7,6 +7,8 @@
 
 import type { Issue } from '../model/project';
 import { ran, type ReportInput } from './methods';
+import { checkAdmissibility } from '../engine/admissibility';
+import type { CbResult } from '../engine/cbsem';
 
 export type CheckStatus = 'done' | 'issue' | 'na' | 'author';
 /** Where the user can address an item: a tab of the Model tab's results, or an analysis card to add. */
@@ -292,6 +294,14 @@ function distributionItem(input: ReportInput, estimator: string, sources: string
   };
 }
 
+/** The admissibility findings beyond negative variances and standardised loadings, one sentence each (serious ones). */
+function admissibilityExtras(cb: CbResult): string[] {
+  const kinds = new Set(['correlation', 'matrix', 'vcov']);
+  return checkAdmissibility(cb)
+    .findings.filter((f) => kinds.has(f.kind) && f.severity === 'serious')
+    .map((f) => `${f.title}${f.block ? ` (${f.block})` : ''}.`);
+}
+
 function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] {
   const cb = input.cb!;
   const JA = ['jackson2009'];
@@ -316,19 +326,23 @@ function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] 
     .filter((e) => e.op === '~~' && e.lhs === e.rhs && e.est < 0)
     .map((e) => e.lhs);
   const beyond = cb.indicators.filter((_, i) => Math.abs(cb.stdLoadings[i]) > 1).map((x) => x.name);
-  const heywood = negative.length || beyond.length;
   const negativeText = negative.length ? `Negative variance: ${join(negative)}. ` : '';
   const beyondText = beyond.length ? `Standardised loading beyond ±1: ${join(beyond)}.` : '';
+  // The admissibility check (engine/admissibility.ts) adds what the Heywood check does not cover:
+  // correlations beyond ±1, model matrices and vcov that are not positive definite.
+  const further = admissibilityExtras(cb);
+  const heywood = negative.length || beyond.length || further.length;
   out.push({
     id: 'heywood',
     section: 'Estimation',
-    label: 'No Heywood cases (negative variances, standardised loadings beyond ±1)',
-    sources: JA,
+    label:
+      'No Heywood cases or other improper values (negative variances, standardised loadings or correlations beyond ±1, matrices not positive definite)',
+    sources: further.length ? [...JA, 'chen2001'] : JA,
     status: heywood ? 'issue' : 'done',
     evidence: heywood
-      ? `${negativeText}${beyondText}`.trim()
+      ? `${negativeText}${beyondText}${further.length ? ` ${further.join(' ')}` : ''}`.trim()
       : 'Every variance is non-negative and every standardised loading within ±1.',
-    link: tab('Variances & covariances'),
+    link: tab(further.length ? 'Model fit' : 'Variances & covariances'),
   });
   out.push(chisqItem(fit, BOTH));
   const robust = fit.chisqScaled !== undefined;

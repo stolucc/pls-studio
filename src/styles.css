@@ -1035,3 +1035,26 @@ table.grid.evidence-table th:last-child, table.grid.evidence-table td.hint { tex
 .recode-preview { margin-top: 8px; }
 .split-section + .split-section { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
 .split-heading { margin: 0 0 8px; font-size: 13px; }
+
+/* ---------- CB-SEM admissibility and warning explanations (results/Admissibility.tsx) ---------- */
+.adm-panel { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.adm-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.adm-head h3 { margin: 0; font-size: 13px; }
+.adm-badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--text-2); }
+.adm-badge.good { background: var(--good-soft); color: var(--good); }
+.adm-badge.warn { background: var(--warn-soft); color: #8a5300; }
+.adm-badge.bad { background: var(--bad-soft); color: #a3261c; }
+.adm-panel table.grid td { white-space: normal; text-align: left; vertical-align: top; }
+.adm-panel table.grid th { text-align: left; }
+.adm-panel table.grid td:last-child { min-width: 260px; }
+.adm-causes h4 { margin: 10px 0 4px; font-size: 12.5px; }
+.adm-causes ol { margin: 0; padding-left: 20px; font-size: 12.5px; line-height: 1.5; display: grid; gap: 4px; }
+.adm-code { font-family: var(--mono); font-size: 11.5px; background: var(--surface-2); border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.issue .warning-body { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.explain-btn { margin-left: 4px; vertical-align: baseline; }
+.modal.warning-explain { width: min(600px, calc(100vw - 32px)); max-height: 88vh; overflow: auto; }
+.modal.warning-explain h4 { margin: 12px 0 4px; font-size: 13px; }
+.modal.warning-explain ul { margin: 0 0 6px; padding-left: 20px; line-height: 1.5; font-size: 13px; color: var(--text-2); }
+.modal.warning-explain .warning-text { margin-bottom: 10px; overflow-wrap: anywhere; }
+.modal.warning-explain .actions { margin-top: 14px; }
+.adm-icon { display: inline-flex; }

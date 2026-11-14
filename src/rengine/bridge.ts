@@ -2,6 +2,7 @@
 // JSON request and returns JSON results, or (export = TRUE) the self-contained
 // R script that produces them.
 
+import admissibilityR from './R/admissibility.R?raw';
 import agreementR from './R/agreement.R?raw';
 import analysesR from './R/analyses.R?raw';
 import bootR from './R/boot.R?raw';
@@ -75,6 +76,7 @@ export const SOURCES = {
   regression: regressionR,
   common: commonR,
   lavaan: lavaanR,
+  admissibility: admissibilityR,
   pls: plsR,
   boot: bootR,
   analyses: analysesR,

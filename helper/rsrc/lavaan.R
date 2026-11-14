@@ -2106,6 +2106,11 @@ ps_cb <- function(req_json, export = FALSE) {
   out$modindices <- mi$items
   out$modindicesError <- mi$error
   out$modindicesNote <- mi$note
+  # The admissibility check's matrices (R/admissibility.R); not for pooled imputations, whose template fit
+  # is one imputed data set.
+  if (!isTRUE(b$mi)) {
+    out$admissibility <- ps_try(ps_cb_admissibility(fit, back, groups), "The admissibility check")
+  }
   if (isTRUE(b$mi)) out$imputations <- length(env$imp)
   # Robust ML (rsem): each analysed case's weight (below 1: down-weighted as atypical).
   if (isTRUE(b$robust)) out$caseWeights <- list(rows = env$case_row, weights = env$case_weight)

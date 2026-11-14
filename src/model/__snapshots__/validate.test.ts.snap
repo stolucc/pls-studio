@@ -7950,6 +7950,7 @@ exports[`validateModel: the full issue list is pinned > package examples under t
     "warning: No correlation is drawn between Expectation ↔ Quality: as exogenous constructs they are estimated as uncorrelated. Intended? {exogenous-correlations}",
     "error: WLSMV, FIML are estimated by lavaan: choose “R packages” under Calculated by.",
     "error: FIML needs the ML or MLR estimator (MLR adds robust standard errors and test statistic).",
+    "warning: "Satisfaction" is a second-order factor on two first-order factors: on its own it is not identified, since three or more are needed (Rindskopf & Rose, 1988). Here it is identified only through its paths to other constructs, which must not be close to zero. [#4]",
   ],
   "seminr-hoc (cbsem mi lms)": [
     "error: "Image" is a composite: in CB-SEM composites cannot be higher-order constructs or their components. [#0]",
@@ -7964,6 +7965,7 @@ exports[`validateModel: the full issue list is pinned > package examples under t
     "error: With multiple imputation choose the ML or MLR estimator.",
     "error: Auxiliary variables of the imputation not in the data: nope.",
     "error: Nominal variables of the imputation must be among its variables (the model's or the auxiliary ones): zz.",
+    "warning: "Satisfaction" is a second-order factor on two first-order factors: on its own it is not identified, since three or more are needed (Rindskopf & Rose, 1988). Here it is identified only through its paths to other constructs, which must not be close to zero. [#4]",
   ],
   "seminr-hoc (cbsem rml pairwise)": [
     "error: "Image" is a composite: in CB-SEM composites cannot be higher-order constructs or their components. [#0]",
@@ -7976,6 +7978,7 @@ exports[`validateModel: the full issue list is pinned > package examples under t
     "warning: No correlation is drawn between Expectation ↔ Quality: as exogenous constructs they are estimated as uncorrelated. Intended? {exogenous-correlations}",
     "error: Pairwise deletion works with the ML or ULS estimator (lavaan has no robust standard errors with it); for robust results use the two-stage approach or FIML.",
     "error: Pairwise deletion cannot be combined with robust ML (rsem).",
+    "warning: "Satisfaction" is a second-order factor on two first-order factors: on its own it is not identified, since three or more are needed (Rindskopf & Rose, 1988). Here it is identified only through its paths to other constructs, which must not be close to zero. [#4]",
   ],
   "seminr-hoc (cbsem wls twostage)": [
     "error: "Image" is a composite: in CB-SEM composites cannot be higher-order constructs or their components. [#0]",
@@ -7984,6 +7987,7 @@ exports[`validateModel: the full issue list is pinned > package examples under t
     "error: Composite "Complaints" needs at least two indicators. [#5]",
     "warning: No correlation is drawn between Expectation ↔ Quality: as exogenous constructs they are estimated as uncorrelated. Intended? {exogenous-correlations}",
     "error: The two-stage approach works with the ML, MLR, GLS or ULS estimator.",
+    "warning: "Satisfaction" is a second-order factor on two first-order factors: on its own it is not identified, since three or more are needed (Rindskopf & Rose, 1988). Here it is identified only through its paths to other constructs, which must not be close to zero. [#4]",
   ],
   "seminr-hoc (cbsem)": [
     "error: "Image" is a composite: in CB-SEM composites cannot be higher-order constructs or their components. [#0]",
@@ -7991,6 +7995,7 @@ exports[`validateModel: the full issue list is pinned > package examples under t
     "error: "Satisfaction" is a composite: in CB-SEM composites cannot be higher-order constructs or their components. [#4]",
     "error: Composite "Complaints" needs at least two indicators. [#5]",
     "warning: No correlation is drawn between Expectation ↔ Quality: as exogenous constructs they are estimated as uncorrelated. Intended? {exogenous-correlations}",
+    "warning: "Satisfaction" is a second-order factor on two first-order factors: on its own it is not identified, since three or more are needed (Rindskopf & Rose, 1988). Here it is identified only through its paths to other constructs, which must not be close to zero. [#4]",
   ],
   "seminr-hoc (own)": [],
   "seminr-hoc (pls builtin mi)": [

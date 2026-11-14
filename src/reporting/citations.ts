@@ -224,6 +224,21 @@ const WORKS: Record<string, { cite: string; entry: (version?: string) => Entry }
         doi: '10.1037/a0014694',
       }),
   },
+  chen2001: {
+    cite: 'Chen et al., 2001',
+    entry: () =>
+      art({
+        author:
+          'Chen, Feinian and Bollen, Kenneth A. and Paxton, Pamela and Curran, Patrick J. and Kirby, James B.',
+        title:
+          'Improper solutions in structural equation models: Causes, consequences, and strategies',
+        journal: 'Sociological Methods \\& Research',
+        year: '2001',
+        volume: '29',
+        number: '4',
+        pages: '468--508',
+      }),
+  },
   appelbaum2018: {
     cite: 'Appelbaum et al., 2018',
     entry: () =>

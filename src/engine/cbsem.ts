@@ -21,6 +21,7 @@ import {
   type Pairs,
 } from './vech';
 import type { Dataset, MissingTreatment, ModelSpec } from './types';
+import type { AdmissibilityInfo } from './admissibility';
 import { interactionName, LAVAAN_MISSING } from './types';
 
 export type CbParamKind = 'loading' | 'regression' | 'hoLoading' | 'lvcov' | 'residual' | 'rescov';
@@ -222,6 +223,8 @@ export interface CbResult {
   /** A caveat on the modification indices (lavaan computes them ignoring equality constraints). */
   modindicesNote?: string;
   droppedRows: number;
+  /** lavaan: the eigenvalues of every model matrix per group and level, for the admissibility check (engine/admissibility.ts). */
+  admissibility?: AdmissibilityInfo;
 }
 
 // ---------- model structure ----------

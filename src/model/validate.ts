@@ -15,6 +15,7 @@ import {
 } from './project';
 import type { Construct, Issue, ModelState, Path, Settings } from './project';
 import { countIndicators, countModelSyntax } from './countModel';
+import { identificationIssues, isolatedTwoIndicatorFactor } from './identification';
 
 /** The settings validateModel reads. */
 export type ValidateSettings = Pick<Settings, 'method' | 'consistent'> &
@@ -327,10 +328,17 @@ function checkWeighting(v: Ctx, c: Construct, err: Report, warn: Report) {
       );
   }
   if (method.method === 'cbsem' && c.type === 'factor' && c.indicators.length === 2) {
-    warn(
-      `"${c.name}" has two indicators; it is only identified through its relations with other factors.`,
-      c.id,
-    );
+    // (with no relation and no constraint the factor cannot be identified: model/identification.ts)
+    if (method.estimator !== '2SLS' && isolatedTwoIndicatorFactor(model, c))
+      err(
+        `"${c.name}" has two indicators and no path or correlation to another construct: it is not identified (four free parameters for three variances and covariances; Bollen, 1989). Draw its correlation with another factor, give its two loadings the same label, or add a third indicator.`,
+        c.id,
+      );
+    else
+      warn(
+        `"${c.name}" has two indicators; it is only identified through its relations with other factors.`,
+        c.id,
+      );
   }
   if (method.method === 'pls' && method.consistent && c.type === 'factor') {
     // PLSc's correction (ρA, loadings from the weights) is derived for Mode A weights (Dijkstra & Henseler 2015).
@@ -1830,6 +1838,11 @@ function checkCycles(v: Ctx): Issue[] {
 }
 
 /** The 10-times rule. */
+/** CB-SEM identification: second-order factors, df < 0, clusters, WLSMV without ordinal indicators (model/identification.ts). */
+function checkIdentification(v: Ctx): Issue[] {
+  return identificationIssues(v.model, v.data, v.method);
+}
+
 function checkSampleSize(v: Ctx): Issue[] {
   const { issues, warn } = sink();
   const { model, data, method } = v;
@@ -1917,6 +1930,7 @@ const RULES = [
   checkProcess,
   checkCorrelations,
   checkCycles,
+  checkIdentification,
   checkSampleSize,
 ];
 

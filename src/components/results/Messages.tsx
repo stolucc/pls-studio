@@ -3,6 +3,7 @@ import { useStore, type Message } from '../../store';
 import { IconAlert, IconCheck, IconCopy, IconInfo } from '../icons';
 import { expectedWhy } from '../../examples/expectedMessages';
 import { exampleExpectedMessages } from '../ExampleBanner';
+import { ExplainButton } from './Admissibility';
 
 const time = (t: number) =>
   new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -63,6 +64,7 @@ export function MessagesView() {
               <span className="text">
                 {m.text}
                 {why && <span className="why">Why: {why}</span>}
+                {m.level === 'warning' && <ExplainButton text={m.text} />}
               </span>
             </li>
           );
