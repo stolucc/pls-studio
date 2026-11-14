@@ -36,14 +36,18 @@ import { referenceList } from './references';
 /** Renders a view and reads it back as blocks. */
 export type ViewRenderer = (node: ReactNode) => Promise<Block[]>;
 
-class Boundary extends Component<{ children: ReactNode }, { error: string | null }> {
-  state = { error: null as string | null };
-  static getDerivedStateFromError(e: unknown) {
-    return { error: e instanceof Error ? e.message : String(e) };
+/** A result that fails to render: a short note in the report (the details go to the console, not into the document). */
+class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(e: unknown) {
+    console.error('A report section could not be rendered:', e);
   }
   render() {
-    if (this.state.error) {
-      return <div className="card-bar bad">This result cannot be shown ({this.state.error}).</div>;
+    if (this.state.failed) {
+      return <div className="card-bar bad">This result cannot be shown in the report.</div>;
     }
     return this.props.children;
   }

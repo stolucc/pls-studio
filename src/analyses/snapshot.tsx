@@ -14,7 +14,7 @@ import { MIIV_TABS, MiivTab, type MiivTabId } from '../components/results/MiivTa
 import { PLS_TABS, PlsTab, type PlsTabId } from '../components/results/PlsTabs';
 import { PROCESS_TABS, ProcessTab, type ProcessTabId } from '../components/results/ProcessTabs';
 import { useReportMode } from '../report/context';
-import { fingerprint } from './codec';
+import { fingerprint, toBase64 } from './codec';
 import { isObj, name } from './common';
 import type { AnalysisType } from './types';
 
@@ -49,7 +49,7 @@ const tabsOf = (m: SnapshotResult['method']) =>
 
 /** The diagram, as an image: the SVG is never inserted into the page as markup. */
 export const diagramSrc = (svg: string) =>
-  `data:image/svg+xml;base64,${btoa(String.fromCharCode(...new TextEncoder().encode(svg)))}`;
+  `data:image/svg+xml;base64,${toBase64(new TextEncoder().encode(svg))}`;
 
 /** The body of one results tab of a snapshot (or model run). */
 function tabBody(r: SnapshotResult, tab: string) {
