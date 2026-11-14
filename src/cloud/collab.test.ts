@@ -482,3 +482,49 @@ describe('the analysis log in a shared project', () => {
     expect(readCards(d)).toEqual([{ id: 'card-y', kind: 'note', text: '' }]);
   });
 });
+
+describe('merged states that no single editor made', () => {
+  it('drops a conflicting declaration deterministically instead of rejecting the state', () => {
+    const [d1, d2] = pair();
+    writeDoc(d1, model, DEFAULT_SETTINGS, 'Shared', null);
+    const off1 = new Y.Doc(),
+      off2 = new Y.Doc();
+    Y.applyUpdate(off1, Y.encodeStateAsUpdate(d1));
+    Y.applyUpdate(off2, Y.encodeStateAsUpdate(d2));
+    // Offline concurrently: one declares a1 ordinal, the other a count.
+    writeDoc(off1, { ...model, ordered: ['a1'] }, DEFAULT_SETTINGS, 'Shared', null);
+    writeDoc(off2, { ...model, count: { a1: 'poisson' } }, DEFAULT_SETTINGS, 'Shared', null);
+    Y.applyUpdate(off1, Y.encodeStateAsUpdate(off2));
+    Y.applyUpdate(off2, Y.encodeStateAsUpdate(off1));
+    const r1 = readDoc(off1),
+      r2 = readDoc(off2);
+    expect(r1.dropped).toEqual(['count']);
+    expect(r1.model.ordered).toEqual(['a1']);
+    expect(r1.model.count).toBeUndefined();
+    expect(r2.model).toEqual(r1.model);
+  });
+
+  it('merges two paths drawn between the same constructs at once, keeping their moderations', () => {
+    const d = new Y.Doc();
+    const three: ModelState = {
+      constructs: [C('a', 'Alpha'), C('b', 'Beta', 300), C('w', 'W', 600)],
+      paths: [
+        { id: 'p2', from: 'a', to: 'b' },
+        { id: 'p1', from: 'a', to: 'b' },
+      ],
+      moderations: [{ id: 'm', moderator: 'w', path: 'p2' }],
+    };
+    writeDoc(d, three, DEFAULT_SETTINGS, 'Shared', null);
+    const r = readDoc(d);
+    expect(r.model.paths.map((p) => p.id)).toEqual(['p1']);
+    expect(r.model.moderations).toEqual([{ id: 'm', moderator: 'w', path: 'p1' }]);
+    expect(r.dropped).toEqual([]);
+  });
+
+  it('still rejects a state whose core model is invalid', () => {
+    const d = new Y.Doc();
+    writeDoc(d, model, DEFAULT_SETTINGS, 'Shared', null);
+    d.getMap<Y.Map<unknown>>('constructs').get('a')!.set('indicators', 'x');
+    expect(() => readDoc(d)).toThrow();
+  });
+});
