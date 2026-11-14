@@ -7,6 +7,7 @@ import {
   type ReportOptions,
 } from '../../report/options';
 import { useStore } from '../../store';
+import { useEscape } from '../useEscape';
 import { useModal } from '../useModal';
 
 /** Whether the report dialog is open (from the Analyses tab or the File menu). */
@@ -51,16 +52,15 @@ export function ReportDialog() {
     setBusy(false);
     // Raw data are never included unless asked for, each time.
     setOptions((o) => ({ ...o, data: false }));
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') useReportDialog.setState({ open: false });
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
   }, [open]);
-  if (!open) return null;
+  // Not while the report is being built: Cancel is disabled then too.
   const close = () => {
     if (!busy) useReportDialog.setState({ open: false });
   };
+  // The shared dialog stack: Escape closes only the topmost dialog (a
+  // confirmation opened on top of this one closes first).
+  useEscape(close, open);
+  if (!open) return null;
   const set = (key: keyof ReportOptions, value: boolean) => {
     setOptions((o) => ({ ...o, [key]: value }));
   };

@@ -12,7 +12,7 @@ import {
   stars,
 } from '../../format';
 import type { BootstrapResult, BootstrapStat } from '../../engine/types';
-import { HTMT_DISTINCT, HTMT_SIMILAR, htmtFails } from '../../reporting/thresholds';
+import { HTMT_DISTINCT, HTMT_SIMILAR, htmtDigits, htmtFails } from '../../reporting/thresholds';
 import { useStore } from '../../store';
 import { IconCopy, IconDownload } from '../icons';
 
@@ -213,17 +213,23 @@ export function matrixRows(
   names: string[],
   get: (i: number, j: number) => number | null,
   cls?: (v: number, i: number, j: number) => string,
+  /** The decimals of a value (3 when not given). */
+  digits?: (v: number) => number,
 ): Row[] {
   return names.map((name, i) => [
     c(name),
     ...names.map((_, j) => {
       const v = j > i ? null : get(i, j);
-      return v === null ? c(null, 'dim') : c(v, cls?.(v, i, j) ?? '');
+      if (v === null) return c(null, 'dim');
+      return c(v, cls?.(v, i, j) ?? '', digits?.(v));
     }),
   ]);
 }
 
-/** HTMT at or above .90 is bad, at or above .85 a warning (the stricter cut-off; reporting/thresholds.ts). */
+/** Decimals of an HTMT cell: 3, more when it is above a threshold it would round to. */
+export const htmtCellDigits = (v: number) => htmtDigits(v, 3);
+
+/** HTMT above .90 is bad, above .85 a warning (the stricter cut-off; reporting/thresholds.ts). */
 export function htmtCls(v: number): string {
   if (htmtFails(v, HTMT_SIMILAR)) return 'bad';
   if (htmtFails(v, HTMT_DISTINCT)) return 'warn';

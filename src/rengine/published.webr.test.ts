@@ -166,6 +166,23 @@ describe('Hair et al. (2021), PLS-SEM Using R: corporate reputation', () => {
       // Section 4.6: "comp_2 (loading, 0.798) ... cusl_2 (loading, 0.917)".
       c.loadings({ comp_2: 0.798, cusl_2: 0.917 });
     }, 600_000);
+
+    // The book specifies the constructs as seminr Mode A composites (composite(), mode_A by
+    // default) and reports α, ρA, ρC and the AVE for them: drawn as composites with Mode A
+    // weights, every engine reports the printed values (cSEM itself gives ρA = 1 and no α, ρC
+    // or AVE for composites by default; the bridge computes them).
+    it('reports the reliabilities of the constructs drawn as Mode A composites, as the book does', async () => {
+      const composites: ModelSpec = {
+        ...simple,
+        constructs: simple.constructs.map((k) => ({ ...k, type: 'composite' as const })),
+      };
+      const r = await estimate(engine, data, composites, options('path'));
+      checks(r).quality({
+        COMP: { alpha: 0.776, rhoA: 0.832, rhoC: 0.865, sqrtAve: 0.825 },
+        CUSL: { alpha: 0.831, rhoA: 0.839, rhoC: 0.899, sqrtAve: 0.865 },
+        LIKE: { alpha: 0.831, rhoA: 0.836, rhoC: 0.899, sqrtAve: 0.864 },
+      });
+    }, 600_000);
   });
 
   // Chapters 5-6: the extended model (Fig. 5.3), the app's "Corporate reputation (PLS-SEM primer)" example.

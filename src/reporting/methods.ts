@@ -395,18 +395,24 @@ function plsDraft(input: ReportInput, pls: WithEngine<PlsResult>, d: Draft) {
   const modeB = m.constructs.filter(
     (k) => !k.components?.length && k.indicators.length > 1 && k.mode === 'B',
   );
-  // ρA is defined for common factors only (reporting/thresholds.ts), so it is named for them only.
+  // ρA applies to blocks with estimated Mode A weights only (reporting/thresholds.ts), so it is
+  // named for those only.
   const withRhoA = modeA.filter(rhoADefined).length;
-  let reliabilities = `Cronbach’s α, ρA and ρC between 0.70 and 0.95; ρA: ${citealp('dijkstra2015')}`;
-  if (withRhoA === 0) reliabilities = 'Cronbach’s α and ρC between 0.70 and 0.95';
-  else if (withRhoA < modeA.length)
-    reliabilities = `Cronbach’s α, ρC and, for the common factors, ρA between 0.70 and 0.95; ρA: ${citealp('dijkstra2015')}`;
+  const rhoACite = `ρA: ${citealp('dijkstra2015')}`;
+  let reliabilities = `Cronbach’s α, ρA and ρC between 0.70 and 0.95; ${rhoACite}`;
+  if (withRhoA === 0) {
+    reliabilities = 'Cronbach’s α and ρC between 0.70 and 0.95';
+  } else if (withRhoA < modeA.length) {
+    reliabilities =
+      'Cronbach’s α, ρC and, for the constructs with estimated Mode A weights, ρA between ' +
+      `0.70 and 0.95; ${rhoACite}`;
+  }
   const reflectiveCriteria = modeA.length
     ? 'the reflectively measured (Mode A) constructs were assessed by indicator loadings (at least 0.708), ' +
       `internal consistency reliability (${reliabilities}), ` +
       `convergent validity (average variance extracted, AVE, at least 0.50; ${citealp('fornell1981')}) ` +
-      'and discriminant validity (heterotrait–monotrait ratio, HTMT, below 0.85, or 0.90 for conceptually ' +
-      `similar constructs; ${citealp('henseler2015')})`
+      'and discriminant validity (heterotrait–monotrait ratio, HTMT, not above 0.85, or 0.90 for ' +
+      `conceptually similar constructs; ${citealp('henseler2015')})`
     : 'the measurement models were assessed';
   let formativeCriteria = '';
   if (modeB.length)
@@ -544,7 +550,7 @@ function cbDraft(input: ReportInput, cb: WithEngine<CbResult>, d: Draft) {
   d.add(postHocText(m.modifications, cite));
   if (m.constructs.some((k) => k.type === 'factor' && k.indicators.length > 1))
     d.add(
-      `Convergent validity was assessed by standardised loadings (at least 0.50, ideally 0.70), composite reliability (at least 0.70) and the average variance extracted (at least 0.50; ${citealp('fornell1981')}), and discriminant validity by the heterotrait–monotrait ratio (below 0.85; ${citealp('henseler2015')}).`,
+      `Convergent validity was assessed by standardised loadings (at least 0.50, ideally 0.70), composite reliability (at least 0.70) and the average variance extracted (at least 0.50; ${citealp('fornell1981')}), and discriminant validity by the heterotrait–monotrait ratio (not above 0.85; ${citealp('henseler2015')}).`,
     );
   if (input.invariance) {
     const strict = input.invariance.levels.some((l) => l.level === 'strict') ? ' and strict' : '';

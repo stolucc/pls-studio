@@ -420,9 +420,12 @@ ps_pls_out <- function(req, b, env) {
       ccor <- full
     }
     linear <- !length(mods)
+    # (.only_common_factors = FALSE: alpha, rho_C and the AVE of the composites too, as
+    # seminr and the built-in engine report them; the checklist judges Mode A composites
+    # by them, and Mode B composites are not judged by them anywhere)
     a <- if (linear) {
       safe(
-        cSEM::assess(fit1, .quality_criterion = c("reliability", "ave")),
+        cSEM::assess(fit1, .quality_criterion = c("reliability", "ave"), .only_common_factors = FALSE),
         "Reliability and AVE (cSEM::assess; computed one by one instead)"
       )
     } else {
@@ -431,7 +434,7 @@ ps_pls_out <- function(req, b, env) {
     # Second-order constructs: their reliability and AVE from stage 2 (components as indicators).
     a2 <- if (two && linear) {
       safe(
-        cSEM::assess(fit2, .quality_criterion = c("reliability", "ave")),
+        cSEM::assess(fit2, .quality_criterion = c("reliability", "ave"), .only_common_factors = FALSE),
         "Reliability and AVE of the second-order constructs (cSEM::assess)"
       )
     } else {
@@ -461,14 +464,19 @@ ps_pls_out <- function(req, b, env) {
       if (!is.null(a)) a$Reliability$`Dijkstra-Henselers_rho_A` else NULL,
       a2$Reliability$`Dijkstra-Henselers_rho_A`
     )
-    # Without disattenuation cSEM treats every construct as a composite and reports
-    # rho_A = 1 for all of them. seminr, SmartPLS and the built-in engine report
-    # Dijkstra & Henseler's (2015) rho_A for Mode A blocks regardless (it depends on
-    # the weights and the indicator correlations only), so it is computed here too.
+    # cSEM reports rho_A = 1 for every composite, and without disattenuation it
+    # treats every construct as a composite. Dijkstra & Henseler's (2015) rho_A
+    # depends on the Mode A weights and the indicator correlations only; seminr,
+    # SmartPLS and the built-in engine report it for every Mode A block, common
+    # factor or composite (Hair et al. 2022 report it for Mode A constructs), so
+    # it is computed here for those blocks too. With PLSc the common factors keep
+    # cSEM's value (the same formula).
     S0 <- fit1$Estimates$Indicator_VCV
-    if (!isTRUE(b$o$consistent) && is.matrix(S0) && is.matrix(W)) {
-      mode_a_factors <- which(b$type[seq_len(k0)] == "factor" & b$mode[seq_len(k0)] == "A" & !b$hoc[seq_len(k0)])
-      for (j in mode_a_factors) {
+    if (is.matrix(S0) && is.matrix(W)) {
+      first <- seq_len(k0)
+      own_rho_a <- b$type[first] == "composite" | !isTRUE(b$o$consistent)
+      mode_a_blocks <- which(b$mode[first] == "A" & !b$hoc[first] & own_rho_a)
+      for (j in mode_a_blocks) {
         it <- intersect(unname(n$iv[n$inds[[j]]]), rownames(S0))
         if (length(it) < 2 || !(cv[j] %in% rownames(W))) next
         w <- W[cv[j], it]

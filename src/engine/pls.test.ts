@@ -117,6 +117,21 @@ describe('estimatePls vs seminr 2.3.2 (mobi data)', () => {
     compare(res, ref);
   });
 
+  // seminr's reference specifies the constructs with composite() in Mode A and reports ρA for
+  // them: drawn as Mode A composites, the built-in engine reports the same ρA (not 1).
+  it('matches all Mode A results with the constructs drawn as Mode A composites, ρA too', () => {
+    const ref = JSON.parse(readFileSync(fx('mobi_modeA.json'), 'utf8'));
+    const spec = mobiModel('A');
+    const composites: ModelSpec = {
+      ...spec,
+      constructs: spec.constructs.map((k) => ({ ...k, type: 'composite' as const })),
+    };
+    const res = estimatePls(data, composites);
+    compare(res, ref);
+    const image = res.quality[res.constructs.indexOf('Image')];
+    expect(image.rhoA).toBeLessThan(1);
+  });
+
   it('matches results with a Mode B (formative) construct', () => {
     const ref = JSON.parse(readFileSync(fx('mobi_modeB.json'), 'utf8'));
     compare(estimatePls(data, mobiModel('B')), ref);

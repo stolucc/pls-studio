@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { fmt } from '../../format';
 import { indicatorNameError, type Construct, type Method } from '../../model/project';
+import { rhoADefined } from '../../reporting/thresholds';
 import { useFreshResults, useStore } from '../../store';
 import { ParcelButton } from '../ParcelDialog';
 import { canParcel } from '../canvasMenu';
@@ -695,12 +696,13 @@ export function ConstructQuality({ c }: { c: Construct }) {
                 <span className="num">{fmt(pls!.rSquared[j])}</span>
               </>
             )}
-            {c.type === 'factor' && (
+            {/* Mode A composites are assessed like reflective constructs (thresholds.ts). */}
+            {(c.type === 'factor' || c.mode === 'A') && (
               <>
                 <span>Cronbach’s α</span>
                 <span className="num">{fmt(q.alpha)}</span>
                 <span>ρA</span>
-                <span className="num">{fmt(q.rhoA)}</span>
+                <span className="num">{rhoADefined(c) ? fmt(q.rhoA) : 'n/a'}</span>
                 <span>Composite reliability ρC</span>
                 <span className="num">{fmt(q.rhoC)}</span>
                 <span>AVE</span>

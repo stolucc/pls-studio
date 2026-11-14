@@ -216,7 +216,7 @@ describe('reflective dimensions', () => {
       },
     );
     expect(line(tight, 'loc-htmt').status).toBe('attention');
-    expect(line(tight, 'loc-htmt').value).toBe('At or above the threshold: L1–X 0.86');
+    expect(line(tight, 'loc-htmt').value).toBe('Above the threshold: L1–X 0.86');
   });
 });
 

@@ -171,7 +171,7 @@ describe('reviewer checklist: PLS-SEM', () => {
     expect(item(items, 'reliability').status).toBe('done');
     expect(item(items, 'ave').status).toBe('done');
     expect(item(items, 'htmt')).toMatchObject({ status: 'issue' });
-    expect(item(items, 'htmt').evidence).toBe('At or above .85: Loyalty–Image (0.92).');
+    expect(item(items, 'htmt').evidence).toBe('Above .85: Loyalty–Image (0.92).');
   });
 
   it('assesses the formative block by VIF and bootstrapped weights', () => {

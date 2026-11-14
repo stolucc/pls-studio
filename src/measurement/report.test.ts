@@ -83,9 +83,7 @@ describe('pairs marked conceptually similar', () => {
     });
     const plain = reviewerChecklist(plsInput({ pls }));
     expect(plain.find((x) => x.id === 'htmt')!.status).toBe('issue');
-    expect(plain.find((x) => x.id === 'htmt')!.evidence).toBe(
-      'At or above .85: Loyalty–Image (0.87).',
-    );
+    expect(plain.find((x) => x.id === 'htmt')!.evidence).toBe('Above .85: Loyalty–Image (0.87).');
     const marked = {
       ...plsModel,
       measurement: { similarPairs: [['i', 'l']] as [string, string][] },
@@ -98,7 +96,7 @@ describe('pairs marked conceptually similar', () => {
     // 0.92 still fails when marked similar
     const high = reviewerChecklist(plsInput({ model: marked }));
     expect(high.find((x) => x.id === 'htmt')!.evidence).toContain(
-      'At or above the threshold (.90 for pairs marked similar): Loyalty–Image (0.92).',
+      'Above the threshold (.90 for pairs marked similar): Loyalty–Image (0.92).',
     );
   });
 });

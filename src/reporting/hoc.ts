@@ -19,6 +19,7 @@ import {
   HTMT_DISTINCT,
   HTMT_SIMILAR,
   htmtFails,
+  htmtText,
   LOADING_DELETE,
   loadingMeets,
   reliabilityOutside,
@@ -350,7 +351,8 @@ function reflectiveLocLines(ctx: Ctx, locs: number[]): HocLine[] {
       const v = htmtOf(pls, i, j);
       if (v === null) continue;
       const cut = ctx.comps.includes(j) ? HTMT_SIMILAR : HTMT_DISTINCT;
-      pairs.push({ text: `${pls.constructs[i]}–${pls.constructs[j]} ${f2(v)}`, v, cut });
+      const text = `${pls.constructs[i]}–${pls.constructs[j]} ${htmtText(v, 2)}`;
+      pairs.push({ text, v, cut });
     }
   }
   const failing = pairs.filter((p) => htmtFails(p.v, p.cut));
@@ -360,11 +362,11 @@ function reflectiveLocLines(ctx: Ctx, locs: number[]): HocLine[] {
     check: `Discriminant validity (HTMT) of ${names}`,
     value: pairs.length
       ? failing.length
-        ? `At or above the threshold: ${list(failing.map((p) => p.text))}`
-        : `Largest ${f2(Math.max(...pairs.map((p) => p.v)))}`
+        ? `Above the threshold: ${list(failing.map((p) => p.text))}`
+        : `Largest ${htmtText(Math.max(...pairs.map((p) => p.v)), 2)}`
       : '',
     threshold:
-      'Below .85; below .90 between dimensions of the same HOC, which are conceptually similar (Henseler et al., 2015)',
+      'Not above .85; not above .90 between dimensions of the same HOC, which are conceptually similar (Henseler et al., 2015)',
     status: pairs.length === 0 ? 'notComputed' : failing.length ? 'attention' : 'pass',
     detail:
       pairs.length === 0
@@ -614,13 +616,13 @@ function hocHtmtLine(ctx: Ctx): HocLine {
   for (let j = 0; j < pls.constructs.length; j++) {
     if (j === hoc || comps.includes(j)) continue;
     const v = htmtOf(pls, hoc, j);
-    if (v !== null) others.push({ text: `${pls.constructs[j]} ${f2(v)}`, v });
+    if (v !== null) others.push({ text: `${pls.constructs[j]} ${htmtText(v, 2)}`, v });
   }
   const base = {
     id: 'hoc-htmt',
     level: 'Higher-order construct' as const,
     check: `Discriminant validity (HTMT) of ${name} with the other constructs`,
-    threshold: 'Below .85 (.90 for conceptually similar constructs; Henseler et al., 2015)',
+    threshold: 'Not above .85 (.90 for conceptually similar constructs; Henseler et al., 2015)',
     sources: [S19, 'henseler2015'],
   };
   if (approach === 'two_stage' && others.length) {
@@ -628,8 +630,8 @@ function hocHtmtLine(ctx: Ctx): HocLine {
     return {
       ...base,
       value: failing.length
-        ? `At or above .85: ${list(failing.map((o) => o.text))}`
-        : `Largest ${f2(Math.max(...others.map((o) => o.v)))}`,
+        ? `Above .85: ${list(failing.map((o) => o.text))}`
+        : `Largest ${htmtText(Math.max(...others.map((o) => o.v)), 2)}`,
       status: failing.length ? 'attention' : 'pass',
       detail:
         'From stage 2, with the dimensions’ scores as the indicators. Its HTMT with its own dimensions is not a criterion.',
