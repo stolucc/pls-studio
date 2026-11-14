@@ -838,6 +838,8 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'rengine/parallel': 'none',
   'validation/selfCheck': 'examples',
   'rengine/quoting': 'none',
+  // (the R bridge audit's checks: JSON shapes, values per group, chunked bootstraps, exported scripts)
+  'rengine/rbridge': 'none',
   'rengine/runtime': 'none',
   'replication/package': 'none',
   // The bundled copies of the examples' R-package datasets equal ps_dataset's result (data, not a method).
