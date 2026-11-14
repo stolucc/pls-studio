@@ -284,12 +284,19 @@ export class CollabSession {
       } else this.pull();
       void this.fetchData();
     });
-    // Close codes 4403 (access removed): leave the project.
+    // Close codes 4403 (access removed) and 4401 (this sign-in ended: logout,
+    // password reset or change elsewhere): leave the project.
     this.provider.on('connection-close', (ev: CloseEvent | null) => {
       if (ev?.code === 4403) {
         useStore.getState().toast('error', 'Your access to this shared project was removed.');
         closeSession();
         useStore.getState().setView('home');
+      } else if (ev?.code === 4401) {
+        useStore.getState().toast('error', 'You were signed out. Sign in again to keep editing.');
+        closeSession();
+        useStore.getState().setView('home');
+        // (imported here: auth.ts and this module would otherwise import each other)
+        void import('./auth').then((m) => m.useAuth.getState().refresh());
       }
     });
 

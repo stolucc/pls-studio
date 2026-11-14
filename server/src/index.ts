@@ -30,6 +30,7 @@ const collab = attachCollab(
 deps.onMembershipChange = (projectId, userId) => {
   void collab.membershipChanged(projectId, userId);
 };
+deps.onSessionsEnded = (userId, opts) => collab.sessionsEnded(userId, opts);
 server.listen(config.PORT, config.HOST, () =>
   console.log(`PLS Studio server on ${config.HOST}:${config.PORT} (${config.NODE_ENV})`),
 );

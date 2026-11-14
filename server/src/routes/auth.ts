@@ -150,7 +150,8 @@ export function authRoutes(deps: AppDeps) {
     strict,
     h(async (req, res) => {
       const body = z.object({ token: z.string().min(1).max(200), password }).parse(req.body);
-      await users.resetPassword(db, body.token, body.password);
+      const user = await users.resetPassword(db, body.token, body.password);
+      deps.onSessionsEnded?.(user.id);
       res.json({ ok: true });
     }),
   );
@@ -162,6 +163,7 @@ export function authRoutes(deps: AppDeps) {
       const userId = requireUser(req);
       const body = z.object({ current: password, password }).parse(req.body);
       await users.changePassword(db, userId, body.current, body.password, req.sessionID);
+      deps.onSessionsEnded?.(userId, { keep: req.sessionID });
       res.json({ ok: true });
     }),
   );
@@ -180,7 +182,10 @@ export function authRoutes(deps: AppDeps) {
   r.post(
     '/logout',
     h(async (req, res) => {
+      const userId = req.session.userId;
+      const sessionId = req.sessionID;
       await new Promise<void>((resolve) => req.session.destroy(() => resolve()));
+      if (userId) deps.onSessionsEnded?.(userId, { only: sessionId });
       res.clearCookie('pls.sid');
       res.json({ ok: true });
     }),

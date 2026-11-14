@@ -36,6 +36,8 @@ export interface AppDeps {
   mailer: Mailer;
   /** Set by the WebSocket layer so membership changes can disconnect users. */
   onMembershipChange?: (projectId: string, userId?: string) => void;
+  /** Set by the WebSocket layer: sessions of a user ended, close their sockets (see Collab.sessionsEnded). */
+  onSessionsEnded?: (userId: string, opts?: { only?: string; keep?: string }) => void;
   google?: import('./routes/google.ts').GoogleClient;
   /** (tests) the example-data pass-through's fetch, limits and timeout */
   exampleData?: ExampleDataOptions;

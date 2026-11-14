@@ -55,6 +55,7 @@ export async function startEnv(
   deps.onMembershipChange = (p, u) => {
     void collab.membershipChanged(p, u);
   };
+  deps.onSessionsEnded = (u, opts) => collab.sessionsEnded(u, opts);
   await new Promise<void>((r) => server.listen(0, r));
   return {
     db,
