@@ -188,3 +188,34 @@ it('reads NA as a missing value (a column in backticks)', () => {
   const d: Dataset = { names: ['NA'], cols: [Float64Array.from([5])] };
   expect(ev('`NA` + 1', d)).toEqual([6]);
 });
+
+describe('reverse(x, low, high)', () => {
+  const likert: Dataset = {
+    names: ['q1', 'q2'],
+    cols: [Float64Array.from([1, 2, 3, 4, 5, NaN]), Float64Array.from([1, 7, 4, 2, 6, 3])],
+  };
+
+  it('reverse-codes on the scale low..high and keeps missing values missing', () => {
+    expect(ev('reverse(q1, 1, 5)', likert)).toEqual([5, 4, 3, 2, 1, NaN]);
+    expect(ev('reverse(q2, 1, 7)', likert)).toEqual([7, 1, 4, 6, 2, 5]);
+    // A 0..4 scale, and applying it twice gives the original values back.
+    expect(ev('reverse(q1 - 1, 0, 4)', likert)).toEqual([4, 3, 2, 1, 0, NaN]);
+    expect(ev('reverse(reverse(q2, 1, 7), 1, 7)', likert)).toEqual([1, 7, 4, 2, 6, 3]);
+  });
+
+  it('matches reverseCode’s x → low + high − x for a computed column', () => {
+    const info6: DataInfo = { fileName: 'l.csv', rows: 6, missingCells: 1, excluded: [] };
+    const r = computeColumn(likert, info6, 'q1r', 'reverse(q1, 1, 5)');
+    expect(Array.from(r.data.cols[2])).toEqual([5, 4, 3, 2, 1, NaN]);
+    expect(r.info.computed).toEqual([{ name: 'q1r', expr: 'reverse(q1, 1, 5)' }]);
+  });
+
+  it('rejects bad bounds, values outside the scale and a wrong number of arguments', () => {
+    expect(() => ev('reverse(q1, 5, 1)', likert)).toThrow('low must be below high');
+    expect(() => ev('reverse(q1, 3, 3)', likert)).toThrow('low must be below high');
+    expect(() => ev('reverse(q1, q2, 5)', likert)).toThrow('low must be a number');
+    expect(() => ev('reverse(q1, 1, NA)', likert)).toThrow('high must be a number');
+    expect(() => ev('reverse(q2, 1, 5)', likert)).toThrow('outside the scale 1 to 5 (e.g. 7)');
+    expect(() => parseFormula('reverse(q1, 5)')).toThrow('reverse() takes 3 arguments.');
+  });
+});

@@ -32,6 +32,10 @@ export const FUNCTIONS: Record<string, { arity: [number, number]; doc: string }>
   mean: { arity: [1, Infinity], doc: 'mean of the values in the row' },
   ifelse: { arity: [3, 3], doc: 'ifelse(condition, value if true, value if false)' },
   isna: { arity: [1, 1], doc: '1 when missing, else 0' },
+  reverse: {
+    arity: [3, 3],
+    doc: 'reverse(x, low, high): reverse-coded on the answer scale low to high, low + high − x (on 1 to 5: 1 ↔ 5, 2 ↔ 4)',
+  },
   z: { arity: [1, 1], doc: 'standardised: (x − mean) / sd over the rows' },
   center: {
     arity: [1, 2],
@@ -308,6 +312,32 @@ function categoryComparison(nd: Extract<Node, { t: 'bin' }>, data: Dataset): Flo
   });
 }
 
+/** A scale bound of reverse(): the same number on every row (a constant such as 1 or 5). */
+function scaleBound(values: Float64Array, which: string): number {
+  const v = values[0];
+  const constant = values.every((w) => w === v);
+  if (!constant || !Number.isFinite(v))
+    throw new Error(`reverse(x, low, high): ${which} must be a number, e.g. reverse(q3, 1, 5).`);
+  return v;
+}
+
+/**
+ * reverse(x, low, high): low + high − x, as reverse-coding a Likert item on the scale low..high
+ * (data/recode.ts does the same in place). Missing stays missing; a value outside the scale is an
+ * error, since its reversed value would not be on the scale.
+ */
+function reverseValues(x: Float64Array, lowValues: Float64Array, highValues: Float64Array) {
+  if (x.length === 0) return new Float64Array(0);
+  const low = scaleBound(lowValues, 'low');
+  const high = scaleBound(highValues, 'high');
+  if (low >= high)
+    throw new Error('reverse(x, low, high): low must be below high, e.g. reverse(q3, 1, 5).');
+  const outside = x.find((v) => !Number.isNaN(v) && (v < low || v > high));
+  if (outside !== undefined)
+    throw new Error(`reverse(): a value is outside the scale ${low} to ${high} (e.g. ${outside}).`);
+  return x.map((v) => (Number.isNaN(v) ? NaN : low + high - v));
+}
+
 /** Evaluate a formula over the rows of `data`; missing values give missing results. */
 export function evaluate(node: Node, data: Dataset): Float64Array {
   const n = data.cols[0]?.length ?? 0;
@@ -457,6 +487,8 @@ export function evaluate(node: Node, data: Dataset): Float64Array {
           }
           case 'isna':
             return args[0].map((v) => (Number.isNaN(v) ? 1 : 0));
+          case 'reverse':
+            return reverseValues(args[0], args[1], args[2]);
           case 'z':
           case 'center': {
             if (nd.fn === 'center' && args[1]) {

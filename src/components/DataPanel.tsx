@@ -1,19 +1,13 @@
 import { useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { mean, sd } from '../engine/stats';
-import {
-  computeColumn,
-  FUNCTIONS,
-  nameError,
-  parseFormula,
-  columnsIn,
-  removeComputed,
-} from '../data/compute';
-import { observedRange, reverseCode } from '../data/recode';
+import { removeComputed } from '../data/compute';
 import { restoreCases, transformData } from '../data/pipeline';
 import { editFilter, FilterBadge } from './FilterBadge';
 import { RecodeDialog } from './RecodeDialog';
 import { importCsv, loadSample } from '../io';
-import { formDialog, confirmDialog, textDialog } from './Overlays';
+import { confirmDialog } from './Overlays';
+import { ComputeDialog } from './ComputeDialog';
+import { reverseCodeColumns } from './reverseCodeAction';
 import { useStore } from '../store';
 import { VARS_MIME } from './dnd';
 import { IconEye, IconUpload } from './icons';
@@ -28,6 +22,8 @@ export function DataPanel() {
   const [filter, setFilter] = useState<'all' | 'free'>('all');
   const [over, setOver] = useState(false);
   const [recoding, setRecoding] = useState<string | null>(null);
+  // The computed-column dialog: open for a new column ({}) or to edit one ({ edit }).
+  const [computing, setComputing] = useState<{ edit?: string } | null>(null);
   const anchor = useRef<string | null>(null);
 
   const owner = useMemo(() => {
@@ -94,124 +90,12 @@ export function DataPanel() {
 
   const reversed = new Map((info?.reversed ?? []).map((r) => [r.name, r]));
   /** Reverse-code the selected items on a scale the user confirms (defaults to the observed range). */
-  const reverseSelected = async () => {
-    if (!data || !info) return;
+  const reverseSelected = () => {
     const names = visible.map((v) => v.name).filter((n) => selected.includes(n));
-    const done = names.filter((n) => reversed.has(n));
-    const known =
-      done.length === names.length &&
-      new Set(done.map((n) => `${reversed.get(n)!.min},${reversed.get(n)!.max}`)).size === 1
-        ? reversed.get(done[0])
-        : undefined;
-    const range = known ? [known.min, known.max] : observedRange(data, names);
-    const parse = (t: string) => {
-      const m = t
-        .split(/[\s,;–-]+/)
-        .filter(Boolean)
-        .map(Number);
-      return m.length === 2 && m.every(Number.isFinite) && m[0] < m[1] ? m : null;
-    };
-    // Every chosen item already reversed: the dialog offers to undo it.
-    const undo = done.length === names.length;
-    const what = names.length === 1 ? names[0] : `${names.length} items`;
-    const itemList = names.length > 1 ? ` Items: ${names.join(', ')}.` : '';
-    const text = await textDialog({
-      title: undo ? `Undo the reverse-coding of ${what}?` : `Reverse-code ${what}?`,
-      body:
-        'Each value x becomes lowest + highest − x on the answer scale (on 1–5: 1 ↔ 5, 2 ↔ 4), for negatively worded items. ' +
-        `Doing it again on the same scale undoes it.${itemList}`,
-      confirmLabel: undo ? 'Undo' : 'Reverse-code',
-      text: {
-        label: 'Answer scale: lowest, highest',
-        initial: range ? `${range[0]}, ${range[1]}` : '1, 5',
-        check: (t) =>
-          parse(t) ? null : 'Enter the lowest and highest value of the scale, e.g. 1, 5.',
-      },
-    });
-    if (text === null) return;
-    const [min, max] = parse(text)!;
-    try {
-      // (on the base dataset: the cases the filter leaves out are reverse-coded too)
-      let undone: string[] = [];
-      const r = transformData(data, info, (d, i) => {
-        const rc = reverseCode(d, i, names, min, max);
-        undone = rc.undone;
-        return rc;
-      });
-      useStore.getState().setData(r.data, r.info);
-      const changed = names.filter((n) => !undone.includes(n));
-      useStore
-        .getState()
-        .toast(
-          'success',
-          [
-            changed.length ? `Reverse-coded ${changed.join(', ')} (${min}–${max}).` : '',
-            undone.length ? `Back to the original coding: ${undone.join(', ')}.` : '',
-          ]
-            .filter(Boolean)
-            .join(' '),
-        );
-    } catch (e) {
-      useStore.getState().toast('error', (e as Error).message);
-    }
+    void reverseCodeColumns(names);
   };
 
   const computed = new Map((info?.computed ?? []).map((c) => [c.name, c]));
-  /** Add a column from a formula, or edit the formula of the selected computed column. */
-  const computeNew = async (edit?: string) => {
-    if (!data || !info) return;
-    const current = edit ? computed.get(edit) : undefined;
-    const values = await formDialog({
-      title: current ? `Edit the formula of ${edit}` : 'Add a computed column',
-      body: `A formula over the existing columns: + − × ÷ ^, comparisons (<, >=, ==), & and |, and ${Object.keys(FUNCTIONS).join(', ')}. Names with spaces or dots in backticks: \`my var\`. Missing values stay missing.`,
-      confirmLabel: current ? 'Recompute' : 'Add column',
-      fields: [
-        {
-          label: 'Column name',
-          initial: edit ?? '',
-          placeholder: 'e.g. log_income',
-          check: (t) => nameError(t, data, info, edit),
-        },
-        {
-          label: 'Formula',
-          initial: current?.expr ?? '',
-          placeholder: 'e.g. log(income) or (x1 + x2) / 2 or z(score)',
-          hint: 'Examples: log(x), sqrt(x), z(x), center(x), ifelse(age >= 18, 1, 0), mean(x1, x2, x3), x^2.',
-          check: (t, all) => {
-            try {
-              const n = parseFormula(t);
-              for (const c of columnsIn(n)) {
-                if (c === all[0]) return 'A column cannot be computed from itself.';
-                if (!data.names.includes(c)) return `“${c}” is not a column of the dataset.`;
-              }
-              return null;
-            } catch (e) {
-              return (e as Error).message;
-            }
-          },
-        },
-      ],
-    });
-    if (!values) return;
-    try {
-      // Over every case (the filter applies afterwards); an edited formula changes the columns
-      // computed from this one too.
-      const r = transformData(data, info, (d, i) => computeColumn(d, i, values[0], values[1]), {
-        recompute: !!current,
-      });
-      useStore.getState().setData(r.data, r.info);
-      const col = r.data.cols[r.data.names.indexOf(values[0])];
-      const miss = col.filter(Number.isNaN).length;
-      useStore
-        .getState()
-        .toast(
-          'success',
-          `${current ? 'Recomputed' : 'Added'} ${values[0]} = ${values[1].trim()}${miss ? ` (${miss} missing)` : ''}.`,
-        );
-    } catch (e) {
-      useStore.getState().toast('error', (e as Error).message);
-    }
-  };
   const removeSelectedComputed = async () => {
     if (!data || !info) return;
     const names = selected.filter((n) => computed.has(n));
@@ -261,6 +145,7 @@ export function DataPanel() {
   return (
     <aside className="panel left" aria-label="Data">
       {recoding && <RecodeDialog column={recoding} onClose={() => setRecoding(null)} />}
+      {computing && <ComputeDialog edit={computing.edit} onClose={() => setComputing(null)} />}
       <div className="panel-head">
         <span>Data</span>
         {data && (
@@ -275,7 +160,7 @@ export function DataPanel() {
             {info?.kind !== 'matrix' && (
               <button
                 className="btn sm ghost"
-                onClick={() => void computeNew()}
+                onClick={() => setComputing({})}
                 title="Add a column computed from a formula over the existing columns (log, z-score, sums, recodes…)"
               >
                 ƒ Compute…
@@ -426,7 +311,7 @@ export function DataPanel() {
                   <span className="muted">{selected.length} selected</span>
                   <button
                     className="btn sm ghost"
-                    onClick={() => void reverseSelected()}
+                    onClick={reverseSelected}
                     title="For negatively worded items: x becomes lowest + highest − x on the answer scale"
                   >
                     Reverse-code…
@@ -443,7 +328,7 @@ export function DataPanel() {
                   {selected.length === 1 && computed.has(selected[0]) && (
                     <button
                       className="btn sm ghost"
-                      onClick={() => void computeNew(selected[0])}
+                      onClick={() => setComputing({ edit: selected[0] })}
                       title={`Edit the formula: ${computed.get(selected[0])!.expr}`}
                     >
                       Edit formula…
