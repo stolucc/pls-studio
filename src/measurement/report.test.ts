@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { reviewerChecklist } from '../reporting/checklist';
 import { plsInput, plsModel } from '../reporting/fixtures';
 import { methodsText } from '../reporting/methods';
-import { deletedItemsCheck, htmtCutOf, itemsDeletedLine } from './report';
+import { deletedItemsCheck, followsDeletionRule, htmtCutOf, itemsDeletedLine } from './report';
 import type { DeletedItem } from './state';
 import { plsResult } from '../reporting/fixtures';
 
@@ -38,6 +38,26 @@ describe('Items deleted', () => {
     expect(t.keys).toEqual(expect.arrayContaining(['hair2017', 'hair2021']));
     expect(t.bibtex).toContain('@book{hair2017');
     expect(methodsText(plsInput()).text).not.toContain('Items deleted');
+  });
+
+  it('states the deletion rule only when every logged deletion follows it', () => {
+    const strong: DeletedItem = { ...item, indicator: 'im1', loading: 0.75 };
+    const unchecked: DeletedItem = { ...item, indicator: 'im2', loading: 0.55, after: undefined };
+    const low: DeletedItem = { ...item, indicator: 'im3', loading: 0.31, after: undefined };
+    const mixed = { ...plsModel, measurement: { deletedItems: [item, strong, unchecked, low] } };
+    const t = methodsText(plsInput({ model: mixed })).text;
+    expect(t).not.toContain('were deleted only where');
+    expect(t).toContain(
+      'of the deletions above, im1 (loading 0.75, at or above 0.70); im2 (loading 0.55; no re-estimate without it was logged) do not follow that rule.',
+    );
+    // A loading below 0.40 needs no before/after comparison.
+    const fine = { ...plsModel, measurement: { deletedItems: [item, low] } };
+    expect(methodsText(plsInput({ model: fine })).text).toContain('were deleted only where');
+    expect(followsDeletionRule(strong)).toBe(false);
+    expect(followsDeletionRule(item)).toBe(true);
+    // Removal that did not lift AVE or ρC above its threshold.
+    const flat = { ...item, after: { ave: 0.48, rhoA: 0.72, rhoC: 0.69 } };
+    expect(followsDeletionRule(flat)).toBe(false);
   });
 
   it('goes into the reviewer checklist for the author to justify', () => {
