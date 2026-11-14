@@ -20,6 +20,7 @@ import { ChartFrame } from '../components/ChartFrame';
 import { IconX } from '../components/icons';
 import { NEGATIVE_COLOR, POSITIVE_COLOR } from '../figure/palette';
 import { Axes, H, pad, W } from './charts';
+import { indexPlotMarks } from './indexPlotMarks';
 import type { InfluenceApproach, InfluenceResult, ScreenResult } from '../rengine/screen';
 import { useStore } from '../store';
 import { confirmDialog } from '../components/Overlays';
@@ -404,6 +405,10 @@ function IndexPlot({ inf }: { inf: InfluenceResult }) {
   const sy = (v: number) => pad.t + ((hi - v) / (hi - lo || 1)) * (H - pad.t - pad.b);
   const far = (v: number) => s.fence !== null && v > s.fence;
   const at = picked === null ? -1 : s.rows.indexOf(picked);
+  // One stem and dot per case while they fit; beyond the plot's width in
+  // pixels, the extremes of each pixel column and every far-out case.
+  const px = s.rows.map(sx);
+  const marks = indexPlotMarks(px, s.values, W - pad.l - pad.r, far);
   const stats = (Object.keys(STAT_LABEL) as InfluenceStat[]).filter(
     (k) => k !== 'kurtosis' || inf.kurtosis,
   );
@@ -431,6 +436,10 @@ function IndexPlot({ inf }: { inf: InfluenceResult }) {
         caption={
           <span className="hint">
             {at >= 0 ? `Row ${picked}: ${fmt(s.values[at], 4)}. ` : 'Click a point for its row. '}
+            {marks.thinned
+              ? `${s.rows.length.toLocaleString()} cases: per pixel column the largest and ` +
+                'smallest are drawn (they cover the others), and every far-out case. '
+              : ''}
             {s.fence !== null && Number.isFinite(s.fence)
               ? `Dashed: Q3 + 3 IQR = ${fmt(s.fence)}; red: cases above it.`
               : 'Δ: fit with the case minus without it.'}
@@ -472,28 +481,28 @@ function IndexPlot({ inf }: { inf: InfluenceResult }) {
                 strokeOpacity={0.5}
               />
             )}
-            {s.rows.map((r, i) => (
+            {marks.order.map((i) => (
               <line
-                key={`l${r}`}
-                x1={sx(r)}
-                x2={sx(r)}
+                key={`l${s.rows[i]}`}
+                x1={px[i]}
+                x2={px[i]}
                 y1={sy(Math.max(lo, 0))}
                 y2={sy(s.values[i])}
                 stroke={far(s.values[i]) ? NEGATIVE_COLOR : POSITIVE_COLOR}
                 strokeOpacity={0.45}
               />
             ))}
-            {s.rows.map((r, i) => (
+            {marks.order.map((i) => (
               <circle
-                key={r}
-                cx={sx(r)}
+                key={s.rows[i]}
+                cx={px[i]}
                 cy={sy(s.values[i])}
-                r={i === at ? 5 : 3}
+                r={i === at ? marks.radius + 2 : marks.radius}
                 fill={far(s.values[i]) ? NEGATIVE_COLOR : POSITIVE_COLOR}
                 style={{ cursor: 'pointer' }}
-                onClick={() => setPicked(r)}
+                onClick={() => setPicked(s.rows[i])}
               >
-                <title>{`Row ${r}: ${fmt(s.values[i], 4)}`}</title>
+                <title>{`Row ${s.rows[i]}: ${fmt(s.values[i], 4)}`}</title>
               </circle>
             ))}
           </svg>
