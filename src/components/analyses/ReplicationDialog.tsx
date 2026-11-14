@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { packageItems, type DataSharing, type PackageItem } from '../../replication/package';
 import { covarianceOnlyBlocked } from '../../io';
 import { useStore } from '../../store';
+import { useEscape } from '../useEscape';
 import { useModal } from '../useModal';
 
 /** Whether the replication package dialog is open (from the Analyses tab or the File menu). */
@@ -37,16 +38,15 @@ export function ReplicationDialog() {
     setBusy(null);
     setData('full');
     setCovWhy(rawCb ? covarianceOnlyBlocked() : null);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !busy) useReplication.setState({ open: false });
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, rawCb]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!open) return null;
+  }, [open, rawCb]);
+  // Not while the package is being built: Cancel is disabled then too.
   const close = () => {
     if (!busy) useReplication.setState({ open: false });
   };
+  // The shared dialog stack: Escape closes only the topmost dialog, and it
+  // sees the current `busy` (the old listener kept the value from opening).
+  useEscape(close, open);
+  if (!open) return null;
   const toggle = (id: string) =>
     setChosen((c) => {
       const n = new Set(c);
