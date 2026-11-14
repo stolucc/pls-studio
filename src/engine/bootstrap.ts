@@ -498,7 +498,10 @@ export function summarise(
   const n = v.length;
   const mean = v.reduce((s, x) => s + x, 0) / n;
   const sd = Math.sqrt(v.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1));
-  const t = sd > 0 ? Math.abs(original / sd) : Infinity;
+  // A parameter that does not vary across the draws (fixed, or a single item's loading and
+  // weight of 1) has no test: t and p are not defined (shown as —), rather than t = ∞, p = 0.
+  const varies = sd > 1e-12 * Math.max(1, Math.abs(mean));
+  const t = varies ? Math.abs(original / sd) : NaN;
   const sorted = Float64Array.from(v).sort();
   const alpha = tails === 1 ? 1 - confidence : (1 - confidence) / 2;
   let lo = alpha,
@@ -516,7 +519,7 @@ export function summarise(
     lo = adj(qnorm(alpha));
     hi = adj(qnorm(1 - alpha));
   }
-  const p2 = tTestP(t, n - 1);
+  const p2 = varies ? tTestP(t, n - 1) : NaN;
   return {
     mean,
     sd,
