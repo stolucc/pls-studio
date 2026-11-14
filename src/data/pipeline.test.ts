@@ -41,13 +41,14 @@ describe('the dataset filter', () => {
       false,
       false,
     ]);
-    expect(filterKeeps(data, 'country == "Ireland" or not group == 2')).toEqual([
-      true,
+    // `not group == 1` reads as R does, not (group == 1); (not group) == 1 would keep no row.
+    expect(filterKeeps(data, 'country == "Spain" and not group == 1')).toEqual([
       false,
       true,
+      false,
+      false,
+      false,
       true,
-      false,
-      false,
     ]);
   });
 

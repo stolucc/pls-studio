@@ -219,3 +219,51 @@ describe('reverse(x, low, high)', () => {
     expect(() => parseFormula('reverse(q1, 5)')).toThrow('reverse() takes 3 arguments.');
   });
 });
+
+describe('R semantics at the edges', () => {
+  it('reads ! below the comparisons and above & and |, as R', () => {
+    // R: !x == 2 is !(x == 2); (!x) == 2 would be 0 on every row.
+    expect(ev('!x == 2')).toEqual([1, 0, 1, 1, NaN]);
+    expect(ev('not x == 3')).toEqual([1, 1, 0, 1, NaN]);
+    expect(ev('!x + 1 > 3')).toEqual([1, 1, 0, 0, NaN]);
+    expect(ev('!g & x > 1')).toEqual([0, 0, 0, 1, 0]);
+    expect(ev('1 + !g == 1')).toEqual([2, 1, 1, 2, 1]);
+    // Unary minus still binds tightly.
+    expect(ev('-x ^ 2')).toEqual([-1, -4, -9, -16, NaN]);
+    expect(ev('-x + 1')).toEqual([0, -1, -2, -3, NaN]);
+  });
+
+  it('finds no function, word or text column in Object.prototype', () => {
+    expect(() => parseFormula('constructor(x)')).toThrow(/Unknown function “constructor”/);
+    expect(() => parseFormula('toString(x)')).toThrow(/Unknown function/);
+    const d: Dataset = {
+      names: ['constructor', 'toString', 'valueOf'],
+      cols: [Float64Array.from([1, 2]), Float64Array.from([3, 4]), Float64Array.from([5, 6])],
+      categories: {},
+    };
+    expect(ev('constructor + toString + valueOf', d)).toEqual([9, 12]);
+    expect(() => ev('constructor == "a"', d)).toThrow(/text column/);
+  });
+
+  it('turns infinite results into missing values', () => {
+    expect(ev('1e999 + 0').slice(0, 1)).toEqual([NaN]);
+    expect(ev('ifelse(g, 1e999, x)')).toEqual([1, NaN, NaN, 4, NaN]);
+    expect(ev('ifelse(g, 1e308 * 10, 1)')).toEqual([1, NaN, NaN, 1, NaN]);
+    expect(ev('sum(1e308, 1e308, y)')).toEqual([NaN, NaN, NaN, NaN, NaN]);
+    expect(ev('max(1e308 + 1e308, y)').every(Number.isNaN)).toBe(true);
+  });
+
+  it('rounds half to even, as R', () => {
+    const d: Dataset = {
+      names: ['v'],
+      cols: [Float64Array.from([2.5, -2.5, 3.5, 0.5, 1.5, 2.4, -0.5])],
+    };
+    expect(ev('round(v)', d)).toEqual([2, -2, 4, 0, 2, 2, -0]);
+    expect(ev('round(0.15, 1)')[0]).toBe(0.1);
+    expect(ev('round(2.675, 2)')[0]).toBe(2.67);
+    expect(ev('round(0.25, 1)')[0]).toBe(0.2);
+    expect(ev('round(1250, -2)')[0]).toBe(1200);
+    expect(ev('round(1350, -2)')[0]).toBe(1400);
+    expect(ev('round(y / 3, 1)')).toEqual([3.3, 6.7, 10, 13.3, 16.7]);
+  });
+});
