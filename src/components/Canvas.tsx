@@ -174,6 +174,7 @@ export function Canvas({ onImport }: EmptyProps) {
     <div
       ref={wrapRef}
       className={wrapClass}
+      data-tour="canvas"
       style={figureCssVars(figureForMethod(settings.figure, method)) as React.CSSProperties}
       onDragOver={onDragOver}
       onDrop={onDrop}

@@ -273,7 +273,7 @@ function AddMenu({ disabled }: { disabled: boolean }) {
       );
   };
   return (
-    <div className="menu" ref={ref}>
+    <div className="menu" ref={ref} data-tour="add-analysis">
       <button
         className="btn primary"
         aria-haspopup="menu"
@@ -480,6 +480,7 @@ function CardView({
         {...drag}
         onKeyDown={onKey}
         aria-label={`${titleOf(card)} (Alt+↑/↓ to move)`}
+        data-tour={t?.id === 'run' ? 'run-card' : undefined}
       >
         {!readOnly && (
           <span className="grip" aria-hidden>
@@ -869,14 +870,19 @@ export function AnalysesWorkspace() {
       id="ws-analyses"
       aria-labelledby="ws-tab-analyses"
     >
-      <aside className="card-pane" aria-label="Options of the selected card">
+      <aside
+        className="card-pane"
+        aria-label="Options of the selected card"
+        data-tour="card-options"
+      >
         <OptionsPane ctx={ctx} readOnly={readOnly} />
       </aside>
-      <main className="card-log" aria-label="Analysis log">
+      <main className="card-log" aria-label="Analysis log" data-tour="analyses-log">
         <div className="log-bar">
           <AddMenu disabled={readOnly} />
           <button
             className="btn"
+            data-tour="export-report"
             onClick={openReportDialog}
             title="The session as one document (HTML or Word): the model, its results, every card, the methods text, references and software versions"
           >

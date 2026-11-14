@@ -322,9 +322,8 @@ describe('workspace layout', () => {
     expect(html.slice(html.indexOf('tb-center'), html.indexOf('tb-right'))).toContain(
       'aria-label="Project name"',
     );
-    expect(html.slice(html.indexOf('tb-right'))).toContain(
-      'href="guide.html" target="_blank" rel="noopener"',
-    );
+    // (the help menu: the user guide and the guided tour)
+    expect(html.slice(html.indexOf('tb-right'))).toContain('class="menu help-menu"');
     // The Example chip sits beside the name, in the flow: padding the centre for it left the name 90 px wide. The name may
     // take 400 px, giving way first when the bar is short of room.
     expect(rule('.tb-center .example-pill')).toMatch(/flex:\s*none/);

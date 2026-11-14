@@ -151,7 +151,7 @@ export function DataPanel() {
       <div className="panel-head">
         <span>Data</span>
         {data && (
-          <span className="panel-actions">
+          <span className="panel-actions" data-tour="data-actions">
             {!inDataTab && (
               <button
                 className="btn sm ghost"
@@ -216,7 +216,7 @@ export function DataPanel() {
           </div>
         ) : (
           <>
-            <div className="section">
+            <div className="section" data-tour="data-meta">
               <div className="data-meta">
                 <span>File</span>
                 <b
@@ -292,7 +292,7 @@ export function DataPanel() {
                 </div>
               )}
             </div>
-            <div className="section">
+            <div className="section" data-tour="var-list">
               <input
                 className="input"
                 placeholder="Filter variables…"
@@ -311,7 +311,7 @@ export function DataPanel() {
                 Shift/⌘-click to select several, then drag onto the canvas or a construct.
               </div>
               {selected.length > 0 && info.kind !== 'matrix' && (
-                <div className="selection-bar">
+                <div className="selection-bar" data-tour="selection-bar">
                   <span className="muted">{selected.length} selected</span>
                   <button
                     className="btn sm ghost"

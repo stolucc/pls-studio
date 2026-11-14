@@ -977,7 +977,7 @@ export function Inspector() {
     body = <ModelInspector />;
   }
   return (
-    <aside className="panel right" aria-label="Inspector">
+    <aside className="panel right" aria-label="Inspector" data-tour="inspector">
       <div className="panel-head">
         <span>{title}</span>
       </div>

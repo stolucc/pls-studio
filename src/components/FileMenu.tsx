@@ -73,7 +73,7 @@ export function FileMenu() {
     </button>
   );
   return (
-    <div className="menu file-menu" ref={ref} onKeyDown={onKeyDown}>
+    <div className="menu file-menu" ref={ref} onKeyDown={onKeyDown} data-tour="file-menu">
       <button
         className="btn ghost"
         aria-haspopup="menu"

@@ -438,7 +438,7 @@ export function ValidationPage({
         </button>
       </header>
       <main className="home-body validation-body" aria-labelledby="validation-title">
-        <div className="home-intro">
+        <div className="home-intro" data-tour="validation-intro">
           <h1 id="validation-title">Validation</h1>
         </div>
         {status.state === 'loading' && <p className="hint">Loading the validation record…</p>}
