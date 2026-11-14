@@ -1,4 +1,4 @@
-import express, { Router } from 'express';
+import express, { Router, type NextFunction, type Request, type Response } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { z } from 'zod';
 import { h, requireUser, requireVerified, type AppDeps } from '../app.ts';
@@ -16,6 +16,8 @@ const projectName = z.string().trim().min(1).max(100);
 const oneLine = (s: string) => s.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim();
 /** Invitation emails per user and hour: anyone can create a project, so this caps mail to arbitrary addresses. */
 export const INVITES_PER_HOUR = 20;
+/** Dataset uploads per user and minute (each up to MAX_DATASET_BYTES). */
+export const DATASET_UPLOADS_PER_MINUTE = 30;
 
 export function projectRoutes(deps: AppDeps) {
   const { db, config, mailer } = deps;
@@ -29,6 +31,16 @@ export function projectRoutes(deps: AppDeps) {
     legacyHeaders: false,
     keyGenerator: (req) => req.session.userId ?? ipKeyGenerator(req.ip ?? ''),
     message: { error: 'Too many invitations sent in the last hour. Try again later.' },
+  });
+  // Dataset uploads per user and minute: the client uploads once per data import, so this only
+  // stops one account from keeping the server busy reading and parsing tens of megabytes.
+  const datasetLimit = rateLimit({
+    windowMs: 60_000,
+    limit: DATASET_UPLOADS_PER_MINUTE,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    keyGenerator: (req) => req.session.userId ?? ipKeyGenerator(req.ip ?? ''),
+    message: { error: 'Too many dataset uploads in the last minute. Try again shortly.' },
   });
 
   r.get(
@@ -176,15 +188,32 @@ export function projectRoutes(deps: AppDeps) {
   );
 
   // ---- dataset (encrypted at rest) ----
+  // Up to MAX_DATASET_BYTES (tens of MB): body-parser refuses a larger declared or received
+  // body (413) before anything is parsed, and the size counts after any Content-Encoding is
+  // undone. Reading and parsing a body that size takes memory and blocks the event loop for
+  // a moment, so only an editor of the project gets that far (editorFirst, before the body
+  // parser): anyone else is answered from the headers and the body is never read.
   const big = express.text({ type: 'application/json', limit: config.MAX_DATASET_BYTES });
+  const editorFirst = (req: Request, _res: Response, next: NextFunction) => {
+    let check: Promise<unknown>;
+    try {
+      check = P.requireRole(db, pid(req.params.id), requireUser(req), 'editor');
+    } catch (err) {
+      return next(err);
+    }
+    check.then(() => next(), next);
+  };
   r.put(
     '/:id/dataset',
+    datasetLimit,
+    editorFirst,
     big,
     h(async (req, res) => {
       const id = pid(req.params.id);
       const text = typeof req.body === 'string' ? req.body : '';
       let parsed: unknown;
       try {
+        // (bounded by the body parser's limit above; only the shape is checked, the text is stored)
         parsed = JSON.parse(text);
       } catch {
         return res.status(400).json({ error: 'Dataset must be JSON.' });

@@ -96,7 +96,9 @@ func main() {
 	if err != nil {
 		logger.Fatalf("load config: %v", err)
 	}
-	if err := saveConfig(cfg); err != nil { // (writes the defaults on first run)
+	// (writes the defaults on first run; read-modify-write, so a change the command line
+	//  made since loadConfig is kept)
+	if err := cfg.update(func(*configFile) {}); err != nil {
 		logger.Fatalf("save config: %v", err)
 	}
 	// A --port override is for this run only (the app connects to the configured port).
@@ -303,6 +305,16 @@ if (any(nzchar(why))) { for (p in pk[nzchar(why)]) cat("Could not load ", p, ": 
 // Package names come from the embedded list and the library path is passed
 // as an argument, never pasted into R code.
 func installPackages(cfg *config, out io.Writer) error {
+	// One installation at a time over all processes (the tray, `setup`, a second
+	// helper): two R sessions installing into one library corrupt it.
+	lock, err := lockInConfigDir(libraryLockName)
+	if errors.Is(err, errLocked) {
+		return errors.New("the R packages are already being installed (by the helper's menu or pls-studio-helper setup): wait for that to finish")
+	}
+	if err != nil {
+		return err
+	}
+	defer lock.unlock()
 	rscript, err := findRscript(cfg.snapshot().Rscript)
 	if err != nil {
 		return err

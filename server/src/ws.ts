@@ -66,6 +66,8 @@ export class TooBig extends Refused {
 interface Conn {
   ws: WebSocket;
   userId: string;
+  /** The user's display name when the socket opened: the name their presence shows. */
+  name: string;
   /** The HTTP session the socket was opened with (closed when that session ends). */
   sessionId: string;
   role: Role;
@@ -99,17 +101,65 @@ export function sendOrDrop(ws: SendTarget, msg: Uint8Array): boolean {
   return true;
 }
 
-/** Client ids an awareness update speaks for (throws on a malformed update). */
-function awarenessClientIds(update: Uint8Array): number[] {
+/** One entry of an awareness (presence) update: a client id, its clock and its state as JSON. */
+interface PresenceEntry {
+  clientId: number;
+  clock: number;
+  state: string;
+}
+
+/** The entries of an awareness update (throws on a malformed update). */
+function decodePresence(update: Uint8Array): PresenceEntry[] {
   const dec = decoding.createDecoder(update);
   const n = decoding.readVarUint(dec);
-  const ids: number[] = [];
+  const entries: PresenceEntry[] = [];
   for (let i = 0; i < n; i++) {
-    ids.push(decoding.readVarUint(dec));
-    decoding.readVarUint(dec); // clock
-    decoding.readVarString(dec); // state (JSON)
+    const clientId = decoding.readVarUint(dec);
+    const clock = decoding.readVarUint(dec);
+    const state = decoding.readVarString(dec);
+    entries.push({ clientId, clock, state });
   }
-  return ids;
+  return entries;
+}
+
+/** An awareness update made of these entries (the inverse of decodePresence). */
+function encodePresence(entries: PresenceEntry[]): Uint8Array {
+  const enc = encoding.createEncoder();
+  encoding.writeVarUint(enc, entries.length);
+  for (const e of entries) {
+    encoding.writeVarUint(enc, e.clientId);
+    encoding.writeVarUint(enc, e.clock);
+    encoding.writeVarString(enc, e.state);
+  }
+  return encoding.toUint8Array(enc);
+}
+
+const HEX_COLOUR = /^#[0-9a-f]{6}$/i;
+
+/**
+ * A presence state (JSON) with its `user` field bound to the signed-in user: the id and
+ * name come from the session, never from the client, so nobody can appear as someone
+ * else. The client's colour is kept only when it is a plain hex colour. "null" (the
+ * client leaving) passes unchanged; anything but an object or null is refused.
+ */
+export function bindPresenceState(json: string, who: { userId: string; name: string }): string {
+  if (json === 'null') return json;
+  let state: unknown;
+  try {
+    state = JSON.parse(json);
+  } catch {
+    throw new Refused(1007, 'Invalid presence state');
+  }
+  if (state === null) return 'null';
+  if (typeof state !== 'object' || Array.isArray(state)) {
+    throw new Refused(1007, 'Invalid presence state');
+  }
+  const claimed = (state as { user?: unknown }).user;
+  const colour =
+    claimed && typeof claimed === 'object' ? (claimed as { color?: unknown }).color : undefined;
+  const user: { id: string; name: string; color?: string } = { id: who.userId, name: who.name };
+  if (typeof colour === 'string' && HEX_COLOUR.test(colour)) user.color = colour;
+  return JSON.stringify({ ...state, user });
 }
 
 /** Take one sync-step-1 token (refilled over time); refuse when none is left. */
@@ -301,11 +351,56 @@ class Room {
     } else if (type === MSG_AWARENESS) {
       const update = decoding.readVarUint8Array(dec);
       if (update.length > MAX_AWARENESS_BYTES) throw new TooBig('Presence state too big');
+      const entries = this.presenceEntriesFor(conn, decodePresence(update));
       const ids = new Set(conn.clientIds);
-      for (const id of awarenessClientIds(update)) ids.add(id);
+      for (const e of entries) {
+        if (e.state !== 'null') ids.add(e.clientId);
+      }
       if (ids.size > MAX_AWARENESS_CLIENTS) throw new Refused(1008, 'Too many presence states');
-      awarenessProtocol.applyAwarenessUpdate(this.awareness, update, conn);
+      if (entries.length === 0) return;
+      for (const e of entries) {
+        // The same user's id held by another of their connections moves over: a tab that
+        // reconnects before the server has noticed its old socket closing keeps its presence.
+        this.presenceOwner(e.clientId)?.clientIds.delete(e.clientId);
+        if (e.state !== 'null') conn.clientIds.add(e.clientId);
+      }
+      awarenessProtocol.applyAwarenessUpdate(this.awareness, encodePresence(entries), conn);
     }
+  }
+
+  /**
+   * The entries of a presence update this connection may apply, each state bound to its
+   * user (bindPresenceState). Dropped without closing the socket:
+   * - entries for a presence id another user's connection holds: applying them would
+   *   overwrite or remove that user's presence (spoofing). Honest clients send these too:
+   *   y-websocket passes on every presence change it receives, and its 30-second timeout
+   *   sends a removal for a peer it has not heard from; neither may touch the peer's state.
+   * - entries that would change nothing: the server already has that clock or a later one
+   *   (the same test applyAwarenessUpdate makes). These are mostly those echoes, which
+   *   would otherwise count against the connection's MAX_AWARENESS_CLIENTS.
+   */
+  private presenceEntriesFor(conn: Conn, entries: PresenceEntry[]): PresenceEntry[] {
+    const kept: PresenceEntry[] = [];
+    for (const e of entries) {
+      const owner = this.presenceOwner(e.clientId);
+      if (owner && owner.userId !== conn.userId) continue;
+      const state = bindPresenceState(e.state, conn);
+      const known = this.awareness.meta.get(e.clientId)?.clock ?? 0;
+      const newer = known < e.clock;
+      const removesLive =
+        known === e.clock && state === 'null' && this.awareness.states.has(e.clientId);
+      if (!newer && !removesLive) continue;
+      kept.push({ ...e, state });
+    }
+    return kept;
+  }
+
+  /** The connection that speaks for a presence (awareness) client id, if any. */
+  private presenceOwner(clientId: number): Conn | undefined {
+    for (const c of this.conns) {
+      if (c.clientIds.has(clientId)) return c;
+    }
+    return undefined;
   }
 
   remove(conn: Conn) {
@@ -344,6 +439,13 @@ export interface Collab {
 export interface CollabOptions {
   /** How long an empty room stays in memory before it is saved and dropped. */
   closeAfterMs?: number;
+}
+
+/** The display name of a user, or null when the account is gone. */
+async function displayNameOf(db: Db, userId: string): Promise<string | null> {
+  const r = await db.query('SELECT display_name FROM users WHERE id = $1', [userId]);
+  if (r.rowCount === 0) return null;
+  return String(r.rows[0].display_name);
 }
 
 type SessionMw = (req: IncomingMessage, res: unknown, next: (err?: unknown) => void) => void;
@@ -427,6 +529,8 @@ export function attachCollab(
         if (!userId || !sessionId) return reject(socket, 401, 'Unauthorized');
         const role = await roleOf(db, projectId, userId);
         if (!role) return reject(socket, 403, 'Forbidden');
+        const name = await displayNameOf(db, userId);
+        if (name === null) return reject(socket, 401, 'Unauthorized');
         // (the client may have gone while we waited: its 'close' has fired, nothing to reserve)
         if (socket.destroyed) return;
         if (!reserveSlot(userId, socket)) return reject(socket, 429, 'Too Many Connections');
@@ -437,6 +541,7 @@ export function attachCollab(
           const conn: Conn = {
             ws,
             userId,
+            name,
             sessionId,
             role,
             clientIds: new Set(),

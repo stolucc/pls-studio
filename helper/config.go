@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"time"
 )
 
 type config struct {
@@ -151,19 +152,42 @@ func loadConfigFrom(path string) (*config, error) {
 	cfg := &config{Path: path}
 	f, info, err := readConfigFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		cfg.Version = 1
-		cfg.Port = defaultPort
-		cfg.BearerToken = generateToken()
-		cfg.AllowedOrigins = defaultAllowedOrigins()
-		if err := saveConfig(cfg); err != nil {
-			return nil, fmt.Errorf("write initial config: %w", err)
-		}
-		return cfg, nil
+		return createConfig(cfg)
 	}
 	if err != nil {
 		return nil, err
 	}
 	cfg.setFile(f, false)
+	cfg.loaded = info
+	return cfg, nil
+}
+
+// createConfig writes the first config file (a fresh token, the default port
+// and origins), unless another process wrote it meanwhile: then that one is
+// used, so that two processes starting at once agree on one token.
+func createConfig(cfg *config) (*config, error) {
+	lock, err := cfg.lockFile()
+	if err != nil {
+		return nil, err
+	}
+	defer lock.unlock()
+	f, info, err := readConfigFile(cfg.Path)
+	if err == nil {
+		cfg.setFile(f, false)
+		cfg.loaded = info
+		return cfg, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	cfg.Version = 1
+	cfg.Port = defaultPort
+	cfg.BearerToken = generateToken()
+	cfg.AllowedOrigins = defaultAllowedOrigins()
+	info, err = writeConfigFile(cfg.Path, cfg.file())
+	if err != nil {
+		return nil, fmt.Errorf("write initial config: %w", err)
+	}
 	cfg.loaded = info
 	return cfg, nil
 }
@@ -264,7 +288,16 @@ func (c *config) refresh() {
 // change applied to what is on disk, so edits by the command line since the
 // helper last read it are kept (and take effect); the port stays as it was
 // for this run.
+//
+// The read-modify-write holds config.lock (beside the file) for its duration,
+// so that two processes changing the config at once (the running helper, the
+// command line) do not lose one of the changes.
 func (c *config) update(change func(f *configFile)) error {
+	lock, err := c.lockFile()
+	if err != nil {
+		return err
+	}
+	defer lock.unlock()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	f := c.file()
@@ -313,7 +346,22 @@ func (c *config) workers() int {
 	return n
 }
 
+// configLockWait: how long a config change waits for another process's (a
+// change takes milliseconds; a holder that long has hung).
+const configLockWait = 10 * time.Second
+
+// lockFile takes config.lock beside the config file (before c.mu: readers of
+// the config are not held up while waiting for another process).
+func (c *config) lockFile() (*fileLock, error) {
+	return lockFileWait(filepath.Join(filepath.Dir(c.Path), configLockName), configLockWait)
+}
+
 func saveConfig(cfg *config) error {
+	lock, err := cfg.lockFile()
+	if err != nil {
+		return err
+	}
+	defer lock.unlock()
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
 	info, err := writeConfigFile(cfg.Path, cfg.file())

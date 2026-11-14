@@ -3,6 +3,7 @@ import { WebSocket } from 'ws';
 import * as awarenessProtocol from 'y-protocols/awareness';
 import * as syncProtocol from 'y-protocols/sync';
 import {
+  bindPresenceState,
   MAX_AWARENESS_BYTES,
   MAX_AWARENESS_CLIENTS,
   MAX_BUFFERED_BYTES,
@@ -84,6 +85,19 @@ const closedWith = (ws: WebSocket) =>
     if (ws.readyState === WebSocket.CLOSED) return resolve({ code: 1006, reason: '' });
     ws.on('close', (code, reason) => resolve({ code, reason: reason.toString() }));
   });
+
+/** A presence (awareness) message with one entry. */
+const presenceMessage = (clientId: number, clock: number, state: string) => {
+  const update = encoding.createEncoder();
+  encoding.writeVarUint(update, 1);
+  encoding.writeVarUint(update, clientId);
+  encoding.writeVarUint(update, clock);
+  encoding.writeVarString(update, state);
+  const enc = encoding.createEncoder();
+  encoding.writeVarUint(enc, 1);
+  encoding.writeVarUint8Array(enc, encoding.toUint8Array(update));
+  return encoding.toUint8Array(enc);
+};
 
 /** A sync step 1 message ("send me everything I am missing"). */
 const step1 = () => {
@@ -168,12 +182,106 @@ describe('collaboration socket', () => {
     const v = connect(viewer),
       e = connect(editor);
     await until(() => v.p.synced && e.p.synced);
-    v.p.awareness.setLocalStateField('user', { name: 'Viewer' });
+    v.p.awareness.setLocalStateField('cursor', { x: 1, y: 2 });
     await until(() =>
-      [...e.p.awareness.getStates().values()].some((s) => s.user?.name === 'Viewer'),
+      [...e.p.awareness.getStates().values()].some(
+        (s) => s.cursor?.x === 1 && s.user?.name === 'v',
+      ),
     );
     v.p.destroy();
     e.p.destroy();
+  });
+
+  it('binds presence identity to the signed-in user', async () => {
+    const viewerId = (await viewer.get('/api/auth/session')).body.user.id as string;
+    const ownerId = (await owner.get('/api/auth/session')).body.user.id as string;
+    const v = connect(viewer),
+      e = connect(editor);
+    await until(() => v.p.synced && e.p.synced);
+    // A viewer claiming to be the owner, with a colour that is not a colour.
+    v.p.awareness.setLocalStateField('user', {
+      id: ownerId,
+      name: 'o',
+      color: 'red; background: url(x)',
+    });
+    v.p.awareness.setLocalStateField('selection', ['c1']);
+    const seen = () => e.p.awareness.getStates().get(v.doc.clientID);
+    await until(() => Array.isArray(seen()?.selection));
+    expect(seen()?.user).toEqual({ id: viewerId, name: 'v' });
+    v.p.awareness.setLocalStateField('user', { id: ownerId, name: 'o', color: '#2563eb' });
+    await until(() => seen()?.user?.color === '#2563eb');
+    expect(seen()?.user).toEqual({ id: viewerId, name: 'v', color: '#2563eb' });
+    v.p.destroy();
+    e.p.destroy();
+  });
+
+  it('ignores presence updates for another user’s presence id', async () => {
+    const o = connect(owner);
+    await until(() => o.p.synced);
+    o.p.awareness.setLocalStateField('cursor', { x: 5, y: 5 });
+    const room = await env.collab.rooms.get(projectId)!;
+    await until(() => room.awareness.getStates().get(o.doc.clientID)?.cursor?.x === 5);
+    const { ws } = await openRaw(editor);
+    const clock = room.awareness.meta.get(o.doc.clientID)!.clock;
+    // Overwrite, then remove, the owner's presence: later clocks for the owner's client id.
+    ws.send(presenceMessage(o.doc.clientID, clock + 1, '{"cursor":{"x":9,"y":9}}'));
+    ws.send(presenceMessage(o.doc.clientID, clock + 2, 'null'));
+    // A marker sent after them: once it is applied, so would they have been.
+    ws.send(presenceMessage(737373, 1, '{"cursor":{"x":0,"y":0}}'));
+    await until(() => room.awareness.getStates().has(737373));
+    expect(room.awareness.getStates().get(o.doc.clientID)?.cursor).toEqual({ x: 5, y: 5 });
+    expect(ws.readyState).toBe(WebSocket.OPEN);
+    ws.close();
+    o.p.destroy();
+  });
+
+  it('does not count presence passed back by a client against its cap', async () => {
+    // y-websocket sends every presence change it receives back to the server: a client
+    // joining a room with more peers than MAX_AWARENESS_CLIENTS must not be refused.
+    const peers: ReturnType<typeof connect>[] = [];
+    for (let i = 0; i <= MAX_AWARENESS_CLIENTS; i++) {
+      const p = connect(i % 2 === 0 ? owner : viewer);
+      p.p.awareness.setLocalStateField('cursor', { x: i, y: i });
+      peers.push(p);
+    }
+    await until(() => peers.every((p) => p.p.synced));
+    const late = connect(editor);
+    await until(() => late.p.awareness.getStates().size > MAX_AWARENESS_CLIENTS + 1);
+    late.p.awareness.setLocalStateField('cursor', { x: 99, y: 99 });
+    await until(() =>
+      [...peers[0].p.awareness.getStates().values()].some((s) => s.cursor?.x === 99),
+    );
+    expect(late.p.wsconnected).toBe(true);
+    for (const p of [...peers, late]) p.p.destroy();
+  });
+
+  it('lets a user’s new connection take over their own presence id', async () => {
+    const first = await openRaw(editor);
+    const second = await openRaw(editor);
+    const send = (ws: WebSocket, clock: number, state: string) =>
+      ws.send(presenceMessage(424242, clock, state));
+    const room = await env.collab.rooms.get(projectId)!;
+    send(first.ws, 1, '{"cursor":{"x":1,"y":1}}');
+    await until(() => room.awareness.getStates().get(424242)?.cursor?.x === 1);
+    send(second.ws, 2, '{"cursor":{"x":2,"y":2}}');
+    await until(() => room.awareness.getStates().get(424242)?.cursor?.x === 2);
+    // The old socket closing no longer removes the presence its successor now holds.
+    first.ws.close();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(room.awareness.getStates().get(424242)?.user?.name).toBe('e');
+    expect(second.ws.readyState).toBe(WebSocket.OPEN);
+    second.ws.close();
+  });
+
+  it('refuses a presence state that is not an object', () => {
+    const who = { userId: 'u1', name: 'Ann' };
+    expect(bindPresenceState('null', who)).toBe('null');
+    expect(JSON.parse(bindPresenceState('{"user":{"id":"u2","name":"Bob"}}', who))).toEqual({
+      user: { id: 'u1', name: 'Ann' },
+    });
+    expect(() => bindPresenceState('[1]', who)).toThrow('Invalid presence state');
+    expect(() => bindPresenceState('"x"', who)).toThrow('Invalid presence state');
+    expect(() => bindPresenceState('{', who)).toThrow('Invalid presence state');
   });
 
   it('closes a connection that sends an oversized presence state', async () => {
