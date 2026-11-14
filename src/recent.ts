@@ -55,13 +55,17 @@ function idbBackend(): Backend | null {
       req.onerror = () => reject(req.error);
     });
   let db: Promise<IDBDatabase> | null = null;
+  // Settled when the transaction completes, not when its request succeeds: a write can still be
+  // aborted after that (quota exceeded on commit), and then nothing was stored.
   const tx = async <T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>) => {
     db ??= open();
     const d = await db;
     return new Promise<T>((resolve, reject) => {
-      const req = fn(d.transaction(STORE, mode).objectStore(STORE));
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
+      const transaction = d.transaction(STORE, mode);
+      const req = fn(transaction.objectStore(STORE));
+      transaction.oncomplete = () => resolve(req.result);
+      transaction.onerror = () => reject(transaction.error ?? req.error);
+      transaction.onabort = () => reject(transaction.error ?? new Error('Transaction aborted.'));
     });
   };
   return {
@@ -132,16 +136,25 @@ export async function getRecent(id: string): Promise<RecentEntry | null> {
   }
 }
 
-/** Insert or update an entry and keep only the most recent MAX_RECENT. */
-export async function saveRecent(entry: RecentEntry): Promise<void> {
+/**
+ * Insert or update an entry and keep only the most recent MAX_RECENT. Resolves false when the
+ * entry could not be stored (quota exceeded, storage blocked): the caller decides whether that
+ * matters (before discarding the open project, it does).
+ */
+export async function saveRecent(entry: RecentEntry): Promise<boolean> {
   const b = await getBackend();
   try {
     await b.put(entry);
+  } catch {
+    return false;
+  }
+  try {
     const all = (await b.all()).sort((a, c) => c.updated - a.updated);
     for (const old of all.slice(MAX_RECENT)) await b.remove(old.id);
   } catch {
-    // quota exceeded or storage blocked: recents are best-effort
+    // (the entry is stored; trimming the older ones can wait for the next save)
   }
+  return true;
 }
 
 export async function removeRecent(id: string): Promise<void> {

@@ -58,19 +58,21 @@ function pickFile(accept: string): Promise<File | null> {
 /**
  * Before replacing the current project. Projects are kept in Recent projects,
  * so normally the current one is just flushed there; only when browser storage
- * is unavailable do we ask before discarding unsaved changes.
+ * is unavailable, or the flush fails (storage full), do we ask before
+ * discarding unsaved changes.
  */
 async function confirmDiscard(action: string): Promise<boolean> {
   const s = useStore.getState();
   if (s.model.constructs.length === 0 && !s.data) return true;
-  if (await recentPersistent()) {
-    await autosave();
-    return true;
-  }
+  const persistent = await recentPersistent();
+  if (persistent && (await autosave())) return true;
   if (!s.dirty) return true;
+  const why = persistent
+    ? 'the current model could not be kept in Recent projects (the browser’s storage is full or blocked)'
+    : 'this browser cannot keep the current model in Recent projects';
   return confirmDialog({
     title: 'Discard unsaved changes?',
-    body: `${action} will replace the current model, and this browser cannot keep it in Recent projects. Save it to a file first if you want to keep it.`,
+    body: `${action} will replace the current model, and ${why}. Save it to a file first if you want to keep it.`,
     confirmLabel: 'Discard changes',
     danger: true,
   });
@@ -1151,11 +1153,16 @@ export function currentEntry(): RecentEntry | null {
   };
 }
 
-export async function autosave() {
+/**
+ * Keep the current project in Recent projects. Resolves false when it could not be stored;
+ * true when it was, or when it is not kept locally (empty, an example, a shared project).
+ */
+export async function autosave(): Promise<boolean> {
   const e = currentEntry();
-  if (e) await saveRecent(e);
+  const saved = e ? await saveRecent(e) : true;
   // Signed in: the project belongs in the account (cloud/keep.ts decides whether this one does, now).
   void import('./cloud/keep').then((m) => m.keepInAccount());
+  return saved;
 }
 
 /** Move a pre-home-screen localStorage autosave into Recent projects. */
