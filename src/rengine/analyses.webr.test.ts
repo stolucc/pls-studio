@@ -191,14 +191,15 @@ it(
   async () => {
     const c = byName('pls_csem_threecommonfactors');
     const boot = { samples: 100, seed: 1, confidence: 0.95 };
-    expect(
-      await analysisScript(loadData(c), toSpec(c), {
-        kind: 'plsBoot',
-        pkg: 'cSEM',
-        options: PLS,
-        boot,
-      }),
-    ).toContain('.resample_method = "bootstrap", .R = 100');
+    // (cSEM bootstraps draw in chunks of 100 with seed + k, whatever the sessions: bootChunked)
+    const bootScript = await analysisScript(loadData(c), toSpec(c), {
+      kind: 'plsBoot',
+      pkg: 'cSEM',
+      options: PLS,
+      boot,
+    });
+    expect(bootScript).toContain('.resample_method = "bootstrap", .R = R, .seed = seed');
+    expect(bootScript).toContain('chunks <- data.frame(R = c(100), seed = c(1))');
     expect(
       await analysisScript(loadData(c), toSpec(c), { kind: 'fitTest', options: PLS, boot }),
     ).toContain('testOMF(fit, .R = 100');

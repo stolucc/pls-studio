@@ -6,7 +6,7 @@ import type { Dataset, MissingTreatment, ModelSpec, PlsOptions, PlsResult } from
 import type { REngineInfo } from './lavaan';
 import { expandCategorical } from '../engine/categorical';
 import { rCall, rScript, rStrings } from './bridge';
-import { rColumns } from './rjson';
+import { rColumns, rList } from './rjson';
 
 export type PlsPackage = 'cSEM' | 'seminr';
 
@@ -73,10 +73,12 @@ export function plsRequest(
 }
 
 const num = (v: unknown) => (typeof v === 'number' ? v : NaN);
-const nums = (v: unknown) => ((v ?? []) as unknown[]).map(num);
-const mat = (m: unknown) => ((m ?? []) as unknown[][]).map(nums);
+// (every vector through rList: R sends a one-element vector as a scalar, e.g. the names of a one-construct model)
+const nums = (v: unknown) => rList<unknown>(v).map(num);
+const mat = (m: unknown) => rList<unknown>(m).map(nums);
 const nmat = (m: unknown) =>
-  ((m ?? []) as unknown[][]).map((r) => r.map((v) => (typeof v === 'number' ? v : null)));
+  rList<unknown>(m).map((r) => rList<unknown>(r).map((v) => (typeof v === 'number' ? v : null)));
+const objects = (v: unknown) => rList<any>(v);
 
 export type PlsResultR = PlsResult & { engine: REngineInfo; warnings: string[] };
 
@@ -87,18 +89,18 @@ export function parsePlsOutput(raw: Record<string, any>): PlsResultR {
     n: raw.n,
     iterations: raw.iterations,
     converged: !!raw.converged,
-    constructs: raw.constructs,
-    indicators: raw.indicators,
+    constructs: rStrings(raw.constructs),
+    indicators: objects(raw.indicators),
     weights: nums(raw.weights),
     loadings: nums(raw.loadings),
     pathCoef: mat(raw.pathCoef),
-    hasPath: raw.hasPath,
+    hasPath: rList<unknown>(raw.hasPath).map((r) => rList<boolean>(r)),
     totalEffects: mat(raw.totalEffects),
     indirectEffects: mat(raw.indirectEffects),
-    rSquared: (raw.rSquared as unknown[]).map((v) => (typeof v === 'number' ? v : null)),
-    adjRSquared: (raw.adjRSquared as unknown[]).map((v) => (typeof v === 'number' ? v : null)),
+    rSquared: rList<unknown>(raw.rSquared).map((v) => (typeof v === 'number' ? v : null)),
+    adjRSquared: rList<unknown>(raw.adjRSquared).map((v) => (typeof v === 'number' ? v : null)),
     constructCor: mat(raw.constructCor),
-    quality: (raw.quality as any[]).map((q) => ({
+    quality: objects(raw.quality).map((q) => ({
       alpha: num(q.alpha),
       rhoC: num(q.rhoC),
       rhoA: num(q.rhoA),
@@ -111,8 +113,8 @@ export function parsePlsOutput(raw: Record<string, any>): PlsResultR {
     htmt2: nmat(raw.htmt2),
     fit: { estimated: disc(raw.fit?.estimated), saturated: disc(raw.fit?.saturated) },
     consistent: !!raw.consistent,
-    types: raw.types,
-    moderations: raw.moderations,
+    types: rStrings(raw.types) as PlsResult['types'],
+    moderations: objects(raw.moderations),
     ...(['PLS-PM', 'GSCA', 'PCA', 'unit'].includes(raw.approach) ? { approach: raw.approach } : {}),
     ...(['two_stage', 'embedded', 'repeated'].includes(raw.hocApproach)
       ? { hocApproach: raw.hocApproach }
@@ -120,12 +122,15 @@ export function parsePlsOutput(raw: Record<string, any>): PlsResultR {
     fSquare: nmat(raw.fSquare),
     vifInner: nmat(raw.vifInner),
     vifOuter: nums(raw.vifOuter),
-    scores: (raw.scores as unknown[]).map((c) => Float64Array.from(nums(c))),
+    scores: rList<unknown>(raw.scores).map((c) => Float64Array.from(nums(c))),
     droppedRows: raw.droppedRows ?? 0,
     warnings: rStrings(raw.warnings),
     notes: rStrings(raw.notes),
     engine: raw.engine,
     ...(typeof raw.imputations === 'number' ? { imputations: raw.imputations } : {}),
+    ...(raw.imputationMethod === 'mice' || raw.imputationMethod === 'micenorm'
+      ? { imputationMethod: raw.imputationMethod }
+      : {}),
     ...(Array.isArray(raw.ordinal) && raw.ordinal.length ? { ordinal: rStrings(raw.ordinal) } : {}),
     ...(Array.isArray(raw.higherOrder) && raw.higherOrder.length
       ? {

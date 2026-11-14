@@ -471,12 +471,23 @@ ps_cb_build <- function(req) {
   } else {
     1
   }
+  # The app gives values per group in the order of the group codes (for a text column, of its categories: heldValue.ts
+  # groupOrder); lavaan numbers the groups in the order they first appear in the data. lavaan_order[k]: the app's
+  # position of lavaan's group k, so sorting the rows never changes which group gets which value.
+  lavaan_order <- if (!matrix_groups && !is.null(group_var)) {
+    g <- inputs$data[[group_var]]
+    g <- g[is.finite(g)]
+    match(unique(g), sort(unique(g)))
+  } else {
+    seq_len(n_groups)
+  }
   ps_mod <- function(t) {
     if (!is.null(t$byGroup)) {
       vals <- t$byGroup
       if (n_groups < 2 || length(vals) != n_groups) {
         stop("Values per group need one value per group.")
       }
+      vals <- vals[lavaan_order]
       group_value <- function(x) {
         if (is.null(x) || (length(x) == 1 && is.na(x))) {
           "NA"
@@ -2045,7 +2056,7 @@ ps_cb <- function(req_json, export = FALSE) {
         lavaan::lavInspect(fit, "nobs")[group_of(g)]
       },
       iterations = lavaan::lavInspect(fit, "iterations"), converged = lavaan::lavInspect(fit, "converged"),
-      constructs = constructs,
+      constructs = I(constructs),
       indicators = lapply(seq_along(indicators), function(i) list(name = indicators[i], construct = ind_con[i])),
       estimates = est, fit = lapply(fmv, as.numeric),
       r2Indicators = unname(r2_ind), r2Constructs = r2_con, stdLoadings = std_load,
@@ -2273,6 +2284,10 @@ ps_invariance <- function(req_json, export = FALSE) {
   ))
 }
 
+#' The interaction terms of a modsem model's syntax (" + a:b"), removed for the baseline model whose chi-square-based
+#' fit measures are reported (the run and the exported script use the same pattern).
+PS_MODSEM_INTERACTION_TERMS <- "\\s*\\+\\s*[A-Za-z0-9_.]+:[A-Za-z0-9_.]+"
+
 #' CB-SEM with latent interactions estimated by LMS or QML (modsem): the same
 #' result shape as ps_cb. LMS / QML have no chi-square for the full model; the
 #' fit statistics reported are those of the model without interaction terms.
@@ -2284,7 +2299,15 @@ ps_cb_modsem <- function(req, b, export) {
       c(
         "summary(fit, standardized = TRUE)", "standardized_estimates(fit)",
         "# Likelihood-ratio test of the interaction terms: the model against the same model without them",
-        "h0 <- estimate_h0(fit, calc.se = FALSE)", "compare_fit(est_h1 = fit, est_h0 = h0)"
+        "h0 <- estimate_h0(fit, calc.se = FALSE)", "compare_fit(est_h1 = fit, est_h0 = h0)",
+        "# The fit measures PLS Studio reports: chi-square, CFI, TLI, RMSEA and SRMR of the baseline model without the",
+        "# interaction terms, refitted with lavaan (as modsem advises); AIC and BIC of the interaction model itself.",
+        sprintf(
+          "base <- lavaan::sem(gsub(%s, \"\", model), data = data)",
+          encodeString(PS_MODSEM_INTERACTION_TERMS, quote = '"')
+        ),
+        "fitMeasures(base, c(\"chisq\", \"df\", \"pvalue\", \"cfi\", \"tli\", \"rmsea\", \"rmsea.ci.lower\", \"rmsea.ci.upper\", \"srmr\"))",
+        "fit_modsem_da(fit, chisq = FALSE)[c(\"AIC\", \"BIC\")]"
       )
     ))
   }
@@ -2382,7 +2405,7 @@ ps_cb_modsem <- function(req, b, export) {
     "Likelihood-ratio test of the interaction (modsem::compare_fit)"
   )
   base <- ps_try(
-    lavaan::fitMeasures(lavaan::sem(gsub("\\s*\\+\\s*[A-Za-z0-9_.]+:[A-Za-z0-9_.]+", "", env$model), data = env$data)),
+    lavaan::fitMeasures(lavaan::sem(gsub(PS_MODSEM_INTERACTION_TERMS, "", env$model), data = env$data)),
     "Fit of the baseline model without the interaction (lavaan)"
   )
   num1 <- function(x) if (is.null(x) || !length(x) || is.na(x[1])) NULL else as.numeric(x[1])
@@ -2412,7 +2435,7 @@ ps_cb_modsem <- function(req, b, export) {
     n = nrow(env$data),
     iterations = 0L,
     converged = TRUE,
-    constructs = constructs,
+    constructs = I(constructs),
     indicators = lapply(seq_along(indicators), function(i) list(name = indicators[i], construct = ind_con[i])),
     estimates = est,
     fit = fitv,

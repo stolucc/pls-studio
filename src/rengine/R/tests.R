@@ -58,8 +58,9 @@ ps_htest <- function(h) {
       stat = unname(h$statistic),
       df = if (is.null(h$parameter)) NULL else unname(h$parameter),
       p = unname(h$p.value),
-      ciLow = if (is.null(h$conf.int)) NULL else h$conf.int[1],
-      ciHigh = if (is.null(h$conf.int)) NULL else h$conf.int[2],
+      # (a one-sided interval's open end: "Inf" / "-Inf", not null as a missing bound)
+      ciLow = if (is.null(h$conf.int)) NULL else ps_inf(h$conf.int[1]),
+      ciHigh = if (is.null(h$conf.int)) NULL else ps_inf(h$conf.int[2]),
       estimate = if (is.null(h$estimate)) NULL else unname(h$estimate[1])
     )
   }

@@ -376,7 +376,15 @@ function plsDraft(input: ReportInput, pls: WithEngine<PlsResult>, d: Draft) {
       `Interaction terms (${list(moderationText(m))}) were generated with the ${list(methods)} ${cite('becker2018')}.`,
     );
   }
-  d.add(missingText(input, pls.n, pls.droppedRows, pls.imputations));
+  // (PLS imputes with mice whatever the setting says: the method R reports, R/pls.R)
+  d.add(
+    missingText(
+      { ...input, settings: { ...input.settings, miMethod: pls.imputationMethod ?? 'mice' } },
+      pls.n,
+      pls.droppedRows,
+      pls.imputations,
+    ),
+  );
   d.add(bootText(input.boot));
   // Assessment criteria, as the results panel reports them.
   const types = pls.types.slice(0, m.constructs.length);

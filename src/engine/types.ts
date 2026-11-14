@@ -304,8 +304,8 @@ export interface PlsOptions {
   missing: MissingTreatment;
   /** Consistent PLS (PLSc): correct common factors for attenuation. */
   consistent: boolean;
-  /** Multiple imputation (missing = 'mi', R engine): number of imputed data sets and seed. */
-  mi?: { m: number; seed: number };
+  /** Multiple imputation (missing = 'mi', R engine): number of imputed data sets, seed and the setting's method (PLS uses mice: R/pls.R). */
+  mi?: { m: number; seed: number; method?: 'mice' | 'amelia' | 'micenorm' | 'joint' };
   /** Weighting approach (cSEM): PLS path modeling, or generalized structured component analysis (GSCA; Hwang & Takane 2004). */
   approach?: 'PLS-PM' | 'GSCA' | 'PCA' | 'unit';
   /** Second-order constructs: (disjoint) two-stage, embedded two-stage (cSEM "mixed") or repeated indicators. */
@@ -395,6 +395,8 @@ export interface PlsResult {
   samplingWeights?: string;
   /** Multiple imputation: the number of imputed data sets the estimates are averaged over. */
   imputations?: number;
+  /** Multiple imputation: how R imputed (mice with predictive mean matching, or with Bayesian normal regression). */
+  imputationMethod?: 'mice' | 'micenorm';
   /** Second-order constructs (cSEM two-stage): loading and weight of each component, by index in `constructs`. */
   higherOrder?: { construct: number; component: number; loading: number; weight: number }[];
   /** Ordinal indicators (cSEM's OrdPLS/OrdPLSc: weights and paths from polychoric and polyserial correlations). */

@@ -202,7 +202,8 @@ describe('specific indirect effects (cSEM)', () => {
     const data = await load('cSEM', 'satisfaction', []);
     const boot = { samples: 60, seed: 9, confidence: 0.95, chunkR: [30, 30], chunkSeed: [9, 10] };
     const req = { ...plsRequest(data, spec, options, 'cSEM'), boot };
-    type Part = { names: string[]; values: unknown[][]; original: unknown[] };
+    // (a part's draws and originals: base64 of the doubles, sent back as they came)
+    type Part = { names: string[]; rows: number; values: string; original: string };
     const parts: Part[] = [];
     for (const part of [1, 2]) {
       parts.push(await rCall<Part>('ps_pls_boot', { ...req, boot: { ...boot, part } }, 'cSEM'));
@@ -214,7 +215,7 @@ describe('specific indirect effects (cSEM)', () => {
     );
     const draws = {
       names: parts[0].names,
-      values: parts.flatMap((p) => p.values),
+      parts: parts.map((p) => ({ rows: p.rows, values: p.values })),
       original: parts[0].original,
     };
     const raw = await rCall<Record<string, unknown>>(

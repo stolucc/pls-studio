@@ -124,7 +124,10 @@ const objectList = (v: any): any[] => {
   if (Array.isArray(v)) return v;
   return v ? [v] : [];
 };
-const mat = (m: unknown) => ((m ?? []) as (number | null)[][]).map((r) => r.map(num));
+// (every vector through rList: R sends a one-element vector as a scalar, e.g. the names of a one-factor model)
+const nullMat = (m: unknown) =>
+  rList<unknown>(m).map((r) => rList<unknown>(r).map((v) => (typeof v === 'number' ? v : null)));
+const mat = (m: unknown) => rList<unknown>(m).map((r) => rList<unknown>(r).map(num));
 
 export interface REngineInfo {
   package: string;
@@ -206,7 +209,7 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
   ] as const) {
     if (fit[key] === undefined) fit[key] = NaN;
   }
-  const estimates: CbEstimate[] = (raw.estimates as any[]).map((e) => ({
+  const estimates: CbEstimate[] = objectList(raw.estimates).map((e) => ({
     kind: e.kind,
     lhs: e.lhs,
     op: e.op,
@@ -224,19 +227,19 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
     n: raw.n,
     iterations: raw.iterations,
     converged: !!raw.converged,
-    constructs: raw.constructs,
-    indicators: raw.indicators,
+    constructs: rStrings(raw.constructs),
+    indicators: objectList(raw.indicators),
     estimates,
     fit: fit as CbFit,
-    r2Indicators: (raw.r2Indicators as unknown[]).map(num),
-    r2Constructs: (raw.r2Constructs as unknown[]).map((v) => (typeof v === 'number' ? v : null)),
-    stdLoadings: (raw.stdLoadings as unknown[]).map(num),
+    r2Indicators: rList<unknown>(raw.r2Indicators).map(num),
+    r2Constructs: rList<unknown>(raw.r2Constructs).map((v) => (typeof v === 'number' ? v : null)),
+    stdLoadings: rList<unknown>(raw.stdLoadings).map(num),
     stdPaths: mat(raw.stdPaths),
-    hasPath: raw.hasPath,
+    hasPath: rList<unknown>(raw.hasPath).map((r) => rList<boolean>(r)),
     stdTotal: mat(raw.stdTotal),
     stdIndirect: mat(raw.stdIndirect),
     lvCor: mat(raw.lvCor),
-    reliability: (raw.reliability as any[]).map((r) => ({
+    reliability: objectList(raw.reliability).map((r) => ({
       cr: num(r.cr),
       ave: num(r.ave),
       ...(typeof r.omega === 'number' ? { omega: r.omega } : {}),
@@ -265,10 +268,10 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
           })),
         }
       : {}),
-    htmt: raw.htmt as (number | null)[][],
-    htmt2: raw.htmt2 as (number | null)[][],
+    htmt: nullMat(raw.htmt),
+    htmt2: nullMat(raw.htmt2),
     vcov: raw.vcov ? mat(raw.vcov) : null,
-    moderations: raw.moderations,
+    moderations: objectList(raw.moderations),
     warnings: rStrings(raw.warnings),
     notes: rStrings(raw.notes),
     ...(typeof raw.fitNote === 'string' ? { fitNote: raw.fitNote } : {}),
@@ -301,8 +304,8 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
     ...(raw.caseWeights
       ? {
           caseWeights: {
-            rows: (raw.caseWeights.rows as unknown[]).map(Number),
-            weights: (raw.caseWeights.weights as unknown[]).map(Number),
+            rows: rList<unknown>(raw.caseWeights.rows).map(Number),
+            weights: rList<unknown>(raw.caseWeights.weights).map(Number),
           },
         }
       : {}),

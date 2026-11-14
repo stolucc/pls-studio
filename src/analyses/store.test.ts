@@ -1,7 +1,11 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const interruptR = vi.fn();
-vi.mock('../rengine/runtime', () => ({ interruptR: () => interruptR() }));
+// (a card's cancel stops the card's own R calls: its cancel group cancels its R job, rengine/jobs.ts)
+const cancelRJob = vi.fn();
+vi.mock('../rengine/jobs', async (original) => ({
+  ...(await original<typeof import('../rengine/jobs')>()),
+  cancelRJob: (job: unknown) => cancelRJob(job),
+}));
 import { serializeProject, parseProject } from '../model/project';
 import { useStore } from '../store';
 import { fingerprint, packResult } from './codec';
@@ -425,13 +429,13 @@ describe('cancelling, corrupt stored results, replacing the log and display-only
     if (!ANALYSIS_TYPES.includes(slowType)) ANALYSIS_TYPES.push(slowType);
     release = null;
     cancelled.mockClear();
-    interruptR.mockClear();
+    cancelRJob.mockClear();
   });
   afterAll(() => {
     ANALYSIS_TYPES.splice(ANALYSIS_TYPES.indexOf(slowType), 1);
   });
 
-  it('cancels a running card: no result, no error, R interrupted, a toast; nothing when it is not running', async () => {
+  it('cancels a running card: no result, no error, its R job cancelled, a toast; nothing when it is not running', async () => {
     setData([1, 2, 3]);
     const id = addAnalysis('test-slow')!;
     cancelCard(id);
@@ -441,7 +445,7 @@ describe('cancelling, corrupt stored results, replacing the log and display-only
     cancelCard(id);
     await p;
     expect(cancelled).toHaveBeenCalledTimes(1);
-    await vi.waitFor(() => expect(interruptR).toHaveBeenCalledTimes(1));
+    expect(cancelRJob).toHaveBeenCalledTimes(1);
     expect(useStore.getState().toasts.map((t) => t.text)).toEqual(['Calculation cancelled.']);
     expect(status(id)).toEqual({ state: 'empty' });
     expect(a().errors[id]).toBeUndefined();

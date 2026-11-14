@@ -293,12 +293,12 @@ describe('parallelism with desktop R', () => {
     useCompute.getState().set({ backend: 'browser', workers: 4 });
     expect(await parallelism()).toEqual({ where: 'browser', sessions: 4 });
   });
-  it('cSEM bootstraps use the cores in one process; lavaan bootstraps are chunked', async () => {
+  it('cSEM and lavaan bootstraps are chunked (the same draws everywhere); seminr uses the cores of one process', async () => {
     const seen: Record<string, any>[] = [];
     await readyHelper(13, seen);
     const { useCompute } = await import('./compute');
     useCompute.getState().set({ backend: 'helper', workers: 1 });
-    const { bootParallel } = await import('./analyses');
+    const { bootChunked, bootParallel } = await import('./analyses');
     const boot = { samples: 500, seed: 1, confidence: 0.95 };
     const options = {
       scheme: 'path' as const,
@@ -307,7 +307,17 @@ describe('parallelism with desktop R', () => {
       maxIter: 300,
       missing: 'casewise' as const,
     };
-    expect(await bootParallel({ kind: 'plsBoot', pkg: 'cSEM', options, boot })).toBe(false);
+    expect(await bootParallel({ kind: 'plsBoot', pkg: 'cSEM', options, boot })).toBe(true);
+    expect(await bootParallel({ kind: 'plsBoot', pkg: 'seminr', options, boot })).toBe(false);
+    // Chunked or not: the analysis alone decides (BCa and multiple imputation run in one call).
+    expect(bootChunked({ kind: 'plsBoot', pkg: 'cSEM', options, boot })).toBe(true);
+    expect(bootChunked({ kind: 'plsBoot', pkg: 'seminr', options, boot })).toBe(false);
+    expect(
+      bootChunked({ kind: 'plsBoot', pkg: 'cSEM', options, boot: { ...boot, interval: 'bca' } }),
+    ).toBe(false);
+    expect(
+      bootChunked({ kind: 'plsBoot', pkg: 'cSEM', options: { ...options, missing: 'mi' }, boot }),
+    ).toBe(false);
     expect(await bootParallel({ kind: 'cbBoot', estimator: 'ML', missing: 'casewise', boot })).toBe(
       true,
     );
@@ -706,5 +716,40 @@ describe('helper self-update', () => {
       body: { current: '0.2.0', available: false, reason: 'this is the latest version' },
     });
     await expect(updateHelper(1000)).rejects.toThrow(/latest version/);
+  });
+});
+
+describe('cancelling a job in the helper', () => {
+  it('cancels only the calls working for that job', async () => {
+    const { helperCall } = await import('./helper');
+    const { cancelRJob, newRJob, withRJob } = await import('./jobs');
+    store.set('pls-studio.helper.token', TOKEN);
+    const ids: Record<string, string> = {};
+    const cancelled: string[] = [];
+    const answers: (() => void)[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit = {}) => {
+        const path = url.slice('http://127.0.0.1:9878'.length);
+        if (path.startsWith('/cancel/')) {
+          cancelled.push(path.slice('/cancel/'.length));
+          return new Response('{}');
+        }
+        const body = JSON.parse(String(init.body));
+        ids[body.req] = body.id;
+        // (the call answers when the test says so)
+        await new Promise<void>((r) => answers.push(r));
+        return new Response(JSON.stringify({ ok: true, result: body.req }));
+      }),
+    );
+    const a = newRJob('A');
+    const pa = withRJob(a, () => helperCall('ps_pls', 'mine', []));
+    const pb = withRJob(null, () => helperCall('ps_pls', 'other', []));
+    await new Promise((r) => setTimeout(r, 0));
+    cancelRJob(a);
+    expect(cancelled).toEqual([ids.mine]);
+    answers.forEach((r) => r());
+    expect(await pa).toBe('mine');
+    expect(await pb).toBe('other');
   });
 });

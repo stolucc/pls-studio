@@ -1,6 +1,6 @@
 export function fmt(v: number | null | undefined, d = 3): string {
   if (v === null || v === undefined || Number.isNaN(v)) return '—';
-  if (!Number.isFinite(v)) return '∞';
+  if (!Number.isFinite(v)) return v > 0 ? '∞' : '−∞';
   return v.toFixed(d);
 }
 

@@ -88,3 +88,27 @@ describe('the standard-error type of a lavaan fit', () => {
     expect(parseCbOutput(raw).seType).toBeUndefined();
   });
 });
+
+describe('one-element vectors from R (auto_unbox sends them as scalars)', () => {
+  it('a one-factor result keeps its construct names and per-construct values as arrays', () => {
+    const raw = JSON.parse(
+      readFileSync(join(__dirname, '__fixtures__', 'cbmod_lavaan_hs_ml.lavaan.json'), 'utf8'),
+    );
+    const res = parseCbOutput({
+      ...raw,
+      constructs: 'visual',
+      r2Constructs: null,
+      r2Indicators: 0.5,
+      stdLoadings: 0.7,
+      reliability: { cr: 0.6, ave: 0.4 },
+      moderations: [],
+      caseWeights: { rows: 1, weights: 2 },
+    });
+    expect(res.constructs).toEqual(['visual']);
+    expect(res.r2Constructs).toEqual([]);
+    expect(res.r2Indicators).toEqual([0.5]);
+    expect(res.stdLoadings).toEqual([0.7]);
+    expect(res.reliability).toEqual([{ cr: 0.6, ave: 0.4 }]);
+    expect(res.caseWeights).toEqual({ rows: [1], weights: [2] });
+  });
+});

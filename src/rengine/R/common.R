@@ -137,6 +137,16 @@ ps_call <- function(fn, req, export = FALSE) {
   )
 }
 
+#' A number that may be infinite where infinity means something (the open end of a one-sided interval): +-Inf as
+#' the strings "Inf" / "-Inf" (rBound in rjson.ts reads them back), since ps_json writes every non-finite number as
+#' null, like NA. Other values as they are (NA stays null).
+ps_inf <- function(x) {
+  if (!is.numeric(x) || length(x) != 1 || !is.infinite(x)) {
+    return(x)
+  }
+  if (x > 0) "Inf" else "-Inf"
+}
+
 ps_json <- function(x) {
   if (is.list(x) && !is.data.frame(x) && (length(.ps_state$warnings) || length(.ps_state$notes) || !is.null(x$warnings))) {
     x$warnings <- I(unique(c(as.character(unlist(x$warnings)), .ps_state$warnings)))
@@ -295,14 +305,40 @@ ps_label <- function(x) {
   x
 }
 
-#' Arithmetic over labels (as printed by the app's parser): letters, digits, _ . + - * / ^ ( ) and spaces,
-#' and no name or number directly followed by "(" (no function calls).
-ps_expr <- function(x) {
-  ok <- is.character(x) && length(x) == 1 && nchar(x) <= 2000 &&
-    grepl("^[A-Za-z0-9_ .+*/^()-]+$", x) && # only the allowed characters
-    !grepl("[A-Za-z0-9_.][[:space:]]*\\(", x) # no function calls
-  if (!ok) stop("Invalid expression in the request.")
+#' Arithmetic over labels (as printed by the app's parser): names, numbers, + - * / ^ and parentheses, nothing else.
+#' Checked on the parse tree, so no function can be called in any spelling ((f)(x) included). `allowed`: the names
+#' the expression may use (NULL: any label-shaped name). Returns the expression as given.
+ps_expr <- function(x, allowed = NULL) {
+  ok_text <- is.character(x) && length(x) == 1 && nchar(x) <= 2000 &&
+    grepl("^[A-Za-z0-9_ .+*/^()-]+$", x) # only the allowed characters
+  if (!ok_text) stop("Invalid expression in the request.")
+  e <- tryCatch(str2lang(x), error = function(err) stop("Invalid expression in the request."))
+  if (!ps_arith_ok(e, allowed)) stop("Invalid expression in the request.")
   x
+}
+
+#' The operators an arithmetic expression may use (ps_expr), with how many arguments each takes.
+PS_ARITH_OPS <- list("+" = 1:2, "-" = 1:2, "*" = 2L, "/" = 2L, "^" = 2L, "(" = 1L)
+
+#' Whether a parsed expression is arithmetic only: finite numbers, label-shaped names (in `allowed` when given)
+#' and the operators of PS_ARITH_OPS, called by their own name.
+ps_arith_ok <- function(e, allowed = NULL) {
+  if (is.numeric(e)) {
+    return(length(e) == 1 && is.finite(e))
+  }
+  if (is.name(e)) {
+    v <- as.character(e)
+    return(grepl("^[A-Za-z][A-Za-z0-9_]{0,30}$", v) && (is.null(allowed) || v %in% allowed))
+  }
+  if (!is.call(e) || !is.name(e[[1]])) {
+    return(FALSE)
+  }
+  arity <- PS_ARITH_OPS[[as.character(e[[1]])]]
+  args <- as.list(e)[-1]
+  if (is.null(arity) || !(length(args) %in% arity) || !is.null(names(args))) {
+    return(FALSE)
+  }
+  all(vapply(args, ps_arith_ok, TRUE, allowed = allowed))
 }
 
 #' Quote a character vector as R code (backslashes, quotes and control characters escaped).
@@ -361,7 +397,9 @@ ps_embed_frame <- function(name, df) {
   tc <- textConnection("csv", "w", local = TRUE)
   utils::write.csv(df, tc, row.names = FALSE)
   close(tc)
-  c(sprintf("%s <- read.csv(text = '", name), ps_sq(csv), "')")
+  # (names that are not syntactic, such as "Item 1", are read back as they are: read.csv would make them Item.1)
+  keep_names <- if (identical(make.names(names(df)), names(df))) "" else ", check.names = FALSE"
+  c(sprintf("%s <- read.csv(text = '", name), ps_sq(csv), sprintf("'%s)", keep_names))
 }
 ps_embed_matrix <- function(name, m) {
   tc <- textConnection("csv", "w", local = TRUE)

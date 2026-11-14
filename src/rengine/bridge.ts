@@ -68,6 +68,7 @@ import {
   probeHelper,
   useHelper,
 } from './helper';
+import { withRJob } from './jobs';
 import { reportRWarnings } from './notices';
 import { rList } from './rjson';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
@@ -448,7 +449,8 @@ export const WARM_UP_PACKAGES: readonly string[] = [
  * calculation started meanwhile waits for it (R runs one thing at a time) and then finds them loaded.
  */
 export async function warmUpRPackages(): Promise<void> {
-  await withR([...WARM_UP_PACKAGES], SOURCES, async () => undefined);
+  // (no job's: cancelling a calculation never stops the warm-up, jobs.ts)
+  await withRJob(null, () => withR([...WARM_UP_PACKAGES], SOURCES, async () => undefined));
 }
 
 /** As rCall, in R session `session` (parallel work; 0 is the main session). The helper has its own pool. */
@@ -510,8 +512,11 @@ export async function rScript(fn: string, req: unknown, pkg: RPackage): Promise<
   const h = await viaHelper(fn, req, pkg, true);
   if (h !== null) return h;
   if (DESKTOP_ONLY.has(pkg)) throw desktopOnly(pkg, helperAdvice());
-  return withR([...R_PACKAGES[pkg]], SOURCES, (webR) =>
-    callString(webR, `ps_call("${fn}", req, export = TRUE)`, req),
+  // (an exported script is no job's: cancelling a calculation never stops it, jobs.ts)
+  return withRJob(null, () =>
+    withR([...R_PACKAGES[pkg]], SOURCES, (webR) =>
+      callString(webR, `ps_call("${fn}", req, export = TRUE)`, req),
+    ),
   );
 }
 

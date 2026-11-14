@@ -83,7 +83,7 @@ ps_tost_ttest_lines <- function(type, r, bounds, conf, mu, welch) {
 
 #' One effectsize result as a row: the estimate and its interval.
 ps_es_row <- function(id, x) {
-  list(id = id, est = x[[1]][1], ciLow = x$CI_low[1], ciHigh = x$CI_high[1], ci = x$CI[1])
+  list(id = id, est = x[[1]][1], ciLow = ps_inf(x$CI_low[1]), ciHigh = ps_inf(x$CI_high[1]), ci = x$CI[1])
 }
 
 #' The rows of a named list of effectsize results.

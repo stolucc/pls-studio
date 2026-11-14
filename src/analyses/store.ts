@@ -360,7 +360,7 @@ export function cancelCard(id: string) {
   const card = useAnalyses.getState().cards.find((c) => c.id === id);
   if (!groups.get(id)?.cancel()) return;
   if (card?.kind === 'analysis') analysisType(card.type)?.cancel?.();
-  void import('../rengine/runtime').then((m) => m.interruptR());
+  // (the group's cancel has stopped the card's own R calls: rengine/jobs.ts)
   useStore.getState().toast('info', 'Calculation cancelled.');
 }
 

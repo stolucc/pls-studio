@@ -7,6 +7,7 @@
 // same as its own (bridge hash).
 
 import { create } from 'zustand';
+import { onRJobCancelled, rCallOwner, type RJob } from './jobs';
 
 const HELPER_PORT = 9878;
 
@@ -399,7 +400,8 @@ export async function helperExampleData(path: string): Promise<Uint8Array> {
   return new Uint8Array(await r.arrayBuffer());
 }
 
-const running = new Set<string>();
+// The calls running in the helper, by id: the job each works for (jobs.ts), so a job's cancel stops only its own.
+const running = new Map<string, RJob | null>();
 let seq = 0;
 const newId = () => `c${Date.now().toString(36)}-${(seq++).toString(36)}`;
 
@@ -442,7 +444,8 @@ export async function helperCall(
   const id = newId();
   if (transport)
     return resultOf(await transport.call({ id, fn, req, export: exportScript, packages }));
-  running.add(id);
+  // (an exported script is no job's: cancelling a calculation never stops it)
+  running.set(id, exportScript ? null : rCallOwner());
   let r: Response;
   try {
     r = await postRetrying(
@@ -526,7 +529,8 @@ export async function helperBatch(
 
   const out = new Array<string>(reqs.length);
   let done = 0;
-  ids.forEach((id) => running.add(id));
+  const owner = rCallOwner();
+  ids.forEach((id) => running.set(id, owner));
   try {
     for (const calls of groups) {
       const answered = await postBatch(`{"calls":[${calls.join(',')}]}`, (rep) => {
@@ -590,10 +594,13 @@ async function postBatch(body: string, take: (rep: Reply) => boolean): Promise<n
   return answered;
 }
 
-/** Stop every calculation running in the helper. */
-export function cancelHelperCalls() {
-  for (const id of running)
+/** Stop the calculations running in the helper: every one, or only those working for `job`. */
+export function cancelHelperCalls(job?: RJob) {
+  for (const [id, owner] of running) {
+    if (job && owner !== job) continue;
     void helperFetch(`/cancel/${id}`, { method: 'POST', headers: auth() }, 3000).catch(
       () => undefined,
     );
+  }
 }
+onRJobCancelled((job) => cancelHelperCalls(job));

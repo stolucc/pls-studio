@@ -11,6 +11,15 @@ export const rList = <T>(v: unknown): T[] => {
 };
 /** A finite number, or null (NA, NaN, Inf, absent). */
 export const rNum = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+/**
+ * A bound that may be infinite (the open end of a one-sided interval): a finite number, Infinity / -Infinity from
+ * R's "Inf" / "-Inf" (ps_inf in R/common.R), or null for a missing value (NA, NaN, absent).
+ */
+export const rBound = (v: unknown): number | null => {
+  if (v === 'Inf') return Infinity;
+  if (v === '-Inf') return -Infinity;
+  return rNum(v);
+};
 
 /** The data columns named in `use`, in the dataset's order, missing values as null. */
 export function rColumns(data: Dataset, use: Iterable<string>) {

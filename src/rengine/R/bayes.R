@@ -1048,7 +1048,7 @@ ps_bsem <- function(req_json, export = FALSE) {
           format(to),
           format(by)
         ),
-        sprintf("loop_at <- function(%s) with(as.data.frame(draws), %s)", lvar, lexpr),
+        ps_bsem_loop_at(lvar, lexpr),
         sprintf(
           "loop_x <- seq(%s, %s, by = %s)",
           format(from, digits = 15),
@@ -1188,6 +1188,22 @@ ps_bsem_loop_check <- function(b, at, close, lexpr, lvar) {
     stop(sprintf("The loop's expression names %s: not a label of the model or the loop variable.", paste(bad, collapse = ", ")))
   }
 }
+#' The script's loop_at(v): the loop's expression evaluated over the draws, with the loop variable at v. It sees the
+#' draws' columns, the loop variable and the arithmetic operators only (an environment whose parent is emptyenv()):
+#' a name that is not a column (a label on a fixed parameter) is an error, never a base R function.
+ps_bsem_loop_at <- function(lvar, lexpr) {
+  c(
+    "loop_ops <- list2env(mget(c(\"+\", \"-\", \"*\", \"/\", \"^\", \"(\"), envir = baseenv()), parent = emptyenv())   # arithmetic only",
+    sprintf(
+      "loop_at <- function(%s) eval(quote(%s), list2env(c(as.list(as.data.frame(draws)), list(%s = %s)), parent = loop_ops))",
+      lvar,
+      lexpr,
+      lvar,
+      lvar
+    )
+  )
+}
+
 #' The loop's grid and the summaries of the quantity at each point (the script's loop_x and loop).
 ps_bsem_loop_out <- function(env, lname, lvar, lexpr) {
   list(
@@ -1374,7 +1390,7 @@ ps_bsem_inla <- function(s, export) {
           format(loop$to),
           format(loop$by)
         ),
-        sprintf("loop_at <- function(%s) with(draws, %s)", loop$variable, loop$expr),
+        ps_bsem_loop_at(loop$variable, loop$expr),
         sprintf(
           "loop_x <- seq(%s, %s, by = %s)",
           format(loop$from, digits = 15),
