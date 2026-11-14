@@ -289,7 +289,7 @@ export function ComputeSettings() {
   const choices = workerChoices(cores);
   return (
     <>
-      <div className="field" style={{ marginTop: 10 }}>
+      <div className="field" style={{ marginTop: 10 }} data-tour="r-runs-in">
         <label id="r-backend">R runs in</label>
         <div className="segmented" role="radiogroup" aria-labelledby="r-backend">
           <button

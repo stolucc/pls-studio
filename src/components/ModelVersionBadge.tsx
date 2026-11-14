@@ -45,6 +45,7 @@ export function ModelVersionBadge() {
   return (
     <button
       className={`version-badge ${match ? 'current' : 'edited'}`}
+      data-tour="model-version"
       disabled={!base}
       onClick={go}
       title={

@@ -57,6 +57,7 @@ export function RStatusPill() {
       {shown && (
         <div
           className={`r-pill ${shown.kind}`}
+          data-tour="r-pill"
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => setOpen(false)}
         >

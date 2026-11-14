@@ -11,16 +11,8 @@ import { switchMethod } from '../methodSwitch';
 import { AccountMenu } from './cloud/AccountMenu';
 import { PresenceBar } from './cloud/Presence';
 import { ShareDialog } from './cloud/ShareDialog';
-import {
-  IconEye,
-  IconHelp,
-  IconShare,
-  IconLogo,
-  IconPlay,
-  IconRedo,
-  IconRepeat,
-  IconUndo,
-} from './icons';
+import { HelpMenu } from './tour/TourEntry';
+import { IconEye, IconShare, IconLogo, IconPlay, IconRedo, IconRepeat, IconUndo } from './icons';
 
 const mod =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
@@ -36,7 +28,12 @@ export function WorkspaceTabs() {
     ['analyses', 'Analyses'],
   ];
   return (
-    <div className="segmented workspace-tabs" role="tablist" aria-label="Workspace">
+    <div
+      className="segmented workspace-tabs"
+      role="tablist"
+      aria-label="Workspace"
+      data-tour="workspace-tabs"
+    >
       {tabs.map(([id, label]) => (
         <button
           key={id}
@@ -152,6 +149,7 @@ export function TopBar() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           aria-label="Project name"
+          data-tour="project-name"
           title={name}
           maxLength={100}
           style={{ width: `${Math.min(52, Math.max(12, name.length + 2))}ch` }}
@@ -159,6 +157,7 @@ export function TopBar() {
         {example ? (
           <button
             className="example-pill"
+            data-tour="example-pill"
             title="An example: try anything; your changes are not kept, so it opens as the original next time. Click to save it, with your changes, as your own project."
             onClick={() =>
               void confirmDialog({
@@ -183,20 +182,12 @@ export function TopBar() {
       </div>
       {/* Right: people, sharing, the method and calculation. */}
       <div className="tb-group tb-right">
-        <a
-          className="btn icon ghost"
-          href="guide.html"
-          target="_blank"
-          rel="noopener"
-          title="User guide (opens in a new tab)"
-          aria-label="User guide"
-        >
-          <IconHelp />
-        </a>
+        <HelpMenu />
         <PresenceBar />
         <button
           className="btn ghost"
           aria-label="Share"
+          data-tour="share"
           onClick={() => setShareOpen(true)}
           title="Invite people to work on this project"
         >
@@ -212,6 +203,7 @@ export function TopBar() {
               className="segmented method-switch"
               role="radiogroup"
               aria-label="Estimation method"
+              data-tour="method-switch"
             >
               <button
                 role="radio"
@@ -257,6 +249,7 @@ export function TopBar() {
         <button
           className="btn"
           aria-label="Bootstrap"
+          data-tour="bootstrap"
           onClick={() => void calculateHere('boot')}
           disabled={!!job || !hasModel || method === 'process' || cardRunning}
           title={
@@ -288,6 +281,7 @@ export function TopBar() {
         </button>
         <button
           className="btn primary"
+          data-tour="calculate"
           onClick={() => void calculateHere('estimate')}
           disabled={target.kind === 'card' ? cardRunning : !!job || !hasModel}
           title={calculateTitle}

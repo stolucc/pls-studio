@@ -213,7 +213,7 @@ export function ResultsPanel({
   }
 
   return (
-    <section className="results" style={{ height }} aria-label="Results">
+    <section className="results" style={{ height }} aria-label="Results" data-tour="results-panel">
       <div className="results-resize" onPointerDown={startResize} />
       <div className="results-head" role="tablist">
         {tabs.map((t) => (
@@ -223,6 +223,7 @@ export function ResultsPanel({
             aria-selected={!extra && active === t.id}
             className={`tab${!extra && active === t.id ? ' on' : ''}`}
             onClick={() => setTab(t.id)}
+            data-tour={`results-tab-${t.id}`}
           >
             {t.label}
           </button>
@@ -232,6 +233,7 @@ export function ResultsPanel({
           aria-selected={extra === 'script'}
           className={`tab${extra === 'script' ? ' on' : ''}`}
           onClick={() => setExtra('script')}
+          data-tour="results-tab-script"
           title="The R script that calculates this model, to read, copy or download"
         >
           R script
@@ -241,6 +243,7 @@ export function ResultsPanel({
           aria-selected={extra === 'messages'}
           className={`tab${extra === 'messages' ? ' on' : ''}`}
           onClick={() => setExtra('messages')}
+          data-tour="results-tab-messages"
         >
           Messages{messageCount > 0 ? ` (${messageCount})` : ''}
         </button>

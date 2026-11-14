@@ -124,7 +124,7 @@ export function VariablesView({
   shown: (readonly [string, number])[];
 }) {
   return (
-    <div className="data-grid-wrap">
+    <div className="data-grid-wrap" data-tour="variables-view">
       <table className="data-grid variables-grid">
         <thead>
           <tr>

@@ -56,7 +56,13 @@ export function DataWorkspace() {
     datasetLine = `${info.fileName} · ${size} · ${data?.names.length ?? 0} variables`;
   }
   return (
-    <section className="data-workspace" role="tabpanel" id="ws-data" aria-labelledby="ws-tab-data">
+    <section
+      className="data-workspace"
+      role="tabpanel"
+      id="ws-data"
+      aria-labelledby="ws-tab-data"
+      data-tour="data-workspace"
+    >
       <header className="sim-head">
         <div>
           <b>Data</b>
@@ -74,13 +80,14 @@ export function DataWorkspace() {
         <div className="data-view">
           <div className="table-tools">
             {!matrix && (
-              <div className="segmented" style={{ width: 320 }}>
+              <div className="segmented" style={{ width: 320 }} data-tour="data-view-tabs">
                 <button className={tab === 'rows' ? 'on' : ''} onClick={() => setTab('rows')}>
                   Rows
                 </button>
                 <button
                   className={tab === 'variables' ? 'on' : ''}
                   onClick={() => setTab('variables')}
+                  data-tour="data-tab-variables"
                   title="Measurement levels and value labels of the columns"
                 >
                   Variables

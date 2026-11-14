@@ -155,6 +155,7 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
         tool === 'correlate' ? ' picking' : '',
       ].join('')}
       style={{ width: bounds.w, height: bounds.h }}
+      data-tour="construct"
       onDragOver={onDragOver}
       onDragLeave={() => setDropping(false)}
       onDrop={onDrop}

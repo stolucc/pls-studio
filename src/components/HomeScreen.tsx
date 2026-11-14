@@ -27,6 +27,7 @@ import { AccountMenu } from './cloud/AccountMenu';
 import { AboutDialog } from './AboutDialog';
 import { EvidenceBadge } from './validation/EvidenceBadge';
 import { IconLogo, IconNew, IconOpen, IconTrash, IconUpload } from './icons';
+import { HomeTour, TourInvitation } from './tour/TourEntry';
 
 export const EXAMPLES = [
   {
@@ -1205,7 +1206,9 @@ export function HomeScreen() {
           </p>
         </section>
 
-        <section className="home-start">
+        <TourInvitation />
+
+        <section className="home-start" data-tour="home-start">
           <h2>Start</h2>
           <div className="start-grid">
             <button className="start-card" onClick={() => void newProject()}>
@@ -1226,7 +1229,9 @@ export function HomeScreen() {
           </div>
         </section>
 
-        <section className="home-search">
+        <HomeTour />
+
+        <section className="home-search" data-tour="home-search">
           <input
             className="input"
             type="search"
@@ -1239,7 +1244,7 @@ export function HomeScreen() {
 
         <SharedProjects query={query} />
 
-        <section className="home-recent">
+        <section className="home-recent" data-tour="home-recent">
           <h2>Recent projects</h2>
           {!persistent && (
             <div className="issue warning">
@@ -1301,7 +1306,12 @@ export function HomeScreen() {
 
         <section className="home-examples">
           <h2>Examples</h2>
-          <div className="segmented wrap topics" role="radiogroup" aria-label="Topic">
+          <div
+            className="segmented wrap topics"
+            role="radiogroup"
+            aria-label="Topic"
+            data-tour="home-topics"
+          >
             {['all', ...topics].map((t) => (
               <button
                 key={t}

@@ -147,11 +147,18 @@ export function Markers() {
   );
 }
 
-const TOOLS: { id: Tool; label: string; key: string; icon: typeof IconPointer }[] = [
-  { id: 'select', label: 'Select', key: 'V', icon: IconPointer },
-  { id: 'construct', label: 'Construct', key: 'C', icon: IconEllipse },
-  { id: 'connect', label: 'Path', key: 'P', icon: IconArrow },
-  { id: 'correlate', label: 'Correlation', key: 'R', icon: IconCorrelate },
+const TOOLS: {
+  id: Tool;
+  label: string;
+  key: string;
+  icon: typeof IconPointer;
+  /** The guided tour's handle on the button. */
+  tour: string;
+}[] = [
+  { id: 'select', label: 'Select', key: 'V', icon: IconPointer, tour: 'tool-select' },
+  { id: 'construct', label: 'Construct', key: 'C', icon: IconEllipse, tour: 'tool-construct' },
+  { id: 'connect', label: 'Path', key: 'P', icon: IconArrow, tour: 'tool-connect' },
+  { id: 'correlate', label: 'Correlation', key: 'R', icon: IconCorrelate, tour: 'tool-correlate' },
 ];
 
 /** The canvas toolbar: tools, arrange, constant, comment, figure, and the diagram's display switches. */
@@ -176,13 +183,14 @@ export function ToolDock({
   const unstd = useStore((s) => s.estimateScale) === 'unstd';
   const tools = method === 'cbsem' ? TOOLS : TOOLS.filter((t) => t.id !== 'correlate');
   return (
-    <div className="tool-dock" role="toolbar" aria-label="Canvas tools">
+    <div className="tool-dock" role="toolbar" aria-label="Canvas tools" data-tour="tool-dock">
       {tools.map((t) => (
         <button
           key={t.id}
           className={`btn ghost${tool === t.id ? ' on' : ''}`}
           onClick={() => st().setTool(t.id)}
           title={`${t.label} (${t.key})`}
+          data-tour={t.tour}
         >
           <t.icon /> {t.label} <span className="kbd">{t.key}</span>
         </button>
@@ -219,6 +227,7 @@ export function ToolDock({
         className="btn ghost"
         onClick={() => onFigure()}
         disabled={empty}
+        data-tour="tool-figure"
         title="Figure style and export (PDF, PNG, SVG)"
       >
         <IconDownload /> Figure

@@ -13,6 +13,7 @@ import { ConfirmModal, Toasts } from './components/Overlays';
 import { ResultsPanel } from './components/ResultsPanel';
 import { RStatusPill } from './components/RStatusPill';
 import { TopBar } from './components/TopBar';
+import { Tour } from './components/tour/Tour';
 import { EXAMPLES, HomeScreen } from './components/HomeScreen';
 import { ValidationPage } from './components/validation/ValidationPage';
 import { AuthDialog } from './components/cloud/AuthDialog';
@@ -165,6 +166,7 @@ export default function App() {
         <ConfirmModal />
         <Toasts />
         <RStatusPill />
+        <Tour />
       </>
     );
   }
@@ -177,6 +179,7 @@ export default function App() {
         <ConfirmModal />
         <Toasts />
         <RStatusPill />
+        <Tour />
       </>
     );
   }
@@ -211,6 +214,7 @@ export default function App() {
       <ConfirmModal />
       <Toasts />
       <RStatusPill />
+      <Tour />
     </ReactFlowProvider>
   );
 }

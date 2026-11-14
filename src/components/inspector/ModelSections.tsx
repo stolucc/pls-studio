@@ -357,7 +357,7 @@ export function EngineChoice({ where }: { where: string }) {
   const setSettings = useStore((s) => s.setSettings);
   const pls = settings.method === 'pls';
   return (
-    <div className="section">
+    <div className="section" data-tour="engine-choice">
       <div className="section-title">Calculated by</div>
       <div className="segmented" role="radiogroup" aria-label="Calculation engine">
         <button
@@ -676,7 +676,7 @@ export function PlsAlgorithm() {
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
   return (
-    <div className="section">
+    <div className="section" data-tour="pls-algorithm">
       <div className="section-title">PLS algorithm</div>
       <label className="check">
         <input
@@ -1053,7 +1053,7 @@ export function Bootstrapping() {
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
   return (
-    <div className="section">
+    <div className="section" data-tour="bootstrap-settings">
       <div className="section-title">Bootstrapping</div>
       <div className="row2">
         <NumField label="Subsamples" field="bootSamples" min={10} max={100000} step={100} />

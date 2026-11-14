@@ -516,7 +516,7 @@ function Fit({ pls, test }: { pls: PlsResult; test: FitTestResult | null }) {
   }
   return (
     <>
-      <div className="table-tools">
+      <div className="table-tools" data-tour="fit-test">
         <h3>
           Test of overall model fit
           <FitHelpTip id="plsTest" />
