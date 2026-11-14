@@ -1,5 +1,6 @@
-// Merge the validation evidence the webR tests wrote (PS_VALIDATION_DIR, one JSON file per test file;
-// src/validation/record.ts) into public/validation.json, with the R and package versions from the webR lock.
+// Merge the validation evidence the webR tests wrote (PS_VALIDATION_DIR, one JSON file per test file, named after it
+// with ".webr" kept: rengine__pls.json, rengine__pls.webr.json; src/validation/collector.ts evidenceFile) into
+// public/validation.json, with the R and package versions from the webR lock.
 //
 //   npm run validate:evidence          (the webR tests, then the plain tests recorded without R, then this)
 //   npm run validate:evidence:desktop  (the desktop-only packages' files in desktop R, then this with --desktop)

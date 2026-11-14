@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
+import { evidenceFile } from './collector';
 import { definitionHash, UNHASHED_FIELDS } from './record';
+
+describe('evidenceFile', () => {
+  it('keeps .webr, so a plain and a webR test file of the same name write different files', () => {
+    expect(evidenceFile('/repo/src/rengine/pls.test.ts')).toBe('rengine__pls.json');
+    expect(evidenceFile('/repo/src/rengine/pls.webr.test.ts')).toBe('rengine__pls.webr.json');
+    expect(evidenceFile('C:\\repo\\src\\analyses\\charts.test.tsx')).toBe('analyses__charts.json');
+    expect(evidenceFile('/repo/src/rengine/slow.slow.webr.test.ts')).toBe(
+      'rengine__slow.slow.webr.json',
+    );
+  });
+});
 
 describe('definitionHash', () => {
   const def = { id: 'x', settings: { method: 'cbsem', b: 1 }, paths: [['a', 'b']] };

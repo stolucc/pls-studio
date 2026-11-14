@@ -15,7 +15,10 @@ export function runtime(): Check['runtime'] {
 
 export const checks = new Map<string, Check>();
 
-/** The test file, relative to src/ and without the .webr.test.ts / .test.ts suffix: "rengine/esem". */
+/**
+ * The test file, relative to src/ and without the .webr.test.ts / .test.ts suffix: "rengine/esem" (the key of a
+ * validated feature, features.ts: a feature's plain and webR test files share it).
+ */
 export const fileName = () =>
   (expect.getState().testPath ?? 'unknown')
     .replace(/\\/g, '/')
@@ -23,12 +26,24 @@ export const fileName = () =>
     .replace(/\.webr\.test\.tsx?$/, '')
     .replace(/\.test\.tsx?$/, '');
 
+/**
+ * The file a test file's evidence is written to: its path under src/ with "/" as "__", keeping ".webr", so that
+ * X.test.ts and X.webr.test.ts write X.json and X.webr.json and neither overwrites the other
+ * (scripts/validation/evidence.mjs merges every file of the directory).
+ */
+export const evidenceFile = (testPath: string) =>
+  `${testPath
+    .replace(/\\/g, '/')
+    .replace(/^.*\/src\//, '')
+    .replace(/\.test\.tsx?$/, '')
+    .replace(/\//g, '__')}.json`;
+
 export function flush() {
   const dir = process.env.PS_VALIDATION_DIR;
   if (!dir || !checks.size) return;
   mkdirSync(dir, { recursive: true });
   writeFileSync(
-    join(dir, `${fileName().replace(/\//g, '__')}.json`),
+    join(dir, evidenceFile(expect.getState().testPath ?? 'unknown')),
     JSON.stringify([...checks.values()], null, 1),
   );
 }
