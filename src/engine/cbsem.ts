@@ -625,7 +625,10 @@ function startValues(cm: CbModel, S: Mat, strategy: StartStrategy = 'fabin'): nu
         return others.length ? mean(others.map((o) => S[i][o])) : S[i][i];
       };
       const ref = avgCov(mk);
-      b.forEach((i) => lambda.set(i, b.length > 1 && Math.abs(ref) > 1e-8 ? avgCov(i) / ref : 1));
+      // Tolerances here are relative to the marker's variance, so the start
+      // values do not depend on the units of the data.
+      const usable = b.length > 1 && Math.abs(ref) > 1e-8 * S[mk][mk];
+      b.forEach((i) => lambda.set(i, usable ? avgCov(i) / ref : 1));
     } else {
       lambda.set(mk, 1);
       for (const i of b.slice(1)) {
@@ -636,7 +639,7 @@ function startValues(cm: CbModel, S: Mat, strategy: StartStrategy = 'fabin'): nu
           const w = Szz.map((row) => dot(row, zMk));
           const num = Z.reduce((acc, z, a) => acc + S[i][z] * w[a], 0);
           const den = Z.reduce((acc, z, a) => acc + S[mk][z] * w[a], 0);
-          lambda.set(i, Math.abs(den) > 1e-10 ? num / den : 1);
+          lambda.set(i, Math.abs(den) > 1e-10 * S[mk][mk] ? num / den : 1);
         } catch {
           lambda.set(i, 1);
         }
@@ -651,7 +654,9 @@ function startValues(cm: CbModel, S: Mat, strategy: StartStrategy = 'fabin'): nu
     for (let a = 0; a < b.length; a++)
       for (let c = a + 1; c < b.length; c++) {
         const ll = lambda.get(b[a])! * lambda.get(b[c])!;
-        if (Math.abs(ll) > 1e-8) est.push(S[b[a]][b[c]] / ll);
+        // λ_i is in units of indicator i per unit of the marker.
+        const unit = Math.sqrt(S[b[a]][b[a]] * S[b[c]][b[c]]) / S[mk][mk];
+        if (Math.abs(ll) > 1e-8 * unit) est.push(S[b[a]][b[c]] / ll);
       }
     scale[j] = Math.max(
       0.05 * S[mk][mk],
@@ -771,7 +776,7 @@ function fitCbFrom(cm: CbModel, S: Mat, init: number[], maxIter: number): CbCore
         H[a][b] = v;
         H[b][a] = v;
       }
-    if (Math.max(...g.map(Math.abs)) < 1e-9) {
+    if (scaledGradient(g, H) < 1e-9) {
       converged = true;
       break;
     }
@@ -811,11 +816,29 @@ function fitCbFrom(cm: CbModel, S: Mat, init: number[], maxIter: number): CbCore
       }
     }
     if (!accepted || converged) {
-      converged = converged || (!accepted && Math.max(...g.map(Math.abs)) < 1e-6);
+      converged = converged || (!accepted && scaledGradient(g, H) < 1e-6);
       break;
     }
   }
   return { theta: th, X, F: cur.F, logDetSigma: cur.logDet, H, iterations: it + 1, converged };
+}
+
+/**
+ * Largest gradient component in units of its parameter's own scale,
+ * |g_a| / √H_aa. Rescaling a parameter by d (a variable's units) divides g_a by
+ * d and H_aa by d², so this measure, unlike max |g_a|, does not depend on the
+ * units the data are measured in: a variance of 4·10⁶ (SD 2000) would otherwise
+ * pass a 1e-9 gradient test long before it has converged. Components whose
+ * diagonal is not positive (a parameter the data do not reach yet) count as
+ * unscaled.
+ */
+function scaledGradient(g: number[], H: Mat): number {
+  let worst = 0;
+  for (let a = 0; a < g.length; a++) {
+    const h = H[a][a];
+    worst = Math.max(worst, Math.abs(g[a]) / (h > 0 ? Math.sqrt(h) : 1));
+  }
+  return worst;
 }
 
 /** Gradient of the ML discrepancy F at θ (for the observed information used by MLR). */
@@ -854,7 +877,7 @@ function fitLS(cm: CbModel, S: Mat, V: Mat, pairs: Pairs, init?: number[], maxIt
     const VD = mm(V, Delta);
     const E = mm(tp(Delta), VD);
     const g = tp(VD).map((row) => -2 * dot(row, cur.r));
-    if (Math.max(...g.map(Math.abs)) < 1e-10) {
+    if (scaledGradient(g, E) < 1e-10) {
       converged = true;
       break;
     }
@@ -891,7 +914,7 @@ function fitLS(cm: CbModel, S: Mat, V: Mat, pairs: Pairs, init?: number[], maxIt
       }
     }
     if (!accepted || converged) {
-      converged = converged || Math.max(...g.map(Math.abs)) < 1e-7;
+      converged = converged || scaledGradient(g, E) < 1e-7;
       break;
     }
   }
