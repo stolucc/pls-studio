@@ -70,6 +70,14 @@ describe('GET /api/health', () => {
   });
 });
 
+describe('listen address', () => {
+  it('listens on loopback by default (behind the reverse proxy), HOST to change it', () => {
+    const base = { NODE_ENV: 'test', DATABASE_URL: TEST_DB, APP_ORIGIN: ORIGIN };
+    expect(loadConfig(base).HOST).toBe('127.0.0.1');
+    expect(loadConfig({ ...base, HOST: '0.0.0.0' }).HOST).toBe('0.0.0.0');
+  });
+});
+
 describe('static client caching', () => {
   it('revalidates index.html on every load', async () => {
     for (const url of ['/', '/index.html']) {

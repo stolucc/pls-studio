@@ -30,8 +30,8 @@ const collab = attachCollab(
 deps.onMembershipChange = (projectId, userId) => {
   void collab.membershipChanged(projectId, userId);
 };
-server.listen(config.PORT, () =>
-  console.log(`PLS Studio server on :${config.PORT} (${config.NODE_ENV})`),
+server.listen(config.PORT, config.HOST, () =>
+  console.log(`PLS Studio server on ${config.HOST}:${config.PORT} (${config.NODE_ENV})`),
 );
 
 const shutdown = async () => {

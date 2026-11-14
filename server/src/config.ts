@@ -8,6 +8,9 @@ const isProd = process.env.NODE_ENV === 'production';
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(8787),
+  // The address to listen on: loopback by default, behind the reverse proxy (Caddy), so the port is
+  // not reachable directly (plain HTTP, and a forged X-Forwarded-For would defeat the rate limits).
+  HOST: z.string().min(1).default('127.0.0.1'),
   DATABASE_URL: z.string().min(1).default('postgres:///pls_studio'),
   /** Public origin of the app, e.g. https://pls.example.org (used for links, Origin checks, OAuth redirect). */
   APP_ORIGIN: z.string().url().default('http://localhost:5175'),

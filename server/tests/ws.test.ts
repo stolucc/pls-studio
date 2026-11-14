@@ -89,6 +89,13 @@ describe('collaboration socket', () => {
     expect(await handshake(owner)).toBe(101);
   });
 
+  it('refuses a malformed escape in the project id without crashing the server', async () => {
+    // (decodeURIComponent('%FF') throws: in the upgrade listener that used to end the process)
+    expect(await handshake(null, ORIGIN, '%FF')).toBe(404);
+    expect(await handshake(owner, ORIGIN, `${projectId.slice(0, -2)}%E0%A4%A`)).toBe(404);
+    expect(await handshake(owner)).toBe(101);
+  });
+
   it('syncs edits between editors and persists them', async () => {
     const a = connect(owner),
       b = connect(editor);

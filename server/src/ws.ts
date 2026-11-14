@@ -264,7 +264,9 @@ export function attachCollab(
     const m = /^\/ws\/projects\/([^/?]+)/.exec(req.url ?? '');
     if (!m) return reject(socket, 404, 'Not Found');
     if (req.headers.origin !== appOrigin) return reject(socket, 403, 'Forbidden');
-    const projectId = decodeURIComponent(m[1]);
+    // (a project id is a UUID, which needs no decoding; decodeURIComponent would throw on a
+    //  malformed escape such as %FF — in this listener that would take the whole server down)
+    const projectId = m[1];
     if (!UUID.test(projectId)) return reject(socket, 404, 'Not Found');
     sessionMw(req, {}, async () => {
       try {
