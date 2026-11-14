@@ -987,6 +987,19 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     examples: ['csem-2ndorder-repeated', 'seminr-hoc'],
     features: ['rengine/hoc::repeated indicators'],
   },
+  'model:hocCheck': {
+    title:
+      'Higher-order constructs: guided check (HOC ρC, AVE and α from the dimensions, VIFs of the dimensions)',
+    features: ['reporting/hocCheck'],
+    unit: [
+      {
+        file: 'src/reporting/hoc.test.ts',
+        reference:
+          'Type detection and the checklist for the four HOC types × three approaches (Sarstedt et al. 2019)',
+      },
+    ],
+    note: 'Against cSEM’s assess() and calculateVIFModeB() and seminr’s summary() on stage 2 of the two-stage approach; with repeated indicators against cSEM on the dimension scores and the by-hand ρC/AVE of Sarstedt et al. (2019) from the native score correlations.',
+  },
   'model:pls:ordinal': { title: 'Ordinal PLS (OrdPLS, OrdPLSc)', features: ['rengine/ordinalPls'] },
   'model:pls:categorical': {
     title: 'Categorical exogenous variables (dummy composites)',

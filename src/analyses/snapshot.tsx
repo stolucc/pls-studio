@@ -37,11 +37,11 @@ export interface SnapshotResult {
   level: number;
 }
 
-/** Tabs that compute something on demand (IPMA) are left out of a frozen snapshot. */
+/** Tabs that compute something on demand (IPMA) are left out of a frozen snapshot, and the higher-order construct check, which reads the current model. */
 // (built on first use: the result tabs and the card store import each other)
 const tabsOf = (m: SnapshotResult['method']) =>
   ({
-    pls: PLS_TABS.filter((t) => t.id !== 'ipma'),
+    pls: PLS_TABS.filter((t) => t.id !== 'ipma' && t.id !== 'hoc'),
     cbsem: CB_TABS,
     miiv: MIIV_TABS,
     process: PROCESS_TABS,

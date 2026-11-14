@@ -8,6 +8,7 @@ import { run } from '../../runner';
 import { useStore } from '../../store';
 import { IconDownload, IconRepeat } from '../icons';
 import { QuadraticCurve, SimpleSlopes } from '../SimpleSlopes';
+import { HocTab } from './HocTab';
 import { IpmaTab } from './IpmaTab';
 import { RScriptButton } from './RScriptButton';
 import { SavePlsScores } from './SaveScores';
@@ -39,6 +40,7 @@ export const PLS_TABS = [
   { id: 'outer', label: 'Loadings & weights' },
   { id: 'reliability', label: 'Reliability' },
   { id: 'discriminant', label: 'Discriminant validity' },
+  { id: 'hoc', label: 'Higher-order constructs' },
   { id: 'moderation', label: 'Moderation' },
   { id: 'ipma', label: 'IPMA' },
   { id: 'fit', label: 'Model fit' },
@@ -46,6 +48,10 @@ export const PLS_TABS = [
   { id: 'bootstrap', label: 'Bootstrapping' },
 ] as const;
 export type PlsTabId = (typeof PLS_TABS)[number]['id'];
+
+/** The tabs a PLS result shows: the higher-order construct check only when the model has some. */
+export const plsTabsFor = (pls: PlsResult | null) =>
+  pls?.higherOrder?.length ? PLS_TABS : PLS_TABS.filter((t) => t.id !== 'hoc');
 
 function useTypes() {
   const constructs = useStore((s) => s.model.constructs);
@@ -823,11 +829,14 @@ export function PlsTab({
   pls,
   boot,
   fitTest,
+  onTab,
 }: {
   tab: PlsTabId;
   pls: PlsResult;
   boot: BootstrapResult | null;
   fitTest: FitTestResult | null;
+  /** Switch to another tab (the higher-order construct check links to the tables it reads). */
+  onTab?: (tab: PlsTabId) => void;
 }) {
   switch (tab) {
     case 'overview':
@@ -848,6 +857,8 @@ export function PlsTab({
       return <Reliability pls={pls} />;
     case 'discriminant':
       return <Discriminant pls={pls} />;
+    case 'hoc':
+      return <HocTab pls={pls} boot={boot} onTab={onTab} />;
     case 'moderation':
       return <Moderation pls={pls} boot={boot} />;
     case 'ipma':

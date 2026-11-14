@@ -1035,3 +1035,15 @@ table.grid.evidence-table th:last-child, table.grid.evidence-table td.hint { tex
 .recode-preview { margin-top: 8px; }
 .split-section + .split-section { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
 .split-heading { margin: 0 0 8px; font-size: 13px; }
+
+/* Higher-order constructs: the guided check (results/HocTab.tsx) */
+.hoc-tab { display: flex; flex-direction: column; gap: 32px; }
+.hoc-section { display: flex; flex-direction: column; gap: 14px; }
+.hoc-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.hoc-head h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.hoc-type { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-strong); }
+.hoc-explain { margin: 0; font-size: 12.5px; line-height: 1.5; max-width: 760px; }
+.hoc-value { font-family: var(--mono); font-size: 12px; margin: 2px 0; overflow-wrap: anywhere; }
+.hoc-advice { display: flex; flex-direction: column; gap: 10px; max-width: 760px; }
+.hoc-advice h4 { margin: 0 0 2px; font-size: 12.5px; font-weight: 600; }
+.hoc-advice p { margin: 0; font-size: 12.5px; line-height: 1.5; }
