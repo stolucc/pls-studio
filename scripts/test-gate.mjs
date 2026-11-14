@@ -6,8 +6,9 @@
 //      and library, src/rengine/nativeR.ts), under a minute: request validation and code injection, quoting,
 //      the shared R helpers, lavaan, cSEM and seminr (reference fixtures and published results), and the core CB-SEM
 //      and PLS analyses.
-// The desktop-R step needs R and the helper's library (pls-studio-helper setup, or PS_HELPER_LIBRARY). The server
-// tests need PostgreSQL: npm run test:server.
+// The desktop-R step needs R, the helper's library (pls-studio-helper setup, or PS_HELPER_LIBRARY) and public/webr
+// (npm run webr:fetch: the test runtime starts from it even in desktop R). The server tests need PostgreSQL:
+// npm run test:server.
 //   npm run test:gate                 (all five steps)
 //   npm run test:gate -- --r-only     (step 5 alone)
 

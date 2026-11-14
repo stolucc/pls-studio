@@ -126,7 +126,8 @@ currently switched off: nothing runs unless it is run locally. `npm test` runs o
 computes. `npm run test:gate` (`scripts/test-gate.mjs`) is the local gate before a commit: type check, lint,
 formatting, the unit tests, then about twenty of the bridge's most important webR test files (request validation and
 code injection, quoting, lavaan, cSEM, seminr, the published PLS results, the core CB-SEM and PLS analyses) with R in
-desktop R (`WEBR_TESTS=1 PS_NATIVE_R=1`, the helper's library), in well under a minute of R. The full webR suites
+desktop R (`WEBR_TESTS=1 PS_NATIVE_R=1`: the helper's library, and `public/webr` from `npm run webr:fetch`), in well
+under a minute of R. The full webR suites
 (`npm run test:webr`, `test:webr:all`), the evidence run (`npm run validate:evidence`) and the server tests
 (`npm run test:server`, PostgreSQL) are run by hand. Some suites skip themselves silently when what they need is
 missing: the Bayesian desktop runs (`src/examples/mplus/bsem.native.test.ts`, `dsem.native.test.ts`: only with
