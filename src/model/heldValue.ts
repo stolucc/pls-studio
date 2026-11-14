@@ -4,6 +4,7 @@
 
 import type { Dataset, GroupValue } from '../engine/types';
 import { NAME_RE } from './expr';
+import type { ModelState } from './project';
 
 export type HeldValue = { fixed: number } | { label: string } | { byGroup: GroupValue[] } | null;
 
@@ -68,17 +69,82 @@ export function heldText(
   return p.label ?? '';
 }
 
+/** The grouping column's codes in the order they first appear in the rows (lavaan's group order); null without it. */
+function appearanceCodes(data: Dataset, column: string): number[] | null {
+  const col = data.cols[data.names.indexOf(column)];
+  if (!col) return null;
+  return [...new Set(Array.from(col).filter(Number.isFinite))];
+}
+
 /**
  * The groups in the order the values per group go to them: a stacked dataset's groups as given; otherwise the
- * grouping column's codes in ascending order, shown as their categories for a text column (lavaan's group.label,
- * R/lavaan.R ps_group_order; never the order the rows happen to be in).
+ * grouping column's codes in ascending order (R/lavaan.R lavaan_order; never the order the rows happen to be in),
+ * or, for values still in lavaan's order (`appearance`: ModelState.groupValueOrder), the order the groups first
+ * appear in the data. Shown as their categories for a text column.
  */
-export function groupOrder(data: Dataset | null | undefined, column: string): string[] {
+export function groupOrder(
+  data: Dataset | null | undefined,
+  column: string,
+  appearance = false,
+): string[] {
   if (!data) return [];
   if (data.moments?.groups?.length) return data.moments.groups.map((g) => g.label);
-  const col = data.cols[data.names.indexOf(column)];
-  if (!col) return [];
-  const codes = [...new Set(Array.from(col).filter(Number.isFinite))].sort((a, b) => a - b);
+  const seen = appearanceCodes(data, column);
+  if (!seen) return [];
+  const codes = appearance ? seen : [...seen].sort((a, b) => a - b);
   const categories = data.categories?.[column];
   return codes.map((c) => categories?.[c - 1] ?? String(c));
+}
+
+/** Whether a model has values per group (or a marker intercept per group). */
+export function hasGroupValues(m: ModelState): boolean {
+  return (
+    (m.parameters ?? []).some((t) => t.byGroup?.length) ||
+    (m.correlations ?? []).some((k) => k.byGroup?.length) ||
+    (m.means ?? []).some((t) => t.byGroup?.length || Array.isArray(t.bias))
+  );
+}
+
+/**
+ * Values per group given in lavaan's order (groupValueOrder 'appearance': lavaan syntax, projects before format 3)
+ * put in the order of the group codes, with the data they refer to; the marker is then dropped. A stacked dataset's
+ * groups have one order (as given): only the marker goes. Without the data or the grouping column (not known yet)
+ * the model stays as it is: the marker keeps the values' meaning (R reads them in lavaan's order).
+ */
+export function codeOrderValues(m: ModelState, data: Dataset | null | undefined): ModelState {
+  if (m.groupValueOrder !== 'appearance' || !m.multigroup || !data) return m;
+  const { groupValueOrder: _marker, ...rest } = m;
+  if (data.moments?.groups?.length) return rest;
+  const seen = appearanceCodes(data, m.multigroup.column);
+  if (!seen) return m;
+  const sorted = [...seen].sort((a, b) => a - b);
+  // (value k of a code-ordered list is the one lavaan's order has at the position of the k-th smallest code)
+  const at = sorted.map((c) => seen.indexOf(c));
+  const reorder = <T>(v: T[]): T[] => (v.length === at.length ? at.map((i) => v[i]) : v);
+  return {
+    ...rest,
+    ...(m.parameters
+      ? {
+          parameters: m.parameters.map((t) =>
+            t.byGroup?.length ? { ...t, byGroup: reorder(t.byGroup) } : t,
+          ),
+        }
+      : {}),
+    ...(m.correlations
+      ? {
+          correlations: m.correlations.map((k) =>
+            k.byGroup?.length ? { ...k, byGroup: reorder(k.byGroup) } : k,
+          ),
+        }
+      : {}),
+    ...(m.means
+      ? {
+          means: m.means.map((t) => ({
+            ...t,
+            ...(t.byGroup?.length ? { byGroup: reorder(t.byGroup) } : {}),
+            ...(Array.isArray(t.bias) ? { bias: reorder(t.bias) } : {}),
+          })),
+        }
+      : {}),
+  };
 }

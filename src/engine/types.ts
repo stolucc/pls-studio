@@ -183,6 +183,9 @@ export interface MultigroupSpec {
   structural?: StructuralEquality[];
   meanStructure?: false;
   ordinalScales?: 'free';
+  /** 'appearance': values per group (byGroup) are in the order the groups first appear in the data, lavaan's order
+   *  (lavaan syntax, projects saved before format 3, not yet converted); absent: in the order of the group codes. */
+  valueOrder?: 'appearance';
 }
 
 export interface ModelSpec {

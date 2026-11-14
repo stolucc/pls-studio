@@ -234,9 +234,12 @@ export function readDoc(doc: Y.Doc): {
       );
   }
   const file = {
-    // (shared projects from before format 2 are migrated once, then written back as format 2)
+    // (shared projects from before the current format are migrated once by parseProject, then written back in it;
+    //  no format in the metadata: format 1)
     format: 'pls-studio',
-    version: meta.get('format') === FORMAT_VERSION ? FORMAT_VERSION : 1,
+    version: [2, FORMAT_VERSION].includes(meta.get('format') as number)
+      ? (meta.get('format') as number)
+      : 1,
     // (a path someone else removed takes its Gaussian copula along)
     model: {
       ...extra,

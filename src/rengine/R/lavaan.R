@@ -473,8 +473,9 @@ ps_cb_build <- function(req) {
   }
   # The app gives values per group in the order of the group codes (for a text column, of its categories: heldValue.ts
   # groupOrder); lavaan numbers the groups in the order they first appear in the data. lavaan_order[k]: the app's
-  # position of lavaan's group k, so sorting the rows never changes which group gets which value.
-  lavaan_order <- if (!matrix_groups && !is.null(group_var)) {
+  # position of lavaan's group k, so sorting the rows never changes which group gets which value. Values still in
+  # lavaan's order (valueOrder "appearance": lavaan syntax, older projects, not yet converted) are written as given.
+  lavaan_order <- if (!matrix_groups && !is.null(group_var) && !identical(mg$valueOrder, "appearance")) {
     g <- inputs$data[[group_var]]
     g <- g[is.finite(g)]
     match(unique(g), sort(unique(g)))
@@ -896,7 +897,7 @@ ps_cb_build <- function(req) {
             stop("A marker intercept per group needs one value per group.")
           }
           at <- if (length(bias) > 1) {
-            sprintf("c(%s)", paste(vapply(bias, ps_num, ""), collapse = ", "))
+            sprintf("c(%s)", paste(vapply(bias[lavaan_order], ps_num, ""), collapse = ", "))
           } else {
             ps_num(bias)
           }

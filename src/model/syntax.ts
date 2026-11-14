@@ -21,6 +21,7 @@ import type {
 import { newId } from './project';
 import type { GroupValue } from '../engine/types';
 import { parseConstraint, parseInequality } from './expr';
+import { hasGroupValues } from './heldValue';
 
 export const MAX_SYNTAX = 20_000;
 
@@ -650,6 +651,9 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
       : {}),
   };
   model.constructs = autoLayout(model);
+  // lavaan's c(...) gives values per group in lavaan's group order (first appearance in the data): kept so, marked,
+  // until the data and the grouping column are known (heldValue.ts codeOrderValues; R reads them in that order).
+  if (hasGroupValues(model)) model.groupValueOrder = 'appearance';
   return { model, warnings };
 }
 

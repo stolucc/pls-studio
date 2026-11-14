@@ -87,7 +87,8 @@ const HELD_HINT =
 /** With groups: one entry per group, in the order of groupOrder (the order lavaan is told, whatever the rows' order). */
 const groupHint = () => {
   const column = st().model.multigroup?.column;
-  const order = column ? groupOrder(st().data, column) : [];
+  const appearance = st().model.groupValueOrder === 'appearance';
+  const order = column ? groupOrder(st().data, column, appearance) : [];
   const which = order.length ? `, in this order: ${order.join(', ')}` : '';
   return ` With groups, one entry per group${which}, separated by commas (a number, NA for free, or a label), e.g. 1, NA, a.`;
 };
