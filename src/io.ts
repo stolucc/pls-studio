@@ -249,6 +249,12 @@ async function importMatrix(
     );
 }
 
+/** A project file's cards; the models kept in them are migrated from the file's format with its data. */
+export function projectCards(p: ReturnType<typeof parseProject>) {
+  const origin = { version: p.version, data: p.data };
+  return withLegacySimulation(parseCards(p.analyses, origin), p.simulation);
+}
+
 export async function openProject() {
   if (!(await confirmDiscard('Opening a project'))) return;
   const f = await pickFile('.json,.plsproj,application/json');
@@ -264,7 +270,7 @@ export async function openProject() {
       name: f.name.replace(/\.(plsproj\.)?json$|\.plsproj$/i, '').slice(0, 100) || 'Untitled model',
       ...p,
     });
-    loadCards(withLegacySimulation(parseCards(p.analyses), p.simulation));
+    loadCards(projectCards(p));
     void autosave();
     s.toast('success', `Opened ${f.name}.`);
   } catch (err) {
@@ -532,7 +538,7 @@ export async function openRecent(id: string) {
   try {
     const p = parseProject(entry.text);
     s.loadProject({ name: entry.name, ...p, id: entry.id });
-    loadCards(withLegacySimulation(parseCards(p.analyses), p.simulation));
+    loadCards(projectCards(p));
   } catch (err) {
     s.toast(
       'error',

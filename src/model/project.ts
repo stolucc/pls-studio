@@ -1538,6 +1538,27 @@ export function parseMoments(raw: unknown, p: number): MomentData {
  */
 export const FORMAT_VERSION = 3;
 
+/** The first format whose values per group are in the order of the group codes (older: lavaan's order). */
+const CODE_ORDER_FORMAT = 3;
+
+/**
+ * A model stored in a container (project file, model-run card, shared document) of format
+ * `version`, with its values per group in the order of the group codes: formats before 3 stored
+ * them in lavaan's order, so such a model is marked (groupValueOrder 'appearance') and then
+ * converted with `data` (heldValue.ts codeOrderValues; no data: it stays marked, which keeps the
+ * values' meaning). Idempotent: a converted model has no marker, and a container read again is
+ * of the current format, so nothing is marked or reordered twice.
+ */
+export function migrateGroupValues(
+  model: ModelState,
+  version: number,
+  data: Dataset | null | undefined,
+): ModelState {
+  const old = version < CODE_ORDER_FORMAT && hasGroupValues(model);
+  const marked: ModelState = old ? { ...model, groupValueOrder: 'appearance' } : model;
+  return codeOrderValues(marked, data);
+}
+
 export interface ProjectFile {
   format: 'pls-studio';
   version: typeof FORMAT_VERSION;
@@ -1739,6 +1760,8 @@ export function parseProject(text: string): {
   info: DataInfo | null;
   simulation: McDesign | null;
   analyses: unknown[];
+  /** The file's format: cards are read with it (analyses/persist.ts parseCards migrates their models). */
+  version: number;
 } {
   let raw: unknown;
   try {
@@ -1757,12 +1780,7 @@ export function parseProject(text: string): {
   const { data, info } = isObj(raw.data) ? parseDataSection(raw.data) : { data: null, info: null };
   // Formats 1 and 2 stored values per group in lavaan's order (first appearance in the data): mark them so, then
   // put them in the order of the group codes with the project's own data (same results as before).
-  const model = codeOrderValues(
-    raw.version !== FORMAT_VERSION && hasGroupValues(parsed)
-      ? { ...parsed, groupValueOrder: 'appearance' }
-      : parsed,
-    data,
-  );
+  const model = migrateGroupValues(parsed, raw.version, data);
   return {
     // Format 1 estimated every undrawn exogenous pair in CB-SEM: draw those correlations (same results).
     model: raw.version === 1 ? makeCovariancesExplicit(model) : model,
@@ -1771,6 +1789,7 @@ export function parseProject(text: string): {
     info,
     simulation: raw.simulation ? parseDesign(raw.simulation) : null,
     analyses: Array.isArray(raw.analyses) ? raw.analyses.slice(0, 200) : [],
+    version: raw.version,
   };
 }
 

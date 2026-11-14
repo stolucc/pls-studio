@@ -60,6 +60,28 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
 // ---------- model ⇄ document ----------
 
+/** The shared document's format (formats 2 and 3 are written in its metadata; none: format 1). */
+function docFormat(doc: Y.Doc): number {
+  const format = doc.getMap('meta').get('format');
+  if (format === 2 || format === FORMAT_VERSION) return format;
+  return 1;
+}
+
+/**
+ * Before the document is marked as the current format: the models kept in its cards are migrated
+ * from its old format (analyses/persist.ts parseCards), so no reader takes them for the current
+ * format afterwards. Only cards that change are rewritten; cards this version cannot read stay.
+ */
+function migrateDocCards(doc: Y.Doc, from: number) {
+  const map = doc.getMap<unknown>('analyses');
+  for (const [id, raw] of map.entries()) {
+    if (id === 'order') continue;
+    const [old] = parseCards([raw]);
+    const [now] = parseCards([raw], { version: from, data: null });
+    if (old && now && !same(old, now)) map.set(id, shareableCards([now])[0]);
+  }
+}
+
 export function writeDoc(
   doc: Y.Doc,
   model: ModelState,
@@ -103,7 +125,10 @@ export function writeDoc(
     if (meta.get('name') !== name) meta.set('name', name);
     if (!same(meta.get('settings'), settings)) meta.set('settings', settings);
     if (!same(meta.get('simulation') ?? null, simulation)) meta.set('simulation', simulation);
-    if (meta.get('format') !== FORMAT_VERSION) meta.set('format', FORMAT_VERSION);
+    if (meta.get('format') !== FORMAT_VERSION) {
+      migrateDocCards(doc, docFormat(doc));
+      meta.set('format', FORMAT_VERSION);
+    }
   }, LOCAL);
 }
 
@@ -237,9 +262,7 @@ export function readDoc(doc: Y.Doc): {
     // (shared projects from before the current format are migrated once by parseProject, then written back in it;
     //  no format in the metadata: format 1)
     format: 'pls-studio',
-    version: [2, FORMAT_VERSION].includes(meta.get('format') as number)
-      ? (meta.get('format') as number)
-      : 1,
+    version: docFormat(doc),
     // (a path someone else removed takes its Gaussian copula along)
     model: {
       ...extra,
@@ -329,7 +352,11 @@ export function readCards(doc: Y.Doc): Card[] {
       ...[...map.keys()].filter((k) => k !== 'order' && !order.includes(k)),
     ]),
   ];
-  return parseCards(ids.map((id) => map.get(id)));
+  // (a document not yet written in the current format: its cards' models are migrated as they are read)
+  return parseCards(
+    ids.map((id) => map.get(id)),
+    { version: docFormat(doc), data: null },
+  );
 }
 
 // ---------- presence ----------

@@ -8,6 +8,8 @@ import {
   parseProject,
   serializeProject,
 } from '../model/project';
+import { parseCards } from '../analyses/persist';
+import type { RunOptions } from '../analyses/runHash';
 import type { Card } from '../analyses/types';
 import { LOCAL, readCards, readDoc, writeCards, writeDoc } from './collab';
 
@@ -528,5 +530,58 @@ describe('merged states that no single editor made', () => {
     writeDoc(d, model, DEFAULT_SETTINGS, 'Shared', null);
     d.getMap<Y.Map<unknown>>('constructs').get('a')!.set('indicators', 'x');
     expect(() => readDoc(d)).toThrow();
+  });
+});
+
+describe('cards of a shared document from before format 3', () => {
+  // A model-run card whose model has values per group in lavaan's order (as format 2 kept them).
+  const grouped: ModelState = {
+    ...model,
+    multigroup: { column: 'g', invariance: 'configural', free: [] },
+    parameters: [{ id: 'v', kind: 'variance', target: 'a', byGroup: [0.5, null, 2] }],
+  };
+  const run = parseCards([
+    {
+      id: 'card-run',
+      kind: 'analysis',
+      type: 'run',
+      options: {
+        label: 'Model v1',
+        version: 1,
+        hash: 'h',
+        model: grouped,
+        settings: DEFAULT_SETTINGS,
+        data: { fingerprint: 'none', name: '', rows: 0 },
+        changes: [],
+      },
+    },
+  ]);
+  const runModel = (cards: Card[]) =>
+    ((cards[0] as Extract<Card, { kind: 'analysis' }>).options as RunOptions).model;
+
+  it('are read marked (lavaan’s order), and stay marked once the document is written as format 3', () => {
+    const d = new Y.Doc();
+    writeCards(d, run);
+    d.getMap('meta').set('format', 2);
+    expect(runModel(readCards(d)).groupValueOrder).toBe('appearance');
+    expect(runModel(readCards(d)).parameters![0].byGroup).toEqual([0.5, null, 2]);
+
+    writeDoc(d, model, DEFAULT_SETTINGS, 'Shared', null);
+    expect(d.getMap('meta').get('format')).toBe(FORMAT_VERSION);
+    const stored = d.getMap('analyses').get('card-run') as { options: { model: ModelState } };
+    expect(stored.options.model.groupValueOrder).toBe('appearance');
+    const once = readCards(d);
+    expect(runModel(once).parameters![0].byGroup).toEqual([0.5, null, 2]);
+
+    // Written again: nothing changes.
+    writeDoc(d, model, DEFAULT_SETTINGS, 'Shared', null);
+    expect(readCards(d)).toEqual(once);
+  });
+
+  it('a format-3 document’s cards are read as they are', () => {
+    const d = new Y.Doc();
+    writeCards(d, run);
+    d.getMap('meta').set('format', FORMAT_VERSION);
+    expect(readCards(d)).toEqual(run);
   });
 });
