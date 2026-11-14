@@ -76,4 +76,12 @@ describe('the level an example’s comparisons give it', () => {
     near('log-likelihood', -100.5, -100.5, 1e-6);
     expect(c.level).toBe('native');
   });
+
+  it('records a bound that is Monte Carlo error as such', () => {
+    const c = start('test-monte-carlo');
+    against({ label: 'Mplus (its own imputations)', level: 'published' });
+    near('pooled estimate', 0.444, 0.34, 0.336, { monteCarlo: true });
+    near('complete data', 1, 1, 0.001);
+    expect(c.comparisons.map((x) => x.monteCarlo)).toEqual([true, undefined]);
+  });
 });

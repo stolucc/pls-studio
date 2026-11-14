@@ -152,12 +152,14 @@ export function recordComparison(
   reference: number | string,
   tolerance: number,
   passed: boolean,
+  monteCarlo = false,
 ) {
+  const flag = monteCarlo ? { monteCarlo: true as const } : {};
   const check = current.example;
   if (!check) {
     const f = featureCheck();
     if (f) {
-      f.comparisons.push({ quantity, value, reference, tolerance });
+      f.comparisons.push({ quantity, value, reference, tolerance, ...flag });
       if (!passed) f.passed = false;
     }
     return;
@@ -169,6 +171,7 @@ export function recordComparison(
     reference,
     tolerance,
     ...(label ? { source: label } : {}),
+    ...flag,
   };
   check.comparisons.push(comparison);
   if (!passed) check.passed = false;
@@ -190,9 +193,25 @@ export function recordDigest(d: Record<string, number>) {
   if (current.example) current.example.digest = d;
 }
 
-/** |got − want| ≤ tolerance, asserted and recorded. */
-export function near(quantity: string, got: number, want: number, tolerance: number) {
-  recordComparison(quantity, got, want, tolerance, Math.abs(got - want) <= tolerance);
+/**
+ * |got − want| ≤ tolerance, asserted and recorded. `monteCarlo`: the tolerance is the Monte Carlo error of random
+ * draws on both sides (Comparison.monteCarlo), shown as such.
+ */
+export function near(
+  quantity: string,
+  got: number,
+  want: number,
+  tolerance: number,
+  options: { monteCarlo?: boolean } = {},
+) {
+  recordComparison(
+    quantity,
+    got,
+    want,
+    tolerance,
+    Math.abs(got - want) <= tolerance,
+    !!options.monteCarlo,
+  );
   expect(Math.abs(got - want), `${quantity}: |${got} − ${want}|`).toBeLessThanOrEqual(tolerance);
 }
 

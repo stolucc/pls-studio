@@ -42,6 +42,12 @@ export interface Comparison {
   tolerance: number;
   /** Examples: the label of the source compared with. */
   source?: string;
+  /**
+   * The tolerance is the Monte Carlo error of random draws on both sides (imputations, MCMC), estimated by the test
+   * itself: it can be wide next to the value (near 0, wider than it). The app shows it as "within Monte Carlo
+   * error", not as a precision.
+   */
+  monteCarlo?: true;
 }
 
 /**

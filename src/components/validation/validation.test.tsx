@@ -122,6 +122,44 @@ describe('ValidationPage', () => {
     });
     expect(host.textContent).toContain('Exploratory SEM and bifactor rotations');
   });
+
+  it('counts the comparisons per source and per kind, and marks bounds that are Monte Carlo error', async () => {
+    const mc: Evidence = {
+      ...evidence,
+      checks: [
+        {
+          ...evidence.checks[0],
+          comparisons: [
+            ...evidence.checks[0].comparisons,
+            {
+              quantity: 'y4 ~~ y4 (pooled)',
+              value: 0.444,
+              reference: 0.34,
+              tolerance: 0.336,
+              source: 'Mplus User’s Guide, example 5.25',
+              monteCarlo: true,
+            },
+          ],
+        },
+      ],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, json: async () => mc })),
+    );
+    act(() => {
+      createRoot(host).render(
+        <ValidationPage onBack={() => {}} focus="mplus-ex5.25" titles={{}} />,
+      );
+    });
+    await flush();
+    const text = host.textContent!;
+    expect(text).toContain('< 0.336, within Monte Carlo error');
+    expect(text).toContain('1 of the comparisons are within Monte Carlo error');
+    expect(text).toContain('(2 compared)');
+    const chip = [...host.querySelectorAll('.evidence-head .chip.evidence.published')][0];
+    expect(chip.getAttribute('title')).toContain('2 numbers compared.');
+  });
 });
 
 describe('the Analyses tab', () => {
