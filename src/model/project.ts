@@ -31,6 +31,7 @@ import { filterError, normalizeData } from '../data/pipeline';
 import { parseVariables, type VariableInfo } from '../data/columns';
 import { parseMissingCodes, type MissingCodes } from '../data/missingCodes';
 import { MAX_CATEGORIES } from '../engine/dataset';
+import { parseMeasurement, type MeasurementLog } from '../measurement/state';
 
 /** PLS-SEM, CB-SEM, or conditional process analysis (Hayes's PROCESS models, by OLS regression). */
 export type Method = 'pls' | 'cbsem' | 'process';
@@ -391,6 +392,8 @@ export interface ModelState {
   indicatorPaths?: IndicatorPath[];
   /** CB-SEM: post hoc modifications made after seeing results (freed from the Diagnose misfit panel, non-significant paths deleted): model/posthoc.ts. */
   modifications?: PostHocModification[];
+  /** Measurement-quality helpers: pairs marked conceptually similar (HTMT 0.90) and the deleted-items log. */
+  measurement?: MeasurementLog;
 }
 
 /** An arrow from the constant: a latent mean (or an observed variable's intercept) of construct `target`. */
@@ -2084,6 +2087,7 @@ export function parseModelState(m: unknown): ModelState {
           })(),
         }
       : {}),
+    ...parseMeasurement(m.measurement, ids),
   };
 }
 

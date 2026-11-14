@@ -15,6 +15,7 @@ import type { DataInfo, ModelState, Settings } from '../model/project';
 import { processGraph } from '../process/fromModel';
 import { latexText } from '../latex';
 import { bibtex, citeText } from './citations';
+import { deletedItemsMethods } from '../measurement/report';
 
 /** Which software computed a result (the R bridge adds it; absent: the built-in engine). */
 export interface EngineTag {
@@ -374,6 +375,7 @@ function plsDraft(input: ReportInput, pls: WithEngine<PlsResult>, d: Draft) {
       formativeCriteria +
       '.',
   );
+  if (modeA.length) d.add(deletedItemsMethods(m, cite));
   if (m.paths.length) {
     const significance = input.boot
       ? ' and the significance of the path coefficients by their bootstrap confidence intervals'

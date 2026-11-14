@@ -359,6 +359,20 @@ const kitchenSink: Required<ModelState> = {
     },
     { id: 'h2', kind: 'remove', lhs: 'b', op: '~', rhs: 'a', at: 2, p: 0.4, group: 'g1' },
   ],
+  measurement: {
+    similarPairs: [['a', 'b']],
+    deletedItems: [
+      {
+        indicator: 'f4',
+        construct: 'Full',
+        loading: 0.31,
+        reason: 'Loading 0.31, below 0.40 (Hair et al. 2017, 2021).',
+        note: 'Wording overlaps f1.',
+        before: { ave: 0.45, rhoA: 0.72, rhoC: 0.69 },
+        after: { ave: 0.55, rhoA: 0.75, rhoC: 0.78 },
+      },
+    ],
+  },
 };
 
 describe('every model field survives', () => {

@@ -1015,6 +1015,16 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     examples: ['seminr-interaction-methods'],
     features: ['engine/interactionMethods'],
   },
+  'model:pls:htmtInference': {
+    title: 'HTMT inference (bootstrap upper bound) and the failed-HTMT helper',
+    features: ['measurement/htmtBootstrap'],
+    note: 'Every resample’s HTMT and the 95th percentile against cSEM (signed correlations) and seminr (absolute) on the same recorded resamples (scripts/validation/htmt_bootstrap.R).',
+  },
+  'model:pls:loadingTriage': {
+    title: 'Loading triage: reliability and AVE without an indicator',
+    features: ['measurement/loadingTriage', 'measurement/loadings::equals seminr and cSEM'],
+    note: 'Re-estimation through seminr, cSEM and the built-in engine against plain seminr and cSEM runs on the model without the indicator (scripts/validation/loading_triage.R).',
+  },
   'model:pls:fittest': {
     title: 'PLS model fit test (cSEM testOMF)',
     features: ['rengine/analyses::fit test'],

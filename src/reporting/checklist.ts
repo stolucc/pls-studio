@@ -15,6 +15,7 @@ import type { Issue } from '../model/project';
 import { hocChecklistItems, hocHtmtExclusions, type HocInput } from './hoc';
 import { mediationCheck } from './mediationCheck';
 import { ran, type ReportInput } from './methods';
+import { deletedItemsCheck, htmtCutOf } from '../measurement/report';
 
 export type CheckStatus = 'done' | 'issue' | 'na' | 'author';
 /** Where the user can address an item: a tab of the Model tab's results, or an analysis card to add. */
@@ -489,6 +490,8 @@ function htmtItem(
   htmt: (number | null)[][],
   cut: number,
   sources: string[],
+  /** A pair's own threshold (0.90 for pairs marked conceptually similar); `cut` otherwise. */
+  cutOf?: (i: number, j: number) => number,
 ): CheckItem {
   const pairs: string[] = [];
   let max = 0;
@@ -496,7 +499,7 @@ function htmtItem(
     row.forEach((v, j) => {
       if (v !== null && Number.isFinite(v) && i !== j) {
         max = Math.max(max, v);
-        if (v >= cut) pairs.push(`${names[i]}–${names[j]} (${f2(v)})`);
+        if (v >= (cutOf ? cutOf(i, j) : cut)) pairs.push(`${names[i]}–${names[j]} (${f2(v)})`);
       }
     }),
   );
@@ -507,7 +510,9 @@ function htmtItem(
     label: `Discriminant validity: HTMT below ${threshold}`,
     sources,
     status: pairs.length ? 'issue' : 'done',
-    evidence: pairs.length ? `At or above .85: ${join(pairs)}.` : `Largest HTMT ${f2(max)}.`,
+    evidence: pairs.length
+      ? `At or above ${cutOf ? 'the threshold (.90 for pairs marked similar)' : '.85'}: ${join(pairs)}.`
+      : `Largest HTMT ${f2(max)}.`,
     link: { kind: 'tab', label: 'Discriminant validity' },
   };
 }
@@ -607,7 +612,11 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
     // (a higher-order construct's HTMT with its own dimensions, or on repeated indicators, is no criterion: its own item below)
     const skip = hocHtmtExclusions(hocInput(input));
     const htmt = pls.htmt.map((row, i) => row.map((v, j) => (skip(i, j) ? null : v)));
-    out.push(htmtItem(pls.constructs, htmt, 0.85, ['henseler2015', ...H]));
+    // Pairs marked conceptually similar are held to 0.90 (Henseler et al. 2015).
+    const cutOf = m.measurement?.similarPairs?.length ? htmtCutOf(m, pls) : undefined;
+    out.push(htmtItem(pls.constructs, htmt, 0.85, ['henseler2015', ...H], cutOf));
+    const deleted = deletedItemsCheck(m);
+    if (deleted) out.push(deleted);
   }
   out.push(...hocChecklistItems(hocInput(input)));
   if (modeB.length) {

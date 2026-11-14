@@ -4,7 +4,8 @@
     "src/engine/nonlinear.test.ts", "src/engine/copula.test.ts", "src/engine/interactionMethods.test.ts", "src/engine/plscNonlinear.test.ts",
     "src/engine/wpls.test.ts", "src/engine/studentized.test.ts", "src/engine/nonnormal.test.ts", "src/engine/stats.test.ts", "src/engine/quadratic.test.ts",
     "src/engine/miivVariance.test.ts", "src/engine/fixedValues.test.ts", "src/engine/zeroCovariance.test.ts", "src/engine/fit.test.ts",
-    "src/analyses/charts.test.tsx", "src/analyses/methodCompare.test.ts", "src/examples/mplus/bsem.test.ts", "src/examples/mplus/dsem.test.ts"
+    "src/analyses/charts.test.tsx", "src/analyses/methodCompare.test.ts", "src/examples/mplus/bsem.test.ts", "src/examples/mplus/dsem.test.ts",
+    "src/measurement/htmtBootstrap.test.ts", "src/measurement/loadings.test.ts"
   ],
   "desktop": ["src/rengine/metasem.webr.test.ts", "src/rengine/semtree.webr.test.ts", "src/rengine/plssem.webr.test.ts"]
 }
