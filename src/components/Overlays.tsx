@@ -38,6 +38,8 @@ interface FormField {
   placeholder?: string;
   hint?: string;
   multiline?: boolean;
+  /** Empty text is acceptable (e.g. "leave empty to remove"); otherwise an empty field blocks confirming. */
+  allowEmpty?: boolean;
   check: (text: string, all: string[]) => string | null;
   /** When another field (`changed`) is edited: this field's new text, or undefined to keep it (e.g. the current value of what field 0 now names). */
   follow?: (all: string[], changed: number) => string | undefined;
@@ -140,9 +142,12 @@ export function ConfirmModal() {
     setValues(next);
   };
   const trimmed = vals.map((v) => v.trim());
-  const fieldErrors = fields
-    ? fields.map((f, i) => (trimmed[i] === '' ? '' : f.check(trimmed[i], trimmed)))
-    : [];
+  // null: the field is fine; '' blocks confirming without a message (an empty required field).
+  const fieldError = (f: FormField, i: number): string | null => {
+    if (trimmed[i] !== '') return f.check(trimmed[i], trimmed);
+    return f.allowEmpty ? null : '';
+  };
+  const fieldErrors = fields ? fields.map(fieldError) : [];
   // Can the dialog be confirmed: every field, the text or the number is acceptable.
   let valid: boolean;
   if (fields) valid = fieldErrors.every((e) => e === null);

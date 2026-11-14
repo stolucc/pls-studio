@@ -98,3 +98,55 @@ it('sets missing-value codes in the Variables view', async () => {
   expect(host.querySelector('.variables-grid')?.textContent).toContain('-99');
   act(() => root.unmount());
 });
+
+it('removes value labels and missing-value codes when their field is left empty', async () => {
+  useStore
+    .getState()
+    .setData(
+      { names: ['q'], cols: [Float64Array.from([1, -99, 3])] },
+      { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] },
+    );
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  act(() =>
+    root.render(
+      <>
+        <DataWorkspace />
+        <ConfirmModal />
+      </>,
+    ),
+  );
+  const save = async (
+    label: string,
+    field: HTMLInputElement | HTMLTextAreaElement,
+    text: string,
+  ) => {
+    const proto = field instanceof HTMLTextAreaElement ? HTMLTextAreaElement : HTMLInputElement;
+    Object.getOwnPropertyDescriptor(proto.prototype, 'value')!.set!.call(field, text);
+    act(() => field.dispatchEvent(new Event('input', { bubbles: true })));
+    expect(button(host, label).disabled).toBe(false);
+    await act(async () => {
+      button(host, label).click();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  };
+  act(() => button(host, 'Variables').click());
+
+  act(() => button(host, 'Edit the missing codes of q').click());
+  await save('Apply', host.querySelector('.modal input') as HTMLInputElement, '-99');
+  expect(Number.isNaN(useStore.getState().data!.cols[0][1])).toBe(true);
+  act(() => button(host, 'Edit the missing codes of q').click());
+  await save('Apply', host.querySelector('.modal input') as HTMLInputElement, '');
+  expect(useStore.getState().data!.cols[0][1]).toBe(-99);
+  expect(host.querySelector('.modal')).toBeNull();
+
+  act(() => button(host, 'Edit the value labels of q').click());
+  await save('Save labels', host.querySelector('textarea') as HTMLTextAreaElement, '1 = low');
+  expect(host.textContent).toContain('1 = low');
+  act(() => button(host, 'Edit the value labels of q').click());
+  await save('Save labels', host.querySelector('textarea') as HTMLTextAreaElement, '');
+  expect(host.textContent).not.toContain('1 = low');
+  expect(host.querySelector('.modal')).toBeNull();
+  act(() => root.unmount());
+});
