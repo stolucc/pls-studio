@@ -1,10 +1,14 @@
 import type { ScriptTarget } from '../../io';
 import { useStore } from '../../store';
+import { useFrozenResult } from './frozen';
 
 /** Download the R script for this analysis (shown when the R engine is selected). */
 export function RScriptButton({ what }: { what: ScriptTarget }) {
   const engine = useStore((s) => s.settings.engine);
   const method = useStore((s) => s.settings.method);
+  const frozen = useFrozenResult();
+  // The script is the current model's: not offered with frozen results.
+  if (frozen) return null;
   // Conditional process analysis always runs in R.
   if (engine !== 'r' && method !== 'process') return null;
   return (

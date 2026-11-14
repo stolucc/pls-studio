@@ -139,7 +139,7 @@ export const runAnalysis: AnalysisType<RunOptions, SnapshotResult> = {
           ))}
         </ul>
       )}
-      <SnapshotView r={result} />
+      <SnapshotView r={result} frozen />
     </div>
   ),
   blocked: () =>

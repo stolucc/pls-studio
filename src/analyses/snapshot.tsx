@@ -13,6 +13,7 @@ import { CB_TABS, CbTab, type CbTabId } from '../components/results/CbTabs';
 import { MIIV_TABS, MiivTab, type MiivTabId } from '../components/results/MiivTabs';
 import { PLS_TABS, PlsTab, type PlsTabId } from '../components/results/PlsTabs';
 import { PROCESS_TABS, ProcessTab, type ProcessTabId } from '../components/results/ProcessTabs';
+import { FrozenResultContext } from '../components/results/frozen';
 import { useReportMode } from '../report/context';
 import { fingerprint, toBase64 } from './codec';
 import { isObj, name } from './common';
@@ -77,8 +78,20 @@ function tabBody(r: SnapshotResult, tab: string) {
   return null;
 }
 
-/** Results of a snapshot or a model run: its diagram and its tabs (in the report, every tab). */
-export function SnapshotView({ r }: { r: SnapshotResult }) {
+/**
+ * Results of a snapshot or a model run: its diagram and its tabs (in the
+ * report, every tab). `frozen`: the results are not the current model's, so
+ * the sections that read or act on the current model and data are left out.
+ */
+export function SnapshotView({ r, frozen = false }: { r: SnapshotResult; frozen?: boolean }) {
+  return (
+    <FrozenResultContext.Provider value={frozen}>
+      <SnapshotBody r={r} />
+    </FrozenResultContext.Provider>
+  );
+}
+
+function SnapshotBody({ r }: { r: SnapshotResult }) {
   const tabs = tabsOf(r.method) as readonly { id: string; label: string }[];
   const [tab, setTab] = useState(tabs[0].id);
   const report = useReportMode();
@@ -157,7 +170,7 @@ export const snapshotAnalysis: AnalysisType<SnapshotOptions, SnapshotResult> = {
       </div>
     </fieldset>
   ),
-  View: ({ result }) => <SnapshotView r={result} />,
+  View: ({ result }) => <SnapshotView r={result} frozen />,
   blocked: () => 'A snapshot is frozen: take a new one from the Model tab (Snapshot to Analyses).',
   fingerprint: () => fingerprint(['snapshot']),
   run: async () => {
