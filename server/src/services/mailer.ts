@@ -12,16 +12,35 @@ export interface Mailer {
   configured: boolean;
 }
 
-/** SMTP when SMTP_URL is set; otherwise an in-memory outbox (development and tests). */
-export function createMailer(smtpUrl: string | undefined, from: string, log = true): Mailer {
+/**
+ * What the fallback (no SMTP_URL) does with a message:
+ * - 'full' (development): logs it whole, so the links can be opened from the console;
+ * - 'summary' (production): logs recipient and subject only. The text carries
+ *   live password-reset and verification links: in the journal anyone who can
+ *   read the logs could take over the account. Nothing is kept in memory
+ *   either (no one reads it, and it would grow without bound);
+ * - 'none' (tests): logs nothing; the test reads the outbox.
+ */
+export type MailLog = 'full' | 'summary' | 'none';
+
+/** SMTP when SMTP_URL is set; otherwise an in-memory outbox and/or the log (see MailLog). */
+export function createMailer(
+  smtpUrl: string | undefined,
+  from: string,
+  log: MailLog = 'summary',
+): Mailer {
   const outbox: Mail[] = [];
   if (!smtpUrl) {
     return {
       outbox,
       configured: false,
       async send(m) {
+        if (log === 'summary') {
+          console.log(`[mail to ${m.to}] ${m.subject}: not sent: SMTP_URL is not set`);
+          return;
+        }
         outbox.push(m);
-        if (log) console.log(`[mail to ${m.to}] ${m.subject}\n${m.text}\n`);
+        if (log === 'full') console.log(`[mail to ${m.to}] ${m.subject}\n${m.text}\n`);
       },
     };
   }

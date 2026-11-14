@@ -13,7 +13,11 @@ await migrate(db);
 const deps: AppDeps = {
   config,
   db,
-  mailer: createMailer(config.SMTP_URL, config.MAIL_FROM),
+  mailer: createMailer(
+    config.SMTP_URL,
+    config.MAIL_FROM,
+    config.NODE_ENV === 'production' ? 'summary' : 'full',
+  ),
   google:
     config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET
       ? await createGoogleClient(config.GOOGLE_CLIENT_ID, config.GOOGLE_CLIENT_SECRET)
@@ -30,6 +34,7 @@ const collab = attachCollab(
 deps.onMembershipChange = (projectId, userId) => {
   void collab.membershipChanged(projectId, userId);
 };
+deps.onSessionsEnded = (userId, opts) => collab.sessionsEnded(userId, opts);
 server.listen(config.PORT, config.HOST, () =>
   console.log(`PLS Studio server on ${config.HOST}:${config.PORT} (${config.NODE_ENV})`),
 );

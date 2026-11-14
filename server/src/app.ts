@@ -26,6 +26,8 @@ declare module 'express-session' {
     /** Google sign-in waiting for a password (link) or TOTP code. */
     pendingGoogle?: { sub: string; email: string; name: string };
     pendingTotpUser?: string;
+    /** When the Google step that set pendingTotpUser finished (ms since epoch). */
+    pendingTotpAt?: number;
     oauth?: { state: string; nonce: string; verifier: string };
   }
 }
@@ -36,6 +38,8 @@ export interface AppDeps {
   mailer: Mailer;
   /** Set by the WebSocket layer so membership changes can disconnect users. */
   onMembershipChange?: (projectId: string, userId?: string) => void;
+  /** Set by the WebSocket layer: sessions of a user ended, close their sockets (see Collab.sessionsEnded). */
+  onSessionsEnded?: (userId: string, opts?: { only?: string; keep?: string }) => void;
   google?: import('./routes/google.ts').GoogleClient;
   /** (tests) the example-data pass-through's fetch, limits and timeout */
   exampleData?: ExampleDataOptions;

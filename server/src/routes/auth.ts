@@ -10,6 +10,8 @@ import { googleRoutes } from './google.ts';
 const email = z.string().trim().toLowerCase().email().max(254);
 const password = z.string().min(1).max(256);
 const name = z.string().trim().min(1).max(80);
+/** How long the code step after Google sign-in stays open. */
+export const PENDING_TOTP_MS = 5 * 60_000;
 const code = z
   .string()
   .trim()
@@ -89,7 +91,24 @@ export function authRoutes(deps: AppDeps) {
     strict,
     h(async (req, res) => {
       const body = z.object({ email, password, name }).parse(req.body);
-      const user = await users.register(db, body.email, body.password, body.name);
+      let user: users.User;
+      try {
+        user = await users.register(db, body.email, body.password, body.name);
+      } catch (err) {
+        const held = err instanceof users.AuthError && err.code === 'exists';
+        const existing = held ? await users.findByEmail(db, body.email) : null;
+        if (!existing || existing.email_verified) throw err;
+        // Held by an account that never verified the address: maybe the person
+        // registering is its owner coming back, maybe someone squatting it.
+        // Nothing changes here; the mailbox gets a password link (at most one
+        // per quarter hour this way), which hands the account to whoever controls it.
+        if (!(await users.issuedRecently(db, existing.id, 'reset', 15))) await sendReset(existing);
+        return res.status(409).json({
+          error:
+            'An account with this email already exists but was never verified. We have emailed this address a link to set its password.',
+          code: 'exists',
+        });
+      }
       await sendVerification(user);
       await establishSession(req, res, user.id, secure);
       res.status(201).json({ user });
@@ -150,7 +169,8 @@ export function authRoutes(deps: AppDeps) {
     strict,
     h(async (req, res) => {
       const body = z.object({ token: z.string().min(1).max(200), password }).parse(req.body);
-      await users.resetPassword(db, body.token, body.password);
+      const user = await users.resetPassword(db, body.token, body.password);
+      deps.onSessionsEnded?.(user.id);
       res.json({ ok: true });
     }),
   );
@@ -162,6 +182,7 @@ export function authRoutes(deps: AppDeps) {
       const userId = requireUser(req);
       const body = z.object({ current: password, password }).parse(req.body);
       await users.changePassword(db, userId, body.current, body.password, req.sessionID);
+      deps.onSessionsEnded?.(userId, { keep: req.sessionID });
       res.json({ ok: true });
     }),
   );
@@ -180,7 +201,10 @@ export function authRoutes(deps: AppDeps) {
   r.post(
     '/logout',
     h(async (req, res) => {
+      const userId = req.session.userId;
+      const sessionId = req.sessionID;
       await new Promise<void>((resolve) => req.session.destroy(() => resolve()));
+      if (userId) deps.onSessionsEnded?.(userId, { only: sessionId });
       res.clearCookie('pls.sid');
       res.json({ ok: true });
     }),
@@ -218,9 +242,20 @@ export function authRoutes(deps: AppDeps) {
     strict,
     h(async (req, res) => {
       const userId = requireUser(req);
-      const body = z.object({ password }).parse(req.body);
-      if (!(await users.verifyPassword(db, userId, body.password)))
-        return res.status(400).json({ error: 'Incorrect password.' });
+      const body = z
+        .object({ password: password.optional(), code: code.optional() })
+        .parse(req.body);
+      const user = await users.getUser(db, userId);
+      if (!user) return res.status(401).json({ error: 'Please sign in.' });
+      if (user.has_password) {
+        if (!body.password || !(await users.verifyPassword(db, userId, body.password)))
+          return res.status(400).json({ error: 'Incorrect password.' });
+      } else {
+        // A Google-only account has no password to confirm with: a current code
+        // from the authenticator proves the same (and counts towards the lockout).
+        if (!body.code || !(await users.verifyTotpForUser(db, totpKey, userId, body.code)))
+          return res.status(400).json({ error: 'Incorrect authentication code.' });
+      }
       await users.disableTotp(db, userId);
       res.json({ ok: true });
     }),
@@ -234,6 +269,13 @@ export function authRoutes(deps: AppDeps) {
       const body = z.object({ code }).parse(req.body);
       const pending = req.session.pendingTotpUser;
       if (!pending) return res.status(400).json({ error: 'Nothing to verify.' });
+      if (Date.now() - (req.session.pendingTotpAt ?? 0) > PENDING_TOTP_MS) {
+        delete req.session.pendingTotpUser;
+        delete req.session.pendingTotpAt;
+        return res
+          .status(400)
+          .json({ error: 'This sign-in has expired. Sign in with Google again.' });
+      }
       const ok = await users.verifyTotpForUser(db, totpKey, pending, body.code);
       if (!ok) return res.status(400).json({ error: 'Incorrect authentication code.' });
       await establishSession(req, res, pending, secure);

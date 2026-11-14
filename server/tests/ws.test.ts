@@ -2,11 +2,20 @@ import * as encoding from 'lib0/encoding';
 import { WebSocket } from 'ws';
 import * as awarenessProtocol from 'y-protocols/awareness';
 import * as syncProtocol from 'y-protocols/sync';
-import { MAX_AWARENESS_BYTES, MAX_CONNS_PER_USER, MAX_DOC_BYTES } from '../src/ws.ts';
+import {
+  MAX_AWARENESS_BYTES,
+  MAX_AWARENESS_CLIENTS,
+  MAX_BUFFERED_BYTES,
+  MAX_CONNS_PER_USER,
+  MAX_DOC_BYTES,
+  STEP1_BURST,
+  sendOrDrop,
+  type SendTarget,
+} from '../src/ws.ts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WebsocketProvider } from 'y-websocket';
 import * as Y from 'yjs';
-import { ORIGIN, signedUp, startEnv, type Agent, type TestEnv } from './helpers.ts';
+import { agent, ORIGIN, signedUp, startEnv, type Agent, type TestEnv } from './helpers.ts';
 
 let env: TestEnv;
 let owner: Agent, editor: Agent, viewer: Agent, stranger: Agent;
@@ -57,6 +66,32 @@ const handshake = (a: Agent | null, origin = ORIGIN, id = projectId) =>
     ws.on('unexpected-response', (_req, res) => resolve(res.statusCode ?? 0));
     ws.on('error', () => {});
   });
+
+/** A raw socket held open: resolves with it once open, or with the refused handshake's status. */
+const openRaw = (a: Agent, id = projectId) =>
+  new Promise<{ status: number; ws: WebSocket }>((resolve) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${env.port}/ws/projects/${id}`, {
+      headers: { origin: ORIGIN, cookie: cookieOf(a) },
+    });
+    ws.on('open', () => resolve({ status: 101, ws }));
+    ws.on('unexpected-response', (_req, res) => resolve({ status: res.statusCode ?? 0, ws }));
+    ws.on('error', () => {});
+  });
+
+/** Close code and reason of a socket, once it closes. */
+const closedWith = (ws: WebSocket) =>
+  new Promise<{ code: number; reason: string }>((resolve) => {
+    if (ws.readyState === WebSocket.CLOSED) return resolve({ code: 1006, reason: '' });
+    ws.on('close', (code, reason) => resolve({ code, reason: reason.toString() }));
+  });
+
+/** A sync step 1 message ("send me everything I am missing"). */
+const step1 = () => {
+  const enc = encoding.createEncoder();
+  encoding.writeVarUint(enc, 0);
+  syncProtocol.writeSyncStep1(enc, new Y.Doc());
+  return encoding.toUint8Array(enc);
+};
 
 beforeAll(async () => {
   env = await startEnv();
@@ -217,6 +252,7 @@ describe('collaboration socket', () => {
     env.deps.onMembershipChange = (p, u) => {
       void env.collab.membershipChanged(p, u);
     };
+    env.deps.onSessionsEnded = (u, opts) => env.collab.sessionsEnded(u, opts);
     const c = connect(owner);
     await until(() => c.p.synced);
     expect(c.doc.getMap('constructs').get('c2')).toBe('Loyalty');
@@ -243,5 +279,128 @@ describe('collaboration socket', () => {
     await until(() => closedWith !== 0);
     expect(closedWith).toBe(4403);
     e.p.destroy();
+  });
+
+  it('closes a connection that keeps asking for the whole document', async () => {
+    const { ws } = await openRaw(viewer);
+    const closed = closedWith(ws);
+    for (let i = 0; i <= STEP1_BURST; i++) ws.send(step1());
+    expect(await closed).toEqual({ code: 1008, reason: 'Rate limit' });
+  });
+
+  it('answers a few sync requests on one connection', async () => {
+    const { ws } = await openRaw(viewer);
+    let replies = 0;
+    ws.on('message', () => replies++);
+    for (let i = 0; i < STEP1_BURST; i++) ws.send(step1());
+    // one reply per request (the server's own step 1 on join may come before the listener)
+    await until(() => replies >= STEP1_BURST);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(ws.readyState).toBe(WebSocket.OPEN);
+    ws.close();
+  });
+
+  it('caps the presence states one connection may speak for', async () => {
+    const { ws } = await openRaw(viewer);
+    const closed = closedWith(ws);
+    const enc = encoding.createEncoder();
+    encoding.writeVarUint(enc, 1);
+    const update = encoding.createEncoder();
+    encoding.writeVarUint(update, MAX_AWARENESS_CLIENTS + 1);
+    for (let id = 1; id <= MAX_AWARENESS_CLIENTS + 1; id++) {
+      encoding.writeVarUint(update, id);
+      encoding.writeVarUint(update, 1);
+      encoding.writeVarString(update, '{"user":{"name":"x"}}');
+    }
+    encoding.writeVarUint8Array(enc, encoding.toUint8Array(update));
+    ws.send(encoding.toUint8Array(enc));
+    expect(await closed).toEqual({ code: 1008, reason: 'Too many presence states' });
+  });
+
+  it('drops a socket whose unsent backlog passes the cap', () => {
+    const sent: Uint8Array[] = [];
+    let terminated = false;
+    const fake = (bufferedAmount: number): SendTarget => ({
+      readyState: WebSocket.OPEN,
+      bufferedAmount,
+      send: (m) => sent.push(m),
+      terminate: () => {
+        terminated = true;
+      },
+    });
+    expect(MAX_BUFFERED_BYTES).toBeGreaterThan(MAX_DOC_BYTES);
+    expect(sendOrDrop(fake(0), new Uint8Array(10))).toBe(true);
+    expect(sendOrDrop(fake(MAX_BUFFERED_BYTES - 10), new Uint8Array(10))).toBe(true);
+    expect(terminated).toBe(false);
+    expect(sendOrDrop(fake(MAX_BUFFERED_BYTES - 10), new Uint8Array(11))).toBe(false);
+    expect(terminated).toBe(true);
+    expect(sent.length).toBe(2);
+  });
+
+  it('holds the per-user cap against parallel handshakes', async () => {
+    const tries = await Promise.all(
+      Array.from({ length: MAX_CONNS_PER_USER + 5 }, () => openRaw(viewer)),
+    );
+    const opened = tries.filter((t) => t.status === 101);
+    expect(opened.length).toBe(MAX_CONNS_PER_USER);
+    expect(tries.filter((t) => t.status === 429).length).toBe(5);
+    await Promise.all(
+      opened.map((t) => {
+        const c = closedWith(t.ws);
+        t.ws.close();
+        return c;
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    expect(await handshake(viewer)).toBe(101);
+  });
+
+  it('closes the sockets of a session that signs out, not those of other sessions', async () => {
+    const other = await agent(env);
+    await other.post('/api/auth/login', {
+      email: 'o@example.org',
+      password: 'correct horse battery',
+    });
+    const mine = (await openRaw(owner)).ws;
+    const theirs = (await openRaw(other)).ws;
+    expect(mine.readyState).toBe(WebSocket.OPEN);
+    expect(theirs.readyState).toBe(WebSocket.OPEN);
+    const closed = closedWith(theirs);
+    await other.refresh();
+    expect((await other.post('/api/auth/logout')).status).toBe(200);
+    expect(await closed).toEqual({ code: 4401, reason: 'Signed out' });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mine.readyState).toBe(WebSocket.OPEN);
+    mine.close();
+  });
+
+  it('closes the other sessions’ sockets on a password change and all of them on a reset', async () => {
+    const a = await signedUp(env, 'pw@example.org');
+    const pid = (await a.post('/api/projects', { name: 'PW' })).body.id;
+    const b = await agent(env);
+    await b.post('/api/auth/login', { email: 'pw@example.org', password: 'correct horse battery' });
+    const mine = (await openRaw(a, pid)).ws;
+    const theirs = (await openRaw(b, pid)).ws;
+    const theirsClosed = closedWith(theirs);
+    const change = await a.post('/api/auth/password/change', {
+      current: 'correct horse battery',
+      password: 'another long password',
+    });
+    expect(change.status).toBe(200);
+    expect((await theirsClosed).code).toBe(4401);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mine.readyState).toBe(WebSocket.OPEN);
+
+    const mineClosed = closedWith(mine);
+    await (await agent(env)).post('/api/auth/password/forgot', { email: 'pw@example.org' });
+    const token = /reset=([^\s&]+)/.exec(env.deps.mailer.outbox.at(-1)!.text)![1];
+    const reset = await (
+      await agent(env)
+    ).post('/api/auth/password/reset', {
+      token: decodeURIComponent(token),
+      password: 'a third long password',
+    });
+    expect(reset.status).toBe(200);
+    expect((await mineClosed).code).toBe(4401);
   });
 });

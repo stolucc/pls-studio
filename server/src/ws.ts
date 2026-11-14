@@ -30,15 +30,98 @@ export const MAX_AWARENESS_BYTES = 8 * 1024;
 export const MAX_DOC_BYTES = Number(process.env.PLS_MAX_DOC_BYTES) || 16 * 1024 * 1024;
 /** Open sockets per user over all projects (a few tabs and devices; not a thousand). */
 export const MAX_CONNS_PER_USER = 10;
-export class TooBig extends Error {}
+/**
+ * Bytes a socket may have queued but not yet sent before it is dropped. The
+ * largest single message is the whole document (a sync reply: at most
+ * MAX_DOC_BYTES plus one update of at most MAX_PAYLOAD); a client that reads
+ * its socket has at most a couple of those in flight. One that stops reading
+ * (or keeps asking for the document) would otherwise make the server buffer
+ * without limit, against a process memory cap of 1 GB.
+ */
+export const MAX_BUFFERED_BYTES = 2 * MAX_DOC_BYTES + MAX_PAYLOAD;
+/**
+ * Sync step 1 ("send me what I am missing": the server answers with up to
+ * the whole document) per connection: a client sends one when it connects;
+ * a few spare, then one per STEP1_REFILL_MS.
+ */
+export const STEP1_BURST = 3;
+const STEP1_REFILL_MS = 10_000;
+/** Presence (awareness) client ids per connection: one per open document in a tab; a few spare. */
+export const MAX_AWARENESS_CLIENTS = 4;
+
+/** A message the server refuses: the connection is closed with this code and reason. */
+export class Refused extends Error {
+  readonly code: number;
+  constructor(code: number, reason: string) {
+    super(reason);
+    this.code = code;
+  }
+}
+export class TooBig extends Refused {
+  constructor(reason: string) {
+    super(1009, reason);
+  }
+}
 
 interface Conn {
   ws: WebSocket;
   userId: string;
+  /** The HTTP session the socket was opened with (closed when that session ends). */
+  sessionId: string;
   role: Role;
   clientIds: Set<number>;
   tokens: number;
   last: number;
+  step1Tokens: number;
+  step1Last: number;
+}
+
+/** Minimal view of a socket for `sendOrDrop` (a `ws` WebSocket satisfies it). */
+export interface SendTarget {
+  readonly readyState: number;
+  readonly bufferedAmount: number;
+  send(data: Uint8Array): void;
+  terminate(): void;
+}
+
+/**
+ * Send, unless the peer is not keeping up: past MAX_BUFFERED_BYTES queued the
+ * socket is terminated (not closed: a close frame would queue behind the
+ * backlog), which frees the buffer at once. Returns whether it was sent.
+ */
+export function sendOrDrop(ws: SendTarget, msg: Uint8Array): boolean {
+  if (ws.readyState !== WebSocket.OPEN) return false;
+  if (ws.bufferedAmount + msg.length > MAX_BUFFERED_BYTES) {
+    ws.terminate();
+    return false;
+  }
+  ws.send(msg);
+  return true;
+}
+
+/** Client ids an awareness update speaks for (throws on a malformed update). */
+function awarenessClientIds(update: Uint8Array): number[] {
+  const dec = decoding.createDecoder(update);
+  const n = decoding.readVarUint(dec);
+  const ids: number[] = [];
+  for (let i = 0; i < n; i++) {
+    ids.push(decoding.readVarUint(dec));
+    decoding.readVarUint(dec); // clock
+    decoding.readVarString(dec); // state (JSON)
+  }
+  return ids;
+}
+
+/** Take one sync-step-1 token (refilled over time); refuse when none is left. */
+function takeStep1Token(conn: Conn) {
+  const now = Date.now();
+  conn.step1Tokens = Math.min(
+    STEP1_BURST,
+    conn.step1Tokens + (now - conn.step1Last) / STEP1_REFILL_MS,
+  );
+  conn.step1Last = now;
+  if (conn.step1Tokens < 1) throw new Refused(1008, 'Rate limit');
+  conn.step1Tokens -= 1;
 }
 
 class Room {
@@ -49,14 +132,22 @@ class Room {
   bytes = 0;
   private pending = 0;
   private closeTimer: NodeJS.Timeout | null = null;
+  /**
+   * Set (for good) when the close timer fires: the room is being saved and
+   * destroyed, and takes no new connections (attachCollab hands a joiner a
+   * fresh room, loaded once this one's save has finished).
+   */
+  closing = false;
   private readonly projectId: string;
   private readonly db: Db;
-  private readonly onEmpty: () => void;
+  private readonly onIdle: (room: Room) => void;
+  private readonly closeAfterMs: number;
 
-  constructor(projectId: string, db: Db, onEmpty: () => void) {
+  constructor(projectId: string, db: Db, onIdle: (room: Room) => void, closeAfterMs: number) {
     this.projectId = projectId;
     this.db = db;
-    this.onEmpty = onEmpty;
+    this.onIdle = onIdle;
+    this.closeAfterMs = closeAfterMs;
     this.awareness = new awarenessProtocol.Awareness(this.doc);
     this.awareness.setLocalState(null);
     this.doc.on('update', (update: Uint8Array, origin: unknown) => {
@@ -108,8 +199,7 @@ class Room {
   }
 
   private broadcast(msg: Uint8Array, except?: Conn) {
-    for (const c of this.conns)
-      if (c !== except && c.ws.readyState === WebSocket.OPEN) c.ws.send(msg);
+    for (const c of this.conns) if (c !== except) sendOrDrop(c.ws, msg);
   }
 
   private async persist(update: Uint8Array) {
@@ -156,7 +246,9 @@ class Room {
     }
   }
 
-  add(conn: Conn) {
+  /** Join; false when the room is closing (the caller must use a fresh room). */
+  add(conn: Conn): boolean {
+    if (this.closing) return false;
     if (this.closeTimer) {
       clearTimeout(this.closeTimer);
       this.closeTimer = null;
@@ -166,7 +258,7 @@ class Room {
     const enc = encoding.createEncoder();
     encoding.writeVarUint(enc, MSG_SYNC);
     syncProtocol.writeSyncStep1(enc, this.doc);
-    conn.ws.send(encoding.toUint8Array(enc));
+    sendOrDrop(conn.ws, encoding.toUint8Array(enc));
     const states = [...this.awareness.getStates().keys()];
     if (states.length) {
       const a = encoding.createEncoder();
@@ -175,8 +267,9 @@ class Room {
         a,
         awarenessProtocol.encodeAwarenessUpdate(this.awareness, states),
       );
-      conn.ws.send(encoding.toUint8Array(a));
+      sendOrDrop(conn.ws, encoding.toUint8Array(a));
     }
+    return true;
   }
 
   message(conn: Conn, data: Uint8Array) {
@@ -185,20 +278,32 @@ class Room {
     if (type === MSG_SYNC) {
       const enc = encoding.createEncoder();
       encoding.writeVarUint(enc, MSG_SYNC);
-      if (conn.role === 'viewer') {
+      const sub = decoding.readVarUint(dec);
+      if (sub === syncProtocol.messageYjsSyncStep1) {
+        // Answered with up to the whole document: rationed per connection.
+        takeStep1Token(conn);
+        syncProtocol.readSyncStep1(dec, enc, this.doc);
+      } else if (conn.role === 'viewer') {
         // Viewers may request state but their document changes are ignored.
-        const sub = decoding.readVarUint(dec);
-        if (sub === syncProtocol.messageYjsSyncStep1)
-          syncProtocol.readSyncStep1(dec, enc, this.doc);
-      } else {
+      } else if (
+        sub === syncProtocol.messageYjsSyncStep2 ||
+        sub === syncProtocol.messageYjsUpdate
+      ) {
         // (the message is at most the update it carries plus a few bytes: an upper bound on the growth)
-        if (this.bytes + data.length > MAX_DOC_BYTES) throw new TooBig('document too big');
-        syncProtocol.readSyncMessage(dec, enc, this.doc, conn);
+        if (this.bytes + data.length > MAX_DOC_BYTES) throw new TooBig('Document too big');
+        if (sub === syncProtocol.messageYjsSyncStep2)
+          syncProtocol.readSyncStep2(dec, this.doc, conn);
+        else syncProtocol.readUpdate(dec, this.doc, conn);
+      } else {
+        throw new Error('unknown sync message');
       }
-      if (encoding.length(enc) > 1) conn.ws.send(encoding.toUint8Array(enc));
+      if (encoding.length(enc) > 1) sendOrDrop(conn.ws, encoding.toUint8Array(enc));
     } else if (type === MSG_AWARENESS) {
       const update = decoding.readVarUint8Array(dec);
-      if (update.length > MAX_AWARENESS_BYTES) throw new TooBig('presence state too big');
+      if (update.length > MAX_AWARENESS_BYTES) throw new TooBig('Presence state too big');
+      const ids = new Set(conn.clientIds);
+      for (const id of awarenessClientIds(update)) ids.add(id);
+      if (ids.size > MAX_AWARENESS_CLIENTS) throw new Refused(1008, 'Too many presence states');
       awarenessProtocol.applyAwarenessUpdate(this.awareness, update, conn);
     }
   }
@@ -206,10 +311,12 @@ class Room {
   remove(conn: Conn) {
     this.conns.delete(conn);
     awarenessProtocol.removeAwarenessStates(this.awareness, [...conn.clientIds], null);
-    if (this.conns.size === 0) {
+    if (this.conns.size === 0 && !this.closing) {
       this.closeTimer = setTimeout(() => {
-        void this.compact().finally(() => this.onEmpty());
-      }, 30_000);
+        this.closeTimer = null;
+        this.closing = true;
+        this.onIdle(this);
+      }, this.closeAfterMs);
       this.closeTimer.unref();
     }
   }
@@ -224,8 +331,19 @@ class Room {
 export interface Collab {
   /** Re-check roles after a membership change (removes or downgrades connections). */
   membershipChanged(projectId: string, userId?: string): Promise<void>;
+  /**
+   * Sessions of a user ended (logout, password reset or change, account
+   * claimed): close the sockets opened with them. `only` limits it to one
+   * session (logout); `keep` spares one (the session that changed the password).
+   */
+  sessionsEnded(userId: string, opts?: { only?: string; keep?: string }): void;
   rooms: Map<string, Promise<Room>>;
   close(): Promise<void>;
+}
+
+export interface CollabOptions {
+  /** How long an empty room stays in memory before it is saved and dropped. */
+  closeAfterMs?: number;
 }
 
 type SessionMw = (req: IncomingMessage, res: unknown, next: (err?: unknown) => void) => void;
@@ -235,29 +353,62 @@ export function attachCollab(
   db: Db,
   sessionMw: SessionMw,
   appOrigin: string,
+  options: CollabOptions = {},
 ): Collab {
+  const closeAfterMs = options.closeAfterMs ?? 30_000;
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD });
   const rooms = new Map<string, Promise<Room>>();
+  /** Rooms being saved after their last member left, by project: a new room loads only after. */
+  const closing = new Map<string, Promise<void>>();
+  const conns = new Set<Conn>();
   const perUser = new Map<string, number>();
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   const getRoom = (id: string) => {
-    let r = rooms.get(id);
-    if (!r) {
-      const room = new Room(id, db, () => {
-        rooms.delete(id);
+    const existing = rooms.get(id);
+    if (existing) return existing;
+    let entry: Promise<Room>;
+    // The close timer fired: take the room out of the map (only if it is still
+    // this room's entry), then save and destroy it. Until the save has finished,
+    // a joiner waits (below) rather than loading a half-compacted state.
+    const onIdle = (room: Room) => {
+      if (rooms.get(id) === entry) rooms.delete(id);
+      const done = room.compact().finally(() => {
         room.destroy();
+        if (closing.get(id) === done) closing.delete(id);
       });
-      r = room.load().then(() => room);
-      rooms.set(id, r);
-      r.catch(() => rooms.delete(id));
-    }
-    return r;
+      closing.set(id, done);
+    };
+    const room = new Room(id, db, onIdle, closeAfterMs);
+    const saved = closing.get(id) ?? Promise.resolve();
+    entry = saved.then(() => room.load()).then(() => room);
+    rooms.set(id, entry);
+    entry.catch(() => {
+      if (rooms.get(id) === entry) rooms.delete(id);
+    });
+    return entry;
   };
 
   const reject = (socket: Duplex, code: number, text: string) => {
     socket.write(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`);
     socket.destroy();
+  };
+
+  /**
+   * Count a socket against its user's cap from now until the raw socket closes
+   * (whether the upgrade completes, is refused or fails), so that parallel
+   * handshakes cannot all pass the check. False when the cap is reached.
+   */
+  const reserveSlot = (userId: string, socket: Duplex): boolean => {
+    const n = perUser.get(userId) ?? 0;
+    if (n >= MAX_CONNS_PER_USER) return false;
+    perUser.set(userId, n + 1);
+    socket.once('close', () => {
+      const left = (perUser.get(userId) ?? 1) - 1;
+      if (left > 0) perUser.set(userId, left);
+      else perUser.delete(userId);
+    });
+    return true;
   };
 
   const onUpgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) => {
@@ -270,49 +421,53 @@ export function attachCollab(
     if (!UUID.test(projectId)) return reject(socket, 404, 'Not Found');
     sessionMw(req, {}, async () => {
       try {
-        const userId = (req as unknown as { session?: { userId?: string } }).session?.userId;
-        if (!userId) return reject(socket, 401, 'Unauthorized');
+        const sessionReq = req as unknown as { session?: { userId?: string }; sessionID?: string };
+        const userId = sessionReq.session?.userId;
+        const sessionId = sessionReq.sessionID;
+        if (!userId || !sessionId) return reject(socket, 401, 'Unauthorized');
         const role = await roleOf(db, projectId, userId);
         if (!role) return reject(socket, 403, 'Forbidden');
-        if ((perUser.get(userId) ?? 0) >= MAX_CONNS_PER_USER)
-          return reject(socket, 429, 'Too Many Connections');
+        // (the client may have gone while we waited: its 'close' has fired, nothing to reserve)
+        if (socket.destroyed) return;
+        if (!reserveSlot(userId, socket)) return reject(socket, 429, 'Too Many Connections');
         const room = await getRoom(projectId);
+        if (socket.destroyed) return;
         wss.handleUpgrade(req, socket, head, (ws) => {
+          const now = Date.now();
           const conn: Conn = {
             ws,
             userId,
+            sessionId,
             role,
             clientIds: new Set(),
             tokens: RATE,
-            last: Date.now(),
+            last: now,
+            step1Tokens: STEP1_BURST,
+            step1Last: now,
           };
-          perUser.set(userId, (perUser.get(userId) ?? 0) + 1);
-          room.add(conn);
+          if (!room.add(conn)) {
+            // The room started closing in the meantime: the client reconnects into a fresh one.
+            ws.close(1013, 'Try again');
+            return;
+          }
+          conns.add(conn);
           ws.on('message', (data, isBinary) => {
             if (!isBinary) return;
-            const now = Date.now();
-            conn.tokens = Math.min(RATE, conn.tokens + ((now - conn.last) / 1000) * RATE);
-            conn.last = now;
+            const t = Date.now();
+            conn.tokens = Math.min(RATE, conn.tokens + ((t - conn.last) / 1000) * RATE);
+            conn.last = t;
             if (conn.tokens < 1) return ws.close(1008, 'Rate limit');
             conn.tokens -= 1;
             try {
               room.message(conn, new Uint8Array(data as Buffer));
             } catch (err) {
-              ws.close(
-                err instanceof TooBig ? 1009 : 1007,
-                err instanceof TooBig
-                  ? err.message === 'document too big'
-                    ? 'Document too big'
-                    : 'Presence state too big'
-                  : 'Malformed message',
-              );
+              if (err instanceof Refused) ws.close(err.code, err.message);
+              else ws.close(1007, 'Malformed message');
             }
           });
           ws.on('close', () => {
+            conns.delete(conn);
             room.remove(conn);
-            const n = (perUser.get(userId) ?? 1) - 1;
-            if (n > 0) perUser.set(userId, n);
-            else perUser.delete(userId);
           });
         });
       } catch (err) {
@@ -336,6 +491,14 @@ export function attachCollab(
         else c.role = role;
       }
     },
+    sessionsEnded(userId, opts = {}) {
+      for (const c of [...conns]) {
+        if (c.userId !== userId) continue;
+        if (opts.only !== undefined && c.sessionId !== opts.only) continue;
+        if (opts.keep !== undefined && c.sessionId === opts.keep) continue;
+        c.ws.close(4401, 'Signed out');
+      }
+    },
     async close() {
       server.off('upgrade', onUpgrade);
       for (const r of rooms.values()) {
@@ -345,6 +508,7 @@ export function attachCollab(
         room.destroy();
       }
       rooms.clear();
+      await Promise.all(closing.values());
       wss.close();
     },
   };

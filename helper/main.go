@@ -247,11 +247,15 @@ func runRotate(logger *log.Logger) {
 	if err != nil {
 		logger.Fatalf("load config: %v", err)
 	}
-	cfg.BearerToken = generateToken()
-	if err := saveConfig(cfg); err != nil {
+	token := generateToken()
+	err = cfg.update(func(f *configFile) {
+		f.BearerToken = token
+	})
+	if err != nil {
 		logger.Fatalf("save config: %v", err)
 	}
-	fmt.Println("bearer token rotated; previously paired browsers must pair again.")
+	// (a running helper re-reads the file before every request: config.refresh)
+	fmt.Println("bearer token rotated: a running helper refuses the old one from its next request on; previously paired browsers must pair again.")
 }
 
 // runSetup installs the R packages (command line).
@@ -299,7 +303,7 @@ if (any(nzchar(why))) { for (p in pk[nzchar(why)]) cat("Could not load ", p, ": 
 // Package names come from the embedded list and the library path is passed
 // as an argument, never pasted into R code.
 func installPackages(cfg *config, out io.Writer) error {
-	rscript, err := findRscript(cfg.Rscript)
+	rscript, err := findRscript(cfg.snapshot().Rscript)
 	if err != nil {
 		return err
 	}
@@ -316,8 +320,9 @@ func installPackages(cfg *config, out io.Writer) error {
 	if err := cmd.Run(); err != nil {
 		return err
 	}
-	cfg.RLibrary = lib
-	return saveConfig(cfg)
+	return cfg.update(func(f *configFile) {
+		f.RLibrary = lib
+	})
 }
 
 func runInfo(logger *log.Logger) {
@@ -357,14 +362,18 @@ func runAllowOrigin(logger *log.Logger, args []string) {
 	if err != nil {
 		logger.Fatalf("load config: %v", err)
 	}
-	if !addAllowedOrigin(cfg, origin) {
+	changed := false
+	err = cfg.update(func(f *configFile) {
+		changed = addAllowedOrigin(f, origin)
+	})
+	if err != nil {
+		logger.Fatalf("save config: %v", err)
+	}
+	if !changed {
 		fmt.Printf("%s is already trusted.\n", origin)
 		return
 	}
-	if err := saveConfig(cfg); err != nil {
-		logger.Fatalf("save config: %v", err)
-	}
-	fmt.Printf("Trusted: %s (restart the helper for the change to take effect)\n", origin)
+	fmt.Printf("Trusted: %s (a running helper applies this from its next request on)\n", origin)
 }
 
 func runDenyOrigin(logger *log.Logger, args []string) {
@@ -381,12 +390,16 @@ func runDenyOrigin(logger *log.Logger, args []string) {
 	if err != nil {
 		logger.Fatalf("load config: %v", err)
 	}
-	if !removeAllowedOrigin(cfg, origin) {
+	changed := false
+	err = cfg.update(func(f *configFile) {
+		changed = removeAllowedOrigin(f, origin)
+	})
+	if err != nil {
+		logger.Fatalf("save config: %v", err)
+	}
+	if !changed {
 		fmt.Printf("%s is not in the trust list.\n", origin)
 		return
 	}
-	if err := saveConfig(cfg); err != nil {
-		logger.Fatalf("save config: %v", err)
-	}
-	fmt.Printf("Removed: %s (restart the helper for the change to take effect)\n", origin)
+	fmt.Printf("Removed: %s (a running helper refuses it from its next request on)\n", origin)
 }

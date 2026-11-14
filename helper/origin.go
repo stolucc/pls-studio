@@ -64,7 +64,7 @@ func normalizeOrigin(raw string) (string, error) {
 // addAllowedOrigin appends `origin` to cfg.AllowedOrigins if it isn't
 // already there (case-sensitive match on the canonical form). Returns
 // true if a write happened.
-func addAllowedOrigin(cfg *config, origin string) bool {
+func addAllowedOrigin(cfg *configFile, origin string) bool {
 	for _, existing := range cfg.AllowedOrigins {
 		if existing == origin {
 			return false
@@ -76,8 +76,8 @@ func addAllowedOrigin(cfg *config, origin string) bool {
 
 // removeAllowedOrigin removes `origin` from cfg.AllowedOrigins if
 // present. Returns true if a write happened.
-func removeAllowedOrigin(cfg *config, origin string) bool {
-	out := cfg.AllowedOrigins[:0]
+func removeAllowedOrigin(cfg *configFile, origin string) bool {
+	var out []string
 	removed := false
 	for _, existing := range cfg.AllowedOrigins {
 		if existing == origin {

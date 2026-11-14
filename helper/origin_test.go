@@ -48,7 +48,7 @@ func TestNormalizeOrigin_Invalid(t *testing.T) {
 }
 
 func TestAddAllowedOrigin_Idempotent(t *testing.T) {
-	cfg := &config{AllowedOrigins: []string{"https://pls.example.org"}}
+	cfg := &configFile{AllowedOrigins: []string{"https://pls.example.org"}}
 	if added := addAllowedOrigin(cfg, "https://latex.example.edu"); !added {
 		t.Fatal("first add should return true")
 	}
@@ -61,7 +61,7 @@ func TestAddAllowedOrigin_Idempotent(t *testing.T) {
 }
 
 func TestRemoveAllowedOrigin(t *testing.T) {
-	cfg := &config{AllowedOrigins: []string{
+	cfg := &configFile{AllowedOrigins: []string{
 		"https://pls.example.org",
 		"https://latex.example.edu",
 		"http://localhost:3001",
@@ -80,7 +80,7 @@ func TestRemoveAllowedOrigin(t *testing.T) {
 }
 
 func TestRemoveAllowedOrigin_NotPresent_Noop(t *testing.T) {
-	cfg := &config{AllowedOrigins: []string{"https://pls.example.org"}}
+	cfg := &configFile{AllowedOrigins: []string{"https://pls.example.org"}}
 	if removed := removeAllowedOrigin(cfg, "https://nope.example.com"); removed {
 		t.Fatal("removing absent origin should return false")
 	}

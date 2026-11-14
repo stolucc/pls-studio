@@ -169,6 +169,26 @@ func TestBatch_RejectsInvalidBatches(t *testing.T) {
 	}
 }
 
+// A /batch body is read into memory: past the cap it is refused with 413.
+func TestBatch_RefusesBodiesOverTheCap(t *testing.T) {
+	if batchMaxBodyBytes > callMaxBodyBytes {
+		t.Fatalf("batch cap %d above the single-call cap %d", batchMaxBodyBytes, callMaxBodyBytes)
+	}
+	s, cfg := newTestServer(t, nil)
+	if s.batchMaxBytes != batchMaxBodyBytes {
+		t.Fatalf("server batch cap %d, want %d", s.batchMaxBytes, batchMaxBodyBytes)
+	}
+	s.batchMaxBytes = 1 << 10 // (the same code path as the real cap, without allocating 256 MiB)
+	small := `{"calls":[{"id":"a","fn":"system","req":"{}"}]}`
+	if w := do(t, s, cfg, http.MethodPost, "/batch", small); w.Code != http.StatusBadRequest {
+		t.Fatalf("small invalid batch: %d", w.Code)
+	}
+	big := `{"calls":[{"id":"a","fn":"ps_nca","req":"` + strings.Repeat(" ", 2<<10) + `"}]}`
+	if w := do(t, s, cfg, http.MethodPost, "/batch", big); w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("batch over the cap: %d %s", w.Code, w.Body.String())
+	}
+}
+
 // A batch streams one reply per call (NDJSON) and uses all workers.
 func TestBatch_StreamsRepliesFromAllWorkers(t *testing.T) {
 	pool := testPool(t, 3)

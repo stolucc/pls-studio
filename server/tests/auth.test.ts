@@ -1,5 +1,6 @@
 import * as OTPAuth from 'otpauth';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { PENDING_TOTP_MS } from '../src/routes/auth.ts';
 import type { GoogleClient, GoogleIdentity } from '../src/routes/google.ts';
 import { agent, lastToken, ORIGIN, signedUp, startEnv, type TestEnv } from './helpers.ts';
 
@@ -13,6 +14,20 @@ const fakeGoogle: GoogleClient = {
     if (!nextIdentity) throw new Error('no identity');
     return nextIdentity;
   },
+};
+
+/**
+ * A code of the time step `offset` steps from now (codes are single-use, so a
+ * test that needs several takes them from consecutive steps; the server
+ * accepts one step either side).
+ */
+const codeAt = (totp: OTPAuth.TOTP, offset: number) =>
+  totp.generate({ timestamp: Date.now() + offset * 30_000 });
+
+/** Wait if a 30 s step boundary is near, so codeAt(-1 … 1) stays valid for the test. */
+const awayFromStepEdge = async () => {
+  const left = 30_000 - (Date.now() % 30_000);
+  if (left < 3000) await new Promise((r) => setTimeout(r, left + 100));
 };
 
 let env: TestEnv;
@@ -119,10 +134,25 @@ describe('registration and login', () => {
     });
     expect(locked.status).toBe(429);
   });
+
+  it('locks the account under parallel wrong guesses too', async () => {
+    await signedUp(env, 'race@example.org');
+    const guessers = await Promise.all(Array.from({ length: 8 }, () => agent(env)));
+    await Promise.all(
+      guessers.map((g) =>
+        g.post('/api/auth/login', { email: 'race@example.org', password: 'wrong password!!' }),
+      ),
+    );
+    const r = await (
+      await agent(env)
+    ).post('/api/auth/login', { email: 'race@example.org', password: 'correct horse battery' });
+    expect(r.status).toBe(429);
+  });
 });
 
 describe('two-factor authentication', () => {
   it('enrols, requires the code at login, and stores the secret encrypted', async () => {
+    await awayFromStepEdge();
     const a = await signedUp(env, 'totp@example.org');
     const setup = await a.post('/api/auth/totp/setup');
     expect(setup.status).toBe(200);
@@ -133,7 +163,7 @@ describe('two-factor authentication', () => {
       period: 30,
     });
     expect((await a.post('/api/auth/totp/enable', { code: '000000' })).status).toBe(400);
-    expect((await a.post('/api/auth/totp/enable', { code: totp.generate() })).status).toBe(200);
+    expect((await a.post('/api/auth/totp/enable', { code: codeAt(totp, -1) })).status).toBe(200);
 
     const row = (
       await env.db.query("SELECT totp_secret FROM users WHERE email = 'totp@example.org'")
@@ -153,6 +183,16 @@ describe('two-factor authentication', () => {
       code: totp.generate(),
     });
     expect(ok.status).toBe(200);
+    // The same code does not work twice.
+    const replay = await (
+      await agent(env)
+    ).post('/api/auth/login', {
+      email: 'totp@example.org',
+      password: 'correct horse battery',
+      code: codeAt(totp, 0),
+    });
+    expect(replay.status).toBe(400);
+    expect(replay.body.code).toBe('invalid');
 
     await b.refresh();
     expect((await b.post('/api/auth/totp/disable', { password: 'nope nope nope' })).status).toBe(
@@ -233,6 +273,7 @@ describe('Google sign-in', () => {
   });
 
   it('still requires TOTP after Google sign-in', async () => {
+    await awayFromStepEdge();
     const a = await signedUp(env, 'gtotp@example.org');
     const setup = await a.post('/api/auth/totp/setup');
     const totp = new OTPAuth.TOTP({
@@ -240,7 +281,7 @@ describe('Google sign-in', () => {
       digits: 6,
       period: 30,
     });
-    await a.post('/api/auth/totp/enable', { code: totp.generate() });
+    await a.post('/api/auth/totp/enable', { code: codeAt(totp, -1) });
     await env.db.query("UPDATE users SET google_sub = 'g-5' WHERE email = 'gtotp@example.org'");
     const { a: b, location } = await googleRound({
       sub: 'g-5',
@@ -256,6 +297,82 @@ describe('Google sign-in', () => {
     await b.refresh();
     expect((await b.post('/api/auth/totp/verify', { code: '000000' })).status).toBe(400);
     expect((await b.post('/api/auth/totp/verify', { code: totp.generate() })).status).toBe(200);
+  });
+
+  it('the code step after Google sign-in: codes work once, wrong codes lock, the step expires', async () => {
+    await awayFromStepEdge();
+    const a = await signedUp(env, 'gstep@example.org');
+    const setup = await a.post('/api/auth/totp/setup');
+    const totp = new OTPAuth.TOTP({
+      secret: OTPAuth.Secret.fromBase32(setup.body.secret),
+      digits: 6,
+      period: 30,
+    });
+    await a.post('/api/auth/totp/enable', { code: codeAt(totp, -1) });
+    await env.db.query("UPDATE users SET google_sub = 'g-6' WHERE email = 'gstep@example.org'");
+    const id = { sub: 'g-6', email: 'gstep@example.org', emailVerified: true, name: 'G' };
+    const round = async () => {
+      const { a: b } = await googleRound(id);
+      await b.refresh();
+      return b;
+    };
+
+    const first = await round();
+    expect((await first.post('/api/auth/totp/verify', { code: codeAt(totp, 0) })).status).toBe(200);
+    const second = await round();
+    expect((await second.post('/api/auth/totp/verify', { code: codeAt(totp, 0) })).status).toBe(
+      400,
+    );
+    expect((await second.post('/api/auth/totp/verify', { code: codeAt(totp, 1) })).status).toBe(
+      200,
+    );
+
+    // Wrong codes count like wrong passwords: the fifth locks the account.
+    const guesser = await round();
+    for (let i = 0; i < 5; i++)
+      expect((await guesser.post('/api/auth/totp/verify', { code: '000000' })).status).toBe(400);
+    expect((await guesser.post('/api/auth/totp/verify', { code: '123456' })).status).toBe(429);
+
+    // The pending step expires.
+    await env.db.query(
+      "UPDATE users SET locked_until = NULL, failed_logins = 0 WHERE email = 'gstep@example.org'",
+    );
+    const late = await round();
+    const realNow = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(realNow + PENDING_TOTP_MS + 1000);
+    try {
+      const r = await late.post('/api/auth/totp/verify', { code: codeAt(totp, 0) });
+      expect(r.status).toBe(400);
+      expect(r.body.error).toMatch(/expired/);
+    } finally {
+      clock.mockRestore();
+    }
+    expect((await late.get('/api/auth/session')).body.pendingTotp).toBe(false);
+  });
+
+  it('a Google-only account turns TOTP off with a current code instead of a password', async () => {
+    await awayFromStepEdge();
+    const { a } = await googleRound({
+      sub: 'g-7',
+      email: 'gnopw@example.org',
+      emailVerified: true,
+      name: 'No Password',
+    });
+    await a.refresh();
+    const setup = await a.post('/api/auth/totp/setup');
+    const totp = new OTPAuth.TOTP({
+      secret: OTPAuth.Secret.fromBase32(setup.body.secret),
+      digits: 6,
+      period: 30,
+    });
+    expect((await a.post('/api/auth/totp/enable', { code: codeAt(totp, -1) })).status).toBe(200);
+    expect((await a.post('/api/auth/totp/disable', { password: 'any password' })).status).toBe(400);
+    expect((await a.post('/api/auth/totp/disable', { code: '000000' })).status).toBe(400);
+    expect((await a.post('/api/auth/totp/disable', { code: codeAt(totp, 0) })).status).toBe(200);
+    expect((await a.get('/api/auth/session')).body.user).toMatchObject({
+      has_password: false,
+      totp_enabled: false,
+    });
   });
 });
 
@@ -293,28 +410,64 @@ describe('email verification', () => {
     expect((await a.post('/api/auth/verify-email', { token: second })).status).toBe(200);
   });
 
-  it('an unverified account does not reserve the address: the next registration replaces it', async () => {
+  it('registering an address an unverified account holds changes nothing but mails the address a password link', async () => {
     const squatter = await signedUp(env, 'victim@example.org', 'Squatter', false);
+    // The squatter even turns on a second factor.
+    const setup = await squatter.post('/api/auth/totp/setup');
+    const totp = new OTPAuth.TOTP({
+      secret: OTPAuth.Secret.fromBase32(setup.body.secret),
+      digits: 6,
+      period: 30,
+    });
+    expect((await squatter.post('/api/auth/totp/enable', { code: totp.generate() })).status).toBe(
+      200,
+    );
+    const before = env.deps.mailer.outbox.length;
     const owner = await agent(env);
     const r = await owner.post('/api/auth/register', {
       email: 'victim@example.org',
       password: 'the real owners pw',
       name: 'Owner',
     });
-    expect(r.status).toBe(201);
-    expect(r.body.user.display_name).toBe('Owner');
-    expect((await squatter.get('/api/auth/session')).body.user).toBeNull(); // its session ended
-    const login = await (
-      await agent(env)
-    ).post('/api/auth/login', { email: 'victim@example.org', password: 'correct horse battery' });
-    expect(login.status).toBe(400); // the squatter's password is gone
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('exists');
+    expect((await owner.get('/api/auth/session')).body.user).toBeNull();
+    // Nothing changed: the squatter is still signed in, the newcomer's password does not work.
+    expect((await squatter.get('/api/auth/session')).body.user.display_name).toBe('Squatter');
     expect(
       (
         await (
           await agent(env)
         ).post('/api/auth/login', { email: 'victim@example.org', password: 'the real owners pw' })
       ).status,
+    ).toBe(400);
+    // The mailbox got a password link (one, however often someone tries).
+    expect(env.deps.mailer.outbox.length).toBe(before + 1);
+    expect(env.deps.mailer.outbox.at(-1)!.to).toBe('victim@example.org');
+    const token = lastToken(env, 'reset');
+    await (
+      await agent(env)
+    ).post('/api/auth/register', {
+      email: 'victim@example.org',
+      password: 'the real owners pw',
+      name: 'Owner',
+    });
+    expect(env.deps.mailer.outbox.length).toBe(before + 1);
+    // Whoever controls the mailbox takes the account: verified, the squatter's
+    // sessions and second factor gone.
+    expect(
+      (
+        await (
+          await agent(env)
+        ).post('/api/auth/password/reset', { token, password: 'the real owners pw' })
+      ).status,
     ).toBe(200);
+    expect((await squatter.get('/api/auth/session')).body.user).toBeNull();
+    const login = await (
+      await agent(env)
+    ).post('/api/auth/login', { email: 'victim@example.org', password: 'the real owners pw' });
+    expect(login.status).toBe(200);
+    expect(login.body.user).toMatchObject({ email_verified: true, totp_enabled: false });
   });
 
   it('a verified account keeps its address', async () => {
