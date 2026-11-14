@@ -192,4 +192,13 @@ describe('weighted PLS (WPLS)', () => {
       estimatePls(weighted, model({ weights: 'sw', copulas: [{ from: 'Image', to: 'Loyalty' }] })),
     ).toThrow(/copula/);
   });
+
+  it('refuses a missing weight with mean replacement and with casewise deletion alike', () => {
+    const gap = Float64Array.from(wInt, (v, r) => (r === 3 ? NaN : v + 1));
+    const missingWeight: Dataset = { names: [...data.names, 'sw'], cols: [...data.cols, gap] };
+    for (const missing of ['mean', 'casewise'] as const)
+      expect(() => estimatePls(missingWeight, model({ weights: 'sw' }), { missing })).toThrow(
+        'Sampling weights must be non-negative numbers without missing values.',
+      );
+  });
 });

@@ -43,7 +43,7 @@ export function ipma(
   options: Partial<PlsOptions>,
   io: IpmaOptions,
 ): IpmaResult {
-  if (spec.moderations?.length || spec.copulas?.length)
+  if (spec.moderations?.length || spec.threeWay?.length || spec.copulas?.length)
     throw new Error('IPMA is not defined for models with interaction or copula terms.');
   if (spec.weights)
     throw new Error(

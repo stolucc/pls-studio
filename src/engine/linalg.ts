@@ -29,10 +29,56 @@ export function matMul(a: Mat, b: Mat): Mat {
   return out;
 }
 
-/** Inverse via Gauss-Jordan elimination with partial pivoting. Throws on singular input. */
+/**
+ * Power of two nearest √x: scaling by powers of two is exact in floating
+ * point, so equilibrating a matrix with them adds no rounding of its own.
+ */
+function sqrtScale(x: number): number {
+  return 2 ** Math.round(Math.log2(x) / 2);
+}
+
+/**
+ * Inverse via Gauss-Jordan elimination with partial pivoting. Throws on singular input.
+ *
+ * The matrix is first equilibrated (Ruiz 2001): rows and columns are divided
+ * repeatedly by the square roots of their largest entries, rounded to powers
+ * of two, until every row and column has its largest entry near 1. The
+ * singularity test |pivot| < 1e-12 is then relative to the matrix's own scale
+ * rather than absolute. That matters for matrices whose entries carry units,
+ * such as the CB-SEM information matrix, whose entries scale as 1/variance²:
+ * an income variable with SD 2000 would otherwise make a perfectly regular
+ * matrix look singular. For a matrix D·A·D with D diagonal the scaling absorbs
+ * D, so the test does not depend on the units. Since
+ * inv(Dr·A·Dc) = Dc⁻¹·inv(A)·Dr⁻¹, the inverse is recovered by scaling back
+ * with the same factors.
+ */
 export function invert(m: Mat): Mat {
   const n = m.length;
   const a = m.map((row) => row.slice());
+  const rowScale = new Array<number>(n).fill(1);
+  const colScale = new Array<number>(n).fill(1);
+  for (let pass = 0; pass < 64; pass++) {
+    let changed = false;
+    for (let i = 0; i < n; i++) {
+      const big = Math.max(...a[i].map(Math.abs));
+      if (!(big > 0) || !Number.isFinite(big)) throw new SingularMatrixError();
+      const f = sqrtScale(big);
+      if (f === 1) continue;
+      changed = true;
+      rowScale[i] *= f;
+      for (let j = 0; j < n; j++) a[i][j] /= f;
+    }
+    for (let j = 0; j < n; j++) {
+      const big = Math.max(...a.map((row) => Math.abs(row[j])));
+      if (!(big > 0)) throw new SingularMatrixError();
+      const f = sqrtScale(big);
+      if (f === 1) continue;
+      changed = true;
+      colScale[j] *= f;
+      for (let i = 0; i < n; i++) a[i][j] /= f;
+    }
+    if (!changed) break;
+  }
   const inv = identity(n);
   for (let col = 0; col < n; col++) {
     let piv = col;
@@ -55,7 +101,8 @@ export function invert(m: Mat): Mat {
       }
     }
   }
-  return inv;
+  // inv now holds inv(Dr·A·Dc); undo the scaling.
+  return inv.map((row, i) => row.map((v, j) => v / colScale[i] / rowScale[j]));
 }
 
 /** Solve A x = b for symmetric/general square A. */

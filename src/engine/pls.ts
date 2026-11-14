@@ -303,6 +303,38 @@ const isCommonFactor = (m: CompiledModel, j: number) =>
   m.types[j] === 'factor' && m.modes[j] === 'A' && m.blocks[j].length > 1 && !m.predefined[j];
 
 /**
+ * Why a PLSc solution is not admissible (cSEM's verify(): a construct
+ * reliability outside (0, 1], a construct correlation beyond ±1), as readable
+ * problems. `undefined`: some ρA is not positive, so the disattenuated
+ * correlations, paths and R² do not exist (they come out NaN).
+ */
+export function plscProblems(
+  m: CompiledModel,
+  st: { rhoA: number[]; C: Mat },
+): { problems: string[]; undefined: boolean } {
+  const problems: string[] = [];
+  let undefinedRho = false;
+  m.constructs.forEach((name, j) => {
+    if (!isCommonFactor(m, j)) return;
+    const r = st.rhoA[j];
+    if (!(r > 0)) {
+      undefinedRho = true;
+      problems.push(
+        `ρA of ${name} is ${Number.isFinite(r) ? r.toFixed(3) : 'not defined'}, not positive: its items do not measure one common factor (check for reverse-coded items).`,
+      );
+    } else if (r > 1 + 1e-10) problems.push(`ρA of ${name} is ${r.toFixed(3)}, above 1.`);
+  });
+  if (!undefinedRho)
+    for (let i = 0; i < m.constructs.length; i++)
+      for (let j = i + 1; j < m.constructs.length; j++)
+        if (Math.abs(st.C[i][j]) > 1 + 1e-10)
+          problems.push(
+            `The disattenuated correlation of ${m.constructs[i]} and ${m.constructs[j]} is ${st.C[i][j].toFixed(3)}, beyond ±1.`,
+          );
+  return { problems, undefined: undefinedRho };
+}
+
+/**
  * Structural results that bootstrapping also needs. With `consistent`, common
  * factors are corrected for attenuation (PLSc, Dijkstra & Henseler 2015):
  * loadings λ = ĉŵ and construct correlations r / √(ρA_i ρA_j).
@@ -484,6 +516,18 @@ export function discrepancies(S: Mat, Sig: Mat): { srmr: number; dULS: number; d
     dG = 0.5 * symEigen(M).values.reduce((s, v) => s + Math.log(v) ** 2, 0);
   }
   return { srmr: Math.sqrt(ss / ((p * (p + 1)) / 2)), dULS: 0.5 * uls, dG };
+}
+
+/** Discrepancies of a model whose fit is not defined. */
+const NO_DISCREPANCIES = { srmr: NaN, dULS: NaN, dG: NaN };
+
+/**
+ * Overall fit is not defined for a model with interaction or copula terms:
+ * the model-implied correlations of a nonlinear model do not exist (the
+ * results show why), so the built-in engine reports none, as for the R engine.
+ */
+export function hasNonlinearTerms(spec: ModelSpec): boolean {
+  return !!(spec.moderations?.length || spec.threeWay?.length || spec.copulas?.length);
 }
 
 export function modelFit(m: CompiledModel, R: Mat, st: ReturnType<typeof structural>): ModelFit {
@@ -704,6 +748,10 @@ export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
       );
     if (m1.indicatorNames.includes(wname))
       throw new Error(`“${wname}” cannot be both the sampling weights and an indicator.`);
+    // The weights are checked on the raw column: mean replacement must not fill in a missing
+    // weight, nor casewise deletion drop its row silently (lavaan stops here too).
+    const wcol = data.cols[data.names.indexOf(wname)];
+    if (wcol) normaliseWeights(wcol);
   }
   const { cols, dropped } = extractColumns(
     data,
@@ -1032,6 +1080,9 @@ export function estimatePls(
   if (n < 3) throw new Error('Not enough complete observations to estimate the model.');
   const { m, X, core, st, scores: shown } = prep.estimate(prep.cols);
   const scores = shown ?? core.scores;
+  const plsc = opts.consistent ? plscProblems(m, st) : { problems: [], undefined: false };
+  if (plsc.undefined)
+    throw new Error(`Consistent PLS cannot correct this model: ${plsc.problems.join(' ')}`);
   const { C, pathCoef, rSquared, loadings, totalEffects } = st;
   const J = m.constructs.length;
 
@@ -1079,7 +1130,9 @@ export function estimatePls(
     quality: quality(m, R, st.rhoA, loadings),
     htmt: htmtOf(m, R),
     htmt2: htmt2Of(m, R),
-    fit: modelFit(m, R, st),
+    fit: hasNonlinearTerms(spec)
+      ? { saturated: NO_DISCREPANCIES, estimated: NO_DISCREPANCIES }
+      : modelFit(m, R, st),
     consistent: opts.consistent,
     types: m.types,
     moderations: prep.moderations,
@@ -1094,5 +1147,12 @@ export function estimatePls(
     scores,
     droppedRows: dropped,
     ...(spec.weights ? { samplingWeights: spec.weights } : {}),
+    ...(plsc.problems.length
+      ? {
+          warnings: [
+            `The PLSc solution is not admissible: ${plsc.problems.join(' ')} cSEM drops such solutions from its bootstrap.`,
+          ],
+        }
+      : {}),
   };
 }

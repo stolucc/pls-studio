@@ -134,6 +134,8 @@ export function IpmaTab({ pls }: { pls: PlsResult }) {
   const [bounds, setBounds] = useState<{ min: string; max: string }>({ min: '', max: '' });
 
   const useR = settings.engine === 'r';
+  // Interaction terms (two- or three-way) or copulas: IPMA is not defined.
+  const withTerms = !!(pls.moderations.length || pls.threeWay?.length || pls.copulas?.length);
   const num = (v: string) =>
     v.trim() === '' || !Number.isFinite(Number(v)) ? undefined : Number(v);
   const plsOptions = {
@@ -162,7 +164,7 @@ export function IpmaTab({ pls }: { pls: PlsResult }) {
   // R engine: cSEM's doIPMA, recomputed shortly after the inputs settle.
   const [fromR, setFromR] = useState<IpmaResult | string | null>(null);
   useEffect(() => {
-    if (!useR || !data || !target || pls.moderations.length || pls.copulas?.length) return;
+    if (!useR || !data || !target || withTerms) return;
     let live = true;
     setFromR(null);
     const t = setTimeout(() => {
@@ -189,10 +191,10 @@ export function IpmaTab({ pls }: { pls: PlsResult }) {
       clearTimeout(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useR, data, model, settings, target, rescale, bounds, pls.moderations.length]);
+  }, [useR, data, model, settings, target, rescale, bounds, withTerms]);
   const result = useR ? fromR : builtin;
 
-  if (pls.moderations.length || pls.copulas?.length)
+  if (withTerms)
     return (
       <div className="empty-results">
         IPMA is not defined for models with interaction or copula terms.

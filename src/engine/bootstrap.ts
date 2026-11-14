@@ -10,12 +10,12 @@
 import { fitEstimator, prepareCb, sampleCov, standardized, type CbEstimator } from './cbsem';
 import { matMul, symEigen, symMatFn } from './linalg';
 import {
-  compileModel,
-  extractColumns,
+  hasNonlinearTerms,
   impliedConstructCor,
   impliedIndicatorCor,
   modelFit,
   plsCore,
+  plscProblems,
   preparePls,
   standardizeColumns,
   structural,
@@ -220,6 +220,9 @@ function plsJob(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>): J
       // Both stages are re-run per sample when the model has moderators.
       const eb = prep.estimate(resample(prep.cols, idx), { w1: first.w1, w2: first.core.w });
       if (!eb.core.converged) throw new Error('not converged');
+      // An inadmissible PLSc draw is dropped, as cSEM does by default; it counts as failed.
+      if (opts.consistent && plscProblems(eb.m, eb.st).problems.length)
+        throw new Error('inadmissible');
       return params.map((p) => p.get(eb.st, eb.core.w));
     },
   };
@@ -361,11 +364,15 @@ function fitTestJob(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>
     throw new Error(
       'The test of exact fit is not available with sampling weights (its bootstrap is unweighted).',
     );
-  const m = compileModel(spec);
-  const { cols } = extractColumns(data, m, opts.missing);
-  const Z = standardizeColumns(cols, m.indicatorNames);
-  const core = plsCore(Z, m, opts);
-  const st = structural(m, Z, core, opts.consistent);
+  if (hasNonlinearTerms(spec))
+    throw new Error(
+      'The test of exact fit is not available for models with interaction or copula terms: their model-implied correlations are not defined.',
+    );
+  // The same preparation as estimatePls (categorical constructs expanded,
+  // missing values treated alike), so the test refers to the fit shown.
+  const prep = preparePls(data, spec, opts);
+  const { cols } = prep;
+  const { m, X: Z, core, st } = prep.estimate(cols);
   const R = Z.map((a) => Z.map((b) => corStd(a, b)));
   const observed = modelFit(m, R, st);
   const implied = {
@@ -491,7 +498,10 @@ export function summarise(
   const n = v.length;
   const mean = v.reduce((s, x) => s + x, 0) / n;
   const sd = Math.sqrt(v.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1));
-  const t = sd > 0 ? Math.abs(original / sd) : Infinity;
+  // A parameter that does not vary across the draws (fixed, or a single item's loading and
+  // weight of 1) has no test: t and p are not defined (shown as —), rather than t = ∞, p = 0.
+  const varies = sd > 1e-12 * Math.max(1, Math.abs(mean));
+  const t = varies ? Math.abs(original / sd) : NaN;
   const sorted = Float64Array.from(v).sort();
   const alpha = tails === 1 ? 1 - confidence : (1 - confidence) / 2;
   let lo = alpha,
@@ -509,7 +519,7 @@ export function summarise(
     lo = adj(qnorm(alpha));
     hi = adj(qnorm(1 - alpha));
   }
-  const p2 = tTestP(t, n - 1);
+  const p2 = varies ? tTestP(t, n - 1) : NaN;
   return {
     mean,
     sd,
