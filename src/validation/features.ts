@@ -767,6 +767,29 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'examples/mplus/bsem': 'examples',
   'examples/mplus/dsem': 'examples',
 
+  // Measurement-quality helpers (PLS-SEM results): the HTMT bootstrap and the loading triage.
+  'measurement/htmtBootstrap': native(
+    'HTMT bootstrap (upper bound of the one-sided 95% interval)',
+    'PLS-SEM',
+    [],
+    script(
+      'htmt_bootstrap.R',
+      'cSEM::calculateHTMT and seminr’s HTMT on the same recorded resamples; the 95th percentile (type 7)',
+    ),
+  ),
+  'measurement/loadings': native(
+    'Loading triage: the built-in engine without each indicator',
+    'PLS-SEM',
+    [],
+    script('loading_triage.R', 'plain seminr and cSEM calls on the model without the indicator'),
+  ),
+  'measurement/loadingTriage': native(
+    'Loading triage: the R packages without each indicator',
+    'PLS-SEM',
+    ['seminr', 'cSEM'],
+    script('loading_triage.R', 'plain seminr and cSEM calls on the model without the indicator'),
+  ),
+
   // Plumbing: syntax, security, messages, chunking.
   'rengine/common': 'none',
   'rengine/htmt2': 'none',

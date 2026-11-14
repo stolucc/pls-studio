@@ -105,6 +105,54 @@ const WORKS: Record<string, { cite: string; entry: (version?: string) => Entry }
         doi: '10.1007/s11747-014-0403-8',
       }),
   },
+  franke2019: {
+    cite: 'Franke & Sarstedt, 2019',
+    entry: () =>
+      art({
+        author: 'Franke, George and Sarstedt, Marko',
+        title:
+          'Heuristics versus statistics in discriminant validity testing: A comparison of four procedures',
+        journal: 'Internet Research',
+        year: '2019',
+        volume: '29',
+        number: '3',
+        pages: '430--447',
+        doi: '10.1108/IntR-12-2017-0515',
+      }),
+  },
+  hair2017: {
+    cite: 'Hair et al., 2017',
+    entry: () =>
+      art(
+        {
+          author:
+            'Hair, Joseph F. and Hult, G. Tomas M. and Ringle, Christian M. and Sarstedt, Marko',
+          title: 'A Primer on Partial Least Squares Structural Equation Modeling ({PLS-SEM})',
+          edition: '2',
+          publisher: 'Sage',
+          address: 'Thousand Oaks, CA',
+          year: '2017',
+        },
+        'book',
+      ),
+  },
+  hair2021: {
+    cite: 'Hair et al., 2021',
+    entry: () =>
+      art(
+        {
+          author:
+            'Hair, Joseph F. and Hult, G. Tomas M. and Ringle, Christian M. and Sarstedt, Marko and Danks, Nicholas P. and Ray, Soumya',
+          title:
+            'Partial Least Squares Structural Equation Modeling ({PLS-SEM}) Using {R}: A Workbook',
+          publisher: 'Springer',
+          address: 'Cham',
+          year: '2021',
+          doi: '10.1007/978-3-030-80519-7',
+        },
+        'book',
+      ),
+  },
   henseler2014: {
     cite: 'Henseler et al., 2014',
     entry: () =>

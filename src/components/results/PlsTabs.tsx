@@ -8,7 +8,9 @@ import { run } from '../../runner';
 import { useStore } from '../../store';
 import { IconDownload, IconRepeat } from '../icons';
 import { QuadraticCurve, SimpleSlopes } from '../SimpleSlopes';
+import { HtmtHelper } from './HtmtHelper';
 import { IpmaTab } from './IpmaTab';
+import { LoadingTriage } from './LoadingTriage';
 import { RScriptButton } from './RScriptButton';
 import { SavePlsScores } from './SaveScores';
 import {
@@ -843,11 +845,21 @@ export function PlsTab({
     case 'effects':
       return <Effects pls={pls} boot={boot} />;
     case 'outer':
-      return <Outer pls={pls} boot={boot} />;
+      return (
+        <>
+          <Outer pls={pls} boot={boot} />
+          <LoadingTriage pls={pls} />
+        </>
+      );
     case 'reliability':
       return <Reliability pls={pls} />;
     case 'discriminant':
-      return <Discriminant pls={pls} />;
+      return (
+        <>
+          <Discriminant pls={pls} />
+          <HtmtHelper pls={pls} />
+        </>
+      );
     case 'moderation':
       return <Moderation pls={pls} boot={boot} />;
     case 'ipma':

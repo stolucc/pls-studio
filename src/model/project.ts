@@ -30,6 +30,7 @@ import { filterError, normalizeData } from '../data/pipeline';
 import { parseVariables, type VariableInfo } from '../data/columns';
 import { parseMissingCodes, type MissingCodes } from '../data/missingCodes';
 import { MAX_CATEGORIES } from '../engine/dataset';
+import { parseMeasurement, type MeasurementLog } from '../measurement/state';
 
 /** PLS-SEM, CB-SEM, or conditional process analysis (Hayes's PROCESS models, by OLS regression). */
 export type Method = 'pls' | 'cbsem' | 'process';
@@ -388,6 +389,8 @@ export interface ModelState {
   parameterization?: 'theta';
   /** CB-SEM: direct effects of constructs or covariates on indicators. */
   indicatorPaths?: IndicatorPath[];
+  /** Measurement-quality helpers: pairs marked conceptually similar (HTMT 0.90) and the deleted-items log. */
+  measurement?: MeasurementLog;
 }
 
 /** An arrow from the constant: a latent mean (or an observed variable's intercept) of construct `target`. */
@@ -2080,6 +2083,7 @@ export function parseModelState(m: unknown): ModelState {
           })(),
         }
       : {}),
+    ...parseMeasurement(m.measurement, ids),
   };
 }
 
