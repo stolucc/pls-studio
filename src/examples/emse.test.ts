@@ -45,9 +45,9 @@ describe('Stol et al. (2022) example', () => {
     expect(cb.fit.rmseaRobust!).toBeCloseTo(ref.fit['rmsea.robust'], 5);
     const r2 = (name: string) => cb.r2Constructs[cb.constructs.indexOf(name)];
     expect(r2('Job satisfaction')).toBeCloseTo(ref.r2.js, 5);
-    expect(r2('Engagement')).toBeCloseTo(ref.r2.engag, 5);
+    expect(r2('Developer engagement')).toBeCloseTo(ref.r2.engag, 5);
     const ind = mcIndirect(cb, 1000, 1).find(
-      (x) => x.from === 'Participation' && x.to === 'Job satisfaction',
+      (x) => x.from === 'Gamification participation' && x.to === 'Job satisfaction',
     )!;
     expect(ind.est).toBeCloseTo(ref.indirectUnstd[0].est, 6);
   });
@@ -57,7 +57,9 @@ describe('Stol et al. (2022) example', () => {
     expect(p.data!.moments!.n).toBe(155);
     expect(p.data!.moments!.nacov!.length).toBe(136);
     expect(p.info!.kind).toBe('matrix');
-    expect(p.model.constructs.find((c) => c.name === 'Engagement')!.components).toHaveLength(2);
+    expect(
+      p.model.constructs.find((c) => c.name === 'Developer engagement')!.components,
+    ).toHaveLength(2);
     expect(p.model.constructs.filter((c) => c.covariate).map((c) => c.name)).toEqual([
       'age',
       'ismale',

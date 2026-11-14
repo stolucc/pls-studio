@@ -2,7 +2,9 @@
 // software engineering: the mediating role of developer engagement and job
 // satisfaction", Empirical Software Engineering 27:35.
 // Matrices from the replication package (doi:10.5281/zenodo.6322761), CC BY 4.0.
-// Loaded lazily so the 300 KB NACOV is only fetched on demand.
+// Loaded lazily so the 300 KB NACOV is only fetched on demand. Construct names as in the paper
+// (Sec. 4 and Table 4): developer engagement is second-order over identification with the
+// community (ID) and human capital development (HC).
 
 import nacovCsv from './emse-sem-nacov.csv?raw';
 import sCsv from './emse-sem-s.csv?raw';
@@ -51,15 +53,15 @@ export function makeEmseExample(settings: Settings): {
     'left',
   );
   const part = C(
-    'Participation',
+    'Gamification participation',
     ['num_challenges_solved', 'num_meetings_attended', 'has_chatroom_handle'],
     420,
     0,
     'top',
   );
-  const id = C('Identification', ['ID1', 'ID2'], 700, -330, 'top');
-  const hc = C('Hedonic commitment', ['HC1', 'HC2', 'HC3'], 1060, -330, 'top');
-  const engag = C('Engagement', [], 880, -40, 'bottom', { components: [id.id, hc.id] });
+  const id = C('Identification with the community', ['ID1', 'ID2'], 700, -330, 'top');
+  const hc = C('Human capital development', ['HC1', 'HC2', 'HC3'], 1060, -330, 'top');
+  const engag = C('Developer engagement', [], 880, -40, 'bottom', { components: [id.id, hc.id] });
   const js = C('Job satisfaction', ['JS1', 'JS2', 'JS4'], 1300, 120, 'right');
   const age = C('age', ['age'], 420, 330, 'bottom', { covariate: true });
   const male = C('ismale', ['ismale'], 700, 330, 'bottom', { covariate: true });

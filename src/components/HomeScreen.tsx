@@ -56,9 +56,9 @@ export const EXAMPLES = [
       { label: 'Paper (EMSE 27:35)', url: 'https://doi.org/10.1007/s10664-021-10062-w' },
       { label: 'Replication package (Zenodo)', url: 'https://doi.org/10.5281/zenodo.6322761' },
     ],
-    body: 'Stol, Schaarschmidt & Goldblit (2022), Empirical Software Engineering 27:35. The published model from the replication package’s covariance and NACOV matrices (N = 155): second-order engagement factor, covariates, robust MLM, MIIV-2SLS.',
+    body: 'Stol, Schaarschmidt & Goldblit (2022), Empirical Software Engineering 27:35. The published model from the replication package’s covariance and NACOV matrices (N = 155): second-order developer engagement factor, covariates, robust MLM, MIIV-2SLS.',
     shows:
-      'The robust fit to read: the scaled χ² = 119.33 on 89 df (ML: 125.31) still rejects exact fit (p = .018), while robust CFI .974 and RMSEA .048 indicate a close fit. The engagement factor sits over its two components, and age, gender and tenure enter as observed covariates.',
+      'The robust fit to read: the scaled χ² = 119.33 on 89 df (ML: 125.31) still rejects exact fit (p = .018), while robust CFI .974 and RMSEA .048 indicate a close fit. Developer engagement sits over its two components, identification with the community and human capital development, and age, gender and tenure enter as observed covariates.',
   },
   {
     id: 'poldem' as const,
