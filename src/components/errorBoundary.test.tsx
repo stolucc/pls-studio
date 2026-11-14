@@ -16,6 +16,7 @@ vi.mock('./Canvas', () => ({
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   document.body.innerHTML = '';
 });
 
@@ -64,6 +65,8 @@ it('the top-level fallback covers the whole app', () => {
 
 it('in the editor, a failing diagram leaves the top bar and the Inspector', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
+  // (the app asks the server who is signed in: answer "nobody", as without an account)
+  vi.stubGlobal('fetch', async () => new Response('{}', { status: 401 }));
   const { useStore } = await import('../store');
   const { default: App } = await import('../App');
   useStore.getState().newProject();
