@@ -31,6 +31,7 @@ import {
   c,
   htmtCls,
   loadingCls,
+  mostlyNegative,
   matrixRows,
   relCls,
   Table,
@@ -290,6 +291,12 @@ const HOC_NOTE = {
 
 function Outer({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) {
   const types = useTypes();
+  // Per construct, whether its loadings are mostly negative (then a positive one is the odd one out).
+  const negative = new Set(
+    pls.constructs.filter((_, j) =>
+      mostlyNegative(pls.loadings.filter((_, k) => pls.indicators[k].construct === j)),
+    ),
+  );
   const rows: Row[] = pls.indicators.map((ind, k) => {
     const cn = pls.constructs[ind.construct];
     const l = pls.loadings[k];
@@ -300,7 +307,7 @@ function Outer({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) 
       c(ind.name),
       c(cn),
       c(factor ? 'factor' : 'composite', 'dim'),
-      c(l, factor ? loadingCls(l) : ''),
+      c(l, factor ? loadingCls(l, negative.has(cn)) : ''),
       c(pls.weights[k]),
       c(pls.vifOuter[k], vifCls(pls.vifOuter[k])),
       ...(boot ? bootSignificance(bl, bw) : []),

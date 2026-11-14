@@ -15,6 +15,7 @@ import {
   c,
   htmtCls,
   loadingCls,
+  mostlyNegative,
   matrixRows,
   pCell,
   Table,
@@ -300,14 +301,19 @@ function Paths({ cb, boot }: { cb: CbResult; boot: BootstrapResult | null }) {
 }
 
 function Loadings({ cb }: { cb: CbResult }) {
-  const rows = cb.estimates
-    .filter((e) => e.op === '=~')
-    .map((e) => {
-      const k = cb.indicators.findIndex((i) => i.name === e.rhs);
-      const row = estRow(e, `${e.lhs} → ${e.rhs}`);
-      row[5] = c(e.std, loadingCls(e.std));
-      return [...row, c(cb.r2Indicators[k])];
-    });
+  const loadings = cb.estimates.filter((e) => e.op === '=~');
+  // Per factor, whether its standardised loadings are mostly negative.
+  const negative = new Set(
+    [...new Set(loadings.map((e) => e.lhs))].filter((f) =>
+      mostlyNegative(loadings.filter((e) => e.lhs === f).map((e) => e.std)),
+    ),
+  );
+  const rows = loadings.map((e) => {
+    const k = cb.indicators.findIndex((i) => i.name === e.rhs);
+    const row = estRow(e, `${e.lhs} → ${e.rhs}`);
+    row[5] = c(e.std, loadingCls(e.std, negative.has(e.lhs)));
+    return [...row, c(cb.r2Indicators[k])];
+  });
   const weights = cb.estimates
     .filter((e) => e.op === '<~')
     .map((e) => {

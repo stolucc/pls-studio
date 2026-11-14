@@ -154,13 +154,25 @@ export function relCls(v: number): string {
   if (v >= 0.6) return 'warn';
   return 'bad';
 }
-/** A reflective loading: at least .708 is good, .40 to .708 a warning, below .40 bad. */
-export function loadingCls(loading: number): string {
+/**
+ * A reflective loading: at least .708 is good, .40 to .708 a warning, below .40 bad. A loading
+ * whose sign differs from most loadings of its construct is bad whatever its size: often a
+ * reverse-coded item (measurement/negativeLoadings.ts). A construct whose loadings are all
+ * negative is only reflected (the sign of a construct is arbitrary), so pass `mostlyNegative`.
+ */
+export function loadingCls(loading: number, mostlyNegative = false): string {
+  if (loading !== 0 && loading < 0 !== mostlyNegative) return 'bad';
   const size = Math.abs(loading);
   if (size >= 0.708) return 'good';
   if (size >= 0.4) return 'warn';
   return 'bad';
 }
+/** Whether most of these loadings are negative (a tie counts as positive: the negative ones are then flagged). */
+export function mostlyNegative(loadings: number[]): boolean {
+  const negative = loadings.filter((l) => l < 0).length;
+  return negative > loadings.length - negative;
+}
+
 /** Collinearity: a VIF above 5 is critical, above 3 a warning. */
 export function vifCls(vif: number): string {
   if (vif > 5) return 'bad';
