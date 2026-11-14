@@ -2108,7 +2108,7 @@ ps_cb <- function(req_json, export = FALSE) {
   out$modindicesNote <- mi$note
   # The "Diagnose misfit" panel (misfit.R): one lavaan fit of a single-level model, ML-type or WLS-type.
   misfit_ok <- !isTRUE(b$mi) && !levels2 && !isTRUE(b$robust) && !isTRUE(req$missing %in% c("twostage", "robusttwostage"))
-  if (misfit_ok) out$misfit <- ps_cb_misfit(fit, back, groups)
+  if (misfit_ok) out$misfit <- ps_cb_misfit(fit, back, groups, mi_all = mi$full, mi_error = mi$error)
   if (isTRUE(b$mi)) out$imputations <- length(env$imp)
   # Robust ML (rsem): each analysed case's weight (below 1: down-weighted as atypical).
   if (isTRUE(b$robust)) out$caseWeights <- list(rows = env$case_row, weights = env$case_weight)
@@ -2125,6 +2125,8 @@ ps_per_group <- function(x, g) if (is.list(x)) x[[g]] else if (length(x) >= g) x
 #' list(items, error), where error says why lavaan could not compute them (not the same as none reaching 3.84).
 ps_cb_modindices <- function(fit, back, groups) {
   err <- NULL
+  # (the whole table of a lavaan fit, for the Diagnose misfit panel)
+  full <- NULL
   # lavaan's modindices() ignores equality constraints and warns about it on every call: the table's
   # footnote says so instead (the score test under Groups covers the constraints themselves).
   constrained <- !inherits(fit, "lavaan.mi") && any(lavaan::parTable(fit)$op == "==")
@@ -2140,9 +2142,14 @@ ps_cb_modindices <- function(fit, back, groups) {
       x <- x[x$mi >= 3.84, ]
       head(x[order(-x$mi), ], 100)
     } else {
-      withCallingHandlers(lavaan::modindices(fit, sort. = TRUE, minimum.value = 3.84, maximum.number = 100),
+      # Every fixed parameter's index once (also for the Diagnose misfit panel, misfit.R), then lavaan's own
+      # sort. = TRUE, minimum.value = 3.84, maximum.number = 100 on it.
+      full <- withCallingHandlers(lavaan::modindices(fit),
         warning = function(w) if (grepl("ignores equality constraints", conditionMessage(w))) invokeRestart("muffleWarning")
       )
+      x <- full[order(full$mi, decreasing = TRUE), ]
+      x <- x[!is.na(x$mi) & x$mi > 3.84, ]
+      head(x, 100)
     },
     error = function(e) {
       err <<- ps_comment(trimws(gsub("\\s+", " ", sub("^lavaan->modindices\\(\\):", "", conditionMessage(e)))))
@@ -2153,7 +2160,7 @@ ps_cb_modindices <- function(fit, back, groups) {
     return(list(items = list(), error = err))
   }
   if (is.null(mi) || !nrow(mi)) {
-    return(list(items = list(), error = NULL, note = note))
+    return(list(items = list(), error = NULL, note = note, full = full))
   }
   mi <- mi[mi$op %in% c("=~", "~", "~~"), ]
   list(items = lapply(seq_len(nrow(mi)), function(i) {
@@ -2163,7 +2170,7 @@ ps_cb_modindices <- function(fit, back, groups) {
         as.character(groups[mi$block[i]])
       } else if (length(groups) > 1 && "group" %in% names(mi)) as.character(groups[mi$group[i]]) else NULL
     )
-  }), error = NULL, note = note)
+  }), error = NULL, note = note, full = full)
 }
 
 #' Score tests of releasing each equality constraint (lavaan::lavTestScore): which across-group

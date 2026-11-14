@@ -4,12 +4,16 @@
 #' first (Saris, Satorra & van der Veld 2009 judge a fixed parameter by its SEPC and the power of its MI test,
 #' not by the size of the MI). The app judges each row from these numbers (src/rengine/misfit.ts).
 #'
-#' The lines below are the R code that computes them: run as written on `fit` (ps_cb_misfit evaluates exactly
-#' this text) and returned with the results, so the panel can show the code to run after the model's own script.
+#' The lines below are the R code that computes them, returned with the results so the panel can show the code
+#' to run after the model's own script. ps_cb_misfit evaluates this text, except that the first statement's
+#' table (`mi_all <- modindices(fit)`) is the one the modification indices tab already computed with that call
+#' (ps_cb_modindices): lavaan runs modindices once per fit.
+ps_misfit_mi_line <- "mi_all <- modindices(fit)"
+
 ps_misfit_code <- function(top_mi, top_res) {
   c(
     "# Modification indices, ranked by the size of the standardised expected parameter change (sepc.all)",
-    "mi_all <- modindices(fit)",
+    ps_misfit_mi_line,
     "mi_all <- mi_all[mi_all$op %in% c(\"=~\", \"~\", \"~~\") & is.finite(mi_all$sepc.all), ]",
     sprintf("mi_by_sepc <- head(mi_all[order(-abs(mi_all$sepc.all)), ], %d)", as.integer(top_mi)),
     "# Residual correlations (observed minus implied) and their z-statistics (standardized residuals)",
@@ -28,17 +32,21 @@ ps_misfit_code <- function(top_mi, top_res) {
 }
 
 #' The misfit diagnostics of `fit`, in the app's names (`back`), per group (`groups`: the group labels).
+#' `mi_all`: lavaan::modindices(fit) as ps_cb_modindices computed it (NULL with `mi_error`, why lavaan could not).
 #' list(mi, residuals, code), or list(error) when lavaan cannot compute them.
-ps_cb_misfit <- function(fit, back, groups, top_mi = 150L, top_res = 20L) {
+ps_cb_misfit <- function(fit, back, groups, mi_all, mi_error = NULL, top_mi = 150L, top_res = 20L) {
   code <- ps_misfit_code(top_mi, top_res)
+  if (!is.null(mi_error) || is.null(mi_all)) {
+    return(list(error = mi_error %||% "lavaan computed no modification indices.", code = code))
+  }
   env <- new.env(parent = globalenv())
   env$fit <- fit
+  env$mi_all <- mi_all
   err <- NULL
   withCallingHandlers(
-    tryCatch(eval(parse(text = code), envir = env), error = function(e) {
+    tryCatch(eval(parse(text = code[code != ps_misfit_mi_line]), envir = env), error = function(e) {
       err <<- ps_flat(conditionMessage(e))
     }),
-    # (lavaan's warning that modindices ignores equality constraints: the modification indices tab notes it)
     warning = function(w) invokeRestart("muffleWarning")
   )
   if (!is.null(err)) {

@@ -22,8 +22,6 @@ export interface FitNote {
 
 /** RMSEA above this is the guideline's poor value (Hu & Bentler 1999). */
 const RMSEA_CUTOFF = 0.06;
-/** Few degrees of freedom: Kenny, Kaniskan & McCoach (2015) show RMSEA misleads in such models. */
-const LOW_DF = 10;
 
 /** Whether the fit has robust (Brosseau-Liard & Savalei) CFI / TLI / RMSEA. */
 export function hasRobustIndices(f: CbFit): boolean {
@@ -97,15 +95,16 @@ export function fitNotes(cb: Pick<CbResult, 'fit' | 'estimator'>): FitNote[] {
     });
   }
   const df = scaled && f.dfScaled !== undefined ? f.dfScaled : f.df;
-  if (shown.rmsea > RMSEA_CUTOFF && df > 0 && df < LOW_DF) {
+  // Kenny, Kaniskan & McCoach (2015) give no df cutoff of their own: the note is conditional, with the model's df.
+  if (shown.rmsea > RMSEA_CUTOFF && df > 0) {
     out.push({
       id: 'rmsea-low-df',
-      level: 'warning',
+      level: 'info',
       text:
-        `RMSEA = ${fmt(shown.rmsea)} with only ${fmt(df, 0)} degrees of freedom. With few df the RMSEA is ` +
-        'unstable and often points to poor fit when the model is acceptable, more so in small samples; ' +
-        'Kenny, Kaniskan & McCoach (2015) advise against judging such models by the RMSEA. Look at the χ² test, ' +
-        'the SRMR and the residuals instead.',
+        `RMSEA = ${fmt(shown.rmsea)} is above the usual cutoff. If the model has few degrees of freedom ` +
+        `(here df = ${fmt(df, 0)}), that can mislead: with few df, and more so with small samples, the RMSEA ` +
+        'is often large even for a well-fitting model, and Kenny, Kaniskan & McCoach (2015) recommend not ' +
+        'computing it for such models. Judge them by the χ² test, the SRMR and the residuals instead.',
     });
   }
   if (scaled) {

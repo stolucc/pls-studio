@@ -44,11 +44,11 @@ const ids = (cb: Pick<CbResult, 'fit' | 'estimator'>) => fitNotes(cb).map((n) =>
 
 describe('fit-index guidance', () => {
   it('ML: report the standard column; no scaled-difference note', () => {
-    expect(ids({ fit: fit(), estimator: 'ML' })).toEqual(['report-standard']);
+    expect(ids({ fit: fit({ rmsea: 0.05 }), estimator: 'ML' })).toEqual(['report-standard']);
   });
 
   it('MLR: report the robust column, and use the scaled difference test for comparisons', () => {
-    const notes = fitNotes({ fit: robust(), estimator: 'MLR' });
+    const notes = fitNotes({ fit: robust({ rmseaRobust: 0.05 }), estimator: 'MLR' });
     expect(notes.map((n) => n.id)).toEqual(['report-robust', 'scaled-difference']);
     expect(notes[0].text).toMatch(/Brosseau-Liard, Savalei & Li 2012/);
     expect(notes[1].text).toMatch(/do not subtract scaled χ²/);
@@ -57,12 +57,17 @@ describe('fit-index guidance', () => {
   });
 
   it('explains robust indices that lavaan leaves NA', () => {
-    const f = robust({ cfiRobust: undefined, tliRobust: undefined, rmseaRobust: undefined });
+    const f = robust({
+      cfiRobust: undefined,
+      tliRobust: undefined,
+      rmseaRobust: undefined,
+      rmsea: 0.05,
+    });
     const notes = fitNotes({ fit: f, estimator: 'WLSMV' });
     expect(notes.map((n) => n.id)).toEqual(['robust-missing', 'scaled-difference']);
     expect(notes[0].text).toMatch(/ordinal indicators and a baseline model other than the default/);
     // (robust ML by rsem has no robust indices by design: no NA warning)
-    expect(ids({ fit: robust({ cfiRobust: undefined }), estimator: 'RML' })).toEqual([
+    expect(ids({ fit: robust({ cfiRobust: undefined, rmsea: 0.05 }), estimator: 'RML' })).toEqual([
       'report-standard',
       'scaled-difference',
     ]);
@@ -78,14 +83,15 @@ describe('fit-index guidance', () => {
     expect(zero?.text).toMatch(/no better than the baseline model/);
   });
 
-  it('a high RMSEA with few df (Kenny, Kaniskan & McCoach 2015)', () => {
-    const low = fitNotes({ fit: fit({ df: 2, rmsea: 0.15 }), estimator: 'ML' });
-    expect(low.find((n) => n.id === 'rmsea-low-df')?.text).toMatch(
-      /Kenny, Kaniskan & McCoach \(2015\)/,
+  it('a high RMSEA: the conditional few-df note with the model’s df (Kenny, Kaniskan & McCoach 2015)', () => {
+    const note = fitNotes({ fit: fit({ df: 4, rmsea: 0.15 }), estimator: 'ML' }).find(
+      (n) => n.id === 'rmsea-low-df',
     );
-    expect(ids({ fit: fit({ df: 24, rmsea: 0.15 }), estimator: 'ML' })).not.toContain(
-      'rmsea-low-df',
-    );
+    expect(note?.level).toBe('info');
+    expect(note?.text).toMatch(/If the model has few degrees of freedom \(here df = 4\)/);
+    expect(note?.text).toMatch(/Kenny, Kaniskan & McCoach \(2015\)/);
+    // (no df cutoff of the app's own: shown whenever RMSEA misses the cutoff)
+    expect(ids({ fit: fit({ df: 24, rmsea: 0.15 }), estimator: 'ML' })).toContain('rmsea-low-df');
     expect(ids({ fit: fit({ df: 2, rmsea: 0.04 }), estimator: 'ML' })).not.toContain(
       'rmsea-low-df',
     );
