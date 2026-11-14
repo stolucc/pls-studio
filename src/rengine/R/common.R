@@ -295,14 +295,40 @@ ps_label <- function(x) {
   x
 }
 
-#' Arithmetic over labels (as printed by the app's parser): letters, digits, _ . + - * / ^ ( ) and spaces,
-#' and no name or number directly followed by "(" (no function calls).
-ps_expr <- function(x) {
-  ok <- is.character(x) && length(x) == 1 && nchar(x) <= 2000 &&
-    grepl("^[A-Za-z0-9_ .+*/^()-]+$", x) && # only the allowed characters
-    !grepl("[A-Za-z0-9_.][[:space:]]*\\(", x) # no function calls
-  if (!ok) stop("Invalid expression in the request.")
+#' Arithmetic over labels (as printed by the app's parser): names, numbers, + - * / ^ and parentheses, nothing else.
+#' Checked on the parse tree, so no function can be called in any spelling ((f)(x) included). `allowed`: the names
+#' the expression may use (NULL: any label-shaped name). Returns the expression as given.
+ps_expr <- function(x, allowed = NULL) {
+  ok_text <- is.character(x) && length(x) == 1 && nchar(x) <= 2000 &&
+    grepl("^[A-Za-z0-9_ .+*/^()-]+$", x) # only the allowed characters
+  if (!ok_text) stop("Invalid expression in the request.")
+  e <- tryCatch(str2lang(x), error = function(err) stop("Invalid expression in the request."))
+  if (!ps_arith_ok(e, allowed)) stop("Invalid expression in the request.")
   x
+}
+
+#' The operators an arithmetic expression may use (ps_expr), with how many arguments each takes.
+PS_ARITH_OPS <- list("+" = 1:2, "-" = 1:2, "*" = 2L, "/" = 2L, "^" = 2L, "(" = 1L)
+
+#' Whether a parsed expression is arithmetic only: finite numbers, label-shaped names (in `allowed` when given)
+#' and the operators of PS_ARITH_OPS, called by their own name.
+ps_arith_ok <- function(e, allowed = NULL) {
+  if (is.numeric(e)) {
+    return(length(e) == 1 && is.finite(e))
+  }
+  if (is.name(e)) {
+    v <- as.character(e)
+    return(grepl("^[A-Za-z][A-Za-z0-9_]{0,30}$", v) && (is.null(allowed) || v %in% allowed))
+  }
+  if (!is.call(e) || !is.name(e[[1]])) {
+    return(FALSE)
+  }
+  arity <- PS_ARITH_OPS[[as.character(e[[1]])]]
+  args <- as.list(e)[-1]
+  if (is.null(arity) || !(length(args) %in% arity) || !is.null(names(args))) {
+    return(FALSE)
+  }
+  all(vapply(args, ps_arith_ok, TRUE, allowed = allowed))
 }
 
 #' Quote a character vector as R code (backslashes, quotes and control characters escaped).

@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { R_PACKAGES, rScript, type RPackage } from './bridge';
+import { R_PACKAGES, rCall, rScript, type RPackage } from './bridge';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
 beforeAll(startTestRuntime);
@@ -109,6 +109,58 @@ describe('request values never become R code', () => {
     await refused('ps_cb', bad, 'lavaan', /Invalid estimator/);
     const { missing: _m, ...cb2 } = base('ps_cb');
     await refused('ps_cb', { ...cb2, missingX: PAYLOAD }, 'lavaan', /Invalid missing-value/);
+  }, 900_000);
+
+  it('arithmetic expressions: no function call in any spelling', async () => {
+    // ((f)(x) has no name directly before "(", which the old text check looked for)
+    const cb = base('ps_cb');
+    await refused(
+      'ps_cb',
+      { ...cb, model: { ...cb.model, defined: [{ name: 'd', expr: '(PWNED_CANARY)(1)' }] } },
+      'lavaan',
+      /Invalid expression/,
+    );
+    const loop = { name: 'q', variable: 'm', from: 0, to: 1, by: 0.5 };
+    const bsem = {
+      ...cb,
+      missing: 'casewise',
+      engine: 'inlavaan',
+      identification: 'marker',
+      chains: 1,
+      burnin: 100,
+      sample: 200,
+      seed: 1,
+      confidence: 0.95,
+      model: {
+        ...cb.model,
+        paths: cb.model.paths.map((p: Record<string, any>, i: number) =>
+          i === 0 ? { ...p, label: 'la2' } : p,
+        ),
+      },
+    };
+    await refused(
+      'ps_bsem',
+      { ...bsem, loop: { ...loop, expr: '(PWNED_CANARY)(la2)' } },
+      'INLAvaan',
+      /Invalid expression/,
+    );
+    // The loop's expression sees the draws, the loop variable and arithmetic only.
+    const ok = await script(
+      'ps_bsem',
+      { ...bsem, loop: { ...loop, expr: '(la2 * m)' } },
+      'INLAvaan',
+    );
+    expect(ok.e).toBe('');
+    expect(ok.s).toContain('parent = emptyenv()');
+    expect(ok.s).toContain('eval(quote((la2 * m)), list2env(');
+    expect(ok.s).not.toContain('with(draws');
+    const run = await rCall<Record<string, any>>(
+      'ps_bsem',
+      { ...bsem, loop: { ...loop, expr: '(la2 * m)' } },
+      'INLAvaan',
+    );
+    expect(run.loop.x).toEqual([0, 0.5, 1]);
+    expect(run.loop.median[0]).toBe(0);
   }, 900_000);
 
   it('names that are not variables of the request', async () => {
