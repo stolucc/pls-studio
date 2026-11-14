@@ -395,12 +395,18 @@ function plsDraft(input: ReportInput, pls: WithEngine<PlsResult>, d: Draft) {
   const modeB = m.constructs.filter(
     (k) => !k.components?.length && k.indicators.length > 1 && k.mode === 'B',
   );
-  // ρA is defined for common factors only (reporting/thresholds.ts), so it is named for them only.
+  // ρA applies to blocks with estimated Mode A weights only (reporting/thresholds.ts), so it is
+  // named for those only.
   const withRhoA = modeA.filter(rhoADefined).length;
-  let reliabilities = `Cronbach’s α, ρA and ρC between 0.70 and 0.95; ρA: ${citealp('dijkstra2015')}`;
-  if (withRhoA === 0) reliabilities = 'Cronbach’s α and ρC between 0.70 and 0.95';
-  else if (withRhoA < modeA.length)
-    reliabilities = `Cronbach’s α, ρC and, for the common factors, ρA between 0.70 and 0.95; ρA: ${citealp('dijkstra2015')}`;
+  const rhoACite = `ρA: ${citealp('dijkstra2015')}`;
+  let reliabilities = `Cronbach’s α, ρA and ρC between 0.70 and 0.95; ${rhoACite}`;
+  if (withRhoA === 0) {
+    reliabilities = 'Cronbach’s α and ρC between 0.70 and 0.95';
+  } else if (withRhoA < modeA.length) {
+    reliabilities =
+      'Cronbach’s α, ρC and, for the constructs with estimated Mode A weights, ρA between ' +
+      `0.70 and 0.95; ${rhoACite}`;
+  }
   const reflectiveCriteria = modeA.length
     ? 'the reflectively measured (Mode A) constructs were assessed by indicator loadings (at least 0.708), ' +
       `internal consistency reliability (${reliabilities}), ` +

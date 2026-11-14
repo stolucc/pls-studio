@@ -302,6 +302,10 @@ function rhoAOf(b: number[], w: Float64Array, R: Mat): { rhoA: number; c: number
 const isCommonFactor = (m: CompiledModel, j: number) =>
   m.types[j] === 'factor' && m.modes[j] === 'A' && m.blocks[j].length > 1 && !m.predefined[j];
 
+/** A composite with estimated Mode A weights and two or more indicators. */
+const isModeAComposite = (m: CompiledModel, j: number) =>
+  m.types[j] === 'composite' && m.modes[j] === 'A' && m.blocks[j].length > 1 && !m.predefined[j];
+
 /**
  * Why a PLSc solution is not admissible (cSEM's verify(): a construct
  * reliability outside (0, 1], a construct correlation beyond ±1), as readable
@@ -375,11 +379,20 @@ export function structural(
   return { C, pathCoef, rSquared, loadings, totalEffects, rhoA };
 }
 
+/**
+ * Reliability and convergent validity of each block. `rhoAs` holds ρA of the
+ * common factors (from the structural step, where PLSc uses it); a Mode A
+ * composite gets Dijkstra & Henseler's ρA from its own Mode A weights here, as
+ * seminr reports it and Hair et al. (2022) assess it for Mode A constructs.
+ * Mode B, unit-weight and predefined-weight blocks keep 1, which the reports
+ * show as not applicable (reporting/thresholds.ts, rhoADefined).
+ */
 function quality(
   m: CompiledModel,
   R: number[][],
   rhoAs: number[],
   loadings: number[],
+  w: Float64Array,
 ): ConstructQuality[] {
   return m.blocks.map((b, j) => {
     const k = b.length;
@@ -394,7 +407,8 @@ function quality(
     for (const a of b) for (const c of b) sumR += R[a][c];
     const alpha = (k / (k - 1)) * (1 - k / sumR);
 
-    const rhoA = rhoAs[j];
+    let rhoA = rhoAs[j];
+    if (isModeAComposite(m, j)) rhoA = rhoAOf(b, w, R).rhoA;
     return { alpha, rhoC, rhoA, ave };
   });
 }
@@ -1127,7 +1141,7 @@ export function estimatePls(
     rSquared,
     adjRSquared,
     constructCor: C,
-    quality: quality(m, R, st.rhoA, loadings),
+    quality: quality(m, R, st.rhoA, loadings, core.w),
     htmt: htmtOf(m, R),
     htmt2: htmt2Of(m, R),
     fit: hasNonlinearTerms(spec)

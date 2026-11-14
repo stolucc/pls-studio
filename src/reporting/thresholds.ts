@@ -46,7 +46,7 @@ export function reliabilityTooHigh(value: number): boolean {
   return value > RELIABILITY_MAX;
 }
 
-/** A reliability (ρA or ρC) outside 0.70–0.95. Not defined (NaN, e.g. ρA of a composite) is not outside. */
+/** A reliability (ρA or ρC) outside 0.70–0.95. Not defined (NaN, e.g. ρA of a Mode B block) is not outside. */
 export function reliabilityOutside(value: number): boolean {
   return reliabilityTooLow(value) || reliabilityTooHigh(value);
 }
@@ -62,21 +62,25 @@ export function htmtFails(value: number, threshold: number): boolean {
 }
 
 /**
- * Whether ρA is defined for a construct: a common factor (Mode A) with two or more indicators and
- * estimated weights (Dijkstra & Henseler 2015). The engines report 1 for composites and Mode B
- * blocks, as cSEM and seminr do; that 1 is a convention, not a reliability, so it is shown as
- * n/a and left out of the .70–.95 rule.
+ * Whether ρA applies to a construct: a block with estimated Mode A weights and two or more
+ * indicators, common factor or composite.
+ *
+ * Dijkstra & Henseler (2015) define ρA from a block's Mode A weights and its indicator
+ * correlations; it is the consistent reliability of a reflectively measured construct estimated
+ * in Mode A. Hair et al. (2022, ch. 4) report it, with α and ρC, for the constructs they specify
+ * as seminr Mode A composites, and seminr computes it for every Mode A block. The checklist
+ * judges Mode A composites by ρC and the AVE, which equally presuppose reflective measurement, so
+ * ρA is judged with them. Mode B (formative) blocks have no reliability in this sense
+ * (Hair et al. 2022, ch. 5: they are assessed by convergent validity, collinearity and weights),
+ * and blocks with unit or predefined weights have no estimated Mode A weights; the engines report
+ * 1 for those (cSEM and seminr's convention), which is shown as n/a and not judged.
  */
 export function rhoADefined(k: {
-  type: string;
   mode: string;
   indicators: string[];
   predefinedWeights?: Record<string, number>;
 }): boolean {
   return (
-    k.type === 'factor' &&
-    k.mode === 'A' &&
-    k.indicators.length > 1 &&
-    !Object.keys(k.predefinedWeights ?? {}).length
+    k.mode === 'A' && k.indicators.length > 1 && !Object.keys(k.predefinedWeights ?? {}).length
   );
 }

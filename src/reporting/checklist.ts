@@ -663,7 +663,7 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
         : 'Every Mode A loading is at least .708.',
       link: tab('Loadings & weights'),
     });
-    // ρA only where it is defined (common factors); elsewhere n/a and not judged.
+    // ρA where it applies (estimated Mode A weights, thresholds.ts rhoADefined); else n/a.
     const rhoAOf = (j: number) => {
       const k = m.constructs.find((x) => x.name === pls.constructs[j]);
       return k && rhoADefined(k) ? quality(j).rhoA : NaN;

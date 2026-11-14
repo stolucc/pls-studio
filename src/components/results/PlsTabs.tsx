@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import type { FitTestResult } from '../../engine/bootstrap';
 import { binaryModeration, originalScaleCoefficients } from '../../engine/pls';
 import type { BootstrapResult, BootstrapStat, Discrepancies, PlsResult } from '../../engine/types';
-import { toSpec } from '../../model/project';
+import { toSpec, type Construct } from '../../model/project';
+import { rhoADefined } from '../../reporting/thresholds';
 import { mediationPairs } from '../../reporting/mediation';
 import { csvCell, downloadText, fmt, fmtP, safeFileName } from '../../format';
 import { run } from '../../runner';
@@ -386,12 +387,31 @@ function Outer({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) 
   );
 }
 
+/**
+ * The constructs of the current model by name, for the reliability rule (Mode A blocks); null for
+ * frozen results, whose result does not record the weighting modes.
+ */
+function useLiveConstructs(): Map<string, Construct> | null {
+  const frozen = useFrozenResult();
+  const constructs = useStore((s) => s.model.constructs);
+  return useMemo(() => {
+    if (frozen) return null;
+    return new Map(constructs.map((k) => [k.name, k]));
+  }, [frozen, constructs]);
+}
+
 function Reliability({ pls }: { pls: PlsResult }) {
   const types = useTypes(pls);
+  const live = useLiveConstructs();
   const rows: Row[] = pls.constructs.map((name, j) => {
     const q = pls.quality[j];
     const single = pls.indicators.filter((i) => i.construct === j).length === 1;
-    if (types.get(name) === 'composite' || single) {
+    const k = live?.get(name);
+    // A Mode A composite is assessed like a common factor (reporting/thresholds.ts, rhoADefined:
+    // Hair et al. 2022); Mode B composites have no reliability. Frozen results do not record
+    // the mode, so their composites stay blank.
+    const modeAComposite = types.get(name) === 'composite' && k?.mode === 'A';
+    if ((types.get(name) === 'composite' && !modeAComposite) || single) {
       return [
         c(name),
         c(single ? 'single item' : 'composite', 'dim'),
@@ -401,11 +421,12 @@ function Reliability({ pls }: { pls: PlsResult }) {
         c(null, 'dim'),
       ];
     }
+    const rhoAApplies = !k || rhoADefined(k);
     return [
       c(name),
-      c('common factor', 'dim'),
+      c(modeAComposite ? 'composite (Mode A)' : 'common factor', 'dim'),
       c(q.alpha, relCls(q.alpha)),
-      c(q.rhoA, relCls(q.rhoA)),
+      rhoAApplies ? c(q.rhoA, relCls(q.rhoA)) : c(null, 'dim'),
       c(q.rhoC, relCls(q.rhoC)),
       c(q.ave, q.ave >= 0.5 ? 'good' : 'bad'),
     ];
@@ -418,7 +439,13 @@ function Reliability({ pls }: { pls: PlsResult }) {
         file="reliability"
         columns={['Construct', 'Type', 'Cronbach’s α', 'ρA', 'ρC', 'AVE']}
         rows={rows}
-        note="ρA (Dijkstra & Henseler) is the consistent reliability of a common factor. 0.70–0.95 is satisfactory. AVE ≥ 0.50 indicates convergent validity. Reliability does not apply to composites, which are defined by their weights."
+        note={
+          'ρA (Dijkstra & Henseler 2015) is the consistent reliability of a block estimated with ' +
+          'Mode A weights. 0.70–0.95 is satisfactory. AVE ≥ 0.50 indicates convergent validity. ' +
+          'Composites with Mode A weights are assessed like reflective constructs, as in Hair ' +
+          'et al. (2022); reliability does not apply to Mode B composites, which are defined by ' +
+          'their weights.'
+        }
       />
       {ra.length > 0 && (
         <Table
