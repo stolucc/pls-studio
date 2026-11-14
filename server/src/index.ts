@@ -4,6 +4,7 @@ import { loadConfig } from './config.ts';
 import { createPool } from './db.ts';
 import { migrate } from './migrate.ts';
 import { createGoogleClient } from './routes/google.ts';
+import { startLinkCleanup } from './services/cleanup.ts';
 import { createMailer } from './services/mailer.ts';
 import { attachCollab } from './ws.ts';
 
@@ -39,7 +40,10 @@ server.listen(config.PORT, config.HOST, () =>
   console.log(`PLS Studio server on ${config.HOST}:${config.PORT} (${config.NODE_ENV})`),
 );
 
+const stopLinkCleanup = startLinkCleanup(db);
+
 const shutdown = async () => {
+  stopLinkCleanup();
   server.close();
   await collab.close();
   await db.end();
