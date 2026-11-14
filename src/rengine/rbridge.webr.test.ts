@@ -2,7 +2,9 @@
 // 2026-11): JSON shapes that must not depend on how many elements there are, and
 // exported scripts that reproduce what the app reports. Run with npm run test:webr.
 
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { parseCsv } from '../engine/dataset';
@@ -11,8 +13,9 @@ import type { ModelSpec } from '../engine/types';
 import { analysisScript, bootChunked, bootstrapR } from './analyses';
 import { parallelism, rCall } from './bridge';
 import { useHelper } from './helper';
-import { cbRequest, estimateCbLavaan } from './lavaan';
+import { cbRequest, cbScriptLavaan, estimateCbLavaan } from './lavaan';
 import { mcChunkRequest, runMcChunkR } from './mc';
+import { helperLibrary } from './nativeR';
 import { estimatePlsR, plsScriptR } from './pls';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
@@ -201,3 +204,49 @@ it('a lavaan bootstrap gives the same intervals on one R session as on several (
     await sessions(before);
   }
 }, 600_000);
+
+it('the LMS / QML script reproduces the fit measures reported (the baseline refit without the interaction)', async () => {
+  const dir = join(__dirname, '..', 'engine', '__fixtures__', 'modsem');
+  const data = parseCsv(readFileSync(join(dir, 'oneInt.csv'), 'utf8')).dataset;
+  const f = (name: string, p: string) => ({
+    name,
+    type: 'factor' as const,
+    mode: 'A' as const,
+    indicators: [1, 2, 3].map((i) => `${p}${i}`),
+  });
+  const spec: ModelSpec = {
+    constructs: [f('X', 'x'), f('Z', 'z'), f('Y', 'y')],
+    paths: [
+      { from: 'X', to: 'Y' },
+      { from: 'Z', to: 'Y' },
+    ],
+    moderations: [{ from: 'X', moderator: 'Z', to: 'Y' }],
+  };
+  const r = await estimateCbLavaan(data, spec, 'casewise', 'ML', 'qml');
+  const script = await cbScriptLavaan(data, spec, 'casewise', 'ML', 'qml');
+  expect(script).toContain('base <- lavaan::sem(gsub(');
+  const out = runScript(
+    `${script}\nwriteLines(jsonlite::toJSON(as.list(fitMeasures(base, c("chisq", "cfi", "rmsea", "srmr"))), digits = NA, auto_unbox = TRUE), "out.json")`,
+  );
+  expect(out.chisq).toBeCloseTo(r.fit.chisq, 6);
+  expect(out.cfi).toBeCloseTo(r.fit.cfi, 6);
+  expect(out.rmsea).toBeCloseTo(r.fit.rmsea, 6);
+  expect(out.srmr).toBeCloseTo(r.fit.srmr, 6);
+}, 900_000);
+
+/** Run an exported script in desktop R (Rscript); it writes out.json, returned parsed. */
+function runScript(script: string): Record<string, number> {
+  const dir = mkdtempSync(join(tmpdir(), 'ps-rbridge-'));
+  try {
+    writeFileSync(join(dir, 'script.R'), script);
+    const libs = [helperLibrary(), process.env.R_LIBS].filter(Boolean).join(':');
+    execFileSync('Rscript', ['script.R'], {
+      cwd: dir,
+      env: { ...process.env, R_LIBS: libs },
+      stdio: 'pipe',
+    });
+    return JSON.parse(readFileSync(join(dir, 'out.json'), 'utf8'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
