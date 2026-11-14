@@ -195,10 +195,10 @@ ps_mc <- function(req_json, export = FALSE) {
   E <- length(req$estimators)
   K <- length(req$params)
   # One column of the results (est, lo, hi, sig) per estimator e and parameter k, over the replications (NA where
-  # an estimator failed)
+  # an estimator failed); I(): a chunk of one replication stays a one-element array
   pick <- function(col) {
     over_replications <- function(e, k) {
-      vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$values[k, col], 0)
+      I(vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$values[k, col], 0))
     }
     lapply(seq_len(E), function(e) lapply(seq_len(K), function(k) over_replications(e, k)))
   }
@@ -206,7 +206,7 @@ ps_mc <- function(req_json, export = FALSE) {
     est = pick(1), lo = pick(2), hi = pick(3), sig = pick(4),
     proper = lapply(
       seq_len(E),
-      function(e) vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$proper, 0)
+      function(e) I(vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$proper, 0))
     ),
     warnings = env$.warnings
   ))

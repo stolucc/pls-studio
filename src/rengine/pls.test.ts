@@ -90,3 +90,26 @@ describe('ordinal PLS (OrdPLS/OrdPLSc)', () => {
     expect(parsePlsOutput(raw).ordinal).toBeUndefined();
   });
 });
+
+describe('one-element vectors from R (auto_unbox sends them as scalars)', () => {
+  it('a one-construct result keeps its names, types and values as arrays', () => {
+    const raw = JSON.parse(
+      readFileSync(join(__dirname, '__fixtures__', 'plsc_csem_threecommonfactors.r.json'), 'utf8'),
+    );
+    const res = parsePlsOutput({
+      ...raw,
+      constructs: 'eta1',
+      types: 'factor',
+      rSquared: null,
+      adjRSquared: 0.3,
+      weights: 0.9,
+      vifOuter: 1,
+    });
+    expect(res.constructs).toEqual(['eta1']);
+    expect(res.types).toEqual(['factor']);
+    expect(res.rSquared).toEqual([]);
+    expect(res.adjRSquared).toEqual([0.3]);
+    expect(res.weights).toEqual([0.9]);
+    expect(res.vifOuter).toEqual([1]);
+  });
+});

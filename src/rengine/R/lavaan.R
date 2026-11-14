@@ -2045,7 +2045,7 @@ ps_cb <- function(req_json, export = FALSE) {
         lavaan::lavInspect(fit, "nobs")[group_of(g)]
       },
       iterations = lavaan::lavInspect(fit, "iterations"), converged = lavaan::lavInspect(fit, "converged"),
-      constructs = constructs,
+      constructs = I(constructs),
       indicators = lapply(seq_along(indicators), function(i) list(name = indicators[i], construct = ind_con[i])),
       estimates = est, fit = lapply(fmv, as.numeric),
       r2Indicators = unname(r2_ind), r2Constructs = r2_con, stdLoadings = std_load,
@@ -2412,7 +2412,7 @@ ps_cb_modsem <- function(req, b, export) {
     n = nrow(env$data),
     iterations = 0L,
     converged = TRUE,
-    constructs = constructs,
+    constructs = I(constructs),
     indicators = lapply(seq_along(indicators), function(i) list(name = indicators[i], construct = ind_con[i])),
     estimates = est,
     fit = fitv,

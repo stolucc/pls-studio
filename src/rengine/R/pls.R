@@ -638,7 +638,7 @@ ps_pls_out <- function(req, b, env) {
     n = nrow(env$data),
     iterations = iterations,
     converged = converged,
-    constructs = constructs,
+    constructs = I(constructs),
     indicators = lapply(seq_along(item_l), function(i) list(name = n$all_inds[i], construct = owner[i] - 1L)),
     weights = weights,
     loadings = loadings,
@@ -704,7 +704,7 @@ ps_pls_out <- function(req, b, env) {
     ),
     htmt = htmt1, htmt2 = htmt2, htmtFlags = htmt_flags,
     fit = list(estimated = fitm(FALSE), saturated = fitm(TRUE)),
-    consistent = isTRUE(b$o$consistent), types = c(b$type, rep("composite", length(mods))),
+    consistent = isTRUE(b$o$consistent), types = I(c(b$type, rep("composite", length(mods)))),
     moderations = lapply(seq_along(mods), function(q) {
       list(
         from = mods[[q]]$from, moderator = mods[[q]]$moderator, to = mods[[q]]$to, construct = k0 + q - 1L,

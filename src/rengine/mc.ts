@@ -12,6 +12,7 @@ import {
   type McPart,
 } from '../engine/montecarlo';
 import { rCallOn, rScript } from './bridge';
+import { rList } from './rjson';
 
 const rSeed = (s: number) => s % 2147483647;
 
@@ -47,8 +48,9 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
   };
 }
 
+// (rList: a chunk of one replication arrives as a scalar, not a one-element vector)
 const f64 = (v: unknown) =>
-  Float64Array.from((v as (number | null)[]).map((x) => (typeof x === 'number' ? x : NaN)));
+  Float64Array.from(rList<unknown>(v).map((x) => (typeof x === 'number' ? x : NaN)));
 
 /** The request for replications start..end-1 at sample size n. */
 export const mcChunkRequest = (design: McDesign, n: number, start: number, end: number) =>
@@ -96,7 +98,7 @@ export function parseMcChunk(
   );
   // CB-SEM CIs are in the unstandardised (marker) metric: β · λ_mk(to) / λ_mk(from).
   const truthCI = ciTruth(design, pop, params);
-  const arr = (x: unknown) => (x as unknown[][]).map((perE) => perE.map(f64));
+  const arr = (x: unknown) => rList<unknown>(x).map((perE) => rList<unknown>(perE).map(f64));
   return {
     n,
     start,
@@ -105,7 +107,7 @@ export function parseMcChunk(
     hi: arr(raw.hi),
     sig: arr(raw.sig),
     truthCI,
-    proper: (raw.proper as unknown[]).map(f64),
+    proper: rList<unknown>(raw.proper).map(f64),
   };
 }
 
