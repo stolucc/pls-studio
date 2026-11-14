@@ -7,6 +7,7 @@ import type { Dataset, MissingTreatment, ModelSpec, MomentData } from '../engine
 import { rCall, rScript, rStrings } from './bridge';
 import { rColumns, rList } from './rjson';
 import { misfitWithGroupNames, parseMisfit } from './misfit';
+import { parseAdmissibility } from '../engine/admissibility';
 
 /** How latent interactions are estimated: product indicators (lavaan) or LMS / QML (modsem). */
 export type LatentInteraction = 'product' | 'lms' | 'qml';
@@ -273,6 +274,7 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
     ...(typeof raw.fitNote === 'string' ? { fitNote: raw.fitNote } : {}),
     ...(typeof raw.modindicesNote === 'string' ? { modindicesNote: raw.modindicesNote } : {}),
     ...(raw.misfit ? { misfit: parseMisfit(raw.misfit) } : {}),
+    ...(raw.admissibility ? { admissibility: parseAdmissibility(raw.admissibility) } : {}),
     droppedRows: raw.droppedRows ?? 0,
     ...(raw.groups
       ? {

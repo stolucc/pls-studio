@@ -2109,6 +2109,11 @@ ps_cb <- function(req_json, export = FALSE) {
   # The "Diagnose misfit" panel (misfit.R): one lavaan fit of a single-level model, ML-type or WLS-type.
   misfit_ok <- !isTRUE(b$mi) && !levels2 && !isTRUE(b$robust) && !isTRUE(req$missing %in% c("twostage", "robusttwostage"))
   if (misfit_ok) out$misfit <- ps_cb_misfit(fit, back, groups, mi_all = mi$full, mi_error = mi$error)
+  # The admissibility check's matrices (R/admissibility.R); not for pooled imputations, whose template fit
+  # is one imputed data set.
+  if (!isTRUE(b$mi)) {
+    out$admissibility <- ps_try(ps_cb_admissibility(fit, back, groups), "The admissibility check")
+  }
   if (isTRUE(b$mi)) out$imputations <- length(env$imp)
   # Robust ML (rsem): each analysed case's weight (below 1: down-weighted as atypical).
   if (isTRUE(b$robust)) out$caseWeights <- list(rows = env$case_row, weights = env$case_weight)

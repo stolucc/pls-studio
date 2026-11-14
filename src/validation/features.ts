@@ -141,6 +141,15 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
       'direct lavaan and semTools calls (modindices sepc.all, lavResiduals, epcEquivFit decision.pow)',
     ),
   ),
+  'rengine/admissibility': native(
+    'Admissibility of CB-SEM solutions (model-matrix eigenvalues, negative variances with Wald intervals, latent correlations beyond 1, vcov with equality constraints, empty ordinal cells)',
+    'CB-SEM',
+    ['lavaan'],
+    script(
+      'admissibility.R',
+      'direct lavaan calls on improper solutions (eigen of lavInspect cov.ov, cov.lv, theta, vcov; parameterEstimates; table())',
+    ),
+  ),
   'rengine/cbExtras': native(
     'Bollen–Stine bootstrap, Wald tests, factor-score weights',
     'CB-SEM',

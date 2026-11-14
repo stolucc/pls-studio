@@ -29,6 +29,7 @@ import type { DfiForFit } from '../../analyses/dfiFit';
 import { dfiFitSlot } from './dfiSlot';
 import { FitGuide, openComparisonCard } from './FitGuide';
 import { MisfitPanel } from './MisfitPanel';
+import { AdmissibilityPanel, WarningList } from './Admissibility';
 
 export const CB_TABS = [
   { id: 'fit', label: 'Model fit' },
@@ -208,6 +209,7 @@ export function FitBody({ cb, dfi }: { cb: CbResult; dfi: DfiForFit | null }) {
         {card('SRMR', fmt(f.srmr), ok(f.srmr <= 0.08))}
       </div>
       <div className="tables">
+        <AdmissibilityPanel cb={cb} />
         <Table
           title="Fit statistics"
           file="cb-fit"
@@ -251,15 +253,7 @@ export function FitBody({ cb, dfi }: { cb: CbResult; dfi: DfiForFit | null }) {
             note="Share of each variable’s variance that lies between clusters. Values above about .05 make a two-level model worthwhile."
           />
         )}
-        {cb.warnings.length > 0 && (
-          <div>
-            {cb.warnings.map((w, i) => (
-              <div key={i} className="issue warning">
-                {w}
-              </div>
-            ))}
-          </div>
-        )}
+        <WarningList warnings={cb.warnings} />
       </div>
     </>
   );

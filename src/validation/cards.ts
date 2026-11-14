@@ -1111,6 +1111,11 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     title: 'Latent interactions: QML (modsem)',
     features: ['rengine/modsem'],
   },
+  'model:cbsem:admissibility': {
+    title: 'CB-SEM admissibility check',
+    features: ['rengine/admissibility'],
+    note: 'Eigenvalues of the model matrices, negative variances and their Wald intervals, latent correlations and vcov against direct lavaan calls on improper solutions (Kline’s Heywood case, an over-factored Holzinger–Swineford model in one and two groups, ordinal items with empty cells; scripts/validation/admissibility.R).',
+  },
   'model:cbsem:multigroup': {
     title: 'Multiple groups and invariance',
     examples: ['lavaan-hs-groups'],
