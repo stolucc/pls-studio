@@ -1,12 +1,47 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { INVITES_PER_HOUR } from '../src/routes/projects.ts';
-import { signedUp, startEnv, type Agent, type TestEnv } from './helpers.ts';
+import { request as httpRequest } from 'node:http';
+import { DATASET_UPLOADS_PER_MINUTE, INVITES_PER_HOUR } from '../src/routes/projects.ts';
+import { agent, ORIGIN, signedUp, startEnv, type Agent, type TestEnv } from './helpers.ts';
 
 let env: TestEnv;
 let owner: Agent, editor: Agent, viewer: Agent, stranger: Agent;
 let projectId: string;
 const userId = async (email: string) =>
   (await env.db.query('SELECT id FROM users WHERE email = $1', [email])).rows[0].id as string;
+
+/**
+ * Start a dataset upload that declares `bytes` but sends no body, and resolve with the status
+ * of the answer: one that comes without the body proves the server never waited to read it.
+ */
+async function declaredUpload(a: Agent, project: string, bytes: number): Promise<number> {
+  const csrf = (await a.get('/api/auth/session')).body.csrfToken as string;
+  const cookie = a
+    .cookie()
+    .map((c) => `${c.name}=${c.value}`)
+    .join('; ');
+  return new Promise((resolve, reject) => {
+    const req = httpRequest({
+      host: '127.0.0.1',
+      port: env.port,
+      method: 'PUT',
+      path: `/api/projects/${project}/dataset`,
+      headers: {
+        cookie,
+        origin: ORIGIN,
+        'x-csrf-token': csrf,
+        'content-type': 'application/json',
+        'content-length': String(bytes),
+      },
+    });
+    req.on('response', (res) => {
+      resolve(res.statusCode ?? 0);
+      res.resume();
+      req.destroy();
+    });
+    req.on('error', (err) => reject(err));
+    req.flushHeaders();
+  });
+}
 
 /** Invite by email and accept with the matching account; returns the token. */
 async function invite(by: Agent, who: Agent, email: string, role: 'editor' | 'viewer') {
@@ -301,6 +336,28 @@ describe('datasets are encrypted at rest', () => {
     expect(audited.rows[0].n).toBe(1);
     // (put back for the tests that follow)
     expect((await editor.put(`/api/projects/${projectId}/dataset`, dataset)).status).toBe(200);
+  });
+
+  it('answers non-editors from the headers, before reading a dataset upload', async () => {
+    // The body is declared (past the limit, even) but never sent: these answers come without
+    // it. (An editor's upload goes on to the body parser, which reads, or for a 413 drains,
+    // the whole body before it answers.)
+    const tooBig = env.deps.config.MAX_DATASET_BYTES + 1;
+    const anonymous = await agent(env);
+    expect(await declaredUpload(anonymous, projectId, tooBig)).toBe(401);
+    expect(await declaredUpload(stranger, projectId, tooBig)).toBe(404);
+    expect(await declaredUpload(viewer, projectId, tooBig)).toBe(403);
+  });
+
+  it('limits dataset uploads per user and minute', async () => {
+    const someone = await signedUp(env, 'uploads@example.org');
+    const url = `/api/projects/${projectId}/dataset`;
+    for (let i = 0; i < DATASET_UPLOADS_PER_MINUTE; i++) {
+      expect((await someone.put(url, '{"names":[]}')).status).toBe(404);
+    }
+    expect((await someone.put(url, '{"names":[]}')).status).toBe(429);
+    // (per user: the editor's own uploads are unaffected)
+    expect((await editor.put(url, 'not json')).status).toBe(400);
   });
 
   it('validates uploads', async () => {
