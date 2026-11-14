@@ -388,6 +388,8 @@ export interface PlsResult {
   scores: Float64Array[];
   /** The R bridge's explanations of the result (blank cells, conventions), shown with the tables they concern. */
   notes?: string[];
+  /** Problems with the solution (built-in engine: an inadmissible PLSc solution), shown in Messages. */
+  warnings?: string[];
   droppedRows: number;
   /** WPLS (built-in engine): the sampling-weights column every correlation and regression was weighted by. */
   samplingWeights?: string;

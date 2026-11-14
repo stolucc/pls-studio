@@ -15,6 +15,7 @@ import {
   impliedIndicatorCor,
   modelFit,
   plsCore,
+  plscProblems,
   preparePls,
   standardizeColumns,
   structural,
@@ -219,6 +220,9 @@ function plsJob(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>): J
       // Both stages are re-run per sample when the model has moderators.
       const eb = prep.estimate(resample(prep.cols, idx), { w1: first.w1, w2: first.core.w });
       if (!eb.core.converged) throw new Error('not converged');
+      // An inadmissible PLSc draw is dropped, as cSEM does by default; it counts as failed.
+      if (opts.consistent && plscProblems(eb.m, eb.st).problems.length)
+        throw new Error('inadmissible');
       return params.map((p) => p.get(eb.st, eb.core.w));
     },
   };
