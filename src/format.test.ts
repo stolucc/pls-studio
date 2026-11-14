@@ -9,6 +9,7 @@ describe('number formatting', () => {
     expect(fmt(undefined)).toBe('—');
     expect(fmt(NaN)).toBe('—');
     expect(fmt(Infinity)).toBe('∞');
+    expect(fmt(-Infinity)).toBe('−∞');
   });
   it('writes p values and stars at the conventional thresholds', () => {
     expect(fmtP(0.0004)).toBe('<0.001');

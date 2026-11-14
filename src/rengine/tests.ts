@@ -4,7 +4,7 @@
 
 import type { Dataset } from '../engine/types';
 import { R_PACKAGES, rCall, rScript, rStrings, type RPackage } from './bridge';
-import { rColumns, rList, rNum } from './rjson';
+import { rBound, rColumns, rList, rNum } from './rjson';
 import type { REngineInfo } from './lavaan';
 import { emmRequest, parseEmm, type EmmOptions, type EmmResult } from './emm';
 import {
@@ -467,13 +467,24 @@ const withinFactors = (v: unknown): WithinFactor[] =>
 const obj = <T>(v: unknown): T | null =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as T) : null;
 
-/** Effect sizes from R (an open end of a one-sided interval, Inf, as null). */
+/** An R htest (ps_htest): an open end of its interval (one-sided) as -Infinity / Infinity, a missing bound as null. */
+function htest<T extends HTest>(v: unknown): T | null {
+  const h = obj<T>(v);
+  if (!h) return null;
+  return {
+    ...h,
+    ...('ciLow' in h ? { ciLow: rBound(h.ciLow) } : {}),
+    ...('ciHigh' in h ? { ciHigh: rBound(h.ciHigh) } : {}),
+  };
+}
+
+/** Effect sizes from R (an open end of a one-sided interval as -Infinity / Infinity; a missing bound as null). */
 const effects = (v: unknown): EffectSize[] =>
   rList<Record<string, unknown>>(v).map((e) => ({
     id: String(e.id),
     est: rNum(e.est) ?? NaN,
-    ciLow: rNum(e.ciLow),
-    ciHigh: rNum(e.ciHigh),
+    ciLow: rBound(e.ciLow),
+    ciHigh: rBound(e.ciHigh),
   }));
 
 /** The basic cards' package sets, smallest first; the last has every package their options can need. */
@@ -535,11 +546,11 @@ export async function ttestR(d: Dataset, i: TTestInput): Promise<TTestResult> {
     rows: rList<any>(r.rows).map((x) => ({
       ...x,
       variables: rList<string>(x.variables),
-      student: obj<HTest>(x.student),
-      welch: obj<HTest>(x.welch),
-      rank: obj<HTest>(x.rank),
+      student: htest(x.student),
+      welch: htest(x.welch),
+      rank: htest(x.rank),
       levene: obj(x.levene),
-      shapiro: rList<unknown>(x.shapiro).map((s) => obj<HTest>(s)),
+      shapiro: rList<unknown>(x.shapiro).map((s) => htest(s)),
       descriptives: rList<Desc>(x.descriptives),
       effects: effects(x.effects),
       tost: obj<TostResult>(x.tost),
@@ -581,9 +592,9 @@ export async function anovaR(d: Dataset, i: AnovaInput): Promise<AnovaResult> {
     factors: rList<string>(r.factors),
     covariates: rList<string>(r.covariates),
     table: rList<AnovaRow>(r.table),
-    shapiro: obj<HTest>(r.shapiro),
-    welch: obj<HTest>(r.welch),
-    kruskal: obj<HTest>(r.kruskal),
+    shapiro: htest(r.shapiro),
+    welch: htest(r.welch),
+    kruskal: htest(r.kruskal),
     tukey: r.tukey ? rList(r.tukey) : null,
     pairwiseRank: r.pairwiseRank ? rList(r.pairwiseRank) : null,
     dunn: r.dunn ? rList(r.dunn) : null,
@@ -622,7 +633,7 @@ export async function rmAnovaR(d: Dataset, i: RmAnovaInput): Promise<RmAnovaResu
     within: rList<RmRow>(r.within),
     betweenTable: rList<RmRow>(r.betweenTable),
     corrected: rList(r.corrected),
-    friedman: obj<HTest>(r.friedman),
+    friedman: htest(r.friedman),
     ...(r.conover ? { conover: rList(r.conover) } : {}),
     cells: rList(r.cells),
     posthoc: rList(r.posthoc),
@@ -709,8 +720,8 @@ export async function contingencyR(d: Dataset, i: ContingencyInput): Promise<Con
     colLevels: rList<string>(r.colLevels),
     counts: mat(r.counts),
     expected: mat(r.expected),
-    yates: obj<HTest>(r.yates),
-    fisher: obj<HTest>(r.fisher),
+    yates: htest(r.yates),
+    fisher: htest(r.fisher),
     phi: r.phi ?? null,
     oddsRatio: obj(r.oddsRatio),
     effects: r.effects ? effects(r.effects) : null,
@@ -723,8 +734,8 @@ function parsePaired(raw: Record<string, any>): PairedTests {
   return {
     levels: rList<string>(raw.levels),
     counts: rList<unknown>(raw.counts).map((row) => rList<number>(row)),
-    mcnemar: obj<HTest>(raw.mcnemar),
-    mcnemarCorrected: obj<HTest>(raw.mcnemarCorrected),
+    mcnemar: htest(raw.mcnemar),
+    mcnemarCorrected: htest(raw.mcnemarCorrected),
     exact: obj(raw.exact),
     bowker: obj(raw.bowker),
   };
@@ -741,7 +752,9 @@ export async function freqTestR(d: Dataset, i: FreqTestInput): Promise<FreqTestR
     ...r,
     levels: rList<string>(r.levels),
     counts: rList<number>(r.counts),
-    binomial: r.binomial ? rList(r.binomial) : null,
+    binomial: r.binomial
+      ? rList(r.binomial).map((h) => htest<HTest & { proportion: number }>(h)!)
+      : null,
     testValue: r.testValue ?? null,
     multinomial: mult ? { ...mult, expected: rList<number>(mult.expected) } : null,
     ...(r.cochran

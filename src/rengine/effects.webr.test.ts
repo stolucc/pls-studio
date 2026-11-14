@@ -41,8 +41,14 @@ const data = (f: Frame): Dataset => ({
 // The intervals come from root finding on noncentral distributions (effectsize, TOSTER's SMD interval):
 // webR's floating point differs from desktop R's by up to about 1e-6 relative there; closed forms agree closer.
 const close = (what: string, a: number | null | undefined, b: number | null) => {
+  // (an open end of a one-sided interval: null in the recorded reference, where R's JSON writes Inf as null;
+  //  the bridge sends it as infinite, rBound)
   if (b === null) {
-    same(`${what} (open end)`, String(a ?? null), 'null');
+    same(
+      `${what} (open end)`,
+      a === Infinity || a === -Infinity ? 'infinite' : String(a ?? null),
+      'infinite',
+    );
     return;
   }
   near(what, a ?? NaN, b, 1e-6 * Math.max(1, Math.abs(b)));

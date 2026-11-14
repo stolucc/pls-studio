@@ -137,6 +137,16 @@ ps_call <- function(fn, req, export = FALSE) {
   )
 }
 
+#' A number that may be infinite where infinity means something (the open end of a one-sided interval): +-Inf as
+#' the strings "Inf" / "-Inf" (rBound in rjson.ts reads them back), since ps_json writes every non-finite number as
+#' null, like NA. Other values as they are (NA stays null).
+ps_inf <- function(x) {
+  if (!is.numeric(x) || length(x) != 1 || !is.infinite(x)) {
+    return(x)
+  }
+  if (x > 0) "Inf" else "-Inf"
+}
+
 ps_json <- function(x) {
   if (is.list(x) && !is.data.frame(x) && (length(.ps_state$warnings) || length(.ps_state$notes) || !is.null(x$warnings))) {
     x$warnings <- I(unique(c(as.character(unlist(x$warnings)), .ps_state$warnings)))

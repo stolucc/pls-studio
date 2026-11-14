@@ -18,6 +18,7 @@ import { mcChunkRequest, runMcChunkR } from './mc';
 import { helperLibrary } from './nativeR';
 import { networkR, networkScriptR } from './network';
 import { estimatePlsR, plsScriptR } from './pls';
+import { ttestR } from './tests';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
 beforeAll(startTestRuntime);
@@ -274,4 +275,27 @@ it('the network script reads the variables back under their own names ("Item 1",
   ) as unknown as { names: string[]; nodes: string[] };
   expect(out.names).toEqual(items.names);
   expect(out.nodes).toEqual(r.names);
+}, 600_000);
+
+it('a one-sided interval keeps its open end (Infinity), told apart from a missing bound', async () => {
+  const data = { names: ['x'], cols: [hs.cols[0]] };
+  const r = await ttestR(data, {
+    type: 'one',
+    vars: ['x'],
+    pairs: [],
+    group: '',
+    testValue: 4,
+    student: true,
+    welch: false,
+    rank: false,
+    alternative: 'greater',
+    confidence: 0.95,
+    effectSizes: true,
+  });
+  const row = r.rows[0];
+  expect(row.student!.ciHigh).toBe(Infinity);
+  expect(Number.isFinite(row.student!.ciLow)).toBe(true);
+  const d = row.effects!.find((e) => e.id === 'd')!;
+  expect(d.ciHigh).toBe(Infinity);
+  expect(Number.isFinite(d.ciLow)).toBe(true);
 }, 600_000);
