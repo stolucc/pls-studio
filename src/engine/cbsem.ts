@@ -128,7 +128,7 @@ export interface CbResult {
     icc?: Record<string, number>;
   };
   groupIndex?: number;
-  /** Modification indices ≥ 3.84 (lavaan), largest first. */
+  /** Every modification index lavaan reports, largest first (the table filters them by a minimum). */
   modindices?: {
     lhs: string;
     op: string;

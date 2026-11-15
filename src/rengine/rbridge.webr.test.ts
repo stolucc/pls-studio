@@ -217,7 +217,7 @@ it('a lavaan bootstrap gives the same intervals on one R session as on several (
   }
 }, 600_000);
 
-it('the modification indices table lists every index at or above 3.84, not only the largest 100', async () => {
+it('the bridge returns every modification index lavaan reports, largest first (the table filters them)', async () => {
   // 30 indicators of three correlated factors, fitted with one factor: several
   // hundred error covariances reach 3.84. (Seeded generator: the same data every run.)
   let state = 12345;
@@ -243,12 +243,13 @@ it('the modification indices table lists every index at or above 3.84, not only 
   const script = await cbScriptLavaan(data, spec, 'casewise', 'ML');
   const out = runScript(
     `${script}\nm <- lavaan::modindices(fit)\n` +
-      'writeLines(jsonlite::toJSON(list(n = sum(m$mi >= 3.84, na.rm = TRUE), top = max(m$mi, na.rm = TRUE)), auto_unbox = TRUE, digits = NA), "out.json")',
+      'writeLines(jsonlite::toJSON(list(n = sum(!is.na(m$mi)), significant = sum(m$mi >= 3.84, na.rm = TRUE), top = max(m$mi, na.rm = TRUE)), auto_unbox = TRUE, digits = NA), "out.json")',
   );
-  expect(out.n).toBeGreaterThan(100);
+  expect(out.significant).toBeGreaterThan(100);
   expect(mi.length).toBe(out.n);
+  expect(mi.filter((m) => m.mi >= 3.84).length).toBe(out.significant);
   expect(mi[0].mi).toBeCloseTo(out.top, 4);
-  expect(mi.every((m) => m.mi >= 3.84)).toBe(true);
+  expect(mi.some((m) => m.mi < 3.84)).toBe(true);
   expect(mi.every((m, i) => i === 0 || mi[i - 1].mi >= m.mi)).toBe(true);
 }, 600_000);
 

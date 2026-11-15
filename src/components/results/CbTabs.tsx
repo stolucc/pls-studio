@@ -36,6 +36,7 @@ import { AdmissibilityPanel, WarningList } from './Admissibility';
 import { withFitHelp } from './FitHelpTip';
 import { CbNegativeLoadings } from './NegativeLoadingNote';
 import { CB_FIT_ROWS } from '../../reporting/fitHelp';
+import { MI_SIGNIFICANT, miAtLeast, miMinimum } from '../../reporting/modindices';
 
 export const CB_TABS = [
   { id: 'fit', label: 'Model fit' },
@@ -459,6 +460,7 @@ function Tech4({ t }: { t: NonNullable<CbResult['tech4']> }) {
 }
 
 function ModIndices({ cb }: { cb: CbResult }) {
+  const [minimumText, setMinimumText] = useState(String(MI_SIGNIFICANT));
   // undefined: not computed (the built-in engine); an error: lavaan could not compute them.
   if (cb.modindices === undefined)
     return (
@@ -472,29 +474,77 @@ function ModIndices({ cb }: { cb: CbResult }) {
         Modification indices are not available for this model. lavaan: {cb.modindicesError}
       </div>
     );
-  const mi = cb.modindices;
-  if (!mi.length)
+  const all = cb.modindices;
+  if (!all.length)
     return (
       <div className="empty-results">
-        No modification index reaches 3.84 (χ²(1) at α = .05): no single added parameter would
-        improve fit significantly.
+        lavaan reports no modification indices: no fixed parameter could be freed.
       </div>
     );
+  const minimum = miMinimum(minimumText);
+  const mi = miAtLeast(all, minimum);
   const groups = mi.some((m) => m.group);
+  const filter = (
+    <div className="table-tools mi-filter">
+      <label>
+        Show MI ≥{' '}
+        <input
+          type="number"
+          min={0}
+          step="any"
+          value={minimumText}
+          aria-label="Smallest modification index shown"
+          onChange={(e) => setMinimumText(e.target.value)}
+        />
+      </label>
+      {minimum !== MI_SIGNIFICANT && (
+        <button
+          type="button"
+          className="btn sm"
+          onClick={() => setMinimumText(String(MI_SIGNIFICANT))}
+        >
+          Reset to 3.84
+        </button>
+      )}
+      <span className="dim">
+        {mi.length} of {all.length} shown
+      </span>
+    </div>
+  );
+  if (!mi.length)
+    return (
+      <>
+        {filter}
+        <div className="empty-results">
+          No modification index reaches {fmt(minimum)}
+          {minimum === MI_SIGNIFICANT
+            ? ' (χ²(1) at α = .05): no single added parameter would improve fit significantly.'
+            : '.'}{' '}
+          The largest is {fmt(all[0].mi)}.
+        </div>
+      </>
+    );
+  const belowSignificance =
+    minimum < MI_SIGNIFICANT
+      ? ' Below 3.84, freeing the parameter would not improve fit significantly (χ²(1), α = .05).'
+      : '';
   return (
-    <Table
-      title="Modification indices"
-      file="cb-modindices"
-      columns={['Parameter', ...(groups ? ['Group'] : []), 'MI', 'EPC', 'Standardised EPC']}
-      rows={mi.map((m) => [
-        c(`${m.lhs} ${m.op} ${m.rhs}`),
-        ...(groups ? [c(m.group ?? '')] : []),
-        c(m.mi, m.mi > 10 ? 'warn' : ''),
-        c(m.epc),
-        c(m.sepc),
-      ])}
-      note={`Expected drop in χ² if the parameter were freed (MI, 1 df; ≥ 3.84 shown, largest first), with the expected parameter change (EPC). =~ cross-loading, ~ path, ~~ (error) covariance. Free a parameter only when theory supports it: changes driven by modification indices capitalise on chance (MacCallum, Roznowski & Necowitz, 1992).${cb.modindicesNote ? ` ${cb.modindicesNote}` : ''}`}
-    />
+    <>
+      {filter}
+      <Table
+        title="Modification indices"
+        file="cb-modindices"
+        columns={['Parameter', ...(groups ? ['Group'] : []), 'MI', 'EPC', 'Standardised EPC']}
+        rows={mi.map((m) => [
+          c(`${m.lhs} ${m.op} ${m.rhs}`),
+          ...(groups ? [c(m.group ?? '')] : []),
+          c(m.mi, m.mi > 10 ? 'warn' : ''),
+          c(m.epc),
+          c(m.sepc),
+        ])}
+        note={`Expected drop in χ² if the parameter were freed (MI, 1 df; ${mi.length} of ${all.length} at or above ${fmt(minimum)} shown, largest first), with the expected parameter change (EPC). =~ cross-loading, ~ path, ~~ (error) covariance.${belowSignificance} Free a parameter only when theory supports it: changes driven by modification indices capitalise on chance (MacCallum, Roznowski & Necowitz, 1992).${cb.modindicesNote ? ` ${cb.modindicesNote}` : ''}`}
+      />
+    </>
   );
 }
 

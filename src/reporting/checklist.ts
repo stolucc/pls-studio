@@ -5,6 +5,7 @@
 // CB-SEM, and the JARS-Quant SEM standards (Appelbaum et al., 2018, Table 7);
 // Hayes (2022) for conditional process analysis.
 
+import { MI_SIGNIFICANT, miAtLeast } from './modindices';
 import {
   describeModification,
   removalStreak,
@@ -530,8 +531,9 @@ function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] 
       link: tab('Regressions'),
     });
   }
-  const modindices = cb.modindices?.length
-    ? `${cb.modindices.length} modification indices ≥ 3.84 in the results. `
+  const significantMi = miAtLeast(cb.modindices ?? [], MI_SIGNIFICANT).length;
+  const modindices = significantMi
+    ? `${significantMi} modification indices ≥ 3.84 in the results. `
     : '';
   out.push({
     id: 'modifications',

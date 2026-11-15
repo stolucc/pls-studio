@@ -2138,8 +2138,8 @@ matrix_groups_nacov <- function(inputs) is.list(inputs$S) && !is.null(inputs$NAC
 #' One group's value of a per-group lavInspect result (a plain number with one group).
 ps_per_group <- function(x, g) if (is.list(x)) x[[g]] else if (length(x) >= g) x[[g]] else x[[1]]
 
-#' Modification indices (lavaan::modindices) at or above 3.84, largest first, in the app's names:
-#' list(items, error), where error says why lavaan could not compute them (not the same as none reaching 3.84).
+#' Every modification index (lavaan::modindices), largest first, in the app's names:
+#' list(items, error), where error says why lavaan could not compute them (not the same as an empty list).
 ps_cb_modindices <- function(fit, back, groups) {
   err <- NULL
   # (the whole table of a lavaan fit, for the Diagnose misfit panel)
@@ -2156,16 +2156,16 @@ ps_cb_modindices <- function(fit, back, groups) {
   mi <- tryCatch(
     if (inherits(fit, "lavaan.mi")) {
       x <- lavaan.mi::modindices.mi(fit)
-      x <- x[!is.na(x$mi) & x$mi >= 3.84, ]
+      x <- x[!is.na(x$mi), ]
       x[order(-x$mi), ]
     } else {
-      # Every fixed parameter's index once (also for the Diagnose misfit panel, misfit.R), then all
-      # of them at or above 3.84, largest first (no cap: the table shows every one).
+      # Every fixed parameter's index (lavaan's default, minimum 0), largest first: the
+      # results table filters them by the minimum the user sets (3.84 by default).
       full <- withCallingHandlers(lavaan::modindices(fit),
         warning = function(w) if (grepl("ignores equality constraints", conditionMessage(w))) invokeRestart("muffleWarning")
       )
       x <- full[order(full$mi, decreasing = TRUE), ]
-      x[!is.na(x$mi) & x$mi >= 3.84, ]
+      x[!is.na(x$mi), ]
     },
     error = function(e) {
       err <<- ps_comment(trimws(gsub("\\s+", " ", sub("^lavaan->modindices\\(\\):", "", conditionMessage(e)))))
