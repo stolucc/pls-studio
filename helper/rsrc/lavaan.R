@@ -2156,17 +2156,16 @@ ps_cb_modindices <- function(fit, back, groups) {
   mi <- tryCatch(
     if (inherits(fit, "lavaan.mi")) {
       x <- lavaan.mi::modindices.mi(fit)
-      x <- x[x$mi >= 3.84, ]
-      head(x[order(-x$mi), ], 100)
+      x <- x[!is.na(x$mi) & x$mi >= 3.84, ]
+      x[order(-x$mi), ]
     } else {
-      # Every fixed parameter's index once (also for the Diagnose misfit panel, misfit.R), then lavaan's own
-      # sort. = TRUE, minimum.value = 3.84, maximum.number = 100 on it.
+      # Every fixed parameter's index once (also for the Diagnose misfit panel, misfit.R), then all
+      # of them at or above 3.84, largest first (no cap: the table shows every one).
       full <- withCallingHandlers(lavaan::modindices(fit),
         warning = function(w) if (grepl("ignores equality constraints", conditionMessage(w))) invokeRestart("muffleWarning")
       )
       x <- full[order(full$mi, decreasing = TRUE), ]
-      x <- x[!is.na(x$mi) & x$mi > 3.84, ]
-      head(x, 100)
+      x[!is.na(x$mi) & x$mi >= 3.84, ]
     },
     error = function(e) {
       err <<- ps_comment(trimws(gsub("\\s+", " ", sub("^lavaan->modindices\\(\\):", "", conditionMessage(e)))))

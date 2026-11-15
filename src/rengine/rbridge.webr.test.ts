@@ -217,6 +217,41 @@ it('a lavaan bootstrap gives the same intervals on one R session as on several (
   }
 }, 600_000);
 
+it('the modification indices table lists every index at or above 3.84, not only the largest 100', async () => {
+  // 30 indicators of three correlated factors, fitted with one factor: several
+  // hundred error covariances reach 3.84. (Seeded generator: the same data every run.)
+  let state = 12345;
+  const uniform = () => {
+    state = (state * 1103515245 + 12345) % 2147483648;
+    return (state + 1) / 2147483649;
+  };
+  const normal = () => Math.sqrt(-2 * Math.log(uniform())) * Math.cos(2 * Math.PI * uniform());
+  const names = Array.from({ length: 30 }, (_, i) => `y${i + 1}`);
+  const rows = Array.from({ length: 400 }, () => {
+    const g = normal();
+    const factors = [0, 1, 2].map(() => 0.5 * g + Math.sqrt(0.75) * normal());
+    return names.map((_, i) => (0.7 * factors[Math.floor(i / 10)] + 0.7 * normal()).toFixed(6));
+  });
+  const data = parseCsv([names.join(','), ...rows.map((r) => r.join(','))].join('\n')).dataset;
+  const spec: ModelSpec = {
+    constructs: [{ name: 'G', type: 'factor', mode: 'A', indicators: names }],
+    paths: [],
+  };
+  const r = await estimateCbLavaan(data, spec, 'casewise', 'ML');
+  const mi = r.modindices!;
+  // lavaan itself, on the exported script's fit
+  const script = await cbScriptLavaan(data, spec, 'casewise', 'ML');
+  const out = runScript(
+    `${script}\nm <- lavaan::modindices(fit)\n` +
+      'writeLines(jsonlite::toJSON(list(n = sum(m$mi >= 3.84, na.rm = TRUE), top = max(m$mi, na.rm = TRUE)), auto_unbox = TRUE, digits = NA), "out.json")',
+  );
+  expect(out.n).toBeGreaterThan(100);
+  expect(mi.length).toBe(out.n);
+  expect(mi[0].mi).toBeCloseTo(out.top, 4);
+  expect(mi.every((m) => m.mi >= 3.84)).toBe(true);
+  expect(mi.every((m, i) => i === 0 || mi[i - 1].mi >= m.mi)).toBe(true);
+}, 600_000);
+
 it('the LMS / QML script reproduces the fit measures reported (the baseline refit without the interaction)', async () => {
   const dir = join(__dirname, '..', 'engine', '__fixtures__', 'modsem');
   const data = parseCsv(readFileSync(join(dir, 'oneInt.csv'), 'utf8')).dataset;
