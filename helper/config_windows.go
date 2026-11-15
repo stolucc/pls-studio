@@ -23,10 +23,14 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
+
+	"golang.org/x/sys/windows"
 )
 
 // secureFileACL replaces the file's DACL with one that grants only
@@ -72,4 +76,29 @@ func icaclsLockdown(path string, isDir bool) error {
 // warranted; caller logs through its own logger.
 func warnIfRoamingProfile(dir string) bool {
 	return strings.HasPrefix(dir, `\\`)
+}
+
+// replaceFile renames src over dst. Windows refuses the rename (access denied
+// or a sharing violation) while another process has dst open, for example the
+// running helper reading its config while a CLI command writes it. Such
+// readers close the file within milliseconds, so the rename is retried for up
+// to two seconds, as the Go toolchain does (cmd/go/internal/robustio).
+func replaceFile(src, dst string) error {
+	deadline := time.Now().Add(2 * time.Second)
+	delay := time.Millisecond
+	for {
+		err := os.Rename(src, dst)
+		if err == nil {
+			return nil
+		}
+		transient := errors.Is(err, windows.ERROR_ACCESS_DENIED) ||
+			errors.Is(err, windows.ERROR_SHARING_VIOLATION)
+		if !transient || time.Now().After(deadline) {
+			return err
+		}
+		time.Sleep(delay)
+		if delay < 100*time.Millisecond {
+			delay *= 2
+		}
+	}
 }

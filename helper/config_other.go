@@ -11,6 +11,13 @@
 
 package main
 
+import "os"
+
 func secureFileACL(_ string) error       { return nil }
 func secureDirACL(_ string) error        { return nil }
 func warnIfRoamingProfile(_ string) bool { return false }
+
+// replaceFile renames src over dst (atomic on Unix, even while dst is open).
+func replaceFile(src, dst string) error {
+	return os.Rename(src, dst)
+}

@@ -397,7 +397,8 @@ func writeConfigFile(path string, f configFile) (os.FileInfo, error) {
 		os.Remove(tmp.Name())
 		return nil, err
 	}
-	if err := os.Rename(tmp.Name(), path); err != nil {
+	if err := replaceFile(tmp.Name(), path); err != nil {
+		os.Remove(tmp.Name())
 		return nil, err
 	}
 	// Windows: explicit per-file DACL after the rename. No-op on Unix.
