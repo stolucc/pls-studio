@@ -1,8 +1,9 @@
 // Monte Carlo simulation studies: power / sample-size planning and estimator
 // comparisons. Data are drawn from a population model (population.ts); every
 // replication is estimated by each requested estimator, and per parameter we
-// report mean estimate, bias, relative bias, empirical SD, RMSE, CI coverage
-// and power (rejection rate; the Type I error rate when the true value is 0).
+// report mean estimate, bias, relative bias, empirical SD, RMSE, CI coverage,
+// mean CI width, power (rejection rate; the Type I error rate when the true
+// value is 0) and the share of inadmissible solutions.
 //
 // Replications are split into ranges for parallel workers. Replication r at
 // sample size n always uses the same seed, so results do not depend on how
@@ -11,7 +12,7 @@
 import { mergeBootstrap, runRange, sampleSeed } from './bootstrap';
 import { estimateCb, type CbEstimator } from './cbsem';
 import { mcIndirect } from './mcci';
-import { preparePls } from './pls';
+import { plscProblems, preparePls } from './pls';
 import {
   buildPopulation,
   generateData,
@@ -104,21 +105,28 @@ export function mcParameters(pop: Population, withFit = false): McParam[] {
 }
 
 /**
- * The true values the confidence intervals are checked against, per estimator and parameter. CB-SEM CIs are for
- * unstandardised effects in the marker metric: β · λ_mk(to) / λ_mk(from); a covariance ρ · λ_mk(a) · λ_mk(b).
+ * The factor from the standardised metric to the metric of the confidence intervals, per estimator and parameter.
+ * CB-SEM CIs are for unstandardised effects in the marker metric: β · λ_mk(to) / λ_mk(from); a covariance
+ * ρ · λ_mk(a) · λ_mk(b). PLS CIs are standardised (1).
  */
-export function ciTruth(design: McDesign, pop: Population, params: McParam[]): number[][] {
+export function ciScale(design: McDesign, pop: Population, params: McParam[]): number[][] {
   const ci = (name: string) => pop.constructs.indexOf(name);
   return design.estimators.map((e) =>
     params.map((p) => {
       if (p.kind === 'fit') return NaN;
-      if (e.method !== 'cb') return p.value;
+      if (e.method !== 'cb') return 1;
       const fromLoading = pop.markerLoading[ci(p.from)];
       const toLoading = pop.markerLoading[ci(p.to)];
-      if (p.kind === 'covariance') return p.value * fromLoading * toLoading;
-      return (p.value * toLoading) / fromLoading;
+      if (p.kind === 'covariance') return fromLoading * toLoading;
+      return toLoading / fromLoading;
     }),
   );
+}
+
+/** The true values the confidence intervals are checked against, per estimator and parameter (see ciScale). */
+export function ciTruth(design: McDesign, pop: Population, params: McParam[]): number[][] {
+  const scale = ciScale(design, pop, params);
+  return scale.map((perParam) => perParam.map((f, pi) => params[pi].value * f));
 }
 
 export const replicationSeed = (seed: number, n: number, r: number) =>
@@ -157,6 +165,9 @@ export function runMcTask(
       try {
         if (e.method === 'pls') {
           const opts = { ...DEFAULT_OPTIONS, consistent: e.consistent };
+          const prep = preparePls(data, plsSpec, opts);
+          const { m, st, core } = prep.estimate(prep.cols);
+          if (!core.converged) throw new Error('not converged');
           if (design.bootSamples > 0) {
             const boot = mergeBootstrap(
               [
@@ -182,9 +193,6 @@ export function runMcTask(
               sig[ei][pi][k] = s.p < design.alpha ? 1 : 0;
             });
           } else {
-            const prep = preparePls(data, plsSpec, opts);
-            const { st, core } = prep.estimate(prep.cols);
-            if (!core.converged) throw new Error('not converged');
             params.forEach((p, pi) => {
               if (p.kind === 'fit') return;
               const i = ci(p.from),
@@ -196,7 +204,9 @@ export function runMcTask(
               est[ei][pi][k] = value;
             });
           }
-          proper[ei][k] = 1;
+          // PLSc: the rule the bootstrap drops draws by (ρA in (0, 1], correlations within ±1).
+          // PLS composites are always admissible.
+          proper[ei][k] = e.consistent && plscProblems(m, st).problems.length ? 0 : 1;
         } else {
           const cb = estimateCb(data, cbSpec, 'casewise', e.estimator);
           if (!cb.converged) throw new Error('not converged');
@@ -276,6 +286,8 @@ export interface McSummaryRow {
   sd: number;
   rmse: number;
   coverage: number | null;
+  /** Mean confidence interval width, standardised (CB-SEM: the marker-metric width divided by ciScale). */
+  width: number | null;
   /** Rejection rate: power if the true value ≠ 0, else Type I error. */
   rejection: number | null;
 }
@@ -286,6 +298,7 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
     pop,
     design.estimators.some((e) => e.method === 'cb'),
   );
+  const scale = ciScale(design, pop, params);
   const rows: McSummaryRow[] = [];
   for (const n of design.sampleSizes) {
     const ps = parts.filter((p) => p.n === n).sort((a, b) => a.start - b.start);
@@ -294,6 +307,7 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
       params.forEach((param, pi) => {
         const ests: number[] = [],
           cover: number[] = [],
+          widths: number[] = [],
           rej: number[] = [];
         let failed = 0,
           improper = 0;
@@ -310,8 +324,10 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
             const l = part.lo[ei][pi][k],
               h = part.hi[ei][pi][k];
             const truth = part.truthCI[ei][pi];
-            if (Number.isFinite(l) && Number.isFinite(h))
+            if (Number.isFinite(l) && Number.isFinite(h)) {
               cover.push(l <= truth && truth <= h ? 1 : 0);
+              widths.push((h - l) / Math.abs(scale[ei][pi]));
+            }
             const sg = part.sig[ei][pi][k];
             if (Number.isFinite(sg)) rej.push(sg);
           }
@@ -340,6 +356,7 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
           sd,
           rmse,
           coverage: cover.length ? cover.reduce((s, x) => s + x, 0) / cover.length : null,
+          width: widths.length ? widths.reduce((s, x) => s + x, 0) / widths.length : null,
           rejection: rej.length ? rej.reduce((s, x) => s + x, 0) / rej.length : null,
         });
       });

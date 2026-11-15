@@ -1,4 +1,6 @@
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import type { McSummaryRow } from '../engine/montecarlo';
 import { DEFAULT_SETTINGS, type ModelState } from '../model/project';
 import { defaultDesign, populationFromModel } from '../model/simulation';
 import { withLegacySimulation } from './persist';
@@ -68,5 +70,31 @@ describe('Monte Carlo card', () => {
     expect(withLegacySimulation(cards, d)).toBe(cards);
     expect(withLegacySimulation([], null)).toEqual([]);
     expect(t.parseOptions(JSON.parse(JSON.stringify(d)))).toEqual(d);
+  });
+
+  it('shows the mean CI width and the share of inadmissible solutions', () => {
+    const d = t.defaults(ctx());
+    const path = { key: 'path:A:B', kind: 'path' as const, from: 'A', to: 'B', value: 0.3 };
+    const row: McSummaryRow = {
+      estimator: d.estimators[0].id,
+      n: 200,
+      param: path,
+      reps: 50,
+      failed: 0,
+      improper: 5,
+      mean: 0.3,
+      bias: 0,
+      relBias: 0,
+      sd: 0.07,
+      rmse: 0.07,
+      coverage: 0.95,
+      width: 0.275,
+      rejection: 0.9,
+    };
+    const out = renderToStaticMarkup(<t.View result={[row]} options={d} />);
+    expect(out).toContain('CI width');
+    expect(out).toContain('0.275');
+    expect(out).toContain('Inadmissible');
+    expect(out).toContain('10.0%');
   });
 });

@@ -598,7 +598,9 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                 'SD',
                 'RMSE',
                 'Coverage',
+                'CI width',
                 Math.abs(activeParam.value) < 1e-12 ? 'Type I' : 'Power',
+                'Inadmissible',
               ]}
               rows={rows
                 .filter((r) => r.param.key === activeParam.key)
@@ -619,6 +621,7 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                       r.coverage,
                       r.coverage !== null && (r.coverage < 0.9 || r.coverage > 0.98) ? 'warn' : '',
                     ),
+                    c(r.width),
                     c(
                       r.rejection,
                       r.rejection !== null &&
@@ -626,6 +629,10 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                         r.rejection >= 0.8
                         ? 'good'
                         : '',
+                    ),
+                    c(
+                      r.reps ? `${((r.improper / r.reps) * 100).toFixed(1)}%` : null,
+                      r.improper > 0 ? 'warn' : '',
                     ),
                   ],
                 )}
@@ -642,8 +649,12 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                     {Math.round((1 - design.alpha) * 100)}% intervals containing the true value
                     (PLS: bootstrap percentile; CB: Wald for paths, Monte Carlo for indirect
                     effects). Power: share of replications rejecting H₀ at α = {design.alpha}; 0.80
-                    is the usual target. Failed replications (non-convergence) are excluded and
-                    counted.
+                    is the usual target. CI width: mean width of the intervals, standardised
+                    (CB-SEM: the marker-metric width rescaled by the population loadings), for
+                    planning a sample size by precision. Inadmissible: share of solutions that are
+                    not possible ones (CB-SEM: negative variances or correlations beyond ±1; PLSc:
+                    reliabilities or correlations beyond 1); they stay in the summary. Failed
+                    replications (non-convergence) are excluded and counted.
                   </>
                 )
               }

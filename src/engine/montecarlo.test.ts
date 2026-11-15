@@ -107,6 +107,103 @@ describe('Monte Carlo simulation', () => {
   });
 });
 
+describe('precision and admissibility', () => {
+  it('reports the mean CI width, standardised for CB-SEM, shrinking with √n', () => {
+    const design: McDesign = {
+      population: pop,
+      estimators: [{ id: 'ML', method: 'cb', estimator: 'ML' }],
+      sampleSizes: [200, 800],
+      replications: 100,
+      seed: 3,
+      alpha: 0.05,
+      bootSamples: 0,
+      mcDraws: 0,
+    };
+    const rows = run(design, 1);
+    const small = row(rows, 'ML', 'path:X:M', 200);
+    const large = row(rows, 'ML', 'path:X:M', 800);
+    // A Wald interval is about 2 · 1.96 standard errors wide, the SE close to the empirical SD.
+    expect(small.width! / (2 * 1.96 * small.sd)).toBeGreaterThan(0.8);
+    expect(small.width! / (2 * 1.96 * small.sd)).toBeLessThan(1.25);
+    expect(small.width! / large.width!).toBeGreaterThan(1.8);
+    expect(small.width! / large.width!).toBeLessThan(2.2);
+    // No interval for the χ² test, none without Monte Carlo draws for the indirect effect.
+    expect(row(rows, 'ML', 'fit:chisq', 200).width).toBeNull();
+    expect(row(rows, 'ML', 'indirect:X:Y', 200).width).toBeNull();
+  });
+
+  it('rescales a CB-SEM interval from the marker metric to the standardised one', () => {
+    // Markers: X 0.8, M 0.5. The CI of X → M (true 0.4) is for β · 0.5 / 0.8 = 0.25.
+    const markers: PopulationSpec = {
+      constructs: [
+        { name: 'X', type: 'factor', indicators: ['x1', 'x2', 'x3'], loadings: [0.8, 0.7, 0.7] },
+        { name: 'M', type: 'factor', indicators: ['m1', 'm2', 'm3'], loadings: [0.5, 0.7, 0.7] },
+      ],
+      paths: [{ from: 'X', to: 'M', value: 0.4 }],
+      exoCor: [],
+    };
+    const design: McDesign = {
+      population: markers,
+      estimators: [
+        { id: 'ML', method: 'cb', estimator: 'ML' },
+        { id: 'PLS', method: 'pls', consistent: false },
+      ],
+      sampleSizes: [100],
+      replications: 2,
+      seed: 1,
+      alpha: 0.05,
+      bootSamples: 0,
+      mcDraws: 0,
+    };
+    const pick = (values: number[]) => [[new Float64Array([NaN, NaN]), Float64Array.from(values)]];
+    const both = (values: number[]) => [...pick(values), ...pick(values)];
+    // Parameters: the χ² test, then X → M; two replications, CI widths 0.1 and 0.3 in their own metric.
+    const part = {
+      n: 100,
+      start: 0,
+      est: both([0.4, 0.4]),
+      lo: both([0.2, 0.1]),
+      hi: both([0.3, 0.4]),
+      sig: both([1, 1]),
+      truthCI: [
+        [NaN, 0.25],
+        [NaN, 0.4],
+      ],
+      proper: [new Float64Array([1, 1]), new Float64Array([1, 1])],
+    };
+    const rows = summariseMc(design, [part]);
+    expect(row(rows, 'ML', 'path:X:M').width).toBeCloseTo(0.2 / (0.5 / 0.8), 12);
+    expect(row(rows, 'PLS', 'path:X:M').width).toBeCloseTo(0.2, 12);
+  });
+
+  it('counts inadmissible PLSc solutions (weak loadings, small n); PLS composites never are', () => {
+    const weak: PopulationSpec = {
+      constructs: [
+        { name: 'X', type: 'factor', indicators: ['x1', 'x2', 'x3'], loadings: [0.45, 0.4, 0.35] },
+        { name: 'Y', type: 'factor', indicators: ['y1', 'y2', 'y3'], loadings: [0.45, 0.4, 0.35] },
+      ],
+      paths: [{ from: 'X', to: 'Y', value: 0.5 }],
+      exoCor: [],
+    };
+    const design: McDesign = {
+      population: weak,
+      estimators: [
+        { id: 'PLS', method: 'pls', consistent: false },
+        { id: 'PLSc', method: 'pls', consistent: true },
+      ],
+      sampleSizes: [40],
+      replications: 60,
+      seed: 9,
+      alpha: 0.05,
+      bootSamples: 0,
+      mcDraws: 0,
+    };
+    const rows = run(design, 1);
+    expect(row(rows, 'PLS', 'path:X:Y').improper).toBe(0);
+    expect(row(rows, 'PLSc', 'path:X:Y').improper).toBeGreaterThan(0);
+  });
+});
+
 describe('non-normal data and the model χ² test', () => {
   it('ML χ² over-rejects under heavy kurtosis; the Satorra–Bentler χ² (MLM) does not', () => {
     const design: McDesign = {

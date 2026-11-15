@@ -59,7 +59,32 @@ it('R simulation agrees with the built-in simulation up to Monte Carlo error', a
     ).toBeLessThan(4 * se);
     if (row.estimator === 'CB-ML' && row.coverage !== null)
       expect(row.coverage).toBeGreaterThan(0.8);
+    // Mean CI widths (both standardised) agree as well.
+    if (row.width !== null && ref.width !== null)
+      expect(row.width / ref.width, `${row.estimator} ${row.param.key} width`).toBeCloseTo(1, 0);
   }
+}, 900_000);
+
+it('counts inadmissible PLSc solutions by cSEM::verify; PLS composites never are', async () => {
+  const weak = (name: string, p: string) => ({ ...f(name, p), loadings: [0.45, 0.4, 0.35] });
+  const small: McDesign = {
+    ...design,
+    population: {
+      constructs: [weak('X', 'x'), weak('Y', 'y')],
+      paths: [{ from: 'X', to: 'Y', value: 0.5 }],
+      exoCor: [],
+    },
+    estimators: [
+      { id: 'PLS', method: 'pls', consistent: false },
+      { id: 'PLSc', method: 'pls', consistent: true },
+    ],
+    sampleSizes: [40],
+    replications: 30,
+  };
+  const rows = summariseMc(small, [await runMcChunkR(small, 40, 0, 30)]);
+  const at = (id: string) => rows.find((r) => r.estimator === id && r.param.kind === 'path')!;
+  expect(at('PLS').improper).toBe(0);
+  expect(at('PLSc').improper).toBeGreaterThan(0);
 }, 900_000);
 
 it('exports the whole simulation as one script', async () => {
@@ -67,4 +92,6 @@ it('exports the whole simulation as one script', async () => {
   expect(s).toContain('simulateData(pop_model, sample.nobs = n');
   expect(s).toContain('Price_fairness =~');
   expect(s).toContain('summary_rows');
+  expect(s).toContain('ci_width = ');
+  expect(s).toContain('inadmissible = ');
 }, 900_000);
