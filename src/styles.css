@@ -172,6 +172,8 @@ button, input, select { font: inherit; color: inherit; }
 .tb-center .dirty-dot { right: 4px; }
 .example-pill { border: 1px solid var(--border-strong); background: var(--surface-3); color: var(--text-2); border-radius: 99px; font-size: 11px; font-weight: 600; padding: 2px 8px; cursor: pointer; }
 .example-pill:hover { color: var(--text); border-color: var(--text-3); }
+/* (quiet: muted, normal weight, after the panel's title; the tooltip gives the file and n / N) */
+.data-source-pill { color: var(--text-3); font-weight: 400; text-transform: none; letter-spacing: 0; cursor: default; }
 .topbar .project-name { text-align: center; max-width: 100%; }
 .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: -0.01em; margin-right: 8px; white-space: nowrap; flex: none; }
 .brand-mark {
@@ -287,16 +289,27 @@ button, input, select { font: inherit; color: inherit; }
 .canvas-wrap { position: relative; min-height: 0; }
 .canvas-wrap .react-flow { background: var(--bg); }
 .react-flow__attribution { background: transparent !important; font-size: 9px; opacity: 0.6; }
+/* (the bars at the top of the canvas stay inside it: the tools wrap onto a second row
+   rather than spilling over the panels beside the canvas) */
+.canvas-top {
+  position: absolute; top: 12px; left: 12px; right: 12px; z-index: 5;
+  display: flex; align-items: flex-start; gap: 8px; pointer-events: none;
+}
+.canvas-top > *, .canvas-top-centre > * { pointer-events: auto; }
+.canvas-top-centre {
+  flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  pointer-events: none;
+}
 .tool-dock {
-  position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5;
-  display: flex; gap: 2px; padding: 4px; background: var(--surface); border: 1px solid var(--border);
+  display: flex; flex-wrap: wrap; justify-content: center; max-width: 100%;
+  gap: 2px; padding: 4px; background: var(--surface); border: 1px solid var(--border);
   border-radius: 10px; box-shadow: var(--shadow);
 }
 .tool-dock .btn { min-height: 32px; }
 .tool-dock .dock-seg { width: 118px; height: 32px; align-self: center; }
 .tool-dock .btn.on { background: var(--accent-soft); color: var(--accent-strong); }
 .tool-hint {
-  position: absolute; top: 60px; left: 50%; transform: translateX(-50%); z-index: 5; max-width: min(560px, 90%);
+  max-width: min(560px, 100%);
   padding: 6px 12px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow);
   font-size: 12px; color: var(--text-2); text-align: center;
 }
@@ -313,7 +326,7 @@ button, input, select { font: inherit; color: inherit; }
 .steps { text-align: left; color: var(--text-2); line-height: 1.7; margin: 0; padding-left: 18px; }
 /* Which version of the model is on the canvas (ModelVersionBadge). */
 .version-badge {
-  position: absolute; top: 12px; left: 12px; z-index: 5; display: flex; align-items: center; gap: 6px;
+  flex: none; display: flex; align-items: center; gap: 6px;
   background: var(--surface); border: 1px solid var(--border); color: var(--text-2); border-radius: 99px;
   padding: 4px 10px 4px 8px; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; box-shadow: var(--shadow-sm);
 }
@@ -840,7 +853,7 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 
 /* ---------- conditional process analysis ---------- */
 .process-bar {
-  position: absolute; top: 60px; left: 50%; transform: translateX(-50%); z-index: 5; max-width: calc(100% - 48px);
+  max-width: 100%;
   display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 6px 8px 6px 10px; font-size: 12.5px;
   background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-sm);
 }

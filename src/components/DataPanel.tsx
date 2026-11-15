@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
+import { dataSource } from '../model/dataSource';
 import { mean, sd } from '../engine/stats';
 import { removeComputed } from '../data/compute';
 import { restoreCases, transformData } from '../data/pipeline';
@@ -15,6 +16,7 @@ import { IconEye, IconUpload } from './icons';
 export function DataPanel() {
   const data = useStore((s) => s.data);
   const info = useStore((s) => s.dataInfo);
+  const source = data ? dataSource(info) : null;
   // (the panel stays beside the Data tab, where "Inspect", which opens that tab, has nothing to do)
   const inDataTab = useStore((s) => s.workspace === 'data');
   const constructs = useStore((s) => s.model.constructs);
@@ -149,7 +151,23 @@ export function DataPanel() {
       {recoding && <RecodeDialog column={recoding} onClose={() => setRecoding(null)} />}
       {computing && <ComputeDialog edit={computing.edit} onClose={() => setComputing(null)} />}
       <div className="panel-head">
-        <span>Data</span>
+        <span>
+          Data
+          {source && (
+            <span
+              className="data-source-pill"
+              data-testid="data-source"
+              title={
+                source.label === 'raw data'
+                  ? `Estimated from the raw data (one row per case): ${source.detail}`
+                  : `Estimated from summary statistics, a ${source.label}: ${source.detail}`
+              }
+            >
+              {' '}
+              · {source.label.replace(' + NACOV', '')}
+            </span>
+          )}
+        </span>
         {data && (
           <span className="panel-actions" data-tour="data-actions">
             {!inDataTab && (
@@ -225,12 +243,8 @@ export function DataPanel() {
                 >
                   {info.fileName}
                 </b>
-                {info.kind === 'matrix' && (
-                  <>
-                    <span>Type</span>
-                    <b>covariance matrix{info.hasNacov ? ' + NACOV' : ''}</b>
-                  </>
-                )}
+                <span>Type</span>
+                <b>{dataSource(info)!.label}</b>
                 <span>{info.kind === 'matrix' ? 'Sample size N' : 'Observations'}</span>
                 <b>{info.rows}</b>
                 <span>Variables</span>

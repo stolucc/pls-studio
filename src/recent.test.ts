@@ -72,7 +72,8 @@ describe('autosave into recents and reopening', () => {
     await autosave();
     const [meta] = await listRecent();
     expect(meta).toMatchObject({ id, name: 'Survey', method: 'pls', constructs: 5 });
-    expect(meta.dataLabel).toContain('120 rows');
+    expect(meta.dataLabel).toContain('raw data');
+    expect(meta.dataLabel).toContain('n = 120');
 
     useStore.getState().newProject();
     useStore.setState({ dirty: false });

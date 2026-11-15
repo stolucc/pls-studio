@@ -192,19 +192,29 @@ export function Canvas({ onImport }: EmptyProps) {
       onMouseLeave={() => currentSession()?.setCursor(null)}
     >
       <Markers />
-      <ToolDock empty={empty} implied={implied} onFigure={() => setFigureOpen(true)} />
-      {tool === 'correlate' && (
-        <div className="tool-hint" role="status">
-          {picked ? (
-            <>Now click the second {secondEnd}. Esc cancels.</>
-          ) : (
-            <>
-              Drag from one end to the other, or click both: two exogenous constructs, two
-              disturbances (ζ) of endogenous constructs, or two indicators (correlated errors).
-            </>
+      {/* The canvas's top: the version badge on the left; the tools, the tool's hint and the
+          PROCESS bar in the middle, wrapping inside the canvas when it is narrow. */}
+      <div className="canvas-top">
+        <ModelVersionBadge />
+        <div className="canvas-top-centre">
+          <ToolDock empty={empty} implied={implied} onFigure={() => setFigureOpen(true)} />
+          {tool === 'correlate' && (
+            <div className="tool-hint" role="status">
+              {picked ? (
+                <>Now click the second {secondEnd}. Esc cancels.</>
+              ) : (
+                <>
+                  Drag from one end to the other, or click both: two exogenous constructs, two
+                  disturbances (ζ) of endogenous constructs, or two indicators (correlated errors).
+                </>
+              )}
+            </div>
+          )}
+          {method === 'process' && !empty && (
+            <ProcessBar onTemplates={() => setTemplatesOpen(true)} />
           )}
         </div>
-      )}
+      </div>
       {rubber && (
         <svg className="rubber" aria-hidden="true">
           <path
@@ -350,8 +360,6 @@ export function Canvas({ onImport }: EmptyProps) {
       {figureOpen && <FigurePanel input={figureInput} onClose={() => setFigureOpen(false)} />}
       {parcelConstruct && <ParcelDialog c={parcelConstruct} onClose={() => setParcelFor(null)} />}
       {templatesOpen && <ProcessGallery onClose={() => setTemplatesOpen(false)} />}
-      {method === 'process' && !empty && <ProcessBar onTemplates={() => setTemplatesOpen(true)} />}
-      <ModelVersionBadge />
       {hasStaleResults && !empty && (
         <div className="stale-banner">
           Model changed since the last calculation.

@@ -1,4 +1,5 @@
 import type { RPackage } from './rengine/bridge';
+import { dataSource } from './model/dataSource';
 import { bootOptionsOf, plsOptionsOf } from './runOptions';
 import { MAX_FILE_BYTES, parseCsv } from './engine/dataset';
 import { choiceDialog, confirmDialog, numberDialog } from './components/Overlays';
@@ -1122,9 +1123,8 @@ export async function loadPackageExample(id: string, opts: { files?: ChosenFile[
 
 function dataLabel(s: ReturnType<typeof useStore.getState>): string {
   if (!s.data || !s.dataInfo) return 'no data';
-  return s.dataInfo.kind === 'matrix'
-    ? `covariance matrix · N = ${s.dataInfo.rows}`
-    : `${s.dataInfo.fileName} · ${s.dataInfo.rows} rows`;
+  const source = dataSource(s.dataInfo)!;
+  return `${source.label} · ${source.detail}`;
 }
 
 /** Recent-projects entry for the current project, or null for an empty one. */
