@@ -35,6 +35,8 @@
 #   BRANCH           default main
 #   FORCE_NPM=1      run npm ci even if the lockfiles did not change
 #   KEEP_RELEASES    releases to keep, default 3 (at least 2)
+#   ALLOW_HELPER_MISMATCH=1  deploy even if no published desktop helper has
+#                    this commit's R code (see check_helper_bridge)
 set -euo pipefail
 
 BRANCH="${BRANCH:-main}"
@@ -50,6 +52,8 @@ DEPLOY_KEY=$APP_HOME/.ssh/pls_studio_deploy
 KNOWN_HOSTS=$APP_HOME/.ssh/known_hosts
 FORCE_NPM="${FORCE_NPM:-0}"
 KEEP_RELEASES="${KEEP_RELEASES:-3}"
+ALLOW_HELPER_MISMATCH="${ALLOW_HELPER_MISMATCH:-0}"
+GITHUB_REPO=stolucc/pls-studio
 KEEP_PRE_DEPLOY_DUMPS=5
 
 log()  { printf '\033[1;35m[pls]\033[0m %s\n' "$*"; }
@@ -213,6 +217,57 @@ build_release() {
   mv "$PARTIAL" "$RELEASES/$NEW_NAME"
   PARTIAL=""
   ok "Release $NEW_NAME built"
+}
+
+# ── Desktop helper ───────────────────────────────────────────────────────
+# The desktop helper embeds its own copy of the R bridge (helper/rsrc) and
+# the app uses it only when that copy equals the site's src/rengine/R. A
+# deploy whose R code no published helper has would leave every helper user
+# with "This site's R code is newer than the helper installed here" and no
+# helper to install, so it is refused: release the helper first (deploy/README.md,
+# "Desktop R helper and a deployment"). ALLOW_HELPER_MISMATCH=1 deploys
+# anyway (the app then calculates in the browser, with webR).
+
+# The tag of the latest published helper release, as GitHub reports it.
+latest_helper_tag() {
+  curl -fsS --max-time 15 -H 'Accept: application/vnd.github+json' \
+    "https://api.github.com/repos/$GITHUB_REPO/releases/latest" |
+    grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)"$/\1/'
+}
+
+# The R files of a directory at a commit, one "<blob> <name>" per line.
+r_files_at() {
+  as_app git -C "$REPO" ls-tree "$1:$2" | awk '$4 ~ /\.R$/ { print $3, $4 }'
+}
+
+check_helper_bridge() {
+  local tag site helper
+  if [ "$ALLOW_HELPER_MISMATCH" = 1 ]; then
+    warn "ALLOW_HELPER_MISMATCH=1: not checking that a published helper has this R code."
+    return 0
+  fi
+  log "Checking that the latest published helper has this commit's R code"
+  site="$(r_files_at "$NEW_SHA" src/rengine/R)" ||
+    die "${NEW_SHA:0:7} has no src/rengine/R."
+  tag="$(latest_helper_tag)" || tag=""
+  # Checked before it reaches git: it comes from the network.
+  if ! [[ "$tag" =~ ^helper-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    die "Could not get the latest helper release from GitHub (got '${tag}'), so nothing was deployed. Try again, or deploy with ALLOW_HELPER_MISMATCH=1."
+  fi
+  as_app git -C "$REPO" fetch --quiet origin "+refs/tags/$tag:refs/tags/$tag" ||
+    die "Could not fetch tag $tag, so nothing was deployed."
+  helper="$(r_files_at "refs/tags/$tag^{commit}" helper/rsrc)" ||
+    die "$tag has no helper/rsrc."
+  if [ "$site" != "$helper" ]; then
+    die "${NEW_SHA:0:7} changes the R code, but the latest published helper ($tag) has the old one, so nothing was deployed.
+  Helper users would be told to install a helper that does not exist yet.
+  Release the helper first (on your computer, in the repository):
+    git tag helper-vX.Y.Z && git push origin helper-vX.Y.Z
+    gh workflow run helper-release.yml --ref helper-vX.Y.Z
+  approve the run, wait until it is published, then deploy again.
+  To deploy anyway (helper users then calculate in the browser): ALLOW_HELPER_MISMATCH=1"
+  fi
+  ok "Helper $tag has this commit's R code"
 }
 
 # ── Database backup ──────────────────────────────────────────────────────
@@ -388,6 +443,7 @@ main() {
     log "${OLD_SHA:0:7} -> ${NEW_SHA:0:7}"
   fi
 
+  check_helper_bridge
   build_release
   backup_database
 

@@ -197,6 +197,8 @@ esac`,
       'server/src/index.ts': '// server\n',
       'deploy/pls-update.sh': update,
       'index.html': '<!doctype html>\n',
+      'src/rengine/R/common.R': 'ps_a <- 1\n',
+      'helper/rsrc/common.R': 'ps_a <- 1\n',
     };
     const commit = (changes: Record<string, string | null>, message: string) => {
       for (const [file, content] of Object.entries(changes)) {
@@ -213,6 +215,8 @@ esac`,
       return git(origin, 'rev-parse', 'HEAD');
     };
     const first = commit(files, 'first');
+    // The published helper release (latest_helper_tag is stubbed: HELPER_TAG).
+    git(origin, 'tag', 'helper-v0.1.0');
     const envFile = join(etc, 'pls-studio.env');
     const unitFile = join(etc, 'pls-studio.service');
     const log = join(root, 'log');
@@ -260,6 +264,7 @@ UNIT_FILE=${JSON.stringify(unitFile)}
 BACKUP_DIR=${JSON.stringify(join(root, 'backups'))}
 require_root() { :; }
 take_lock() { :; }
+latest_helper_tag() { [ -z "\${GITHUB_DOWN:-}" ] && echo "\${HELPER_TAG:-helper-v0.1.0}"; }
 as_app() { "$@"; }
 chown() { :; }
 systemctl() { echo "systemctl $*" >> "$LOG"; [ "$1" != is-active ]; }
@@ -409,6 +414,65 @@ main
     expect(r.output).toContain('not done automatically');
     // The failed release is kept for inspection.
     expect(s.releases().map(s.revision)).toEqual([s.first, bad]);
+  });
+
+  it('refuses R code that no published helper has, until the helper is released', () => {
+    const s = sandbox();
+    s.provisionNew();
+    expect(s.deploy().status).toBe(0);
+    const before = s.current();
+
+    // R changed, helper not released: nothing is built, backed up or switched.
+    s.commit({ 'src/rengine/R/common.R': 'ps_a <- 2\n' }, 'R change');
+    const refused = s.deploy();
+    expect(refused.status).not.toBe(0);
+    expect(refused.output).toContain('the latest published helper (helper-v0.1.0) has the old one');
+    expect(refused.output).toContain('gh workflow run helper-release.yml');
+    expect(refused.output).toContain('ALLOW_HELPER_MISMATCH=1');
+    expect(s.current()).toBe(before);
+    expect(s.releases()).toHaveLength(1);
+    expect(s.backups()).toHaveLength(1);
+    expect(refused.log).not.toContain('restart');
+
+    // Tagged but not yet published (GitHub's latest is still the old one): still refused.
+    const synced = s.commit({ 'helper/rsrc/common.R': 'ps_a <- 2\n' }, 'sync-r');
+    execFileSync('git', ['tag', 'helper-v0.2.0'], { cwd: s.origin, env: gitEnv });
+    expect(s.deploy().status).not.toBe(0);
+
+    // Published: deploys.
+    const r = s.deploy({ HELPER_TAG: 'helper-v0.2.0' });
+    expect(r.status, r.output).toBe(0);
+    expect(r.output).toContain("Helper helper-v0.2.0 has this commit's R code");
+    expect(s.currentRevision()).toBe(synced);
+  });
+
+  it('deploys a mismatch only when asked to, and refuses when GitHub cannot be asked', () => {
+    const s = sandbox();
+    s.provisionNew();
+    expect(s.deploy().status).toBe(0);
+
+    const unreachable = s.deploy({ GITHUB_DOWN: '1' });
+    expect(unreachable.status).not.toBe(0);
+    expect(unreachable.output).toContain('Could not get the latest helper release from GitHub');
+    // A tag name from the network never reaches git unless it looks like one.
+    const odd = s.deploy({ HELPER_TAG: 'helper-v1 --upload-pack=x' });
+    expect(odd.status).not.toBe(0);
+    expect(odd.output).toContain('Could not get the latest helper release from GitHub');
+
+    const changed = s.commit({ 'src/rengine/R/common.R': 'ps_a <- 3\n' }, 'R change');
+    const r = s.deploy({ ALLOW_HELPER_MISMATCH: '1' });
+    expect(r.status, r.output).toBe(0);
+    expect(r.output).toContain('ALLOW_HELPER_MISMATCH=1: not checking');
+    expect(s.currentRevision()).toBe(changed);
+  });
+
+  it('compares only the R files: other files beside them do not block a deploy', () => {
+    const s = sandbox();
+    s.provisionNew();
+    const next = s.commit({ 'src/rengine/R/README.md': 'notes\n' }, 'notes');
+    const r = s.deploy();
+    expect(r.status, r.output).toBe(0);
+    expect(s.currentRevision()).toBe(next);
   });
 
   it('migrates a plain checkout to releases on the first run', () => {

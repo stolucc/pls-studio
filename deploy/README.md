@@ -97,6 +97,14 @@ sudo bash /opt/pls-studio/deploy/pls-update.sh
 ```
 
 How an update runs:
+0. **Helper check.** The R code of the new commit (`src/rengine/R/*.R`) must
+   equal the R bridge inside the latest *published* desktop helper release
+   (its `helper/rsrc/*.R`, release looked up on GitHub). Otherwise the deploy
+   stops before building anything: helper users would be told to install a
+   helper that does not exist yet. Release the helper first (see
+   [Desktop R helper and a deployment](#desktop-r-helper-and-a-deployment)).
+   `ALLOW_HELPER_MISMATCH=1` deploys anyway; helper users then calculate in
+   the browser (webR) until the helper is released.
 1. **Build.** The branch is fetched into `repo.git` and the new commit built
    in its own directory under `releases/`: server `npm ci`, R runtime, type
    check and client build. Unchanged dependencies (lockfile as in the live
@@ -243,3 +251,12 @@ pls-studio-helper allow-origin https://pls.example.edu
 ```
 
 The app shows this command (with the right address) under Calculated by when it cannot reach the helper.
+
+The helper embeds its own copy of the R bridge, and the app uses it only when that copy equals the
+site's. So a commit that changes `src/rengine/R/` is released in this order:
+
+1. Push the commit, then tag and release the helper from it:
+   `git tag helper-vX.Y.Z && git push origin helper-vX.Y.Z`, then
+   `gh workflow run helper-release.yml --ref helper-vX.Y.Z`, and approve the run.
+2. When the release is published, deploy the site (`pls-update.sh` refuses before that).
+3. Helper users update from the helper (menu-bar icon → Check for updates…).
