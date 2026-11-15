@@ -17,6 +17,7 @@ import { toSpec, type ModelState } from '../model/project';
 import { parseLavaanSyntax } from '../model/syntax';
 import { analysisScript, bootChunked, bootstrapR } from './analyses';
 import { parallelism, rCall } from './bridge';
+import { useCompute } from './compute';
 import { useHelper } from './helper';
 import { cbRequest, cbScriptLavaan, estimateCbLavaan } from './lavaan';
 import { mcChunkRequest, runMcChunkR } from './mc';
@@ -187,16 +188,20 @@ it('a lavaan bootstrap gives the same intervals on one R session as on several (
     boot: { samples: 250, seed: 11, confidence: 0.95 },
   };
   expect(bootChunked(a)).toBe(true);
+  // Desktop R: the helper's processes; the browser's R: the Parallel setting.
   const sessions = async (n: number) => {
-    await parallelism();
-    const h = useHelper.getState();
-    useHelper.setState({ info: { ...h.info!, workers: n } });
+    const { where } = await parallelism();
+    if (where === 'desktop') {
+      const h = useHelper.getState();
+      useHelper.setState({ info: { ...h.info!, workers: n } });
+    } else {
+      useCompute.getState().set({ workers: n });
+    }
     return (await parallelism()).sessions;
   };
-  await parallelism();
-  const before = useHelper.getState().info!.workers;
+  const before = (await parallelism()).sessions;
   try {
-    expect(await sessions(4)).toBe(4);
+    expect(await sessions(3)).toBe(3);
     const parallel = await bootstrapR(hs, spec, a, () => 'x');
     expect(await sessions(1)).toBe(1);
     const serial = await bootstrapR(hs, spec, a, () => 'x');

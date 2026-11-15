@@ -50,7 +50,7 @@ const options = {
 
 describe('parallel bootstrap', () => {
   webrOnlyIt(
-    'cSEM: identical for 2 and 3 sessions, equal to one session drawing all chunks; off = the single run',
+    'cSEM: identical for 1, 2 and 3 sessions and equal to one session drawing all chunks',
     async () => {
       const d = await load('cSEM', 'satisfaction');
       const spec: ModelSpec = {
@@ -71,7 +71,12 @@ describe('parallel bootstrap', () => {
         { ...plsRequest(d, spec, options, 'cSEM'), boot },
         'cSEM',
       );
-      expect(single.stats.map((s) => s.sd)).toEqual(plain.stats.map((s) => s.sd));
+      // The bootstrap always runs in chunks (seed + k), so with Parallel off it
+      // differs from one unchunked cSEM call but equals the parallel runs below.
+      expect(single.chunked).toBe(true);
+      expect(single.stats.find((s) => s.key === 'path:SAT:LOY')!.sd).not.toBe(
+        plain.stats.find((s) => s.key === 'path:SAT:LOY')!.sd,
+      );
       useCompute.getState().set({ workers: 3 });
       const seen: number[] = [];
       const r3 = await bootstrapR(
@@ -99,9 +104,7 @@ describe('parallel bootstrap', () => {
         expect(s.sd, s.key).toBeCloseTo(w.sd, 12);
         expect(s.ciLow, s.key).toBeCloseTo(w.ciLow, 12);
       }
-      expect(r3.stats.find((s) => s.key === 'path:SAT:LOY')!.sd).not.toBe(
-        single.stats.find((s) => s.key === 'path:SAT:LOY')!.sd,
-      );
+      expect(single.stats).toEqual(r3.stats);
     },
     900_000,
   );
