@@ -21,3 +21,8 @@ func warnIfRoamingProfile(_ string) bool { return false }
 func replaceFile(src, dst string) error {
 	return os.Rename(src, dst)
 }
+
+// readFile reads path (a rename over it never makes opening it fail on Unix).
+func readFile(path string) ([]byte, error) {
+	return os.ReadFile(path)
+}

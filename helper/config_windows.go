@@ -81,13 +81,33 @@ func warnIfRoamingProfile(dir string) bool {
 // replaceFile renames src over dst. Windows refuses the rename (access denied
 // or a sharing violation) while another process has dst open, for example the
 // running helper reading its config while a CLI command writes it. Such
-// readers close the file within milliseconds, so the rename is retried for up
-// to two seconds, as the Go toolchain does (cmd/go/internal/robustio).
+// readers close the file within milliseconds, so the rename is retried, as the
+// Go toolchain does (cmd/go/internal/robustio).
 func replaceFile(src, dst string) error {
+	return retrySharing(func() error {
+		return os.Rename(src, dst)
+	})
+}
+
+// readFile reads path. The other side of replaceFile: while another process
+// renames a new config over it, opening it fails the same transient ways.
+func readFile(path string) ([]byte, error) {
+	var data []byte
+	err := retrySharing(func() error {
+		var err error
+		data, err = os.ReadFile(path)
+		return err
+	})
+	return data, err
+}
+
+// retrySharing runs op until it succeeds, fails for another reason than
+// access denied or a sharing violation, or two seconds have passed.
+func retrySharing(op func() error) error {
 	deadline := time.Now().Add(2 * time.Second)
 	delay := time.Millisecond
 	for {
-		err := os.Rename(src, dst)
+		err := op()
 		if err == nil {
 			return nil
 		}

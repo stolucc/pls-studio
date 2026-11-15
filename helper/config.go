@@ -202,7 +202,7 @@ func readConfigFile(path string) (configFile, os.FileInfo, error) {
 	if err != nil {
 		return f, nil, err
 	}
-	data, err := os.ReadFile(path)
+	data, err := readFile(path)
 	if err != nil {
 		return f, nil, err
 	}
