@@ -219,42 +219,45 @@ export function FitBody({ cb, dfi }: { cb: CbResult; dfi: DfiForFit | null }) {
       </div>
       <div className="tables">
         <AdmissibilityPanel cb={cb} />
-        <Table
-          title="Fit statistics"
-          file="cb-fit"
-          columns={[
-            'Statistic',
-            'Standard',
-            robust ? 'Robust / scaled' : '',
-            ...(dfi ? [`Dynamic cutoffs (dynamic::${dfi.result.fn})`] : []),
-          ]}
-          rows={withFitHelp(
-            dfi ? rows.map((r) => (r.length < 4 ? [...r, c(null)] : r)) : rows,
-            CB_FIT_ROWS,
-          )}
-          note={
-            <>
-              {dfi
-                ? `${dfiFitSlot.note(dfi)} `
-                : 'Hu & Bentler (1999) cutoffs: CFI/TLI ≥ 0.95, RMSEA ≤ 0.06, SRMR ≤ 0.08. '}
-              <button
-                type="button"
-                className="btn"
-                style={{ marginRight: 6 }}
-                onClick={() => dfiFitSlot.open()}
-                title="Fit index cutoffs tailored to this model and sample size (the dynamic package), on the Analyses tab"
-              >
-                Dynamic cutoffs for this model…
-              </button>
-              {robustIdx &&
-                ' Robust CFI/TLI/RMSEA follow Brosseau-Liard & Savalei and estimate the population values; the scaled versions apply the correction to the statistic only.'}
-              {rml &&
-                ' Robust ML (rsem; Yuan & Zhang 2012): the model is fitted to Huber-weighted means and covariances; χ² (scaled) is the rescaled statistic TRML; CFI, TLI and RMSEA are those of the fit to the robust moments.'}{' '}
-              Validated against lavaan.{cb.fitNote && ` ${cb.fitNote}`}
-            </>
-          }
-        />
-        <FitGuide cb={cb} onCompare={openComparisonCard} onDynamic={() => dfiFitSlot.open()} />
+        {/* The guide belongs to the fit table: one column, so opening it never moves it to another row. */}
+        <div className="fit-with-guide">
+          <Table
+            title="Fit statistics"
+            file="cb-fit"
+            columns={[
+              'Statistic',
+              'Standard',
+              robust ? 'Robust / scaled' : '',
+              ...(dfi ? [`Dynamic cutoffs (dynamic::${dfi.result.fn})`] : []),
+            ]}
+            rows={withFitHelp(
+              dfi ? rows.map((r) => (r.length < 4 ? [...r, c(null)] : r)) : rows,
+              CB_FIT_ROWS,
+            )}
+            note={
+              <>
+                {dfi
+                  ? `${dfiFitSlot.note(dfi)} `
+                  : 'Hu & Bentler (1999) cutoffs: CFI/TLI ≥ 0.95, RMSEA ≤ 0.06, SRMR ≤ 0.08. '}
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ marginRight: 6 }}
+                  onClick={() => dfiFitSlot.open()}
+                  title="Fit index cutoffs tailored to this model and sample size (the dynamic package), on the Analyses tab"
+                >
+                  Dynamic cutoffs for this model…
+                </button>
+                {robustIdx &&
+                  ' Robust CFI/TLI/RMSEA follow Brosseau-Liard & Savalei and estimate the population values; the scaled versions apply the correction to the statistic only.'}
+                {rml &&
+                  ' Robust ML (rsem; Yuan & Zhang 2012): the model is fitted to Huber-weighted means and covariances; χ² (scaled) is the rescaled statistic TRML; CFI, TLI and RMSEA are those of the fit to the robust moments.'}{' '}
+                Validated against lavaan.{cb.fitNote && ` ${cb.fitNote}`}
+              </>
+            }
+          />
+          <FitGuide cb={cb} onCompare={openComparisonCard} onDynamic={() => dfiFitSlot.open()} />
+        </div>
         {cb.caseWeights && <CaseWeights w={cb.caseWeights} />}
         {cb.groups?.levels && cb.groups.icc && (
           <Table

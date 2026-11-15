@@ -1061,6 +1061,9 @@ table.grid.evidence-table th:last-child, table.grid.evidence-table td.hint { tex
 .split-section + .split-section { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
 .split-heading { margin: 0 0 8px; font-size: 13px; }
 /* CB-SEM Model fit tab: fit-index guidance and the Diagnose misfit panel (components/results/FitGuide, MisfitPanel). */
+.fit-with-guide { display: flex; flex-direction: column; min-width: 0; max-width: 100%; }
+/* (as wide as the fit table, never wider: its text wraps instead of widening the column) */
+.fit-with-guide > .fit-guide { width: 0; min-width: 100%; }
 .fit-guide { margin-top: 4px; }
 .fit-guide details summary, .misfit-panel > details > summary { cursor: pointer; font-size: 12px; color: var(--text-2); padding: 4px 2px; }
 .fit-guide .table-note p { margin: 0 0 6px; }

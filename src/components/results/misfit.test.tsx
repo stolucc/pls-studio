@@ -1,3 +1,6 @@
+// @vitest-environment happy-dom
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { CbFit, CbResult } from '../../engine/cbsem';
@@ -116,6 +119,35 @@ describe('fit-index guidance', () => {
     expect(out).toContain('How to read these fit indices');
     expect(out).toContain('Why the columns differ');
     expect(out).toContain('Diagnose misfit');
+  });
+
+  // It used to be a separate item of the wrapping row of tables: opened, it grew wider than
+  // the space beside the fit table and jumped to the next row.
+  it('shares one column with the fit table, as wide as the table, so opening it never moves it', () => {
+    const cb = {
+      fit: robust(),
+      estimator: 'MLR',
+      n: 301,
+      iterations: 30,
+      warnings: [],
+      estimates: [],
+      constructs: [],
+      indicators: [],
+    } as unknown as CbResult;
+    const doc = new DOMParser().parseFromString(
+      renderToStaticMarkup(<CbTab tab="fit" cb={cb} boot={null} />),
+      'text/html',
+    );
+    const column = doc.querySelector('.tables > .fit-with-guide')!;
+    expect(column).not.toBeNull();
+    expect(column.textContent).toContain('Fit statistics');
+    expect(column.querySelector(':scope > .fit-guide')).not.toBeNull();
+    expect(doc.querySelector('.tables > .fit-guide')).toBeNull();
+
+    const css = readFileSync(join(__dirname, '..', '..', 'styles.css'), 'utf8');
+    const body = css.match(/\.fit-with-guide > \.fit-guide \{([^}]*)\}/)![1];
+    expect(body).toMatch(/width:\s*0/);
+    expect(body).toMatch(/min-width:\s*100%/);
   });
 });
 
