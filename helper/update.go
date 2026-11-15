@@ -359,6 +359,18 @@ func verifiedBinary(ctx context.Context, rel *release, goos, goarch string) ([]b
 // One update at a time (the tray, the command line and the app could ask at once).
 var updating sync.Mutex
 
+// translocationError explains macOS App Translocation: an app that still
+// carries the "downloaded" flag and was not moved with Finder runs from a
+// read-only copy under /AppTranslocation/, where it cannot replace itself.
+func translocationError(exe string) error {
+	if !strings.Contains(exe, "/AppTranslocation/") {
+		return nil
+	}
+	return errors.New("macOS is running the helper from a read-only copy (App Translocation), " +
+		"so it cannot update itself. Quit the helper, drag PLS Studio Helper.app into " +
+		"Applications with Finder, start it from there and update again")
+}
+
 // performUpdate replaces this helper's binary with the latest verified
 // release; it returns the version installed and the path to start. The
 // running process keeps running the old code until it restarts.
@@ -378,19 +390,22 @@ func performUpdate(ctx context.Context) (updateInfo, string, error) {
 		return updateInfo{Current: helperVersion}, "", err
 	}
 	defer lock.unlock()
+	exe, err := os.Executable()
+	if err != nil {
+		return updateInfo{Current: helperVersion}, "", err
+	}
+	if exe, err = filepath.EvalSymlinks(exe); err != nil {
+		return updateInfo{Current: helperVersion}, "", err
+	}
+	if err := translocationError(exe); err != nil {
+		return updateInfo{Current: helperVersion}, "", err
+	}
 	info, rel, err := checkUpdate(ctx)
 	if err != nil || !info.Available {
 		return info, "", err
 	}
 	bin, err := verifiedBinary(ctx, rel, runtime.GOOS, runtime.GOARCH)
 	if err != nil {
-		return info, "", err
-	}
-	exe, err := os.Executable()
-	if err != nil {
-		return info, "", err
-	}
-	if exe, err = filepath.EvalSymlinks(exe); err != nil {
 		return info, "", err
 	}
 	if err := installBinary(exe, bin); err != nil {

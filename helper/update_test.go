@@ -385,3 +385,16 @@ func TestUpdateEndpoint(t *testing.T) {
 		t.Errorf("POST /update without a token: %d", rec.Code)
 	}
 }
+
+func TestTranslocatedAppRefusesToUpdateWithAnExplanation(t *testing.T) {
+	translocated := "/private/var/folders/bt/x/T/AppTranslocation/A858DC09/d/" +
+		"PLS Studio Helper.app/Contents/MacOS/pls-studio-helper"
+	err := translocationError(translocated)
+	if err == nil || !strings.Contains(err.Error(), "drag PLS Studio Helper.app into Applications") {
+		t.Fatalf("got %v, want the App Translocation explanation", err)
+	}
+	installed := "/Applications/PLS Studio Helper.app/Contents/MacOS/pls-studio-helper"
+	if err := translocationError(installed); err != nil {
+		t.Fatalf("an installed app: %v", err)
+	}
+}
