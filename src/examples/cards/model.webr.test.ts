@@ -18,7 +18,8 @@ import type { CompareModelsResult } from '../../rengine/cbDiag';
 import { webrOnlyIt } from '../../rengine/webrSlow'; // (the references are seminr 2.5.0's, the browser's version; desktop seminr 2.6.0 changed its benchmark)
 import { slowIt } from '../../rengine/webrSlow';
 import type { Dataset, PlsResult } from '../../engine/types';
-import { summariseMc, type McDesign, type McPart } from '../../engine/montecarlo';
+import { designParameters, summariseMc, type McDesign, type McPart } from '../../engine/montecarlo';
+import { buildPopulation } from '../../engine/population';
 import { categoriesOf } from '../../io';
 import { DEFAULT_SETTINGS, toSpec } from '../../model/project';
 import { analysisType } from '../../analyses/registry';
@@ -600,6 +601,76 @@ slowIt(
     near('power of f1 ↔ f2', cor.rejection!, 0.81, 0.04);
     near('mean estimate of f1 ↔ f2 (population .25)', cor.mean, 0.25, 0.01);
     near('coverage of the 95% interval', cor.coverage!, 0.95, 0.02);
+  },
+  1_800_000,
+);
+
+/** A Rönkkö & Evermann card's design run in R without the bootstrap (point estimates), all 500 replications. */
+async function ronkkoEvermannRun(id: string) {
+  const { options } = await open(id, 'Simulation', ['cSEM', 'lavaan']);
+  const card = options as McDesign;
+  same('sample size', card.sampleSizes[0], 100);
+  same('replications', card.replications, 500);
+  const design: McDesign = { ...card, bootSamples: 0 };
+  const parts: McPart[] = [];
+  for (let s = 0; s < design.replications; s += 100)
+    parts.push(await runMcChunkR(design, 100, s, Math.min(design.replications, s + 100)));
+  const rows = summariseMc(design, parts);
+  const path = (estimator: string) =>
+    rows.find((x) => x.estimator === estimator && x.param.key === 'path:A:B')!;
+  return { parts, rows, path };
+}
+
+slowIt(
+  'ronkko-evermann-null: the PLS estimate of a null path is bimodal; sum scores and ML SEM are not',
+  async () => {
+    const { parts, path } = await ronkkoEvermannRun('ronkko-evermann-null');
+    // (cSEM's PLS does not converge in a few samples of a null path: 9 of 500 in desktop cSEM 0.7.1)
+    expect(path('PLS mode A').failed, 'PLS: replications without convergence').toBeLessThan(25);
+    for (const e of ['Sum scores', 'CB-ML']) same(`${e} failed`, path(e).failed, 0);
+    // (PLS mode A is the first estimator; A → B comes after the fit tests CB-SEM adds)
+    const card = exampleOf('ronkko-evermann-null').panel as unknown as McDesign;
+    const at = designParameters(card, buildPopulation(card.population)).findIndex(
+      (p) => p.key === 'path:A:B',
+    );
+    const est = parts.flatMap((p) => Array.from(p.est[0][at])).filter(Number.isFinite);
+    const share = (lo: number, hi: number) =>
+      est.filter((x) => Math.abs(x) >= lo && Math.abs(x) < hi).length / est.length;
+    against({
+      label:
+        'Rönkkö & Evermann (2013): at β = 0 and N = 100 the PLS estimate is bimodal (fewer estimates within ±.05 of 0 than between ±.10 and ±.15) with a larger SD than sum scores; regression on sum scores and ML SEM center on 0',
+      level: 'published',
+      url: 'https://doi.org/10.1177/1094428112474693',
+    });
+    expect(share(0, 0.05), 'PLS: fewer estimates near 0 than at ±.1 to ±.15').toBeLessThan(
+      share(0.1, 0.15),
+    );
+    near('sum scores: mean estimate', path('Sum scores').mean, 0, 0.02);
+    near('ML SEM: mean estimate', path('CB-ML').mean, 0, 0.03);
+    expect(path('PLS mode A').sd, 'PLS: larger SD than sum scores').toBeGreaterThan(
+      1.5 * path('Sum scores').sd,
+    );
+  },
+  1_800_000,
+);
+
+slowIt(
+  'ronkko-evermann-beta: sum scores underestimate β = .3, PLS less so, ML SEM not at all',
+  async () => {
+    const { path } = await ronkkoEvermannRun('ronkko-evermann-beta');
+    against({
+      label:
+        'Rönkkö & Evermann (2013): with loadings .6/.7/.8 and N = 100, sum scores are attenuated (composite reliability about .75: β ≈ .3 · .75 = .22); PLS weights capitalise on chance and raise the estimate above the sum scores’, below the true value; ML SEM is unbiased with the largest SD',
+      level: 'published',
+      url: 'https://doi.org/10.1177/1094428112474693',
+    });
+    near('sum scores: mean estimate', path('Sum scores').mean, 0.22, 0.02);
+    expect(path('PLS mode A').mean, 'PLS: above sum scores').toBeGreaterThan(
+      path('Sum scores').mean,
+    );
+    expect(path('PLS mode A').mean, 'PLS: below the true .3').toBeLessThan(0.3);
+    near('ML SEM: mean estimate', path('CB-ML').mean, 0.3, 0.03);
+    expect(path('CB-ML').sd, 'ML SEM: larger SD than PLS').toBeGreaterThan(path('PLS mode A').sd);
   },
   1_800_000,
 );

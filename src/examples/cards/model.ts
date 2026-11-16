@@ -127,6 +127,66 @@ const SIMDATA = {
 };
 
 /** Muthén & Muthén (2002), the CFA model: two factors of five indicators, loadings .8, residual variances .36, factor correlation .25. */
+/**
+ * Rönkkö & Evermann (2013): two common factors with three indicators each (loadings .6, .7, .8) and one path,
+ * β = 0 or .3; the paper simulates N = 100 with 500 replications.
+ */
+export const ronkkoEvermannPopulation = (beta: number) => ({
+  constructs: [
+    { name: 'A', type: 'factor', indicators: items('a', 3), loadings: [0.6, 0.7, 0.8] },
+    { name: 'B', type: 'factor', indicators: items('b', 3), loadings: [0.6, 0.7, 0.8] },
+  ],
+  paths: [{ from: 'A', to: 'B', value: beta }],
+  exoCor: [],
+  skew: 0,
+  kurtosis: 0,
+});
+
+/** What the cards take from the paper, and what is the app's (both descriptions include it). */
+const RONKKO_EVERMANN_DIFFERS =
+  'As in the paper: the population, N = 100, 500 replications, PLS mode A against regression on sum scores and ML SEM. The app’s choices: 500 bootstrap samples per replication with percentile intervals (change them on the card), and the measurement checks as the app computes them (AVE − highest squared correlation appears as the Fornell–Larcker margin √AVE − highest correlation, which decides the same). The paper’s models with a misspecified measurement model are not part of these cards; cross-loadings and error correlations can be added on the card. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+
+/** The parts both Rönkkö & Evermann cards share; beta: the path of the population. */
+const ronkkoEvermannCard = (beta: number) => ({
+  package: 'cSEM' as const,
+  source:
+    'Rönkkö & Evermann (2013), A critical examination of common beliefs about partial least squares path modeling: the two-construct simulation',
+  links: [
+    { label: 'Rönkkö & Evermann (2013)', url: 'https://doi.org/10.1177/1094428112474693' },
+    { label: 'Henseler et al. (2014), the reply', url: 'https://doi.org/10.1177/1094428114526928' },
+  ],
+  data: {
+    package: 'cSEM' as const,
+    name: `Rönkkö & Evermann (2013), a sample of 100 (β = ${beta})`,
+    file: `examples/montecarlo/ronkko2013-${beta === 0 ? 'null' : 'beta'}.csv`,
+  },
+  constructs: [f('A', items('a', 3)), f('B', items('b', 3))],
+  paths: [['A', 'B']] as [string, string][],
+  panel: {
+    kind: 'mc' as const,
+    population: ronkkoEvermannPopulation(beta),
+    estimators: [
+      { id: 'PLS mode A', method: 'pls', consistent: false, mode: 'A' },
+      { id: 'Sum scores', method: 'regression', dr: false },
+      { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+    ],
+    sampleSizes: [100],
+    replications: 500,
+    seed: 2013,
+    alpha: 0.05,
+    bootSamples: 500,
+    mcDraws: 0,
+  },
+  settings: {
+    method: 'pls' as const,
+    plsPackage: 'cSEM' as const,
+    consistent: false,
+    scheme: 'path' as const,
+    missing: 'casewise' as const,
+    seed: 2013,
+  },
+});
+
 export const MUTHEN_POPULATION = {
   constructs: [
     { name: 'f1', type: 'factor', indicators: items('y', 5), loadings: [0.8, 0.8, 0.8, 0.8, 0.8] },
@@ -528,6 +588,28 @@ export const CARD_MODEL: PackageExample[] = [
       mcDraws: 1000,
     },
     settings: CB('ML'),
+  },
+  {
+    id: 'ronkko-evermann-null',
+    title: 'Monte Carlo: PLS at a null path (Rönkkö & Evermann 2013)',
+    description:
+      'The paper’s population: two common factors with three indicators each (loadings .6, .7, .8) and no effect of A on B. At N = 100 the PLS estimate of the null path is bimodal: PLS weights capitalise on chance correlations and pull the estimate away from 0 in either direction, so its SD is about twice the sum scores’; the bootstrap’s tests do not account for it, and in a few samples PLS does not converge (counted as failed). The card simulates 500 samples of 100, each estimated by PLS mode A (cSEM), regression on sum scores and ML SEM (lavaan), with every bootstrap test, the composites’ reliability and the measurement checks of a PLS report. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
+      RONKKO_EVERMANN_DIFFERS +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'The distribution of the PLS estimate of A → B has two peaks either side of 0 (SD about .19), where sum scores (SD about .10) and ML SEM (about .14) have one at 0. The Type I error by test table shows which bootstrap tests keep the 5% level. The reliability rows show PLS’s estimated weights below the ideal reliability, and the AVE, ρc, HTMT and Fornell–Larcker rows how often each check passes.',
+    ...ronkkoEvermannCard(0),
+  },
+  {
+    id: 'ronkko-evermann-beta',
+    title: 'Monte Carlo: PLS, sum scores and ML SEM at β = .3 (Rönkkö & Evermann 2013)',
+    description:
+      'The paper’s population with an effect of .3 of A on B: two common factors with three indicators each (loadings .6, .7, .8). Composites carry measurement error, so regression on sum scores underestimates the effect (about .22: reliability .75 times .3); PLS weights capitalise on chance, which raises the PLS estimate above the sum scores’ but not to .3, while ML SEM estimates it without bias but with the largest SD. The card simulates 500 samples of 100, each estimated by PLS mode A (cSEM), regression on sum scores and ML SEM (lavaan), with bias, power and coverage, every bootstrap test, the composites’ reliability and the measurement checks of a PLS report. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
+      RONKKO_EVERMANN_DIFFERS +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'In the A → B table sum scores have a mean near .22 and PLS near .27 for a true .3 (both with negative bias), ML SEM a mean near .3 with the largest SD (about .13 against .09 for PLS). The reliability rows show how close PLS’s weights come to the ideal weights and to unit weights.',
+    ...ronkkoEvermannCard(0.3),
   },
   {
     id: 'mulder-riclpm',

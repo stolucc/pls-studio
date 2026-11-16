@@ -878,7 +878,10 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     features: ['rengine/pos'],
     note: 'No reference package exists: recovery of simulated segments.',
   },
-  mc: { examples: ['muthen-mc-cfa'], features: ['rengine/mc'] },
+  mc: {
+    examples: ['muthen-mc-cfa', 'ronkko-evermann-null', 'ronkko-evermann-beta'],
+    features: ['rengine/mc'],
+  },
   rsa: { examples: ['rsa-motcon'], features: ['rengine/rsa'] },
   match: {},
   'match:matchit': {

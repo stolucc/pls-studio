@@ -236,6 +236,8 @@ const AUTHORS_BY_ID: Record<string, string[]> = {
   'plspm-pos': ['Becker'],
   'lavaan-hs-bollenstine': ['Bollen', 'Stine'],
   'muthen-mc-cfa': ['Muthén'],
+  'ronkko-evermann-null': ['Rönkkö', 'Evermann'],
+  'ronkko-evermann-beta': ['Rönkkö', 'Evermann'],
   'mulder-riclpm': ['Mulder', 'Hamaker'],
   'dynamic-hs-cfahb': ['Wolf', 'McNeish'],
   'dynamic-hs-cfaone': ['Wolf', 'McNeish'],
