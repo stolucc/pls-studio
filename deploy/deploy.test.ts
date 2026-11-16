@@ -276,14 +276,14 @@ dump_database() {
   if [ -n "\${FAIL_BACKUP:-}" ]; then echo "pg_dump: connection refused" >&2; return 1; fi
   mkdir -p "$BACKUP_DIR" && echo dump > "$1"
 }
-main
+main "$@"
 `,
     );
 
     /** Runs pls-update.sh; status, output and the log of stubbed commands. */
-    const deploy = (env: Record<string, string> = {}) => {
+    const deploy = (env: Record<string, string> = {}, args: string[] = []) => {
       writeFileSync(log, '');
-      const r = spawnSync('bash', [harness], {
+      const r = spawnSync('bash', [harness, ...args], {
         encoding: 'utf8',
         env: { ...gitEnv, PATH: `${bin}:${process.env.PATH}`, LOG: log, ...env },
       });
@@ -428,7 +428,7 @@ main
     expect(refused.status).not.toBe(0);
     expect(refused.output).toContain('the latest published helper (helper-v0.1.0) has the old one');
     expect(refused.output).toContain('gh workflow run helper-release.yml');
-    expect(refused.output).toContain('ALLOW_HELPER_MISMATCH=1');
+    expect(refused.output).toContain('pls-update.sh --allow-helper-mismatch');
     expect(s.current()).toBe(before);
     expect(s.releases()).toHaveLength(1);
     expect(s.backups()).toHaveLength(1);
@@ -459,11 +459,21 @@ main
     expect(odd.status).not.toBe(0);
     expect(odd.output).toContain('Could not get the latest helper release from GitHub');
 
-    const changed = s.commit({ 'src/rengine/R/common.R': 'ps_a <- 3\n' }, 'R change');
+    s.commit({ 'src/rengine/R/common.R': 'ps_a <- 3\n' }, 'R change');
     const r = s.deploy({ ALLOW_HELPER_MISMATCH: '1' });
     expect(r.status, r.output).toBe(0);
-    expect(r.output).toContain('ALLOW_HELPER_MISMATCH=1: not checking');
+    expect(r.output).toContain('Helper mismatch allowed: not checking');
+
+    // The option does the same (a variable set before sudo never reaches the script); others are refused.
+    const changed = s.commit({ 'src/rengine/R/common.R': 'ps_a <- 4\n' }, 'R change');
+    expect(s.deploy().status).not.toBe(0);
+    const viaOption = s.deploy({}, ['--allow-helper-mismatch']);
+    expect(viaOption.status, viaOption.output).toBe(0);
+    expect(viaOption.output).toContain('Helper mismatch allowed: not checking');
     expect(s.currentRevision()).toBe(changed);
+    const typo = s.deploy({}, ['--allow-mismatch']);
+    expect(typo.status).not.toBe(0);
+    expect(typo.output).toContain("Unknown option '--allow-mismatch'");
   });
 
   it('compares only the R files: other files beside them do not block a deploy', () => {

@@ -2,7 +2,7 @@
 # PLS Studio — routine deploy: fetch, build a new release, back up the
 # database, switch, restart, health-check, roll back on failure.
 #
-#   sudo bash /opt/pls-studio/deploy/pls-update.sh
+#   sudo bash /opt/pls-studio/deploy/pls-update.sh [--allow-helper-mismatch]
 #
 # Run as root; git/npm/build run as the plsstudio service account. Touches
 # only PLS Studio (pls-studio.service, /opt/pls-studio, its database dumps in
@@ -36,7 +36,10 @@
 #   FORCE_NPM=1      run npm ci even if the lockfiles did not change
 #   KEEP_RELEASES    releases to keep, default 3 (at least 2)
 #   ALLOW_HELPER_MISMATCH=1  deploy even if no published desktop helper has
-#                    this commit's R code (see check_helper_bridge)
+#                    this commit's R code (see check_helper_bridge); the same as
+#                    --allow-helper-mismatch. sudo drops variables set before it
+#                    (ALLOW_HELPER_MISMATCH=1 sudo bash ... does nothing): put them
+#                    after sudo, or use the option.
 set -euo pipefail
 
 BRANCH="${BRANCH:-main}"
@@ -53,6 +56,7 @@ KNOWN_HOSTS=$APP_HOME/.ssh/known_hosts
 FORCE_NPM="${FORCE_NPM:-0}"
 KEEP_RELEASES="${KEEP_RELEASES:-3}"
 ALLOW_HELPER_MISMATCH="${ALLOW_HELPER_MISMATCH:-0}"
+UPDATE_CMD="sudo bash $APP_DIR/deploy/pls-update.sh"
 GITHUB_REPO=stolucc/pls-studio
 KEEP_PRE_DEPLOY_DUMPS=5
 
@@ -243,7 +247,7 @@ r_files_at() {
 check_helper_bridge() {
   local tag site helper
   if [ "$ALLOW_HELPER_MISMATCH" = 1 ]; then
-    warn "ALLOW_HELPER_MISMATCH=1: not checking that a published helper has this R code."
+    warn "Helper mismatch allowed: not checking that a published helper has this R code."
     return 0
   fi
   log "Checking that the latest published helper has this commit's R code"
@@ -252,7 +256,8 @@ check_helper_bridge() {
   tag="$(latest_helper_tag)" || tag=""
   # Checked before it reaches git: it comes from the network.
   if ! [[ "$tag" =~ ^helper-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    die "Could not get the latest helper release from GitHub (got '${tag}'), so nothing was deployed. Try again, or deploy with ALLOW_HELPER_MISMATCH=1."
+    die "Could not get the latest helper release from GitHub (got '${tag}'), so nothing was deployed. Try again, or deploy without the check:
+    $UPDATE_CMD --allow-helper-mismatch"
   fi
   as_app git -C "$REPO" fetch --quiet origin "+refs/tags/$tag:refs/tags/$tag" ||
     die "Could not fetch tag $tag, so nothing was deployed."
@@ -265,7 +270,8 @@ check_helper_bridge() {
     git tag helper-vX.Y.Z && git push origin helper-vX.Y.Z
     gh workflow run helper-release.yml --ref helper-vX.Y.Z
   approve the run, wait until it is published, then deploy again.
-  To deploy anyway (helper users then calculate in the browser): ALLOW_HELPER_MISMATCH=1"
+  To deploy anyway (helper users then calculate in the browser):
+    $UPDATE_CMD --allow-helper-mismatch"
   fi
   ok "Helper $tag has this commit's R code"
 }
@@ -406,7 +412,18 @@ on_exit() {
   fi
 }
 
+parse_args() {
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+      --allow-helper-mismatch) ALLOW_HELPER_MISMATCH=1 ;;
+      *) die "Unknown option '$arg'. Usage: $UPDATE_CMD [--allow-helper-mismatch]" ;;
+    esac
+  done
+}
+
 main() {
+  parse_args "$@"
   require_root
   if ! [[ "$KEEP_RELEASES" =~ ^[0-9]+$ ]] || [ "$KEEP_RELEASES" -lt 2 ]; then
     die "KEEP_RELEASES must be a number, at least 2."

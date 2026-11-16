@@ -103,8 +103,10 @@ How an update runs:
    stops before building anything: helper users would be told to install a
    helper that does not exist yet. Release the helper first (see
    [Desktop R helper and a deployment](#desktop-r-helper-and-a-deployment)).
-   `ALLOW_HELPER_MISMATCH=1` deploys anyway; helper users then calculate in
-   the browser (webR) until the helper is released.
+   `sudo bash /opt/pls-studio/deploy/pls-update.sh --allow-helper-mismatch`
+   deploys anyway; helper users then calculate in the browser (webR) until
+   the helper is released. (`sudo ALLOW_HELPER_MISMATCH=1 bash …` works too;
+   `ALLOW_HELPER_MISMATCH=1 sudo bash …` does not: sudo drops the variable.)
 1. **Build.** The branch is fetched into `repo.git` and the new commit built
    in its own directory under `releases/`: server `npm ci`, R runtime, type
    check and client build. Unchanged dependencies (lockfile as in the live
