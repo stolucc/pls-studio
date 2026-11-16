@@ -59,6 +59,7 @@ import hypothesesR from './R/hypotheses.R?raw';
 import apimR from './R/apim.R?raw';
 import metaR from './R/meta.R?raw';
 import rocR from './R/roc.R?raw';
+import ggplotR from './R/ggplot.R?raw';
 import { useCompute } from './compute';
 import {
   helperBatch,
@@ -131,6 +132,7 @@ export const SOURCES = {
   psem: psemR,
   meta: metaR,
   roc: rocR,
+  ggplot: ggplotR,
 };
 
 export const R_PACKAGES = {
@@ -291,6 +293,9 @@ export const R_PACKAGES = {
   pROC: ['jsonlite', 'pROC'],
   // R and package versions (replication packages).
   versions: ['jsonlite'],
+  // Charts drawn by ggplot2 (ggplot.R): PDF and PNG in either R; SVG by svglite, desktop R only (DESKTOP_ONLY).
+  ggplot2: ['jsonlite', 'ggplot2'],
+  svglite: ['jsonlite', 'ggplot2', 'svglite'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 /** Packages that R in the browser cannot run (Stan): only through the desktop helper, never webR. */
@@ -300,6 +305,7 @@ export const DESKTOP_ONLY: ReadonlySet<RPackage> = new Set<RPackage>([
   'metaSEM',
   'semtree',
   'plssem',
+  'svglite',
 ]);
 /** Why each of them cannot run in the browser. */
 const DESKTOP_WHY: Partial<Record<RPackage, string>> = {
@@ -308,6 +314,7 @@ const DESKTOP_WHY: Partial<Record<RPackage, string>> = {
   metaSEM: 'OpenMx does not run in the browser',
   semtree: 'OpenMx does not run in the browser',
   plssem: 'the browser’s R has plssem 0.1.5, whose multilevel interface differs from 0.2.0’s',
+  svglite: 'the browser’s R has no svglite; PDF and PNG from ggplot2 work there',
 };
 export class DesktopOnly extends Error {}
 /** What to do when desktop R is not in use or lacks the packages. */

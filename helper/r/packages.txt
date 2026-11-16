@@ -32,6 +32,7 @@ faraway
 fixest
 flexmix
 genpathmox
+ggplot2
 glca
 haven
 irr
@@ -91,3 +92,4 @@ semtree
 sirt
 strucchange
 survival
+svglite
