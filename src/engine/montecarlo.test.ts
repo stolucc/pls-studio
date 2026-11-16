@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { mcTasks, runMcTask, summariseMc, type McDesign } from './montecarlo';
-import type { PopulationSpec } from './population';
+import { estimateCb } from './cbsem';
+import {
+  mcParameters,
+  mcTasks,
+  replicationSeed,
+  runMcTask,
+  summariseMc,
+  type McDesign,
+} from './montecarlo';
+import {
+  buildPopulation,
+  generateData,
+  specFromPopulation,
+  type PopulationSpec,
+} from './population';
 
 const pop: PopulationSpec = {
   constructs: [
@@ -155,9 +168,14 @@ describe('precision and admissibility', () => {
       bootSamples: 0,
       mcDraws: 0,
     };
-    const pick = (values: number[]) => [[new Float64Array([NaN, NaN]), Float64Array.from(values)]];
-    const both = (values: number[]) => [...pick(values), ...pick(values)];
-    // Parameters: the χ² test, then X → M; two replications, CI widths 0.1 and 0.3 in their own metric.
+    // Two replications; the CI of X → M 0.1 and 0.3 wide in its own metric, nothing for the fit tests.
+    const keys = mcParameters(buildPopulation(markers), true).map((p) => p.key);
+    const perParam = (values: number[]) =>
+      keys.map((k) =>
+        k === 'path:X:M' ? Float64Array.from(values) : new Float64Array([NaN, NaN]),
+      );
+    const both = (values: number[]) => [perParam(values), perParam(values)];
+    const truth = (v: number) => keys.map((k) => (k === 'path:X:M' ? v : NaN));
     const part = {
       n: 100,
       start: 0,
@@ -165,10 +183,7 @@ describe('precision and admissibility', () => {
       lo: both([0.2, 0.1]),
       hi: both([0.3, 0.4]),
       sig: both([1, 1]),
-      truthCI: [
-        [NaN, 0.25],
-        [NaN, 0.4],
-      ],
+      truthCI: [truth(0.25), truth(0.4)],
       proper: [new Float64Array([1, 1]), new Float64Array([1, 1])],
     };
     const rows = summariseMc(design, [part]);
@@ -243,6 +258,58 @@ describe('non-normal data and the model χ² test', () => {
     const r = row(run(design, 1), 'ML', 'fit:chisq');
     expect(r.rejection!).toBeLessThan(0.11);
     expect(r.bias).toBeNaN();
+  });
+});
+
+describe('approximate fit indices', () => {
+  it('are reported with their cutoffs; under the correct model they rarely reject at large n', () => {
+    const design: McDesign = {
+      population: pop,
+      estimators: [{ id: 'ML', method: 'cb', estimator: 'ML' }],
+      sampleSizes: [80, 1000],
+      replications: 60,
+      seed: 4,
+      alpha: 0.05,
+      bootSamples: 0,
+      mcDraws: 0,
+    };
+    const rows = run(design, 1);
+    for (const id of ['cfi', 'tli', 'rmsea', 'srmr']) {
+      const r = row(rows, 'ML', `fit:${id}`, 1000);
+      expect(r.param.kind).toBe('fit');
+      expect(r.param.value).toBe(0);
+      expect(r.reps).toBe(60);
+      expect(r.bias).toBeNaN();
+      expect(r.rejection!, id).toBeLessThan(0.05);
+    }
+    expect(row(rows, 'ML', 'fit:cfi', 1000).mean).toBeGreaterThan(0.99);
+    expect(row(rows, 'ML', 'fit:rmsea', 1000).mean).toBeLessThan(0.02);
+    // SRMR is biased upwards in small samples: it rejects correct models more often at n = 80.
+    expect(row(rows, 'ML', 'fit:srmr', 80).mean).toBeGreaterThan(
+      row(rows, 'ML', 'fit:srmr', 1000).mean,
+    );
+  });
+
+  it('uses the robust indices for robust estimators', () => {
+    const design: McDesign = {
+      population: { ...pop, skew: 1.5, kurtosis: 6 },
+      estimators: [{ id: 'MLR', method: 'cb', estimator: 'MLR' }],
+      sampleSizes: [300],
+      replications: 3,
+      seed: 2,
+      alpha: 0.05,
+      bootSamples: 0,
+      mcDraws: 0,
+    };
+    const part = runMcTask({ design, n: 300, start: 0, end: 3 });
+    const keys = mcParameters(buildPopulation(design.population), true).map((p) => p.key);
+    const cfi = part.est[0][keys.indexOf('fit:cfi')];
+    expect(Array.from(cfi).every(Number.isFinite)).toBe(true);
+    // (the robust CFI of the first replication, recomputed by the CB-SEM engine directly)
+    const data = generateData(buildPopulation(design.population), 300, replicationSeed(2, 300, 0));
+    const cb = estimateCb(data, specFromPopulation(design.population, 'factor'), 'casewise', 'MLR');
+    expect(cb.fit.cfiRobust).toBeDefined();
+    expect(cfi[0]).toBeCloseTo(cb.fit.cfiRobust!, 10);
   });
 });
 

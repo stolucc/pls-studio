@@ -10,8 +10,9 @@
 // the work was split.
 
 import { mergeBootstrap, runRange, sampleSeed } from './bootstrap';
-import { estimateCb, type CbEstimator } from './cbsem';
+import { estimateCb, type CbEstimator, type CbFit } from './cbsem';
 import { mcIndirect } from './mcci';
+import { MC_FIT_INDICES, poorFit, type McFitIndex } from './mcFitIndices';
 import { plscProblems, preparePls } from './pls';
 import {
   buildPopulation,
@@ -42,7 +43,11 @@ export interface McDesign {
 
 export interface McParam {
   key: string;
-  /** 'fit': the CB-SEM model χ² test (its rejection rate is the test's Type I error); 'covariance': the correlation of two exogenous constructs. */
+  /**
+   * 'fit': a test of the CB-SEM model, the χ² test (to 'χ² test') or a fit index against its cutoff (to its
+   * label); the rejection rate is the Type I error (value 0: the fitted model is the population's).
+   * 'covariance': the correlation of two exogenous constructs.
+   */
   kind: 'path' | 'indirect' | 'covariance' | 'fit';
   from: string;
   to: string;
@@ -74,7 +79,11 @@ export interface McPart {
 export function mcParameters(pop: Population, withFit = false): McParam[] {
   const C = pop.constructs;
   const out: McParam[] = [];
-  if (withFit) out.push({ key: 'fit:chisq', kind: 'fit', from: 'model', to: 'χ² test', value: 0 });
+  if (withFit) {
+    out.push({ key: 'fit:chisq', kind: 'fit', from: 'model', to: 'χ² test', value: 0 });
+    for (const f of MC_FIT_INDICES)
+      out.push({ key: `fit:${f.id}`, kind: 'fit', from: 'model', to: f.label, value: 0 });
+  }
   C.forEach((f, i) =>
     C.forEach((t, j) => {
       if (pop.specified[i][j])
@@ -127,6 +136,14 @@ export function ciScale(design: McDesign, pop: Population, params: McParam[]): n
 export function ciTruth(design: McDesign, pop: Population, params: McParam[]): number[][] {
   const scale = ciScale(design, pop, params);
   return scale.map((perParam) => perParam.map((f, pi) => params[pi].value * f));
+}
+
+/** A fit index of a CB-SEM fit: the robust one where the estimator has it (MLM, MLMV, MLR). */
+function fitIndex(fit: CbFit, id: McFitIndex['id']): number {
+  if (id === 'cfi') return fit.cfiRobust ?? fit.cfi;
+  if (id === 'tli') return fit.tliRobust ?? fit.tli;
+  if (id === 'rmsea') return fit.rmseaRobust ?? fit.rmsea;
+  return fit.srmr;
 }
 
 export const replicationSeed = (seed: number, n: number, r: number) =>
@@ -221,6 +238,13 @@ export function runMcTask(
               : [];
           params.forEach((p, pi) => {
             if (p.kind === 'fit') {
+              const index = MC_FIT_INDICES.find((f) => `fit:${f.id}` === p.key);
+              if (index) {
+                const v = fitIndex(cb.fit, index.id);
+                est[ei][pi][k] = v;
+                if (Number.isFinite(v)) sig[ei][pi][k] = poorFit(index, v) ? 1 : 0;
+                return;
+              }
               // Scaled statistic for robust estimators; ULS has no χ² p-value.
               const pv = cb.fit.pvalueScaled ?? cb.fit.pvalue;
               est[ei][pi][k] = cb.fit.chisqScaled ?? cb.fit.chisq;

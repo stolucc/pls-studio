@@ -11,6 +11,7 @@ import {
   type McDesign,
   type McPart,
 } from '../engine/montecarlo';
+import { MC_FIT_INDICES } from '../engine/mcFitIndices';
 import { rCallOn, rScript } from './bridge';
 import { rList } from './rjson';
 
@@ -33,7 +34,19 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
       kurtosis: perIndicator((c) => c.kurtosis ?? design.population.kurtosis ?? 0),
     },
     estimators: design.estimators,
-    params: params.map((p) => ({ kind: p.kind, from: p.from, to: p.to, value: p.value })),
+    params: params.map((p) => {
+      // A fit index: its cutoff, so R applies the same rule (cutoff NA: not an index).
+      const index = MC_FIT_INDICES.find((f) => `fit:${f.id}` === p.key);
+      return {
+        kind: p.kind,
+        from: p.from,
+        to: p.to,
+        value: p.value,
+        index: index?.id ?? '',
+        cutoff: index?.cutoff ?? null,
+        poorBelow: index?.poorBelow ?? false,
+      };
+    }),
     alpha: design.alpha,
     bootSamples: design.bootSamples,
     mcDraws: design.mcDraws,

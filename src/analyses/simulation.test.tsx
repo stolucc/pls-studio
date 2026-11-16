@@ -91,7 +91,7 @@ describe('Monte Carlo card', () => {
       width: 0.275,
       rejection: 0.9,
     };
-    const out = renderToStaticMarkup(<t.View result={[row]} options={d} />);
+    const out = renderToStaticMarkup(<t.View result={[row]} options={d} current />);
     expect(out).toContain('CI width');
     expect(out).toContain('0.275');
     expect(out).toContain('Inadmissible');

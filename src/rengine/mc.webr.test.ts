@@ -3,9 +3,14 @@
 // so means agree up to Monte Carlo error; the χ² test keeps its nominal level.
 // Run with npm run test:webr.
 
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { runMcTask, summariseMc, type McDesign } from '../engine/montecarlo';
 import { mcScriptR, runMcChunkR } from './mc';
+import { helperLibrary } from './nativeR';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
 beforeAll(startTestRuntime);
@@ -46,7 +51,7 @@ it('R simulation agrees with the built-in simulation up to Monte Carlo error', a
   for (const row of r) {
     const ref = b.find((x) => x.estimator === row.estimator && x.param.key === row.param.key)!;
     expect(row.failed, `${row.estimator} ${row.param.key} failed`).toBe(0);
-    if (row.param.kind === 'fit') {
+    if (row.param.key === 'fit:chisq') {
       expect(row.mean, 'mean χ² near df (24)').toBeGreaterThan(15);
       expect(row.mean).toBeLessThan(35);
       continue;
@@ -95,3 +100,29 @@ it('exports the whole simulation as one script', async () => {
   expect(s).toContain('ci_width = ');
   expect(s).toContain('inadmissible = ');
 }, 900_000);
+
+// (desktop R only: Rscript runs the script as a user would)
+it.runIf(process.env.PS_NATIVE_R)(
+  'the exported script runs and prints every summary column',
+  async () => {
+    const script = await mcScriptR({ ...design, replications: 3 });
+    const dir = mkdtempSync(join(tmpdir(), 'ps-mc-'));
+    try {
+      writeFileSync(join(dir, 'script.R'), script);
+      const libs = [helperLibrary(), process.env.R_LIBS].filter(Boolean).join(':');
+      const out = execFileSync('Rscript', ['script.R'], {
+        cwd: dir,
+        env: { ...process.env, R_LIBS: libs },
+        encoding: 'utf8',
+        stdio: 'pipe',
+      });
+      for (const column of ['rejection', 'ci_width', 'inadmissible'])
+        expect(out, column).toContain(column);
+      for (const index of ['CFI', 'TLI', 'RMSEA', 'SRMR'])
+        expect(out, index).toContain(`fit model ${index}`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+  900_000,
+);

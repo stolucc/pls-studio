@@ -3,6 +3,7 @@
 // simulateData with cSEM and lavaan, or the built-in engine).
 
 import { useEffect, useMemo, useState } from 'react';
+import { MC_FIT_INDICES, poorFitRule } from '../engine/mcFitIndices';
 import type { McDesign, McParam, McSummaryRow } from '../engine/montecarlo';
 import { buildPopulation, type PopulationSpec } from '../engine/population';
 import { fmt } from '../format';
@@ -71,9 +72,12 @@ const METRIC_AXIS = {
   relBias: { ref: 0, title: 'Relative bias' },
 } as const;
 
+/** The fit index a fit parameter stands for; undefined for the χ² test. */
+const fitIndexOf = (p: McParam) => MC_FIT_INDICES.find((f) => `fit:${f.id}` === p.key);
+
 /** A parameter in the menu, with its true value. */
 function paramOption(p: McParam): string {
-  if (p.kind === 'fit') return 'Model χ² test (CB-SEM, correct model)';
+  if (p.kind === 'fit') return `${paramTitle(p)} (CB-SEM, correct model)`;
   if (p.kind === 'covariance') return `${p.from} ↔ ${p.to} (correlation, true ${fmt(p.value)})`;
   const indirect = p.kind === 'indirect' ? 'indirect ' : '';
   return `${indirect}${p.from} → ${p.to} (true ${fmt(p.value)})`;
@@ -81,7 +85,10 @@ function paramOption(p: McParam): string {
 
 /** A parameter as the title of its table. */
 function paramTitle(p: McParam): string {
-  if (p.kind === 'fit') return 'Model χ² test';
+  if (p.kind === 'fit') {
+    const index = fitIndexOf(p);
+    return index ? `${index.label}, poor fit if ${poorFitRule(index)}` : 'Model χ² test';
+  }
   if (p.kind === 'covariance') return `${p.from} ↔ ${p.to} (correlation)`;
   return `${p.from} → ${p.to}${p.kind === 'indirect' ? ' (indirect)' : ''}`;
 }
@@ -637,7 +644,15 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                   ],
                 )}
               note={
-                activeParam.kind === 'fit' ? (
+                activeParam.kind === 'fit' && fitIndexOf(activeParam) ? (
+                  <>
+                    Mean: average {fitIndexOf(activeParam)!.label}. Type I: share of replications
+                    whose {fitIndexOf(activeParam)!.label} misses its cutoff (poor fit if{' '}
+                    {poorFitRule(fitIndexOf(activeParam)!)}; Hu &amp; Bentler 1999) although the
+                    model is correct. Robust estimators use the robust index. Cutoffs that reject
+                    correct models often at your sample size are too strict for this model.
+                  </>
+                ) : activeParam.kind === 'fit' ? (
                   <>
                     Mean: average (scaled) χ². Type I: share of replications rejecting the correct
                     model at α = {design.alpha}; it should be close to α. Robust estimators use
