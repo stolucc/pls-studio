@@ -53,6 +53,8 @@ ps_validate <- function(req) {
   for (e in get(req, "estimators")) {
     one_of(get(e, "method"), c("pls", "cb"), "estimator")
     one_of(get(e, "estimator"), cb_est, "estimator")
+    one_of(get(e, "mode"), c("A", "B", "unit"), "construct mode")
+    one_of(get(e, "scheme"), c("path", "centroid", "factor"), "weighting scheme")
   }
   for (c in c(get(req, "model", "constructs"), get(req, "spec", "constructs"))) {
     one_of(get(c, "mode"), c("A", "B", "unit"), "construct mode")

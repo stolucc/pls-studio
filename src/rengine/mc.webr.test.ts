@@ -70,6 +70,27 @@ it('R simulation agrees with the built-in simulation up to Monte Carlo error', a
   }
 }, 900_000);
 
+it('PLS variants (unit weights, mode B with centroid weighting) agree with the built-in engine', async () => {
+  const variants: McDesign = {
+    ...design,
+    estimators: [
+      { id: 'Sum scores', method: 'pls', consistent: false, mode: 'unit' },
+      { id: 'PLS B centroid', method: 'pls', consistent: false, mode: 'B', scheme: 'centroid' },
+      { id: 'PLS factorial', method: 'pls', consistent: false, scheme: 'factor' },
+    ],
+    replications: 3,
+  };
+  const r = summariseMc(variants, [await runMcChunkR(variants, 300, 0, 3)]);
+  const b = summariseMc(variants, [runMcTask({ design: variants, n: 300, start: 0, end: 3 })]);
+  // R draws its own data sets, so the means of three replications agree only loosely: this checks that
+  // the variants reach cSEM (.PLS_modes, .PLS_weight_scheme_inner) and estimate the same quantity.
+  expect(r.every((row) => row.failed === 0)).toBe(true);
+  for (const row of r.filter((x) => x.param.kind === 'path')) {
+    const ref = b.find((x) => x.estimator === row.estimator && x.param.key === row.param.key)!;
+    expect(Math.abs(row.mean - ref.mean), `${row.estimator} ${row.param.key}`).toBeLessThan(0.15);
+  }
+}, 900_000);
+
 it('counts inadmissible PLSc solutions by cSEM::verify; PLS composites never are', async () => {
   const weak = (name: string, p: string) => ({ ...f(name, p), loadings: [0.45, 0.4, 0.35] });
   const small: McDesign = {

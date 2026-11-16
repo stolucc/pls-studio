@@ -261,6 +261,64 @@ describe('non-normal data and the model χ² test', () => {
   });
 });
 
+describe('PLS variants', () => {
+  const twoConstructs: PopulationSpec = {
+    constructs: [
+      { name: 'X', type: 'factor', indicators: ['x1', 'x2', 'x3'], loadings: [0.9, 0.6, 0.4] },
+      { name: 'Y', type: 'factor', indicators: ['y1', 'y2', 'y3'], loadings: [0.9, 0.6, 0.4] },
+    ],
+    paths: [{ from: 'X', to: 'Y', value: 0.3 }],
+    exoCor: [],
+  };
+  const once = (estimators: McDesign['estimators']) => {
+    const design: McDesign = {
+      population: twoConstructs,
+      estimators,
+      sampleSizes: [150],
+      replications: 1,
+      seed: 7,
+      alpha: 0.05,
+      bootSamples: 0,
+      mcDraws: 0,
+    };
+    const part = runMcTask({ design, n: 150, start: 0, end: 1 });
+    const at = mcParameters(buildPopulation(twoConstructs), false).findIndex(
+      (p) => p.key === 'path:X:Y',
+    );
+    return part.est.map((perParam) => perParam[at][0]);
+  };
+
+  it('unit weights: the correlation of the two sum scores (regression on summed scales)', () => {
+    const [estimate] = once([{ id: 'Sum', method: 'pls', consistent: false, mode: 'unit' }]);
+    const data = generateData(buildPopulation(twoConstructs), 150, replicationSeed(7, 150, 0));
+    const z = (c: Float64Array) => {
+      const m = c.reduce((a, b) => a + b, 0) / c.length;
+      const sd = Math.sqrt(c.reduce((a, b) => a + (b - m) ** 2, 0) / (c.length - 1));
+      return Array.from(c, (v) => (v - m) / sd);
+    };
+    const sum = (names: string[]) => {
+      const cols = names.map((n) => z(data.cols[data.names.indexOf(n)]));
+      return Float64Array.from(cols[0], (_, i) => cols.reduce((a, c) => a + c[i], 0));
+    };
+    const [x, y] = [z(sum(['x1', 'x2', 'x3'])), z(sum(['y1', 'y2', 'y3']))];
+    const r = x.reduce((a, v, i) => a + v * y[i], 0) / (x.length - 1);
+    expect(estimate).toBeCloseTo(r, 10);
+  });
+
+  it('mode and inner scheme change the estimate; omitted they are mode A and path', () => {
+    const [plain, modeA, modeB, centroid] = once([
+      { id: 'PLS', method: 'pls', consistent: false },
+      { id: 'A', method: 'pls', consistent: false, mode: 'A', scheme: 'path' },
+      { id: 'B', method: 'pls', consistent: false, mode: 'B' },
+      { id: 'C', method: 'pls', consistent: false, scheme: 'centroid' },
+    ]);
+    expect(modeA).toBeCloseTo(plain, 12);
+    expect(Math.abs(modeB - modeA)).toBeGreaterThan(1e-4);
+    // (two constructs: path and centroid weighting give the same inner proxies up to sign)
+    expect(centroid).toBeCloseTo(plain, 6);
+  });
+});
+
 describe('approximate fit indices', () => {
   it('are reported with their cutoffs; under the correct model they rarely reject at large n', () => {
     const design: McDesign = {

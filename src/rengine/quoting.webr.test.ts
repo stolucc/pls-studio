@@ -82,5 +82,15 @@ describe('R code generation quotes hostile strings', () => {
         ],
       }),
     ).toBe('ok');
+    // A simulation's PLS variants: outer mode and inner scheme are written into the script.
+    expect(await check({ estimators: [{ method: 'pls', mode: 'unit', scheme: 'centroid' }] })).toBe(
+      'ok',
+    );
+    expect(await check({ estimators: [{ method: 'pls', mode: 'B", .x = system("id' }] })).toMatch(
+      /Invalid construct mode/,
+    );
+    expect(await check({ estimators: [{ method: 'pls', scheme: 'factorial' }] })).toMatch(
+      /Invalid weighting scheme/,
+    );
   }, 300_000);
 });

@@ -47,10 +47,18 @@ ps_mc_body <- function(req) {
       } else {
         ""
       }
+      # Every construct in one outer mode (unit: sum scores), else cSEM's default (=~ mode A, <~ mode B).
+      modes <- c(A = "modeA", B = "modeB", unit = "unit")
+      # (mode and scheme are checked by ps_validate; the lookups only ever give these fixed strings)
+      mode <- if (is.null(e$mode)) "" else sprintf(", .PLS_modes = \"%s\"", modes[[e$mode]])
+      schemes <- c(path = "path", factor = "factorial", centroid = "centroid")
+      scheme <- schemes[[e$scheme %||% "path"]]
       sprintf(
-        "  res[[%d]] <- tryCatch(pls_stats(csem(data, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"path\"%s)), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
+        "  res[[%d]] <- tryCatch(pls_stats(csem(data, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"%s\"%s%s)), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
         ei,
         if (isTRUE(e$consistent)) "TRUE" else "FALSE",
+        scheme,
+        mode,
         boot
       )
     } else {

@@ -22,10 +22,18 @@ import {
   type PopulationSpec,
 } from './population';
 import { zCrit } from './stats';
-import { DEFAULT_OPTIONS } from './types';
+import { DEFAULT_OPTIONS, type Mode, type ModelSpec, type WeightingScheme } from './types';
 
 export type McEstimator =
-  | { id: string; method: 'pls'; consistent: boolean }
+  | {
+      id: string;
+      method: 'pls';
+      consistent: boolean;
+      /** Outer mode of every construct (unit: sum scores); omitted: factors mode A, composites mode B. */
+      mode?: Mode;
+      /** Inner weighting scheme; omitted: path. */
+      scheme?: WeightingScheme;
+    }
   | { id: string; method: 'cb'; estimator: CbEstimator };
 
 export interface McDesign {
@@ -138,6 +146,12 @@ export function ciTruth(design: McDesign, pop: Population, params: McParam[]): n
   return scale.map((perParam) => perParam.map((f, pi) => params[pi].value * f));
 }
 
+/** The PLS model with every construct in one outer mode (undefined: as specified). */
+function withMode(spec: ModelSpec, mode: Mode | undefined): ModelSpec {
+  if (!mode) return spec;
+  return { ...spec, constructs: spec.constructs.map((c) => ({ ...c, mode })) };
+}
+
 /** A fit index of a CB-SEM fit: the robust one where the estimator has it (MLM, MLMV, MLR). */
 function fitIndex(fit: CbFit, id: McFitIndex['id']): number {
   if (id === 'cfi') return fit.cfiRobust ?? fit.cfi;
@@ -181,8 +195,9 @@ export function runMcTask(
     design.estimators.forEach((e, ei) => {
       try {
         if (e.method === 'pls') {
-          const opts = { ...DEFAULT_OPTIONS, consistent: e.consistent };
-          const prep = preparePls(data, plsSpec, opts);
+          const opts = { ...DEFAULT_OPTIONS, consistent: e.consistent, scheme: e.scheme ?? 'path' };
+          const spec = withMode(plsSpec, e.mode);
+          const prep = preparePls(data, spec, opts);
           const { m, st, core } = prep.estimate(prep.cols);
           if (!core.converged) throw new Error('not converged');
           if (design.bootSamples > 0) {
@@ -191,7 +206,7 @@ export function runMcTask(
                 runRange({
                   job: 'pls',
                   data,
-                  spec: plsSpec,
+                  spec,
                   options: opts,
                   seed: replicationSeed(design.seed + 1, n, r),
                   start: 0,
