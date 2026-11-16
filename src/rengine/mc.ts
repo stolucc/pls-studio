@@ -3,10 +3,10 @@
 // app computes the population (Σ, true values) and the per-replication seeds,
 // and summarises the per-replication results exactly as for the built-in engine.
 
-import { buildPopulation, specFromPopulation } from '../engine/population';
+import { blockMoments, buildPopulation, specFromPopulation } from '../engine/population';
 import {
   ciTruth,
-  mcParameters,
+  designParameters,
   ordinalThresholds,
   replicationSeed,
   type McDesign,
@@ -21,10 +21,7 @@ const rSeed = (s: number) => s % 2147483647;
 
 export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) {
   const pop = buildPopulation(design.population);
-  const params = mcParameters(
-    pop,
-    design.estimators.some((e) => e.method === 'cb'),
-  );
+  const params = designParameters(design, pop);
   const perIndicator = (f: (c: McDesign['population']['constructs'][number]) => number) =>
     design.population.constructs.flatMap((c) => c.indicators.map(() => f(c)));
   return {
@@ -47,6 +44,8 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
         index: index?.id ?? '',
         cutoff: index?.cutoff ?? null,
         poorBelow: index?.poorBelow ?? false,
+        // A composite reliability: its block's population moments (population.ts compositeReliability)
+        ...(p.kind === 'reliability' ? blockMoments(pop, pop.constructs.indexOf(p.from)) : {}),
       };
     }),
     alpha: design.alpha,
@@ -111,10 +110,7 @@ export function parseMcChunk(
   raw: Record<string, unknown>,
 ): McPart {
   const pop = buildPopulation(design.population);
-  const params = mcParameters(
-    pop,
-    design.estimators.some((e) => e.method === 'cb'),
-  );
+  const params = designParameters(design, pop);
   // CB-SEM CIs are in the unstandardised (marker) metric: β · λ_mk(to) / λ_mk(from).
   const truthCI = ciTruth(design, pop, params);
   const arr = (x: unknown) => rList<unknown>(x).map((perE) => rList<unknown>(perE).map(f64));

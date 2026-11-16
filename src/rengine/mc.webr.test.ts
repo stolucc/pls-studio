@@ -68,6 +68,17 @@ it('R simulation agrees with the built-in simulation up to Monte Carlo error', a
     if (row.width !== null && ref.width !== null)
       expect(row.width / ref.width, `${row.estimator} ${row.param.key} width`).toBeCloseTo(1, 0);
   }
+  // Composite reliabilities come from cSEM's weights (PLSc: the Mode A weights); none for CB-SEM.
+  const reliability = r.filter((x) => x.param.kind === 'reliability');
+  expect(reliability.map((x) => `${x.estimator} ${x.param.from}`)).toEqual([
+    'PLSc Price fairness',
+    'PLSc Trust',
+    'PLSc Loyalty',
+  ]);
+  for (const x of reliability) {
+    expect(x.reps).toBe(40);
+    expect(x.mean).toBeLessThan(x.param.value);
+  }
 }, 900_000);
 
 it('PLS variants (unit weights, mode B with centroid weighting) agree with the built-in engine', async () => {

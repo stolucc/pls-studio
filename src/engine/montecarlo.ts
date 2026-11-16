@@ -26,8 +26,11 @@ import { MC_FIT_INDICES, poorFit, type McFitIndex } from './mcFitIndices';
 import { plscProblems, preparePls } from './pls';
 import {
   buildPopulation,
+  compositeReliability,
   generateData,
+  idealReliability,
   specFromPopulation,
+  unitReliability,
   type Population,
   type PopulationSpec,
 } from './population';
@@ -137,12 +140,16 @@ export interface McParam {
    * 'fit': a test of the CB-SEM model, the χ² test (to 'χ² test') or a fit index against its cutoff (to its
    * label); the rejection rate is the Type I error (value 0: the fitted model is the population's).
    * 'covariance': the correlation of two exogenous constructs.
+   * 'reliability': the squared correlation of a construct's composite with the construct (from and to: the
+   * construct; value: with ideal weights, the most any weights give; population.ts compositeReliability).
    */
-  kind: 'path' | 'indirect' | 'covariance' | 'fit';
+  kind: 'path' | 'indirect' | 'covariance' | 'fit' | 'reliability';
   from: string;
   to: string;
   /** True standardised value. */
   value: number;
+  /** 'reliability': the sum score's (unit weights). */
+  unit?: number;
 }
 
 export interface McTask {
@@ -168,7 +175,15 @@ export interface McPart {
   tests?: Partial<Record<McTest, Float64Array[][]>>;
 }
 
-export function mcParameters(pop: Population, withFit = false): McParam[] {
+/** The parameters of a design: fit tests with a CB-SEM estimator, composite reliabilities with a PLS or regression one. */
+export const designParameters = (design: McDesign, pop: Population) =>
+  mcParameters(
+    pop,
+    design.estimators.some((e) => e.method === 'cb'),
+    design.estimators.some((e) => e.method !== 'cb'),
+  );
+
+export function mcParameters(pop: Population, withFit = false, withReliability = false): McParam[] {
   const C = pop.constructs;
   const out: McParam[] = [];
   if (withFit) {
@@ -204,6 +219,18 @@ export function mcParameters(pop: Population, withFit = false): McParam[] {
         });
     }),
   );
+  if (withReliability)
+    C.forEach((name, j) => {
+      if (pop.blocks[j].length < 2) return;
+      out.push({
+        key: `reliability:${name}`,
+        kind: 'reliability',
+        from: name,
+        to: name,
+        value: idealReliability(pop, j),
+        unit: unitReliability(pop, j),
+      });
+    });
   return out;
 }
 
@@ -217,7 +244,7 @@ export function ciScale(design: McDesign, pop: Population, params: McParam[]): n
   return design.estimators.map((e) =>
     params.map((p) => {
       if (p.kind === 'fit') return NaN;
-      if (e.method !== 'cb') return 1;
+      if (e.method !== 'cb' || p.kind === 'reliability') return 1;
       const fromLoading = pop.markerLoading[ci(p.from)];
       const toLoading = pop.markerLoading[ci(p.to)];
       if (p.kind === 'covariance') return fromLoading * toLoading;
@@ -271,10 +298,7 @@ export function runMcTask(
 ): McPart {
   const { design, n } = task;
   const pop = buildPopulation(design.population);
-  const params = mcParameters(
-    pop,
-    design.estimators.some((e) => e.method === 'cb'),
-  );
+  const params = designParameters(design, pop);
   const E = design.estimators.length,
     count = Math.max(0, task.end - task.start);
   const arr = () =>
@@ -325,6 +349,12 @@ export function runMcTask(
             if (p.kind === 'fit') return;
             const i = ci(p.from),
               j = ci(p.to);
+            if (p.kind === 'reliability') {
+              // (the estimated weights of the construct's indicators, in the population's order)
+              const w = pop.blocks[i].map((x) => core.w[m.indicatorNames.indexOf(pop.names[x])]);
+              est[ei][pi][k] = compositeReliability(pop, i, w);
+              return;
+            }
             let value: number;
             if (p.kind === 'path') value = st.pathCoef[i][j];
             else if (p.kind === 'covariance') value = st.C[i][j];
@@ -380,7 +410,9 @@ export function runMcTask(
             if (p.kind === 'fit') return;
             const i = fit.constructs.indexOf(p.from),
               j = fit.constructs.indexOf(p.to);
-            if (p.kind === 'covariance') {
+            if (p.kind === 'reliability') {
+              est[ei][pi][k] = unitReliability(pop, i);
+            } else if (p.kind === 'covariance') {
               est[ei][pi][k] = fit.C[i][j];
             } else if (p.kind === 'indirect') {
               est[ei][pi][k] = indirect[i][j];
@@ -409,6 +441,8 @@ export function runMcTask(
                 )
               : [];
           params.forEach((p, pi) => {
+            // (CB-SEM estimates no composites)
+            if (p.kind === 'reliability') return;
             if (p.kind === 'fit') {
               const index = MC_FIT_INDICES.find((f) => `fit:${f.id}` === p.key);
               if (index) {
@@ -543,10 +577,7 @@ function histogram(values: number[], range: { lo: number; hi: number }): McHisto
 
 export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
   const pop = buildPopulation(design.population);
-  const params = mcParameters(
-    pop,
-    design.estimators.some((e) => e.method === 'cb'),
-  );
+  const params = designParameters(design, pop);
   const scale = ciScale(design, pop, params);
   const ranges = histRanges(params, parts);
   const rows: McSummaryRow[] = [];
@@ -591,6 +622,7 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
         }
         const R = ests.length;
         if (param.kind === 'fit' && e.method !== 'cb') return;
+        if (param.kind === 'reliability' && e.method === 'cb') return;
         const mean = R ? ests.reduce((s, x) => s + x, 0) / R : NaN;
         const sd = R > 1 ? Math.sqrt(ests.reduce((s, x) => s + (x - mean) ** 2, 0) / (R - 1)) : NaN;
         let rmse = NaN;

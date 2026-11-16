@@ -93,6 +93,7 @@ function paramOption(p: McParam): string {
   if (p.kind === 'fit')
     return `${paramTitle(p)} (CB-SEM, ${p.value ? 'misspecified' : 'correct'} model)`;
   if (p.kind === 'covariance') return `${p.from} ↔ ${p.to} (correlation, true ${fmt(p.value)})`;
+  if (p.kind === 'reliability') return `${p.from}: composite reliability (ideal ${fmt(p.value)})`;
   const indirect = p.kind === 'indirect' ? 'indirect ' : '';
   return `${indirect}${p.from} → ${p.to} (true ${fmt(p.value)})`;
 }
@@ -104,6 +105,7 @@ function paramTitle(p: McParam): string {
     return index ? `${index.label}, poor fit if ${poorFitRule(index)}` : 'Model χ² test';
   }
   if (p.kind === 'covariance') return `${p.from} ↔ ${p.to} (correlation)`;
+  if (p.kind === 'reliability') return `${p.from}: reliability of the composite`;
   return `${p.from} → ${p.to}${p.kind === 'indirect' ? ' (indirect)' : ''}`;
 }
 
@@ -1201,7 +1203,17 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                   ],
                 )}
               note={
-                activeParam.kind === 'fit' && fitIndexOf(activeParam) ? (
+                activeParam.kind === 'reliability' ? (
+                  <>
+                    Reliability of the composite: the squared correlation of the weighted sum of the
+                    indicators with the construct, from each replication&apos;s weights and the
+                    population (Rönkkö &amp; Evermann 2013). Bias is against ideal weights, the most
+                    any weights give ({fmt(activeParam.value)}); unit weights (sum scores) give{' '}
+                    {fmt(activeParam.unit ?? NaN)}. Weights estimated from a sample capitalise on
+                    chance, so PLS reliabilities fall below the ideal and may fall below the sum
+                    score&apos;s.
+                  </>
+                ) : activeParam.kind === 'fit' && fitIndexOf(activeParam) ? (
                   activeParam.value ? (
                     <>
                       Mean: average {fitIndexOf(activeParam)!.label}. Power: share of replications

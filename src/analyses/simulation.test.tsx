@@ -192,6 +192,38 @@ describe('Monte Carlo card', () => {
     expect(out).toContain('bootstrap BCa, individual sign-change correction');
   });
 
+  it('a composite reliability row names the ideal and the unit-weight reliability', () => {
+    const d = t.defaults(ctx());
+    const param = {
+      key: 'reliability:A',
+      kind: 'reliability' as const,
+      from: 'A',
+      to: 'A',
+      value: 0.85,
+      unit: 0.78,
+    };
+    const row: McSummaryRow = {
+      estimator: d.estimators[0].id,
+      n: 100,
+      param,
+      reps: 50,
+      failed: 0,
+      improper: 0,
+      mean: 0.8,
+      bias: -0.05,
+      relBias: -0.059,
+      sd: 0.03,
+      rmse: 0.058,
+      coverage: null,
+      width: null,
+      rejection: null,
+    };
+    const out = renderToStaticMarkup(<t.View result={[row]} options={d} current />);
+    expect(out).toContain('A: reliability of the composite');
+    expect(out).toContain('A: composite reliability (ideal 0.850)');
+    expect(out).toContain('unit weights (sum scores) give 0.780');
+  });
+
   it('FIML needs the R engine; the form shows the missing-value fields', () => {
     const d = {
       ...t.defaults(ctx()),

@@ -4,8 +4,11 @@ import { estimateCb } from './cbsem';
 import { estimatePls } from './pls';
 import {
   buildPopulation,
+  compositeReliability,
   generateData,
+  idealReliability,
   specFromPopulation,
+  unitReliability,
   type PopulationSpec,
 } from './population';
 import { corStd, standardize } from './stats';
@@ -185,5 +188,44 @@ describe('estimators recover the population from an exact sample', () => {
       ).toBeCloseTo(p.value, 6);
     }
     expect(pls.fit.estimated.srmr).toBeLessThan(1e-6);
+  });
+});
+
+describe('the reliability of a composite', () => {
+  const loadings = [0.9, 0.6, 0.4];
+  const population = buildPopulation({
+    constructs: [
+      { name: 'X', type: 'factor', indicators: ['x1', 'x2', 'x3'], loadings },
+      { name: 'Y', type: 'factor', indicators: ['y1', 'y2', 'y3'], loadings: [0.7, 0.7, 0.7] },
+    ],
+    paths: [{ from: 'X', to: 'Y', value: 0.5 }],
+    exoCor: [],
+  });
+
+  it('ideal weights give coefficient H, unit weights the sum score’s ω', () => {
+    // H = s / (1 + s), s = Σ λ² / (1 − λ²) (Hancock & Mueller 2001); ω = (Σλ)² / ((Σλ)² + Σ(1 − λ²)).
+    const s = loadings.reduce((a, l) => a + (l * l) / (1 - l * l), 0);
+    expect(idealReliability(population, 0)).toBeCloseTo(s / (1 + s), 12);
+    const sum = loadings.reduce((a, l) => a + l, 0);
+    const error = loadings.reduce((a, l) => a + 1 - l * l, 0);
+    expect(unitReliability(population, 0)).toBeCloseTo((sum * sum) / (sum * sum + error), 12);
+    // The ideal weights λ / (1 − λ²) reach H; no weights do better; the scale of the weights does not matter.
+    const ideal = loadings.map((l) => l / (1 - l * l));
+    expect(compositeReliability(population, 0, ideal)).toBeCloseTo(s / (1 + s), 12);
+    expect(
+      compositeReliability(
+        population,
+        0,
+        ideal.map((w) => w * -3),
+      ),
+    ).toBeCloseTo(s / (1 + s), 12);
+    expect(compositeReliability(population, 0, [1, 0, 0])).toBeCloseTo(0.81, 12);
+    expect(unitReliability(population, 0)).toBeLessThan(idealReliability(population, 0));
+  });
+
+  it('measures the composite against its own construct, not a correlated one', () => {
+    // With equal loadings unit weights are ideal.
+    expect(unitReliability(population, 1)).toBeCloseTo(idealReliability(population, 1), 12);
+    expect(population.indicatorCov[population.names.indexOf('y1')][0]).toBeCloseTo(0.7 * 0.5, 12);
   });
 });

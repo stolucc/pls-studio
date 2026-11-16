@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { estimateCb } from './cbsem';
 import {
+  designParameters,
   mcParameters,
   mcTasks,
   replicationSeed,
@@ -174,7 +175,7 @@ describe('precision and admissibility', () => {
       mcDraws: 0,
     };
     // Two replications; the CI of X → M 0.1 and 0.3 wide in its own metric, nothing for the fit tests.
-    const keys = mcParameters(buildPopulation(markers), true).map((p) => p.key);
+    const keys = designParameters(design, buildPopulation(markers)).map((p) => p.key);
     const perParam = (values: number[]) =>
       keys.map((k) =>
         k === 'path:X:M' ? Float64Array.from(values) : new Float64Array([NaN, NaN]),
@@ -292,6 +293,35 @@ describe('PLS variants', () => {
     );
     return part.est.map((perParam) => perParam[at][0]);
   };
+
+  it('composite reliability: PLS weights fall below the ideal, sum scores give the unit-weight value', () => {
+    const design: McDesign = {
+      population: twoConstructs,
+      estimators: [
+        { id: 'PLS', method: 'pls', consistent: false },
+        { id: 'Sum scores', method: 'regression', dr: false },
+        { id: 'ML', method: 'cb', estimator: 'ML' },
+      ],
+      sampleSizes: [100],
+      replications: 30,
+      seed: 3,
+      alpha: 0.05,
+      bootSamples: 0,
+      mcDraws: 0,
+    };
+    const rows = summariseMc(design, [runMcTask({ design, n: 100, start: 0, end: 30 })]);
+    const pls = row(rows, 'PLS', 'reliability:X');
+    const sum = row(rows, 'Sum scores', 'reliability:X');
+    const ideal = pls.param.value;
+    expect(pls.param.unit).toBeLessThan(ideal);
+    expect(pls.reps).toBe(30);
+    expect(pls.mean).toBeLessThan(ideal);
+    expect(pls.mean).toBeGreaterThan(pls.param.unit! - 0.1);
+    expect(sum.mean).toBeCloseTo(pls.param.unit!, 12);
+    expect(sum.sd).toBeCloseTo(0, 12);
+    // (CB-SEM estimates no composites)
+    expect(row(rows, 'ML', 'reliability:X')).toBeUndefined();
+  });
 
   it('unit weights: the correlation of the two sum scores (regression on summed scales)', () => {
     const [estimate] = once([{ id: 'Sum', method: 'pls', consistent: false, mode: 'unit' }]);

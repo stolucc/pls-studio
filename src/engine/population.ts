@@ -7,7 +7,7 @@
 // Constructs: exogenous correlations as given; η_t = Σ β η_f + ζ_t with
 // Var ζ_t = 1 − R²_t so every construct has unit variance.
 
-import { cholesky, zeros, type Mat } from './linalg';
+import { cholesky, solve, zeros, type Mat } from './linalg';
 import { valeMaurelli, type ValeMaurelli } from './nonnormal';
 import { mulberry32 } from './stats';
 import type { ConstructType, Dataset, ModelSpec } from './types';
@@ -63,6 +63,10 @@ export interface Population {
   vm: ValeMaurelli | null;
   /** The estimated model differs from the population (cross-loadings, error correlations, omitted paths). */
   misspecified: boolean;
+  /** Indicator indices (into names) of each construct's block. */
+  blocks: number[][];
+  /** Covariances of the indicators with the constructs, ΛΦ [indicator][construct] (constructs have variance 1). */
+  indicatorCov: Mat;
 }
 
 export function buildPopulation(pop: PopulationSpec): Population {
@@ -251,6 +255,10 @@ export function buildPopulation(pop: PopulationSpec): Population {
     indirect,
     r2,
     markerLoading: blocks.map((b) => load[b[0]]),
+    blocks,
+    indicatorCov: names.map((_, i) =>
+      C.map((__, j) => Lambda[i].reduce((s, l, a) => s + l * Phi[a][j], 0)),
+    ),
     covariances,
     vm,
     misspecified:
@@ -316,3 +324,44 @@ export function generateData(population: Population, n: number, seed: number): D
   }
   return { names: population.names, cols };
 }
+
+// The reliability of a composite as the simulation studies of PLS measure it
+// (Rönkkö & Evermann 2013; Rönkkö, McIntosh, Antonakis & Edwards 2016): the
+// squared correlation of the weighted sum of a construct's standardised
+// indicators with the construct itself, here from the population moments, so
+// that it depends only on the weights: (w′a)² / (w′Sw), a = cov(x, η) of the
+// block, S its covariance matrix. Ideal weights (S⁻¹a, the regression of η on
+// the block) give the largest reliability possible, a′S⁻¹a; unit weights the
+// sum score's.
+
+/** The block's covariance matrix and covariances with construct j. */
+export function blockMoments(pop: Population, j: number): { a: number[]; S: Mat } {
+  const b = pop.blocks[j];
+  return {
+    a: b.map((i) => pop.indicatorCov[i][j]),
+    S: b.map((i) => b.map((k) => pop.Sigma[i][k])),
+  };
+}
+
+/** Reliability of construct j's composite with weights w (in the order of its block). */
+export function compositeReliability(pop: Population, j: number, w: number[]): number {
+  const { a, S } = blockMoments(pop, j);
+  const cov = w.reduce((s, v, i) => s + v * a[i], 0);
+  let variance = 0;
+  w.forEach((v, i) => w.forEach((u, k) => (variance += v * S[i][k] * u)));
+  return variance > 0 ? (cov * cov) / variance : NaN;
+}
+
+/** The largest reliability any weights give construct j's composite (ideal weights S⁻¹a). */
+export function idealReliability(pop: Population, j: number): number {
+  const { a, S } = blockMoments(pop, j);
+  return solve(S, a).reduce((s, v, i) => s + v * a[i], 0);
+}
+
+/** Reliability of construct j's sum score (unit weights). */
+export const unitReliability = (pop: Population, j: number) =>
+  compositeReliability(
+    pop,
+    j,
+    pop.blocks[j].map(() => 1),
+  );
