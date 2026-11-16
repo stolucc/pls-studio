@@ -277,7 +277,7 @@ it('bootstrap tests (Rönkkö, McIntosh & Antonakis 2015): R and the built-in en
   const rc = summariseMc(construct, [await runMcChunkR(construct, 100, 0, 10)])[0];
   expect(rc.failed).toBe(0);
   expect(rc.tests!.t).toBeGreaterThanOrEqual(0);
-}, 900_000);
+}, 1_800_000); // (in the browser's R: four bootstrapped designs, about 15 minutes)
 
 it('exports the whole simulation as one script', async () => {
   const s = await mcScriptR({ ...design, replications: 3 });
