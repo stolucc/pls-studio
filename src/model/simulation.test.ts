@@ -59,6 +59,18 @@ describe('simulation design', () => {
     expect(other.population.nonnormal).toBeUndefined();
   });
 
+  it('keeps a construct correlation of 1 (one factor split in two), clamped to ±1', () => {
+    const d = defaultDesign(populationFromModel(model, null, null));
+    const one = { ...d, population: { ...d.population, exoCor: [{ a: 'A', b: 'B', value: 1 }] } };
+    expect(parseDesign(JSON.parse(JSON.stringify(one)))!.population.exoCor[0].value).toBe(1);
+    const over = {
+      ...d,
+      population: { ...d.population, exoCor: [{ a: 'A', b: 'B', value: 1.5 }] },
+    };
+    expect(parseDesign(over)!.population.exoCor[0].value).toBe(1);
+    expect(() => buildPopulation(parseDesign(one)!.population)).not.toThrow();
+  });
+
   it('keeps a misspecified population (cross-loadings, error correlations, omitted paths), clamped', () => {
     const d = defaultDesign(populationFromModel(model, null, null));
     const wrong = {

@@ -139,7 +139,8 @@ export function parseDesign(raw: unknown): McDesign | null {
       ? p.exoCor
           .filter(isObj)
           .slice(0, 5000)
-          .map((x) => ({ a: str(x.a), b: str(x.b), value: clampStrict(x.value, -0.999, 0.999, 0) }))
+          // (a correlation of 1 is allowed: one factor split in two, as in Henseler et al. 2015)
+          .map((x) => ({ a: str(x.a), b: str(x.b), value: clampStrict(x.value, -1, 1, 0) }))
       : [],
     skew: clampStrict(p.skew, -5, 5, 0),
     kurtosis: clampStrict(p.kurtosis, -1.2, 60, 0),

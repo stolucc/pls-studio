@@ -51,6 +51,27 @@ describe('Monte Carlo card', () => {
     ).toContain('PLS-SEM and CB-SEM');
   });
 
+  it('lets a construct correlation reach 1 (one factor split in two)', () => {
+    const d = t.defaults(ctx({ model: { ...model, paths: [] } }));
+    const form = renderToStaticMarkup(
+      <t.Options options={d} set={() => {}} ctx={ctx()} disabled={false} />,
+    );
+    const field = form.slice(form.indexOf('A ↔ B (correlation)'));
+    expect(field).toMatch(/^[^<]*<\/span>[^]*?<input[^>]*max="1"/);
+  });
+
+  it('runs PLS on a measurement model only (two correlated constructs), not on a single construct', () => {
+    const d = t.defaults(ctx());
+    const pop = d.population;
+    const pathFree = { ...d, population: { ...pop, paths: [] } };
+    expect(t.blocked(pathFree, ctx())).toBeNull();
+    const single = {
+      ...pathFree,
+      population: { ...pop, paths: [], constructs: pop.constructs.slice(0, 1) },
+    };
+    expect(t.blocked(single, ctx())).toMatch(/at least two constructs/);
+  });
+
   it('is stale only when the design or the engine changes, not the data', () => {
     const d = t.defaults(ctx());
     expect(t.fingerprint(d, ctx({ data: { names: ['x'], cols: [Float64Array.from([1])] } }))).toBe(

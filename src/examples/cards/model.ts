@@ -156,6 +156,11 @@ export const ronkkoEvermannPopulation = (
 const RONKKO_EVERMANN_DIFFERS =
   'As in the paper: the population, N = 100, 500 replications, PLS mode A and mode B with centroid weighting (the default of plspm, which the paper used) against regression on sum scores and ML SEM. The app’s choices: PLS by cSEM and SEM by the current lavaan; the reliability of a composite is the population reliability of each sample’s weights, (w′λ)² / w′Σw, where the paper correlates the estimated scores with the generated true scores; 500 bootstrap samples per replication with percentile intervals (change them on the card; the paper’s Figure 4, the bootstrap distributions of the first five replications, is not drawn); and the measurement checks as the app computes them (AVE − highest squared correlation appears as the Fornell–Larcker margin √AVE − highest correlation, which decides the same). The paper’s models with a misspecified measurement model (Table 4) are not part of these cards; cross-loadings and error correlations can be added on the card. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
 
+/** Which side of the PLS debate a card's population takes: every card tagged so says it. */
+const FACTOR_POPULATION =
+  ' The population is made of common factors, the view of measurement behind CB-SEM, which composites (PLS, sum scores) only approximate; with a population of composites the comparison turns around (Sarstedt et al. 2016), and no test of the data can say which of the two holds (data that fit a factor model fit a composite model too).';
+const FACTOR_DEBATE_TAGS = ['PLS debate', 'Factor population'];
+
 /** A card on Rönkkö & Evermann's population: the paper's (or the reply's) design, estimators and settings. */
 const factorCard = ({
   beta,
@@ -177,6 +182,7 @@ const factorCard = ({
   package: 'cSEM' as const,
   source,
   links,
+  tags: FACTOR_DEBATE_TAGS,
   data: {
     package: 'cSEM' as const,
     name: `${source.split(',')[0]}, a sample of 100 (β = ${beta})`,
@@ -296,6 +302,7 @@ const goodhueCard = (
   package: 'cSEM' as const,
   source: `Goodhue, Lewis & Thompson (2012), Does PLS have advantages for small sample size or non-normal data?: Study ${design.skew ? 2 : 1}`,
   links: [{ label: 'Goodhue et al. (2012)', url: 'https://doi.org/10.2307/41703490' }],
+  tags: FACTOR_DEBATE_TAGS,
   data: {
     package: 'cSEM' as const,
     name: `Goodhue et al. (2012), a sample of 90${design.skew ? ' (skewed indicators)' : ''}`,
@@ -328,6 +335,74 @@ const goodhueCard = (
     consistent: false,
     missing: 'casewise' as const,
     seed: 2012,
+  },
+});
+
+/**
+ * Henseler, Ringle & Sarstedt (2015), the main simulation: two common factors with three indicators each, the
+ * same loadings in both, correlated φ (1: one factor split in two, which every check should flag), no path.
+ */
+export const henseler2015Population = (loadings: number[], phi: number) => ({
+  constructs: ['A', 'B'].map((name) => ({
+    name,
+    type: 'factor',
+    indicators: items(name.toLowerCase(), 3),
+    loadings,
+  })),
+  paths: [],
+  exoCor: [{ a: 'A', b: 'B', value: phi }],
+  skew: 0,
+  kurtosis: 0,
+});
+
+/** What the Henseler et al. (2015) cards take from the paper, and what is the app's. */
+const HENSELER_2015_DIFFERS =
+  'As in the paper: two common factors with three indicators each and no path, N = 100, 250, 500 and 1,000, 1,000 replications, PLS mode A (semPLS, whose default centroid weighting the card uses; with two constructs every scheme gives the same weights), and the checks: Fornell–Larcker on PLS’s loadings and construct correlation, the cross-loadings, HTMT against .85 and .90, and HTMT inference, which flags a pair when the upper bound of HTMT’s 90% normal bootstrap interval reaches 1. The app’s choices: PLS by cSEM; 500 bootstrap samples for HTMT inference (the paper does not say how many); the partial cross-loadings, whose test the paper does not describe, are not computed. Random numbers differ from the paper’s, so results agree up to Monte Carlo error. The paper reports specificity (the share not flagged); the card’s rows give the share failing each check.';
+
+const henseler2015Card = (file: string, loadings: number[], phi: number) => ({
+  package: 'cSEM' as const,
+  source:
+    'Henseler, Ringle & Sarstedt (2015), A new criterion for assessing discriminant validity in variance-based structural equation modeling: the Monte Carlo study',
+  links: [
+    {
+      label: 'Henseler, Ringle & Sarstedt (2015)',
+      url: 'https://doi.org/10.1007/s11747-014-0403-8',
+    },
+  ],
+  tags: FACTOR_DEBATE_TAGS,
+  data: {
+    package: 'cSEM' as const,
+    name: `Henseler et al. (2015), a sample of 250 (φ = ${phi})`,
+    file: `examples/montecarlo/${file}.csv`,
+  },
+  constructs: [f('A', items('a', 3)), f('B', items('b', 3))],
+  paths: [] as [string, string][],
+  panel: {
+    kind: 'mc' as const,
+    population: henseler2015Population(loadings, phi),
+    estimators: [
+      {
+        id: 'PLS mode A, centroid',
+        method: 'pls',
+        consistent: false,
+        mode: 'A',
+        scheme: 'centroid',
+      },
+    ],
+    sampleSizes: [100, 250, 500, 1000],
+    replications: 1000,
+    seed: 2015,
+    alpha: 0.05,
+    bootSamples: 500,
+    mcDraws: 0,
+  },
+  settings: {
+    method: 'pls' as const,
+    plsPackage: 'cSEM' as const,
+    consistent: false,
+    scheme: 'centroid' as const,
+    missing: 'casewise' as const,
+    seed: 2015,
   },
 });
 
@@ -740,6 +815,7 @@ export const CARD_MODEL: PackageExample[] = [
     description:
       'The paper’s population: two common factors with three indicators each (loadings .6, .7, .8) and no effect of A on B. At N = 100 the PLS estimate of the null path is bimodal: PLS weights capitalise on chance correlations and pull the estimate away from 0 in either direction, more so in mode B, and the weights chasing chance make the composites less reliable than sum scores. The bootstrap’s tests do not account for it, and in a few samples PLS does not converge (counted as failed). The card simulates 500 samples of 100, each estimated by PLS mode A and mode B (cSEM, centroid weighting), regression on sum scores and ML SEM (lavaan), with every bootstrap test, the composites’ reliability and the measurement checks of a PLS report. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
       RONKKO_EVERMANN_DIFFERS +
+      FACTOR_POPULATION +
       ' Opens its card on the Analyses tab beside the diagram.',
     shows:
       'Figure 3 of the paper: the distributions of the PLS mode A and mode B estimates of A → B have two peaks either side of 0 (SD about .19 and .26), where sum scores (SD about .10) and ML SEM (about .14) have one at 0. Figure 2: the reliability rows put sum scores at .75, PLS mode A near .61 and mode B near .28 (the ideal weights reach .77). The Type I error by test table shows which bootstrap tests keep the 5% level, and the AVE, ρc, HTMT and Fornell–Larcker rows how often each check passes.',
@@ -751,6 +827,7 @@ export const CARD_MODEL: PackageExample[] = [
     description:
       'The paper’s population with an effect of .3 of A on B: two common factors with three indicators each (loadings .6, .7, .8). Composites carry measurement error, so regression on sum scores underestimates the effect (about .22: reliability .75 times .3). PLS weights capitalise on chance, which raises the PLS estimate above the sum scores’ although its composites are less reliable: mode A stays below .3, mode B reaches it on average with a larger SD. ML SEM estimates it without bias, with a larger SD than PLS mode A. The card simulates 500 samples of 100, each estimated by PLS mode A and mode B (cSEM, centroid weighting), regression on sum scores and ML SEM (lavaan), with bias, power and coverage, every bootstrap test, the composites’ reliability and the measurement checks of a PLS report. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
       RONKKO_EVERMANN_DIFFERS +
+      FACTOR_POPULATION +
       ' Opens its card on the Analyses tab beside the diagram.',
     shows:
       'Figure 3 of the paper: in the A → B table sum scores have a mean near .22, PLS mode A near .27 and mode B near .30 for a true .3; SDs about .10 (sum scores), .09 (mode A), .12 (mode B) and .13 (ML SEM, mean near .3). Figure 2: the reliability rows put sum scores at .75, PLS mode A near .72 and mode B near .51.',
@@ -762,6 +839,7 @@ export const CARD_MODEL: PackageExample[] = [
     description:
       'Henseler et al.’s condition c: Rönkkö & Evermann’s population (two common factors with three indicators each, loadings .6, .7, .8) with a moderate effect of A on B, β = .5 (R² = .25, more typical of applied work). With more covariance between the blocks to go on, PLS mode A weights the better indicators more and its composites become as reliable as sum scores, slightly more; mode B catches up much of its gap. The card simulates 500 samples of 100, each estimated by PLS mode A and mode B (cSEM, centroid weighting), regression on sum scores and ML SEM (lavaan), with bias, power and coverage, every bootstrap test and the composites’ reliability. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
       HENSELER_DIFFERS +
+      FACTOR_POPULATION +
       ' Opens its card on the Analyses tab beside the diagram.',
     shows:
       'Table 2 of the paper, squared: the reliability rows put PLS mode A at about .75 (paper .867² = .752) and sum scores at .745 (.862² = .743), mode B lower (about .67). Figure 5c: the estimates of A → B are unimodal, PLS mode A near .40 and mode B near .43 against sum scores near .37 for a true .5 (all composites attenuate the path); ML SEM centers on .5 with the larger SD.',
@@ -773,6 +851,7 @@ export const CARD_MODEL: PackageExample[] = [
     description:
       'Henseler et al.’s condition d: Rönkkö & Evermann’s population with β = .3 (two common factors with three indicators each, loadings .6, .7, .8) at N = 100 (condition b, the original) and N = 500. At N = 100 PLS mode A weights chase chance and its composites are less reliable than sum scores; at N = 500 the weights settle on the better indicators and mode A becomes the more reliable, while the spread of every estimator shrinks and the PLS estimates lose their wide tails. The card simulates 500 samples at each size, each estimated by PLS mode A and mode B (cSEM, centroid weighting), regression on sum scores and ML SEM (lavaan), with bias, power and coverage, every bootstrap test and the composites’ reliability. The diagram is fitted to one sample of 500 from that population (lavaan::simulateData, seed 2013). ' +
       HENSELER_DIFFERS +
+      FACTOR_POPULATION +
       ' Opens its card on the Analyses tab beside the diagram.',
     shows:
       'Table 2 of the paper, squared: at N = 100 PLS mode A near .72 (paper .843² = .711) against sum scores .745 (.743); at N = 500 mode A near .75 (.868² = .753) above them, mode B rising from about .51 to .70. Figure 5d: at N = 500 the A → B estimates are unimodal with SD about .04 (PLS mode A mean near .23, sum scores .22, ML SEM .30).',
@@ -784,6 +863,7 @@ export const CARD_MODEL: PackageExample[] = [
     description:
       'Henseler et al.’s condition e: Rönkkö & Evermann’s population with β = .3 and more unequal loadings, .5, .7 and .9 (two common factors with three indicators each). When the indicators differ more in quality, weighting them pays off more: PLS mode A’s composites become more reliable than sum scores even at N = 100, the paper’s argument that PLS reduces measurement error when there is something to weight. The card simulates 500 samples of 100, each estimated by PLS mode A and mode B (cSEM, centroid weighting), regression on sum scores and ML SEM (lavaan), with bias, power and coverage, every bootstrap test and the composites’ reliability. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
       HENSELER_DIFFERS +
+      FACTOR_POPULATION +
       ' Opens its card on the Analyses tab beside the diagram.',
     shows:
       'Table 2 of the paper, squared: PLS mode A near .76 (paper .871² = .759) against sum scores .75 (.867² = .752); mode B well below (about .60). The A → B table: sum scores near .22, PLS mode A near .28 and mode B near .32 for a true .3; ML SEM near .29, with many improper solutions (the .5 loading leaves little to identify a factor of three indicators at N = 100).',
@@ -795,6 +875,7 @@ export const CARD_MODEL: PackageExample[] = [
     description:
       'Henseler et al.’s condition f: Rönkkö & Evermann’s two factors embedded in a nomological net, C → A → B ← D, every path .3 and every construct a common factor with three indicators (loadings .6, .7, .8). Each construct now has a neighbour PLS can weight toward, so the bimodal estimates of the two-construct model give way to unimodal ones and mode A’s composites are about as reliable as sum scores. The card simulates 500 samples of 100, each estimated by PLS mode A and mode B (cSEM, centroid weighting), regression on sum scores and ML SEM (lavaan), with bias, power and coverage for all three paths, every bootstrap test and the composites’ reliability. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
       HENSELER_DIFFERS +
+      FACTOR_POPULATION +
       ' Opens its card on the Analyses tab beside the diagram.',
     shows:
       'Table 2 of the paper, squared: PLS mode A’s reliability about level with sum scores (both near .745; paper .858² = .736 against .862² = .743, mode A better in 59% of samples). Figure 5f: the A → B estimates are unimodal, PLS mode A near .24 and mode B near .26 against sum scores near .22 for a true .3; ML SEM near .29 with the larger SD.',
@@ -806,6 +887,7 @@ export const CARD_MODEL: PackageExample[] = [
     description:
       'Goodhue, Lewis & Thompson’s Study 1, which tested the belief that PLS has an advantage at small samples: four independent constructs Ksi1 to Ksi4 predict Eta1 with paths .48, .314, .114 and 0 (Cohen’s large, medium, small and no effect), each construct a common factor with three indicators (loadings .7, .8, .9). At every sample size PLS and regression on sum scores detect the paths about equally often and estimate them about equally (both attenuated by measurement error); ML SEM estimates them without bias with a larger SD, and fails or gives improper solutions often at N = 20 and 40. None of the three reaches 80% power for the medium path below N = 90, so the ten-times rule (N = 40 here) gives too little power whatever the method. The card simulates 500 samples at N = 20, 40, 90, 150 and 200, each estimated by PLS (cSEM, 100 bootstrap samples), regression on sum scores and ML SEM (lavaan). The diagram is fitted to one sample of 90 from that population (lavaan::simulateData, seed 2012). ' +
       GOODHUE_DIFFERS +
+      FACTOR_POPULATION +
       ' Opens its card on the Analyses tab beside the diagram.',
     shows:
       'Table A2 of the paper: the power chart’s medium path Ksi2 → Eta1 rises from about .2 at N = 20 to .4 to .5 at N = 40, .8 at 90 and near 1 at 200 for all three methods (paper: regression .22, .40, .76, .97; PLS .15, .41, .75, .97; LISREL .10, .37, .79, .98). Table A1: the mean estimates of the large path .48 are about .40 for regression, .41 for PLS and .48 for ML SEM at every N, while the SDs triple from N = 200 to 20. The null path Ksi4 → Eta1 is rejected about 5% of the time at N = 90 and above.',
@@ -817,10 +899,63 @@ export const CARD_MODEL: PackageExample[] = [
     description:
       'Goodhue, Lewis & Thompson’s Study 2: the population of their Study 1 (Ksi1 to Ksi4 → Eta1 = .48, .314, .114 and 0, three indicators each with loadings .7, .8, .9) with extremely skewed indicators, skewness 1.75 and excess kurtosis 3.75, at N = 40 and 90. The paper finds that all three methods lose power with such data (for the medium path at N = 90 from about 75% to about 50%), PLS no less than the others. Its data were made by applying Fleishman’s polynomial to each indicator after generating it (Appendix D), which also shrinks the correlations between indicators by about a quarter: the estimates drop (the large path from about .39 to .33 for regression) and the lost power follows from that. The card uses the same generator, so it reproduces the drop; switch Generated by to Vale–Maurelli, which keeps the population’s correlations, and the estimates and power return almost to those with normal data. The card simulates 500 samples at each size, each estimated by PLS (cSEM, 100 bootstrap samples), regression on sum scores and ML SEM (lavaan). The diagram is fitted to one sample of 90 from that population with Vale–Maurelli skewed indicators (lavaan::simulateData, seed 2012). ' +
       GOODHUE_DIFFERS +
+      FACTOR_POPULATION +
       ' Fleishman’s table steps by .25: the paper’s skewness 1.8 and kurtosis 3.8 lie just outside what his polynomial can generate, 1.75 and 3.75 inside. Opens its card on the Analyses tab beside the diagram.',
     shows:
       'Tables A4 and A5 of the paper, extreme skew: mean estimates of the large path .48 about .33 for regression (paper .330 and .334), .35 for PLS (.351, .350) and .41 for ML SEM (.407, .428); power for the medium path .314 at N = 90 about .55 for regression, .50 for PLS and .53 for ML SEM (paper .53, .48, .50), at N = 40 about .3 and below. ML SEM gives many improper solutions. With Vale–Maurelli the same rows come out near the normal-data values (about .40, .41, .47 and power near .75).',
     ...goodhueCard('goodhue2012-skewed', { sampleSizes: [40, 90], skew: 1.75, kurtosis: 3.75 }),
+  },
+  {
+    id: 'henseler2015-split',
+    title: 'Monte Carlo: discriminant validity of one factor split in two (Henseler et al. 2015)',
+    description:
+      'Henseler, Ringle & Sarstedt’s sensitivity condition: one common factor measured by six indicators (loadings .7), estimated as two constructs of three, so the two constructs are the same (φ = 1) and every discriminant validity check should flag them. PLS weights both blocks alike and their composites correlate about .74, their reliability, so Fornell–Larcker (√AVE against that correlation) and the cross-loadings practically never flag; HTMT, computed from the indicator correlations alone, comes out at 1 and flags the pair against .85 and .90 in nearly every sample, and HTMT inference (its upper 90% bootstrap bound reaching 1) in about 95%, as a 5% test should. The card simulates 1,000 samples at N = 100, 250, 500 and 1,000, each estimated by PLS mode A (cSEM) with every measurement check and 500 bootstrap samples for HTMT inference. ' +
+      ' The diagram is fitted to one sample of 250 from that population (lavaan::simulateData, seed 2015). ' +
+      HENSELER_2015_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Table 3 of the paper, loadings .7: the Fornell–Larcker rows fail about 4% of samples at N = 100 and none from N = 500 (paper, either construct: 6.9%, 0.3%, 0, 0); the cross-loadings margin never fails (0%); HTMT (.85) fails 99% at N = 100 and all from 250 (99.1%, 100%), HTMT (.90) 96%, 99.7% and 100% (95.9%, 99.9%, 100%); HTMT inference 96%, 95%, 95% and 94% (96.0%, 95.7%, 94.9%, 95.5%). The construct correlation row: about .74 for a true 1.',
+    ...henseler2015Card('henseler2015-split', [0.7, 0.7, 0.7], 1),
+  },
+  {
+    id: 'henseler2015-high',
+    title: 'Monte Carlo: Fornell–Larcker with high loadings (Henseler et al. 2015)',
+    description:
+      'Henseler, Ringle & Sarstedt’s sensitivity condition with high loadings (.9): one common factor estimated as two constructs of three indicators (φ = 1). Reliable composites correlate about .93, close to 1, so Fornell–Larcker flags the pair in some samples at N = 100, and less often the larger the sample: its estimate of the margin settles on a small positive value (√AVE of PLS’s inflated loadings, about .93, against the correlation .927) and the chance of crossing 0 shrinks with N, the opposite of what a check should do. The cross-loadings never flag; HTMT flags every sample, HTMT inference about 95%. The card simulates 1,000 samples at N = 100, 250, 500 and 1,000, each estimated by PLS mode A (cSEM) with every measurement check and 500 bootstrap samples for HTMT inference. ' +
+      ' The diagram is fitted to one sample of 250 from that population (lavaan::simulateData, seed 2015). ' +
+      HENSELER_2015_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Table 3 of the paper, loadings .9: the Fornell–Larcker rows fail about 29%, 17%, 9% and 3% of samples for each construct (paper, either construct: 42.1%, 27.3%, 15.4%, 4.8%); the cross-loadings margin never fails; HTMT (.85) and (.90) fail every sample (100%); HTMT inference 96%, 96%, 95% and 94% (96.3%, 96.0%, 95.5%, 96.0%).',
+    ...henseler2015Card('henseler2015-high', [0.9, 0.9, 0.9], 1),
+  },
+  {
+    id: 'henseler2015-unequal',
+    title: 'Monte Carlo: discriminant validity with unequal loadings (Henseler et al. 2015)',
+    description:
+      'Henseler, Ringle & Sarstedt’s sensitivity condition with unequal loadings (.5, .7, .9 in each block): one common factor estimated as two constructs of three indicators (φ = 1). PLS weights the .9 indicators most, which makes the composites reliable (about .80) and their correlation high, so Fornell–Larcker flags about half the samples, still fewer as N grows; the cross-loadings never flag. HTMT averages the indicator correlations without weights and, as the loadings differ (no tau-equivalence), overshoots 1 (about 1.03), so all three HTMT checks flag nearly every sample, HTMT inference more often than the 95% of a 5% test. The card simulates 1,000 samples at N = 100, 250, 500 and 1,000, each estimated by PLS mode A (cSEM) with every measurement check and 500 bootstrap samples for HTMT inference. ' +
+      ' The diagram is fitted to one sample of 250 from that population (lavaan::simulateData, seed 2015). ' +
+      HENSELER_2015_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Table 3 of the paper, loadings .5, .7, .9: the Fornell–Larcker rows fail about 50%, 46%, 40% and 32% of samples for each construct (paper, either construct: 64.6%, 59.5%, 53.9%, 42.1%); the cross-loadings margin never fails; HTMT (.85) and (.90) fail 99% to 100% (99.9% / 98.5% at N = 100, then 100%); HTMT inference 98%, 99%, 100% and 100% (98.2%, 99.4%, 99.8%, 100%). The HTMT rows: mean about 1.03 for a true correlation of 1.',
+    ...henseler2015Card('henseler2015-unequal', [0.5, 0.7, 0.9], 1),
+  },
+  {
+    id: 'henseler2015-close',
+    title: 'Monte Carlo: two distinct but close constructs, φ = .9 (Henseler et al. 2015)',
+    description:
+      'Two distinct but close constructs, φ = .9 (loadings .7, three indicators each), from Henseler, Ringle & Sarstedt’s specificity curves: whether a check calls them distinct depends on the check. Fornell–Larcker and the cross-loadings never flag them; HTMT comes out at .90 on average, so HTMT (.85) flags most samples and more as N grows, HTMT (.90) about half at every N, and HTMT inference, which only flags a correlation that cannot be told from 1, many at N = 100 and almost none at N = 1,000. Which of these is right is a question about the constructs: the paper recommends .85 for conceptually distinct constructs, .90 for close ones, and inference for neither threshold. The card simulates 1,000 samples at N = 100, 250, 500 and 1,000, each estimated by PLS mode A (cSEM) with every measurement check and 500 bootstrap samples for HTMT inference. ' +
+      ' The diagram is fitted to one sample of 250 from that population (lavaan::simulateData, seed 2015). ' +
+      HENSELER_2015_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Figure 5 of the paper, loadings .7, read at φ = .9: the HTMT (.85) row fails about 79%, 88%, 95% and 99% of samples (specificity near 0 at large N); HTMT (.90) about 50% at every N; HTMT inference 58% at N = 100, 21% at 250, 3% at 500 and 0 at 1,000; Fornell–Larcker and the cross-loadings never fail (specificity 100%). The construct correlation row: about .67 for a true .9 (the composites’ reliability is .74).',
+    ...henseler2015Card('henseler2015-close', [0.7, 0.7, 0.7], 0.9),
   },
   {
     id: 'mulder-riclpm',

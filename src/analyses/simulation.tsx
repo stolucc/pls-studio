@@ -74,6 +74,8 @@ function Num({
       style={{ width, height: 26, padding: '0 6px' }}
       type="number"
       step={step}
+      min={min}
+      max={max}
       value={text}
       onChange={(e) => setText(e.target.value)}
       onBlur={commit}
@@ -810,8 +812,8 @@ function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: Optio
               </span>
               <Num
                 value={r.value}
-                min={-0.99}
-                max={0.99}
+                min={-1}
+                max={1}
                 onChange={(v) =>
                   setPop((pp) => ({
                     ...pp,
@@ -1670,8 +1672,13 @@ export const mcAnalysis: AnalysisType<McDesign, McSummaryRow[]> = {
       d.estimators.some((e) => e.method === 'cb')
     )
       return 'FIML is estimated by lavaan: choose the R engine, or casewise deletion for CB-SEM.';
-    if (!d.population.paths.length && d.estimators.some((e) => e.method !== 'cb'))
-      return 'PLS-SEM needs at least one path between constructs; for a measurement model only (correlated factors), use the CB-SEM estimators.';
+    // (a measurement model only is fine: PLS then weights every pair of constructs as inner neighbours)
+    if (
+      !d.population.paths.length &&
+      d.population.constructs.length < 2 &&
+      d.estimators.some((e) => e.method !== 'cb')
+    )
+      return 'PLS-SEM needs at least two constructs; for a single factor, use the CB-SEM estimators.';
     return populationError(d);
   },
   // The study depends on its design (the options) and the engine only, not on the data.

@@ -48,6 +48,22 @@ describe('example topics', () => {
     expect(tagsOf('haven-iris')).toEqual(['Measurement', 'Factor analysis', 'PCA', 'File import']);
   });
 
+  it('groups the simulations of the PLS debate, each saying which population it assumes', () => {
+    const debate = PACKAGE_EXAMPLES.filter((e) => exampleTags(e).includes('PLS debate'));
+    expect(debate.map((e) => e.id)).toEqual(
+      expect.arrayContaining(['ronkko-evermann-null', 'henseler-four', 'goodhue-nonnormal']),
+    );
+    for (const e of debate) {
+      const tags = exampleTags(e);
+      const population = ['Factor population', 'Composite population'].filter((t) =>
+        tags.includes(t),
+      );
+      expect(population, e.id).toHaveLength(1);
+      if (population[0] === 'Factor population' && e.description !== 'DRAFT')
+        expect(e.description, e.id).toContain('The population is made of common factors');
+    }
+  });
+
   it('give every example at least two tags, and the topic list is in alphabetical order', () => {
     for (const e of PACKAGE_EXAMPLES) expect(exampleTags(e).length, e.id).toBeGreaterThanOrEqual(2);
     const all = allTags(PACKAGE_EXAMPLES);
