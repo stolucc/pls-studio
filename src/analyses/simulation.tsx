@@ -1352,6 +1352,7 @@ export const mcAnalysis: AnalysisType<McDesign, McSummaryRow[]> = {
   title: 'Monte Carlo simulation',
   sub: 'power, sample size, estimators: from a population built on the model',
   group: 'PLS-SEM model',
+  engineChoice: true,
   defaults: (ctx) =>
     defaultDesign(populationFromModel(ctx.model ?? emptyModel(), ctx.pls, ctx.cb ?? null)),
   parseOptions: (raw) => parseDesign(raw),

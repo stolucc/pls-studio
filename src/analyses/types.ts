@@ -83,6 +83,8 @@ export interface AnalysisType<O = any, R = any> {
   entries?: { title: string; sub: string; options: (defaults: O) => O }[];
   /** The card's title when it depends on the options. */
   cardTitle?: (o: O) => string;
+  /** The card offers the built-in engine as well as R: its side panel shows the engine choice above Run. */
+  engineChoice?: boolean;
   /** A frozen card (a snapshot): created with its result, never run, never stale. */
   frozen?: boolean;
   /** Options that only change how the result is shown: changing them does not make it stale. */

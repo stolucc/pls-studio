@@ -41,6 +41,7 @@ import { confirmDialog } from '../Overlays';
 import { openReplication, ReplicationDialog } from './ReplicationDialog';
 import { openReportDialog, ReportDialog } from './ReportDialog';
 import { ExampleBanner } from '../ExampleBanner';
+import { RunWhere } from './RunWhere';
 
 /** The project as the analyses see it, re-rendering when it changes. */
 export function useAnalysisCtx(): AnalysisCtx {
@@ -710,6 +711,7 @@ function OptionsPane({ ctx, readOnly }: { ctx: AnalysisCtx; readOnly: boolean })
         ctx={ctx}
         disabled={readOnly || running}
       />
+      {!readOnly && !t.frozen && <RunWhere engineChoice={!!t.engineChoice} />}
       {blocked && !t.frozen && <div className="hint">{blocked}</div>}
       {!readOnly && !t.frozen && (
         <div className="pane-actions">
