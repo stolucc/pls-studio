@@ -1,5 +1,7 @@
 import type { JohnsonNeyman } from '../engine/jn';
 import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import type { FigureSpec } from '../figure/ggplot';
+import { OTHER_COLOR } from '../figure/palette';
 import { PlotPanel } from '../figure/panel';
 import { ChartFrame } from './ChartFrame';
 
@@ -85,6 +87,61 @@ export function JohnsonNeymanPlot({
     else regions.push([p.m, p.m]);
   });
   const sdTicks = [-3, -2, -1, 0, 1, 2, 3];
+  // For ggplot2: the same layers on the axis the chart labels, the moderator in SD from the centre.
+  const sdOf = (m: number) => (m - center) / jn.sdM;
+  const yLo = yMin - 0.05 * span;
+  const yHi = yMax + 0.05 * span;
+  const figure = (labels: { x: string; y: string }): FigureSpec => ({
+    title: `Johnson-Neyman plot of the effect of ${from} across ${moderator}`,
+    x: { title: labels.x, limits: [-3, 3] },
+    y: { title: labels.y, limits: [yLo, yHi] },
+    width,
+    height,
+    layers: [
+      ...(regions.length
+        ? [
+            {
+              geom: 'rect' as const,
+              series: 'Significant',
+              color: JN_COLORS.sig,
+              alpha: 1,
+              xmin: regions.map(([a]) => sdOf(a)),
+              xmax: regions.map(([, b]) => sdOf(b)),
+              ymin: regions.map(() => yLo),
+              ymax: regions.map(() => yHi),
+            },
+          ]
+        : []),
+      { geom: 'hline', color: OTHER_COLOR, linetype: 'dashed', y: [0] },
+      {
+        geom: 'ribbon',
+        series: legend[1].label,
+        color: JN_COLORS.band,
+        alpha: 1,
+        x: pts.map((p) => sdOf(p.m)),
+        ymin: pts.map((p) => p.l),
+        ymax: pts.map((p) => p.u),
+      },
+      {
+        geom: 'line',
+        series: legend[0].label,
+        color: JN_COLORS.line,
+        x: pts.map((p) => sdOf(p.m)),
+        y: pts.map((p) => p.e),
+      },
+      ...(shown.length
+        ? [
+            {
+              geom: 'vline' as const,
+              series: 'Boundary',
+              color: JN_COLORS.bound,
+              linetype: 'dashed' as const,
+              x: shown.map(sdOf),
+            },
+          ]
+        : []),
+    ],
+  });
   const caption = (
     <figcaption className="hint" style={{ marginTop: 4 }}>
       Effect of {from} (unstandardised) with its {Math.round(level * 100)}% confidence band;
@@ -105,6 +162,7 @@ export function JohnsonNeymanPlot({
         x: `${moderator} (${center ? 'SD from the mean' : 'SD'})`,
         y: to ? `Effect of ${from} on ${to}` : `Effect of ${from}`,
       }}
+      figure={figure}
     >
       {(labels) => (
         <svg

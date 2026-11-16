@@ -266,6 +266,29 @@ function IrtView({ r }: { r: IrtResult }) {
           width={W}
           height={H}
           defaults={{ x: 'Latent trait (θ)', y: 'Information' }}
+          figure={(labels) => ({
+            title: 'Test and item information',
+            x: { title: labels.x, limits: [-4, 4] },
+            y: { title: labels.y, limits: [0, max * 1.08] },
+            width: W,
+            height: H - top,
+            layers: [
+              ...r.information.map((a) => ({
+                geom: 'line' as const,
+                series: 'Item information',
+                color: ITEM_INFO_COLOR,
+                x: r.theta,
+                y: a,
+              })),
+              {
+                geom: 'line' as const,
+                series: 'Test information (the sum)',
+                color: TEST_INFO_COLOR,
+                x: r.theta,
+                y: total,
+              },
+            ],
+          })}
         >
           {(labels) => (
             <svg

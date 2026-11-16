@@ -614,6 +614,26 @@ export function LoopChart({ l, conf }: { l: BsemLoopResult; conf: number }) {
       width={W}
       height={H + lh}
       defaults={{ x: l.variable, y: l.name }}
+      figure={(labels) => ({
+        title: `${l.name} by ${l.variable}`,
+        x: { title: labels.x, limits: [x0, x1] },
+        y: { title: labels.y, limits: [lo - m, hi + m] },
+        width: W,
+        height: H,
+        layers: [
+          // (the zero line, unnamed as on screen; the interval's two bounds, then the median)
+          { geom: 'hline', color: '#8a94a6', linetype: 'dashed', y: [0] },
+          ...[l.low, l.high].map((bound) => ({
+            geom: 'line' as const,
+            series: `${pct(conf)} credible interval`,
+            color: '#121826',
+            linetype: 'dashed' as const,
+            x: l.x,
+            y: bound,
+          })),
+          { geom: 'line', series: 'Posterior median', color: '#4f46e5', x: l.x, y: l.median },
+        ],
+      })}
       caption={
         <span className="hint">
           Posterior median of {l.name} at each value of {l.variable} and the central {pct(conf)}{' '}

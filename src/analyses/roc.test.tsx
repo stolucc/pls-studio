@@ -1,11 +1,19 @@
+// @vitest-environment happy-dom
 // The ROC card without R: options from files, why it cannot run, staleness, the request it sends, and what the view
 // shows.
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { figureOf } from './figureOf';
 import { DEFAULT_SETTINGS } from '../model/project';
 import { rocColumns, rocRequest, type RocResult } from '../rengine/roc';
 import { rocAnalysis as roc, rocInput, type RocOptions } from './roc';
 import type { AnalysisCtx } from './types';
+
+const gg = vi.hoisted(() => ({
+  file: vi.fn(async (_spec: unknown) => new Blob(['%PDF-'])),
+  script: vi.fn(async () => ''),
+}));
+vi.mock('../figure/ggplot', () => ({ ggplotFile: gg.file, ggplotScript: gg.script }));
 
 const col = (...v: number[]) => Float64Array.from(v);
 const data = {
@@ -170,5 +178,19 @@ describe('the ROC card', () => {
     expect(svg).toContain('>Best cut-point</text>');
     expect(svg.match(/role="listitem"/g)).toHaveLength(3);
     expect(svg).toContain('class="plot-panel"');
+    // (ggplot2: the chance diagonal, both curves and the cut-point, named as in the key)
+    const spec = await figureOf(
+      <roc.View result={r} options={base} current />,
+      'ROC curve',
+      gg.file,
+    );
+    expect(spec.layers.map((l) => `${l.geom}:${l.series ?? ''}`)).toEqual([
+      'segment:',
+      'line:s100b',
+      'line:wfns',
+      'point:Best cut-point',
+    ]);
+    expect(spec.layers[0].linetype).toBe('dashed');
+    expect(spec.x.limits).toEqual([0, 1]);
   });
 });

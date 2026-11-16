@@ -5,7 +5,8 @@
 import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table } from '../components/results/Table';
-import { seriesColor } from '../figure/palette';
+import type { GgLayer } from '../figure/ggplot';
+import { OTHER_COLOR, seriesColor } from '../figure/palette';
 import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
 import { PlotPanel } from '../figure/panel';
 import { fmt, pIs } from '../format';
@@ -344,6 +345,48 @@ function RocChart({ r }: { r: Result }) {
       defaults={{
         x: '1 − specificity (false positive rate)',
         y: 'Sensitivity (true positive rate)',
+      }}
+      figure={(labels) => {
+        // (the legend's names when it has two or more entries, as on screen)
+        const named = legend.length > 1;
+        return {
+          title: 'ROC curve',
+          x: { title: labels.x, limits: [0, 1] },
+          y: { title: labels.y, limits: [0, 1] },
+          width: W,
+          height: H - top,
+          layers: [
+            {
+              geom: 'segment',
+              color: OTHER_COLOR,
+              linetype: 'dashed',
+              x: [0],
+              y: [0],
+              xend: [1],
+              yend: [1],
+            },
+            ...curves.map(
+              (cv, i): GgLayer => ({
+                geom: 'line',
+                series: named ? cv.label : '',
+                color: seriesColor(i),
+                x: cv.points.fpr,
+                y: cv.points.tpr,
+              }),
+            ),
+            ...(showBest
+              ? [
+                  {
+                    geom: 'point' as const,
+                    series: 'Best cut-point',
+                    color: seriesColor(0),
+                    x: [1 - best.specificity],
+                    y: [best.sensitivity],
+                  },
+                ]
+              : []),
+          ],
+        };
       }}
       caption={
         <span className="hint">

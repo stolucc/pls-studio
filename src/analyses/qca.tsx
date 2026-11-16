@@ -127,7 +127,7 @@ export function qcaSpec(o: QcaOptions): QcaSpec {
 
 // ---- The view ----
 
-function XYPlot({ m, r }: { m: QcaModel; r: QcaResult }) {
+export function XYPlot({ m, r }: { m: QcaModel; r: QcaResult }) {
   const W = 320;
   const H = 300;
   const pad = { l: 44, r: 12, t: 12, b: 40 };
@@ -140,6 +140,24 @@ function XYPlot({ m, r }: { m: QcaModel; r: QcaResult }) {
       name={`qca-${m.label}`}
       width={W}
       height={H}
+      figure={(labels) => ({
+        title: `XY plot of ${qcaOutcomeLabel(r.outcome, r.negated)} against ${m.label}`,
+        x: { title: labels.x, limits: [0, 1] },
+        y: { title: labels.y, limits: [0, 1] },
+        width: W,
+        height: H,
+        layers: [
+          { geom: 'vline', color: '#e2e8f0', x: [0.5] },
+          { geom: 'hline', color: '#e2e8f0', y: [0.5] },
+          { geom: 'line', color: '#94a3b8', linetype: 'dashed', x: [0, 1], y: [0, 1] },
+          {
+            geom: 'point',
+            color: '#6d28d9',
+            x: m.membership.slice(0, n),
+            y: r.outcomeValues.slice(0, n),
+          },
+        ],
+      })}
       defaults={{ x: 'Solution membership', y: qcaOutcomeLabel(r.outcome, r.negated) }}
       caption={
         <>

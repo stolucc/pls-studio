@@ -300,7 +300,7 @@ function PowerForm({ options: o, set, ctx, disabled }: OptionsProps<PowerOptions
   );
 }
 
-function PowerCurve({ r, title }: { r: PowerResult; title: string }) {
+export function PowerCurve({ r, title }: { r: PowerResult; title: string }) {
   const cv = r.curve!;
   const xs: [number, number] = [cv.n[0], cv.n[cv.n.length - 1]];
   const sx = (v: number) => pad.l + ((v - xs[0]) / (xs[1] - xs[0] || 1)) * (W - pad.l - pad.r);
@@ -332,6 +332,28 @@ function PowerCurve({ r, title }: { r: PowerResult; title: string }) {
       width={W}
       height={H + legendH}
       defaults={{ x: 'N', y: 'Power' }}
+      figure={(labels) => ({
+        title: `${title}: power of the χ² test`,
+        x: { title: labels.x, limits: xs },
+        y: { title: labels.y, limits: [0, 1] },
+        width: W,
+        height: H,
+        layers: [
+          { geom: 'hline', series: 'Power .80', color: OTHER_COLOR, linetype: 'dashed', y: [0.8] },
+          { geom: 'line', series: 'Power', color: POSITIVE_COLOR, x: cv.n, y: cv.power },
+          ...(showDot
+            ? [
+                {
+                  geom: 'point' as const,
+                  series: legend[1].label,
+                  color: POSITIVE_COLOR,
+                  x: [at!],
+                  y: [r.power!],
+                },
+              ]
+            : []),
+        ],
+      })}
       caption={
         <span className="hint">
           {title}: the power of the χ² test at each N (α = {fmt(r.alpha ?? 0.05, 3)}, df = {r.df},

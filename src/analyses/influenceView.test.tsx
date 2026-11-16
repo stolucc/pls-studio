@@ -1,10 +1,18 @@
+// @vitest-environment happy-dom
 // The influential-cases card's result: the table, an index plot (ChartFrame), excluding one case, and the cases'
 // contributions to Mardia's multivariate kurtosis (absent in results saved before it).
 
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { figureOf } from './figureOf';
 import type { InfluenceResult } from '../rengine/screen';
 import { influenceAnalysis } from './screen';
+
+const gg = vi.hoisted(() => ({
+  file: vi.fn(async (_spec: unknown) => new Blob(['%PDF-'])),
+  script: vi.fn(async () => ''),
+}));
+vi.mock('../figure/ggplot', () => ({ ggplotFile: gg.file, ggplotScript: gg.script }));
 
 const n = 12,
   rows = Array.from({ length: n }, (_, i) => i + 1);
@@ -22,7 +30,7 @@ const base: InfluenceResult = {
 };
 
 describe('influential cases view', () => {
-  it('draws the index plot with the far-out case in red and offers to exclude one case', () => {
+  it('draws the index plot with the far-out case in red and offers to exclude one case', async () => {
     const h = renderToStaticMarkup(
       <influenceAnalysis.View result={base} options={{ approach: 'exact' }} current />,
     );
@@ -42,6 +50,23 @@ describe('influential cases view', () => {
     // (no kurtosis contributions in a result saved before them: neither the table nor the plot's choice)
     expect(h).not.toContain('Contributions to multivariate kurtosis');
     expect(h).not.toContain('Contribution to Mardia’s kurtosis');
+    // (ggplot2 draws the same: stems and dots of the cases and the far-out case, and the fence)
+    const spec = await figureOf(
+      <influenceAnalysis.View result={base} options={{ approach: 'exact' }} current />,
+      'Index plot',
+      gg.file,
+    );
+    expect(spec.title).toBe('Index plot of Generalized Cook’s distance');
+    expect(spec.x.title).toBe('Row');
+    expect(spec.layers.map((l) => `${l.geom}:${l.series ?? ''}`)).toEqual([
+      'segment:',
+      'point:Case',
+      'segment:',
+      'point:Far-out case',
+      'hline:Q3 + 3 IQR',
+    ]);
+    expect(spec.layers[3]).toMatchObject({ x: [7], y: [5], color: '#e34948' });
+    expect(spec.layers[4].linetype).toBe('dashed');
   });
   it('lists the cases contributing most to Mardia’s b₂,ₚ', () => {
     const contribution = rows.map((r) => (r === 3 ? 20 : 1));

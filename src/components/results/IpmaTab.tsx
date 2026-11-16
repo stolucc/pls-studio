@@ -8,6 +8,8 @@ import { c, Table } from './Table';
 import { RScriptButton } from './RScriptButton';
 import { ChartFrame } from '../ChartFrame';
 import { legendHeight, SvgLegend, type LegendItem } from '../../figure/legend';
+import type { FigureSpec } from '../../figure/ggplot';
+import { OTHER_COLOR } from '../../figure/palette';
 import { PlotPanel } from '../../figure/panel';
 
 /** The dots' colours as styles.css draws them (.ipma .dot, .ipma .dot.hot). */
@@ -64,8 +66,52 @@ function IpmaChart({
   const my = mean(ys);
   const ticks = (lo: number, hi: number, k: number) =>
     Array.from({ length: k + 1 }, (_, i) => lo + ((hi - lo) * i) / k);
+  // For ggplot2: the two kinds of dot, the mean lines and each construct's name just above its dot.
+  const hot = (p: IpmaPoint) => p.importance > mx && p.performance < my;
+  const dots = (pick: IpmaPoint[], k: number) =>
+    pick.length
+      ? [
+          {
+            geom: 'point' as const,
+            series: IPMA_LEGEND[k].label,
+            color: IPMA_LEGEND[k].color,
+            x: pick.map((p) => p.importance),
+            y: pick.map((p) => p.performance),
+          },
+        ]
+      : [];
+  const figure = (labels: { x: string; y: string }): FigureSpec => ({
+    title: 'Importance-performance map',
+    x: { title: labels.x, limits: [xMin, xMax] },
+    y: { title: labels.y, limits: [yLo, yHi] },
+    width: W,
+    height: H - legendH,
+    layers: [
+      { geom: 'vline', color: OTHER_COLOR, linetype: 'dashed', x: [mx] },
+      { geom: 'hline', color: OTHER_COLOR, linetype: 'dashed', y: [my] },
+      ...dots(
+        points.filter((p) => !hot(p)),
+        0,
+      ),
+      ...dots(points.filter(hot), 1),
+      {
+        geom: 'text',
+        color: '#1f2937',
+        x: points.map((p) => p.importance),
+        y: points.map((p) => p.performance + 0.04 * (yHi - yLo)),
+        label: points.map((p) => p.name),
+      },
+    ],
+  });
   return (
-    <ChartFrame id={id} name="ipma" width={W} height={H} defaults={{ x: xLabel, y: 'Performance' }}>
+    <ChartFrame
+      id={id}
+      name="ipma"
+      width={W}
+      height={H}
+      defaults={{ x: xLabel, y: 'Performance' }}
+      figure={figure}
+    >
       {(labels) => (
         <svg
           className="ipma"

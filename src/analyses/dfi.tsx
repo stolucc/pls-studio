@@ -29,6 +29,7 @@ import { clampNum, isObj, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType } from './types';
 import { OTHER_COLOR, SERIES_COLORS } from '../figure/palette';
 import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import type { GgLayer } from '../figure/ggplot';
 import { PlotPanel } from '../figure/panel';
 
 export type DfiOptions = DfiArgs;
@@ -780,8 +781,31 @@ const TRUE_COLOR = SERIES_COLORS[0];
 const MISSPEC_COLOR = SERIES_COLORS[1];
 const HB: Record<string, number> = { SRMR: 0.08, RMSEA: 0.06, CFI: 0.95 };
 
+/** One histogram's non-empty bins as a ggplot2 rect layer (the bars the chart draws, at its opacity). */
+function histogramLayer(
+  counts: number[],
+  edges: number[],
+  series: string,
+  color: string,
+): GgLayer[] {
+  const bins = counts.map((_, i) => i).filter((i) => counts[i] > 0);
+  if (!bins.length) return [];
+  return [
+    {
+      geom: 'rect',
+      series,
+      color,
+      alpha: 0.55,
+      xmin: bins.map((i) => edges[i]),
+      xmax: bins.map((i) => edges[i + 1]),
+      ymin: bins.map(() => 0),
+      ymax: bins.map((i) => counts[i]),
+    },
+  ];
+}
+
 /** Overlaid histograms of the fit index under the correct and a misspecified model, with the dynamic cutoff and Hu & Bentler's. */
-function DfiHistogram({
+export function DfiHistogram({
   id,
   index,
   truth,
@@ -843,6 +867,39 @@ function DfiHistogram({
       width={W}
       height={H + legendH}
       defaults={{ x: index, y: 'Replications' }}
+      figure={(labels) => ({
+        title: `Distribution of ${index}: ${title}`,
+        x: { title: labels.x, limits: xs },
+        y: { title: labels.y, limits: [0, yMax] },
+        width: W,
+        height: H,
+        layers: [
+          ...histogramLayer(a, edges, legend[0].label, TRUE_COLOR),
+          ...(b ? histogramLayer(b, edges, 'Misspecified', MISSPEC_COLOR) : []),
+          ...(cutoff !== null
+            ? [
+                {
+                  geom: 'vline' as const,
+                  series: `${cutoffName} ${fmt(cutoff, 3)}`,
+                  color: OTHER_COLOR,
+                  linetype: 'dashed' as const,
+                  x: [cutoff],
+                },
+              ]
+            : []),
+          ...(hb !== undefined
+            ? [
+                {
+                  geom: 'vline' as const,
+                  series: `Hu & Bentler ${hb} (dotted)`,
+                  color: OTHER_COLOR,
+                  linetype: 'dotted' as const,
+                  x: [hb],
+                },
+              ]
+            : []),
+        ],
+      })}
       caption={
         <span className="hint">
           {title}

@@ -82,7 +82,7 @@ const requestOf = (o: RegsemOptions): RegsemRequest => ({
 });
 
 /** The estimates' path over λ for one δ (the selected one), penalised coefficients as series. */
-function PathChart({ r }: { r: RegsemResult }) {
+export function PathChart({ r }: { r: RegsemResult }) {
   const levels = r.path
     .filter((l) => l.delta === r.selected.delta && l.converged)
     .sort((a, b) => a.lambda - b.lambda);
@@ -133,6 +133,35 @@ function PathChart({ r }: { r: RegsemResult }) {
       width={W}
       height={H}
       defaults={{ x: 'Penalty level λ', y: 'Penalised estimate' }}
+      figure={(labels) => ({
+        title: 'Path of the penalised estimates',
+        x: { title: labels.x, limits: [lo, hi] },
+        y: { title: labels.y, limits: [ymin, ymax] },
+        width: W,
+        height: H - legendH,
+        layers: [
+          { geom: 'hline', color: OTHER_COLOR, linetype: 'dashed', y: [0] },
+          ...(sel >= 0
+            ? [
+                {
+                  geom: 'vline' as const,
+                  series: `Chosen by ${r.selector.toUpperCase()}`,
+                  color: OTHER_COLOR,
+                  linetype: 'dashed' as const,
+                  x: [levels[sel].lambda],
+                },
+              ]
+            : []),
+          // (each coefficient's line: by name when non-zero at the chosen level, else the grey group)
+          ...r.penalised.map((name, j) => ({
+            geom: 'line' as const,
+            series: nonzero[j] ? name : 'Zero at the chosen level',
+            color: colorOf(j),
+            x: levels.map((l) => l.lambda),
+            y: levels.map((l) => l.values[j] ?? 0),
+          })),
+        ],
+      })}
       caption={
         <>
           The penalised estimates over the penalty levels

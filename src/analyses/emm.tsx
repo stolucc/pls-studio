@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { ChartFrame } from '../components/ChartFrame';
 import type { Dataset } from '../engine/types';
 import { c, pCell, Table, type Row } from '../components/results/Table';
+import type { GgLayer } from '../figure/ggplot';
 import { seriesColor } from '../figure/palette';
 import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
 import { PlotPanel } from '../figure/panel';
@@ -609,6 +610,47 @@ export function ProfilePlot({ e, dependent }: { e: EmmResult; dependent: string 
     pad.l + ((xs.indexOf(x) + 0.5) / xs.length) * plotW + (k - (lines.length - 1) / 2) * dodge;
   const sy = (v: number) => pad.t + ((y1 - v) / (y1 - y0)) * plotH;
   const ticks = Array.from({ length: 6 }, (_, i) => y0 + ((y1 - y0) * i) / 5);
+  // For ggplot2, in level units (level i at i + 1, dodged as on screen): each line's means, its interval bars
+  // with their caps, and its points.
+  const profileLayers = (): GgLayer[] => {
+    const unit = plotW / xs.length;
+    const ux = (x: string, k: number) =>
+      xs.indexOf(x) + 1 + ((k - (lines.length - 1) / 2) * dodge) / unit;
+    const cap = 4 / unit;
+    // (the levels' names along the bottom of the panel: the x axis itself is numeric)
+    const names: GgLayer = {
+      geom: 'text',
+      color: '#121826',
+      x: xs.map((_, i) => i + 1),
+      y: xs.map(() => y0 + 0.03 * (y1 - y0)),
+      label: xs,
+    };
+    const means = lines.flatMap((line, k): GgLayer[] => {
+      const color = seriesColor(k);
+      const series = p.lines ? line : '';
+      const pts = xs
+        .map((x) => p.rows.find((r) => r.x === x && r.line === line))
+        .filter((r): r is NonNullable<typeof r> => !!r);
+      const at = pts.map((r) => ux(r.x, k));
+      return [
+        { geom: 'line', series, color, x: at, y: pts.map((r) => r.emmean) },
+        {
+          geom: 'segment',
+          color,
+          x: [...at, ...at.map((v) => v - cap), ...at.map((v) => v - cap)],
+          y: [...pts.map((r) => r.lower), ...pts.map((r) => r.lower), ...pts.map((r) => r.upper)],
+          xend: [...at, ...at.map((v) => v + cap), ...at.map((v) => v + cap)],
+          yend: [
+            ...pts.map((r) => r.upper),
+            ...pts.map((r) => r.lower),
+            ...pts.map((r) => r.upper),
+          ],
+        },
+        { geom: 'point', series, color, x: at, y: pts.map((r) => r.emmean) },
+      ];
+    });
+    return [...means, names];
+  };
   return (
     <ChartFrame
       id="emm-profile"
@@ -616,6 +658,14 @@ export function ProfilePlot({ e, dependent }: { e: EmmResult; dependent: string 
       width={W}
       height={H}
       defaults={{ x: p.x, y: `Marginal mean of ${dependent}` }}
+      figure={(labels) => ({
+        title: 'Profile plot',
+        x: { title: labels.x, limits: [0.5, xs.length + 0.5] },
+        y: { title: labels.y, limits: [y0, y1] },
+        width: W,
+        height: H - top,
+        layers: profileLayers(),
+      })}
       caption={
         <span className="hint">
           Estimated marginal means with {pct(e.confidence)} confidence intervals

@@ -10,6 +10,7 @@ import { c, pCell, Table, type Row } from '../components/results/Table';
 import type { Dataset } from '../engine/types';
 import { mulberry32 } from '../engine/stats';
 import { extent, fmt } from '../format';
+import type { GgLayer } from '../figure/ggplot';
 import { seriesColor } from '../figure/palette';
 import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
 import { PlotPanel } from '../figure/panel';
@@ -310,6 +311,11 @@ const sxOf = (xs: [number, number]) => (v: number) =>
   pad.l + ((v - xs[0]) / (xs[1] - xs[0] || 1)) * (W - pad.l - pad.r);
 const syOf = (ys: [number, number]) => (v: number) =>
   pad.t + ((ys[1] - v) / (ys[1] - ys[0] || 1)) * (H - pad.t - pad.b);
+// The stylesheet's colours of the data charts' bars and dots, fit line and box-plot ink (light theme), for ggplot2.
+const ACCENT = '#4f46e5';
+const FIT_COLOR = '#d93b2f';
+const INK = '#121826';
+
 const path = (pts: [number, number][]) =>
   pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join('');
 
@@ -336,6 +342,30 @@ function HistogramPlot({ p, label }: { p: ExplorePlot; label: string }) {
       width={W}
       height={H}
       defaults={{ x: p.variable, y: 'Density' }}
+      figure={(labels) => ({
+        title: `Histogram of ${label}`,
+        x: { title: labels.x, limits: [lo, hi] },
+        y: { title: labels.y, limits: [0, yMax] },
+        width: W,
+        height: H,
+        layers: [
+          {
+            geom: 'rect',
+            color: ACCENT,
+            alpha: 0.8,
+            xmin: bins.map((b) => b.from),
+            xmax: bins.map((b) => b.to),
+            ymin: bins.map(() => 0),
+            ymax: heights,
+          },
+          {
+            geom: 'line',
+            color: seriesColor(1),
+            x: p.density.map((d) => d.x),
+            y: p.density.map((d) => d.y),
+          },
+        ],
+      })}
       caption={
         <span className="hint">
           {label}: n = {p.hist.n}; bars: counts as densities; curve: Gaussian kernel density (R’s
@@ -400,6 +430,24 @@ function QQPlotChart({ p, label }: { p: ExplorePlot; label: string }) {
       width={W}
       height={H}
       defaults={{ x: 'Theoretical normal quantiles', y: `Sample quantiles of ${p.variable}` }}
+      figure={(labels) => ({
+        title: `Q-Q plot of ${label}`,
+        x: { title: labels.x, limits: xs },
+        y: { title: labels.y, limits: ys },
+        width: W,
+        height: H,
+        layers: [
+          {
+            geom: 'segment',
+            color: FIT_COLOR,
+            x: [xs[0]],
+            y: [line(xs[0])],
+            xend: [xs[1]],
+            yend: [line(xs[1])],
+          },
+          { geom: 'point', color: ACCENT, x: tx, y: sv },
+        ],
+      })}
       caption={
         <span className="hint">
           {label}: points near the line mean a normal distribution; the line passes through the
@@ -452,6 +500,58 @@ function RaincloudPlot({ plots, variable }: { plots: ExplorePlot[]; variable: st
     ? shown.map((p, k) => ({ label: p.group, color: seriesColor(k), mark: 'box' }))
     : [];
   const top = legendHeight(legend, W - pad.l - pad.r);
+  // For ggplot2, in group units (group k centred at k + 1, one unit wide, as the chart's bands): the half violin
+  // as thin slices of the density, the box plot, and the values with the chart's own jitter.
+  const rainLayers = (): GgLayer[] =>
+    shown.flatMap((p, k): GgLayer[] => {
+      const bandPx = band;
+      const cx = k + 1;
+      const half = Math.min(60, bandPx * 0.4) / bandPx;
+      const gap = 4 / bandPx;
+      const yMax = Math.max(...p.density.map((d) => d.y)) || 1;
+      const d = p.density;
+      const step = d.length > 1 ? (d[d.length - 1].x - d[0].x) / (d.length - 1) : 0;
+      const b = p.box!;
+      const random = mulberry32(k + 1);
+      const colour = seriesColor(k);
+      const name = grouped ? p.group : '';
+      return [
+        {
+          geom: 'rect',
+          series: name,
+          color: colour,
+          alpha: 0.35,
+          xmin: d.map((v) => cx - gap - (v.y / yMax) * half),
+          xmax: d.map(() => cx - gap),
+          ymin: d.map((v) => v.x - step / 2),
+          ymax: d.map((v) => v.x + step / 2),
+        },
+        { geom: 'segment', color: INK, x: [cx], y: [b.lo], xend: [cx], yend: [b.hi] },
+        {
+          geom: 'rect',
+          color: colour,
+          alpha: 0.25,
+          xmin: [cx - gap],
+          xmax: [cx + gap],
+          ymin: [b.q1],
+          ymax: [b.q3],
+        },
+        {
+          geom: 'segment',
+          color: INK,
+          x: [cx - gap],
+          y: [b.median],
+          xend: [cx + gap],
+          yend: [b.median],
+        },
+        {
+          geom: 'point',
+          color: colour,
+          x: p.dots.map(() => cx + 2 * gap + random() * half * 0.8),
+          y: p.dots,
+        },
+      ];
+    });
   return (
     <ChartFrame
       id={`explore:rain:${variable}`}
@@ -459,6 +559,14 @@ function RaincloudPlot({ plots, variable }: { plots: ExplorePlot[]; variable: st
       width={W}
       height={H + top}
       defaults={{ x: grouped ? 'Group' : '', y: variable }}
+      figure={(labels) => ({
+        title: `Raincloud plot of ${variable}`,
+        x: { title: labels.x, limits: [0.5, shown.length + 0.5] },
+        y: { title: labels.y, limits: ys },
+        width: W,
+        height: H,
+        layers: rainLayers(),
+      })}
       caption={
         <span className="hint">
           Left: kernel density (half violin); middle: box plot (quartiles, whiskers to the last

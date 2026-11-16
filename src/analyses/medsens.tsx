@@ -6,7 +6,7 @@
 
 import { ChartFrame } from '../components/ChartFrame';
 import { c, Table } from '../components/results/Table';
-import { SERIES_COLORS } from '../figure/palette';
+import { OTHER_COLOR, SERIES_COLORS } from '../figure/palette';
 import { fmt } from '../format';
 import { clampStrict } from '../parse';
 import { processInput } from '../process/input';
@@ -104,7 +104,7 @@ function MedsensForm({ options: o, set, disabled }: OptionsProps<MedsensOptions>
 }
 
 /** The effect at each rho with its confidence band; dashed: where it is zero. */
-function CurveChart({
+export function CurveChart({
   id,
   rho,
   curve,
@@ -140,6 +140,41 @@ function CurveChart({
       width={W}
       height={H}
       defaults={{ x: 'Sensitivity parameter ρ', y: label }}
+      figure={(labels) => ({
+        title: `${label} by rho`,
+        x: { title: labels.x, limits: xs },
+        y: { title: labels.y, limits: ys },
+        width: W,
+        height: H,
+        layers: [
+          {
+            geom: 'ribbon',
+            color: col,
+            alpha: 0.18,
+            x: idx.map((i) => rho[i]),
+            ymin: idx.map((i) => curve.lo[i]),
+            ymax: idx.map((i) => curve.hi[i]),
+          },
+          { geom: 'hline', color: OTHER_COLOR, linetype: 'dashed', y: [0] },
+          { geom: 'vline', color: OTHER_COLOR, linetype: 'dashed', x: [0] },
+          ...(zero.rho !== null
+            ? [
+                {
+                  geom: 'vline' as const,
+                  color: '#4b5563',
+                  linetype: 'dashed' as const,
+                  x: [zero.rho],
+                },
+              ]
+            : []),
+          {
+            geom: 'line',
+            color: col,
+            x: idx.map((i) => rho[i]),
+            y: idx.map((i) => curve.est[i]),
+          },
+        ],
+      })}
       caption={
         <span className="hint">
           {label} if the residuals of the mediator and outcome equations correlated ρ (solid), with

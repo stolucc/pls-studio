@@ -18,7 +18,8 @@ import {
 } from '../model/screen';
 import { ChartFrame } from '../components/ChartFrame';
 import { IconX } from '../components/icons';
-import { NEGATIVE_COLOR, POSITIVE_COLOR } from '../figure/palette';
+import type { GgLayer } from '../figure/ggplot';
+import { NEGATIVE_COLOR, OTHER_COLOR, POSITIVE_COLOR } from '../figure/palette';
 import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
 import { PlotPanel } from '../figure/panel';
 import { Axes, H, pad, W } from './charts';
@@ -424,6 +425,41 @@ function IndexPlot({ inf }: { inf: InfluenceResult }) {
       ]
     : [];
   const top = legendHeight(legend, W - pad.l - pad.r);
+  // For ggplot2: the drawn cases' stems and dots (cases and far-out cases apart), and the fence or the zero line.
+  const indexLayers = (): GgLayer[] => {
+    const groups = [
+      { far: false, label: 'Case', color: POSITIVE_COLOR },
+      { far: true, label: 'Far-out case', color: NEGATIVE_COLOR },
+    ];
+    const layers: GgLayer[] = [];
+    for (const g of groups) {
+      const idx = marks.order.filter((i) => far(s.values[i]) === g.far);
+      if (!idx.length) continue;
+      const x = idx.map((i) => s.rows[i]);
+      const y = idx.map((i) => s.values[i]);
+      layers.push({
+        geom: 'segment',
+        color: g.color,
+        x,
+        y: idx.map(() => Math.max(lo, 0)),
+        xend: x,
+        yend: y,
+      });
+      layers.push({ geom: 'point', series: fenced ? g.label : '', color: g.color, x, y });
+    }
+    layers.push(
+      fenced
+        ? {
+            geom: 'hline',
+            series: 'Q3 + 3 IQR',
+            color: NEGATIVE_COLOR,
+            linetype: 'dashed',
+            y: [s.fence!],
+          }
+        : { geom: 'hline', color: OTHER_COLOR, y: [0] },
+    );
+    return layers;
+  };
   return (
     <div>
       <div className="segmented" role="radiogroup" aria-label="Statistic in the index plot">
@@ -445,6 +481,14 @@ function IndexPlot({ inf }: { inf: InfluenceResult }) {
         width={W}
         height={H + top}
         defaults={{ x: 'Row', y: STAT_LABEL[stat] }}
+        figure={(labels) => ({
+          title: `Index plot of ${STAT_LABEL[stat]}`,
+          x: { title: labels.x, limits: xs },
+          y: { title: labels.y, limits: [lo, hi] },
+          width: W,
+          height: H,
+          layers: indexLayers(),
+        })}
         caption={
           <span className="hint">
             {at >= 0 ? `Row ${picked}: ${fmt(s.values[at], 4)}. ` : 'Click a point for its row. '}

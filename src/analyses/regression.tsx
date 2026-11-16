@@ -646,6 +646,10 @@ function diagnosticsNote(dw: DurbinWatson | undefined): string {
   );
 }
 
+// The stylesheet's colours of the data charts' dots and fit line (light theme), for ggplot2.
+const DOT_COLOR = '#4f46e5';
+const FIT_COLOR = '#d93b2f';
+
 function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
   const W = 520;
   const probs = cv.probs;
@@ -684,6 +688,28 @@ function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
         x: cv.x,
         y: probs || r.family === 'binomial' ? 'Probability' : 'Predicted outcome',
       }}
+      figure={(labels) => ({
+        title: `Fitted curve over ${cv.x}`,
+        x: { title: labels.x, limits: [x0, x1] },
+        y: { title: labels.y, limits: [ys[0], ys[1]] },
+        width: W,
+        height: H - top,
+        // The observed values and the fitted response (the stylesheet's dot and fit-line colours), or each
+        // level's probability curve.
+        layers: [
+          ...(cv.points
+            ? [{ geom: 'point' as const, color: DOT_COLOR, x: cv.points.x, y: cv.points.y }]
+            : []),
+          ...(cv.y ? [{ geom: 'line' as const, color: FIT_COLOR, x: cv.grid, y: cv.y }] : []),
+          ...(probs ?? []).map((pr, j) => ({
+            geom: 'line' as const,
+            series: cv.levels![j],
+            color: seriesColor(j),
+            x: cv.grid,
+            y: pr,
+          })),
+        ],
+      })}
       caption={
         <span className="hint">
           Partial effect of {cv.x}: the fitted {probs ? 'probability of each level' : 'response'}{' '}

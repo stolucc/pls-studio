@@ -224,6 +224,32 @@ function LcsTrajectory({ r }: { r: LcsResult }) {
       width={W}
       height={H}
       defaults={{ x: 'Occasion', y: 'Mean' }}
+      figure={(labels) => {
+        const occasions = Array.from({ length: T }, (_, i) => i + 1);
+        return {
+          title: 'Mean trajectories',
+          x: { title: labels.x, limits: [1, Math.max(2, T)] },
+          y: { title: labels.y, limits: [lo - 0.08 * span, hi + 0.08 * span] },
+          width: W,
+          height: H - top,
+          layers: series.flatMap((s, k) => [
+            {
+              geom: 'line' as const,
+              series: `${s.name}: model-implied mean`,
+              color: seriesColor(k),
+              x: occasions,
+              y: s.imp,
+            },
+            {
+              geom: 'point' as const,
+              series: `${s.name}: observed mean`,
+              color: seriesColor(k),
+              x: occasions,
+              y: s.obs.map((v) => (Number.isFinite(v) ? v : null)),
+            },
+          ]),
+        };
+      }}
     >
       {(labels) => (
         <svg className="mc-chart" width={W} height={H} role="img" aria-label="Mean trajectories">

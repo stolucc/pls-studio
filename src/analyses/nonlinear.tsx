@@ -78,7 +78,7 @@ export function analyseNonlinear(
   };
 }
 
-function Curve({
+export function Curve({
   eq,
   path,
   k,
@@ -118,6 +118,17 @@ function Curve({
       height={height}
       caption={caption}
       defaults={{ x: `${path.from} (score)`, y: `${path.to} (score)` }}
+      figure={(labels) => ({
+        title: `${path.from} → ${path.to}: scores and the fitted ${path.shape} curve`,
+        x: { title: labels.x, limits: [lo, hi] },
+        y: { title: labels.y, limits: [ylo, yhi] },
+        width,
+        height,
+        layers: [
+          { geom: 'point', color, x: path.x, y: path.y },
+          { geom: 'line', color, x: pts.map(([x]) => x), y: pts.map(([, y]) => y) },
+        ],
+      })}
     >
       {(labels) => (
         <svg

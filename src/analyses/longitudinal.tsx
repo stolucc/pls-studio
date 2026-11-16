@@ -124,6 +124,29 @@ export function Trajectory({ r }: { r: GrowthResult }) {
         width={W}
         height={H}
         defaults={{ x: 'Time', y: 'Mean' }}
+        figure={(labels) => ({
+          title: 'Mean trajectory',
+          x: { title: labels.x, limits: [t0, t1] },
+          y: { title: labels.y, limits: [lo - 0.08 * span, hi + 0.08 * span] },
+          width: W,
+          height: H - top,
+          layers: [
+            {
+              geom: 'line',
+              series: 'Model-implied mean',
+              color: IMPLIED_COLOR,
+              x: r.times,
+              y: r.impliedMeans,
+            },
+            {
+              geom: 'point',
+              series: 'Observed mean',
+              color: OBSERVED_COLOR,
+              x: r.times,
+              y: r.observedMeans,
+            },
+          ],
+        })}
       >
         {(labels) => (
           <svg className="mc-chart" width={W} height={H} role="img" aria-label="Mean trajectory">
@@ -393,6 +416,34 @@ export function Trajectories({ r, m }: { r: GmmResult; m: GmmModel }) {
       width={W}
       height={H}
       defaults={{ x: 'Time', y: 'Outcome' }}
+      figure={(labels) => ({
+        title: 'Class trajectories',
+        x: { title: labels.x, limits: [t0, t1] },
+        y: { title: labels.y, limits: [lo - 0.08 * span, hi + 0.08 * span] },
+        width: W,
+        height: H - top,
+        // Each class's estimated trajectory, and its observed means where the model gives them.
+        layers: m.trajectories.flatMap((tr, k) => [
+          {
+            geom: 'line' as const,
+            series: legend[k].label,
+            color: seriesColor(k),
+            x: r.times,
+            y: tr,
+          },
+          ...(m.observed?.[k]
+            ? [
+                {
+                  geom: 'point' as const,
+                  series: legend[k].label,
+                  color: seriesColor(k),
+                  x: r.observedTimes,
+                  y: m.observed[k],
+                },
+              ]
+            : []),
+        ]),
+      })}
     >
       {(labels) => (
         <svg className="mc-chart" width={W} height={H} role="img" aria-label="Class trajectories">

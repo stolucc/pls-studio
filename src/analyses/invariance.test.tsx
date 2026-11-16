@@ -1,9 +1,11 @@
+// @vitest-environment happy-dom
 // The measurement invariance cards: options survive a project file, bad values are replaced, each card says what it
 // still needs, the request it sends, and the views. (Their results against the R packages run natively:
 // src/examples/cards/invariance.webr.test.ts and src/rengine/invariance.webr.test.ts.)
 
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { figureOf } from './figureOf';
 import { DEFAULT_SETTINGS, type ModelState } from '../model/project';
 import type {
   AlignmentResult,
@@ -47,6 +49,12 @@ import {
   mnlfaUnidentified,
   modelFactors,
 } from './invariance';
+
+const gg = vi.hoisted(() => ({
+  file: vi.fn(async (_spec: unknown) => new Blob(['%PDF-'])),
+  script: vi.fn(async () => ''),
+}));
+vi.mock('../figure/ggplot', () => ({ ggplotFile: gg.file, ggplotScript: gg.script }));
 
 const cols = ['a1', 'a2', 'a3', 'b1', 'b2', 'g', 'x'];
 const data = {
@@ -887,7 +895,7 @@ describe('local SEM card', () => {
     expect(svg).toContain('class="axis-title">A =~ a1</text>');
     expect(svg).toContain('class="plot-panel"');
   });
-  it('keys the curves inside the chart when there are several of a kind', () => {
+  it('keys the curves inside the chart when there are several of a kind', async () => {
     const r = lsemResult(raw) as LsemResult;
     const two = {
       ...r,
@@ -899,6 +907,19 @@ describe('local SEM card', () => {
     expect(svg).toContain('aria-label="Legend"');
     expect(svg).toContain('>A =~ a1</text>');
     expect(svg).toContain('>A =~ a2</text>');
+    // (ggplot2: each loading's bootstrap band under its line, named as in the key)
+    const spec = await figureOf(
+      <lsemAnalysis.View result={two} options={d} current />,
+      'Local SEM: loading',
+      gg.file,
+    );
+    expect(spec.layers.map((l) => `${l.geom}:${l.series ?? ''}`)).toEqual([
+      'ribbon:',
+      'line:A =~ a1',
+      'ribbon:',
+      'line:A =~ a2',
+    ]);
+    expect(spec.layers[0]).toMatchObject({ ymin: [0.8, 1], ymax: [1.6, 1.8] });
   });
 });
 

@@ -73,6 +73,48 @@ export function Scree({ r }: { r: EfaResult }) {
       width={W}
       height={H + lh}
       defaults={{ x: pca ? 'Component' : 'Factor', y: 'Eigenvalue' }}
+      figure={(labels) => ({
+        title: 'Scree plot',
+        x: { title: labels.x, ...(n > 1 ? { limits: [1, n] as [number, number] } : {}) },
+        y: { title: labels.y, limits: [bottom, top] },
+        width: W,
+        height: H,
+        layers: [
+          {
+            geom: 'hline',
+            series: 'Eigenvalue 1',
+            color: '#cbd5e1',
+            linetype: 'dashed',
+            y: [1],
+          },
+          ...(sim.length > 0
+            ? [
+                {
+                  geom: 'line' as const,
+                  series: 'Parallel analysis (random data)',
+                  color: '#d97706',
+                  linetype: 'dashed' as const,
+                  x: sim.map((_, i) => i + 1),
+                  y: sim,
+                },
+              ]
+            : []),
+          {
+            geom: 'line',
+            series: 'Eigenvalues',
+            color: '#6d28d9',
+            x: obs.map((_, i) => i + 1),
+            y: obs,
+          },
+          {
+            geom: 'point',
+            series: 'Eigenvalues',
+            color: '#6d28d9',
+            x: obs.map((_, i) => i + 1),
+            y: obs,
+          },
+        ],
+      })}
     >
       {(labels) => (
         <svg className="mc-chart" width={W} height={H + lh} role="img" aria-label="Scree plot">

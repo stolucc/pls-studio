@@ -1,12 +1,20 @@
+// @vitest-environment happy-dom
 // The Kaplan–Meier card: options from files, risk table times, what blocks a run, the bridge input and the view
 // (numbers from scripts/validation/survival_km.R, ?survfit.formula's aml).
 
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { figureOf } from './figureOf';
 import { DEFAULT_SETTINGS } from '../model/project';
 import type { KmResult } from '../rengine/km';
 import { kmAnalysis as t, kmInput, parseRiskTimes } from './km';
 import type { AnalysisCtx } from './types';
+
+const gg = vi.hoisted(() => ({
+  file: vi.fn(async (_spec: unknown) => new Blob(['%PDF-'])),
+  script: vi.fn(async () => ''),
+}));
+vi.mock('../figure/ggplot', () => ({ ggplotFile: gg.file, ggplotScript: gg.script }));
 
 const data = {
   names: ['time', 'status', 'x'],
@@ -62,7 +70,7 @@ describe('Kaplan–Meier card', () => {
     expect(t.fingerprint({ ...o, group: 'x' }, ctx)).not.toBe(t.fingerprint(o, ctx));
   });
 
-  it('shows medians (not reached as such), the tests, the curves with censoring marks and the risk table', () => {
+  it('shows medians (not reached as such), the tests, the curves with censoring marks and the risk table', async () => {
     const stratum = (name: string, median: number | null) => ({
       name,
       n: 11,
@@ -107,5 +115,20 @@ describe('Kaplan–Meier card', () => {
     expect(svg).toContain('class="plot-panel"');
     expect(html).toContain('1 censored at 13.00');
     expect(html).toContain('Kaplan–Meier estimates: Nonmaintained');
+    // (ggplot2: each group's step curve from (0, 1) and its censoring ticks)
+    const spec = await figureOf(
+      <t.View result={result} options={base} current />,
+      'Kaplan–Meier curves',
+      gg.file,
+    );
+    // (each curve's interval bounds, when shown, are unnamed dashed steps)
+    const steps = spec.layers.filter((l) => l.geom === 'step' && l.series);
+    expect(steps.map((l) => l.series)).toEqual(['Maintained', 'Nonmaintained']);
+    for (const l of spec.layers.filter((x) => x.geom === 'step' && !x.series))
+      expect(l.linetype).toBe('dashed');
+    expect(steps[0].x![0]).toBe(0);
+    expect(steps[0].y![0]).toBe(1);
+    expect(spec.layers.some((l) => l.geom === 'segment')).toBe(true);
+    expect(spec.y).toMatchObject({ title: 'Survival probability', limits: [0, 1] });
   });
 });

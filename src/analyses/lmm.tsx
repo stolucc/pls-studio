@@ -65,6 +65,33 @@ export function ClusterLines({ l }: { l: NonNullable<LmmResult['lines']> }) {
       width={W}
       height={H + lh}
       defaults={{ x: l.predictor, y: 'Predicted outcome' }}
+      figure={(labels) => ({
+        title: `Regression lines of ${l.predictor} per cluster`,
+        x: { title: labels.x, limits: [x0, x1] },
+        y: { title: labels.y, limits: [lo - 0.06 * span, hi + 0.06 * span] },
+        width: W,
+        height: H,
+        layers: [
+          {
+            geom: 'segment',
+            series: 'Each cluster’s line',
+            color: '#94a3b8',
+            x: shown.map(() => x0),
+            xend: shown.map(() => x1),
+            y: shown.map((a, i) => a + l.slopes[i] * x0),
+            yend: shown.map((a, i) => a + l.slopes[i] * x1),
+          },
+          {
+            geom: 'segment',
+            series: 'Average (fixed) line',
+            color: '#6d28d9',
+            x: [x0],
+            xend: [x1],
+            y: [l.fixed[0] + l.fixed[1] * x0],
+            yend: [l.fixed[0] + l.fixed[1] * x1],
+          },
+        ],
+      })}
     >
       {(labels) => (
         <svg

@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+// @vitest-environment happy-dom
+import { describe, expect, it, vi } from 'vitest';
+import { figureOf } from './figureOf';
 import { DEFAULT_SETTINGS } from '../model/project';
 import {
   isZeroModel,
@@ -18,6 +20,12 @@ import {
   type RegressionOptions,
 } from './regression';
 import type { AnalysisCtx } from './types';
+
+const gg = vi.hoisted(() => ({
+  file: vi.fn(async (_spec: unknown) => new Blob(['%PDF-'])),
+  script: vi.fn(async () => ''),
+}));
+vi.mock('../figure/ggplot', () => ({ ggplotFile: gg.file, ggplotScript: gg.script }));
 
 const data = {
   names: ['y', 'a', 'b', 'g', 'n', 'w', 'k'],
@@ -446,6 +454,39 @@ describe('regression view', () => {
     expect(
       html({ ...base, curves: [], diagnostics: { durbinWatson: { ...dw, exact: false } } }),
     ).toContain('normal approximation');
+    // (ggplot2: the fitted line, or each level's probability under the level's name)
+    const view = (r: unknown) => (
+      <regressionAnalysis.View
+        result={r as never}
+        options={o({ outcome: 'y', predictors: ['a'] })}
+        current
+      />
+    );
+    const fitted = await figureOf(view({ ...base, curves: [curve] }), 'Fitted curve', gg.file);
+    expect(fitted.layers.some((l) => l.geom === 'line' && !l.series)).toBe(true);
+    expect(fitted.x.title).toBe('a');
+    const levels = await figureOf(
+      view({
+        ...base,
+        family: 'multinomial',
+        curves: [
+          {
+            x: 'a',
+            grid: [0, 1],
+            levels: ['low', 'mid', 'high'],
+            probs: [
+              [0.6, 0.2],
+              [0.3, 0.3],
+              [0.1, 0.5],
+            ],
+          },
+        ],
+      }),
+      'Fitted curve',
+      gg.file,
+    );
+    expect(levels.layers.map((l) => l.series)).toEqual(['low', 'mid', 'high']);
+    expect(levels.y.limits).toEqual([0, 1]);
   });
 });
 

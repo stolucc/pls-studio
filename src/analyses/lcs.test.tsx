@@ -1,14 +1,22 @@
+// @vitest-environment happy-dom
 // The Latent change score card: options survive a project file, the card says what it still needs, the input it
 // sends, the parameters in LCS terms and the view. (Its results against lcsm run natively:
 // src/examples/cards/lcs.webr.test.ts.)
 
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { figureOf } from './figureOf';
 import { DEFAULT_SETTINGS } from '../model/project';
 import { lcsRequest, type LcsInput, type LcsResult } from '../rengine/longitudinal';
 import { lcsAnalysis, lcsInput, lcsName, LcsResultView, lcsRows } from './lcs';
 import { ANALYSIS_TYPES } from './registry';
 import type { AnalysisCtx } from './types';
+
+const gg = vi.hoisted(() => ({
+  file: vi.fn(async (_spec: unknown) => new Blob(['%PDF-'])),
+  script: vi.fn(async () => ''),
+}));
+vi.mock('../figure/ggplot', () => ({ ggplotFile: gg.file, ggplotScript: gg.script }));
 
 const cols = ['anx_1', 'anx_2', 'anx_3', 'dep_1', 'dep_2', 'dep_3', 'other'];
 const data = {
@@ -83,7 +91,7 @@ describe('latent change score card', () => {
       'bivariate · 3 occasions · αβ / αβ · δXY, δYX',
     );
   });
-  it('names the variables from their columns, and reports the parameters in LCS terms', () => {
+  it('names the variables from their columns, and reports the parameters in LCS terms', async () => {
     expect(lcsName(['anx_1', 'anx_2'], 'X')).toBe('anx');
     expect(lcsName(['T1'], 'X')).toBe('X');
     expect(lcsName(['wave2'], 'X')).toBe('X');
@@ -155,5 +163,15 @@ describe('latent change score card', () => {
     expect(
       lcsRows({ ...r, bivariate: false, estimates: [est('gamma_lx1', 2)] }).map((x) => x.title),
     ).toEqual(['Change components']);
+    // (ggplot2 draws each variable's implied means as a line and its observed means as points)
+    const spec = await figureOf(<LcsResultView r={r} />, 'Mean trajectories', gg.file);
+    expect(spec.layers.map((l) => `${l.geom}:${l.series}`)).toEqual([
+      'line:anx: model-implied mean',
+      'point:anx: observed mean',
+      'line:dep: model-implied mean',
+      'point:dep: observed mean',
+    ]);
+    expect(spec.layers[0]).toMatchObject({ x: [1, 2, 3], y: [2, 2.1, 2.2] });
+    expect(spec.x.title).toBe('Occasion');
   });
 });

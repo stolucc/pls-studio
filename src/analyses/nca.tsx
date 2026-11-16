@@ -4,7 +4,8 @@
 import type { Dataset } from '../engine/types';
 import { fmt } from '../format';
 import { bottleneckText, type NcaCondition, type NcaOutlier, type NcaResult } from '../rengine/nca';
-import { ChartFrame } from '../components/ChartFrame';
+import { ChartFrame, type AxisLabels } from '../components/ChartFrame';
+import type { FigureSpec, GgLayer } from '../figure/ggplot';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { fingerprint } from './codec';
@@ -37,7 +38,55 @@ export const effectLabel = (d: number) => {
   return 'very large';
 };
 
-function CeilingPlot({ k, y }: { k: NcaCondition; y: string }) {
+/**
+ * The ceiling plot for ggplot2: the observations, the CE-FDH step through the peers (from the left edge of
+ * the scope to the right, as drawn on screen) and the CR-FDH line inside the scope.
+ */
+function ceilingFigure(k: NcaCondition, labels: AxisLabels, W: number, H: number): FigureSpec {
+  const [x0, x1, y0, y1] = k.scope;
+  const last = k.peers.y[k.peers.y.length - 1];
+  const layers: GgLayer[] = [
+    {
+      geom: 'point',
+      series: 'Observations',
+      color: '#64748b',
+      x: k.points.x,
+      y: k.points.y,
+    },
+    {
+      geom: 'step',
+      series: 'CE-FDH ceiling',
+      color: '#6d28d9',
+      x: [x0, ...k.peers.x, x1],
+      y: [k.peers.y[0], ...k.peers.y, last],
+    },
+  ];
+  if (k.slope !== null && k.intercept !== null) {
+    const a = k.intercept;
+    const b = k.slope;
+    const xa = Math.max(x0, (y0 - a) / b);
+    const xb = Math.min(x1, (y1 - a) / b);
+    if (xa < xb)
+      layers.push({
+        geom: 'line',
+        series: 'CR-FDH ceiling',
+        color: '#d97706',
+        linetype: 'dashed',
+        x: [xa, xb],
+        y: [a + b * xa, a + b * xb],
+      });
+  }
+  return {
+    title: `Ceiling lines for ${k.x}`,
+    x: { title: labels.x, limits: [x0, x1] },
+    y: { title: labels.y, limits: [y0, y1] },
+    width: W,
+    height: H,
+    layers,
+  };
+}
+
+export function CeilingPlot({ k, y }: { k: NcaCondition; y: string }) {
   const W = 360;
   const H = 280;
   const pad = { l: 48, r: 12, t: 12, b: 40 };
@@ -75,6 +124,7 @@ function CeilingPlot({ k, y }: { k: NcaCondition; y: string }) {
       width={W}
       height={H + lh}
       defaults={{ x: k.x, y }}
+      figure={(labels) => ceilingFigure(k, labels, W, H)}
     >
       {(labels) => (
         <svg

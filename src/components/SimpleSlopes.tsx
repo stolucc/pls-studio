@@ -1,5 +1,6 @@
 import { quadraticSlope, quadraticValue, turningPoint } from '../engine/quadratic';
 import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { OTHER_COLOR } from '../figure/palette';
 import { PlotPanel } from '../figure/panel';
 import { ChartFrame } from './ChartFrame';
 
@@ -70,6 +71,24 @@ export function SimpleSlopes({
       height={total}
       caption={caption}
       defaults={{ x: `${from} (SD)`, y: `${to} (predicted, SD)` }}
+      figure={(labels) => ({
+        title: `Simple slopes of ${from} on ${to} at three levels of ${moderator}`,
+        x: { title: labels.x, limits: [-1, 1] },
+        y: { title: labels.y, limits: [-lim, lim] },
+        width,
+        height,
+        layers: [
+          // (0, dashed as on the chart)
+          { geom: 'hline', color: OTHER_COLOR, linetype: 'dashed', y: [0] },
+          ...levels.map((l) => ({
+            geom: 'line' as const,
+            series: l.label,
+            color: l.color,
+            x: [-1, 1],
+            y: [y(-1, l.m), y(1, l.m)],
+          })),
+        ],
+      })}
     >
       {(labels) => (
         <svg
@@ -207,6 +226,28 @@ export function QuadraticCurve({
       height={total}
       caption={caption}
       defaults={{ x: `${from} (SD)`, y: `${to} (predicted, SD)` }}
+      figure={(labels) => ({
+        title: `Quadratic effect of ${from} on ${to}`,
+        x: { title: labels.x, limits: [-R, R] },
+        y: { title: labels.y, limits: [-lim, lim] },
+        width,
+        height,
+        layers: [
+          { geom: 'hline', color: OTHER_COLOR, linetype: 'dashed', y: [0] },
+          // (the turning point, dotted, when within ±2 SD)
+          ...(tp !== null && Math.abs(tp) <= R
+            ? [{ geom: 'vline' as const, color: OTHER_COLOR, linetype: 'dotted' as const, x: [tp] }]
+            : []),
+          { geom: 'line', series: 'Fitted curve', color: '#8b5cf6', x: xs, y: ys },
+          ...levels.map((l) => ({
+            geom: 'point' as const,
+            series: `${from} ${l.label}`,
+            color: l.color,
+            x: [l.x],
+            y: [quadraticValue(b, bq, l.x)],
+          })),
+        ],
+      })}
     >
       {(labels) => (
         <svg

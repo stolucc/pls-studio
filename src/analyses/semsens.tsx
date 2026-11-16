@@ -192,7 +192,7 @@ function SemsensForm({ options: o, set, ctx, disabled }: OptionsProps<SemsensOpt
 }
 
 /** A path's standardised estimate in each evaluation against the confounding strength (the product of the phantom's coefficients on its two ends). */
-function SemsensChart({ r }: { r: SemsensResult }) {
+export function SemsensChart({ r }: { r: SemsensResult }) {
   const interest = r.draws.path.filter((p) => r.interest.some((q) => key(q) === key(p)));
   const [sel, setSel] = useState(0);
   const p = interest[Math.min(sel, interest.length - 1)];
@@ -267,6 +267,42 @@ function SemsensChart({ r }: { r: SemsensResult }) {
         width={W}
         height={H + legendH}
         defaults={{ x: xLabel, y: `Standardised ${p.from} → ${p.to}` }}
+        figure={(labels) => ({
+          title: `Sensitivity of ${p.from} → ${p.to}`,
+          x: { title: labels.x, limits: xr },
+          y: { title: labels.y, limits: ylim },
+          width: W,
+          height: H,
+          layers: [
+            // (0, the solid line; the model's estimate, dashed)
+            { geom: 'hline', color: OTHER_COLOR, y: [0] },
+            ...(Number.isFinite(model)
+              ? [
+                  {
+                    geom: 'hline' as const,
+                    series: legend[2].label,
+                    color: OTHER_COLOR,
+                    linetype: 'dashed' as const,
+                    y: [model],
+                  },
+                ]
+              : []),
+            ...[true, false].flatMap((sig) => {
+              const some = pts.filter((d) => d.sig === sig);
+              return some.length
+                ? [
+                    {
+                      geom: 'point' as const,
+                      series: legend[sig ? 0 : 1].label,
+                      color: sig ? SIG : NS,
+                      x: some.map((d) => d.x),
+                      y: some.map((d) => d.y),
+                    },
+                  ]
+                : [];
+            }),
+          ],
+        })}
         caption={
           <span className="hint">
             Each point: one evaluation of the search; the solid line marks 0.{' '}

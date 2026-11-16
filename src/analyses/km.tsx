@@ -4,6 +4,7 @@
 
 import { ChartFrame } from '../components/ChartFrame';
 import { c, pCell, Table, type Row } from '../components/results/Table';
+import type { GgLayer } from '../figure/ggplot';
 import { seriesColor } from '../figure/palette';
 import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
 import { PlotPanel } from '../figure/panel';
@@ -160,6 +161,43 @@ function KmPlot({ r, showCi }: { r: KmResult; showCi: boolean }) {
     ? r.strata.map((s, j) => ({ label: s.name, color: seriesColor(j) }))
     : [];
   const top = legendHeight(legend, KW - KPAD.l - KPAD.r);
+  // For ggplot2: each group's step curve from (0, 1), its dashed interval bounds when shown, and the censoring
+  // ticks (4 pixels either side of the curve, in probability units). The risk table stays in the app.
+  const kmLayers = (): GgLayer[] => {
+    const tick = 4 / (PLOT_H - KPAD.t - KPAD.b);
+    return r.strata.flatMap((s, j): GgLayer[] => {
+      const color = seriesColor(j);
+      const step = (values: (number | null)[]): (number | null)[] => [1, ...values];
+      const x = [0, ...s.time];
+      const censored = s.time.map((_, i) => i).filter((i) => s.nCensor[i] > 0);
+      return [
+        ...(showCi
+          ? [s.lower, s.upper].map(
+              (bound): GgLayer => ({
+                geom: 'step',
+                color,
+                linetype: 'dashed',
+                x,
+                y: step(bound),
+              }),
+            )
+          : []),
+        { geom: 'step', series: groups ? s.name : '', color, x, y: step(s.surv) },
+        ...(censored.length
+          ? [
+              {
+                geom: 'segment' as const,
+                color,
+                x: censored.map((i) => s.time[i]),
+                y: censored.map((i) => s.surv[i] - tick),
+                xend: censored.map((i) => s.time[i]),
+                yend: censored.map((i) => s.surv[i] + tick),
+              },
+            ]
+          : []),
+      ];
+    });
+  };
   return (
     <ChartFrame
       id="km:curves"
@@ -167,6 +205,14 @@ function KmPlot({ r, showCi }: { r: KmResult; showCi: boolean }) {
       width={KW}
       height={height + top}
       defaults={{ x: 'Time', y: 'Survival probability' }}
+      figure={(labels) => ({
+        title: 'Kaplan–Meier curves',
+        x: { title: labels.x, limits: [0, tMax] },
+        y: { title: labels.y, limits: [0, 1] },
+        width: KW,
+        height: PLOT_H,
+        layers: kmLayers(),
+      })}
       caption={
         <span className="hint">
           Kaplan–Meier estimates; ticks: censored times

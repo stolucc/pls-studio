@@ -177,6 +177,40 @@ export function EventChart({ r }: { r: DidResult }) {
       name="did-event-study"
       width={W}
       height={H}
+      figure={(labels) => ({
+        title: 'Event study',
+        x: { title: labels.x, ...(x1 > x0 ? { limits: [x0, x1] as [number, number] } : {}) },
+        y: { title: labels.y, limits: [lo - m, hi + m] },
+        width: W,
+        height: H,
+        layers: [
+          // (as on screen: no legend; the reference lines at 0 and between the last pre-treatment period and
+          // the first treated one, the intervals, pre-treatment points in the accent, the others in red)
+          { geom: 'hline', color: '#8a94a6', linetype: 'dashed', y: [0] },
+          { geom: 'vline', color: '#8a94a6', linetype: 'dashed', x: [-0.5] },
+          {
+            geom: 'segment',
+            color: '#4a5468',
+            x: xs,
+            xend: xs,
+            y: ev.map((e) => e.ciLow),
+            yend: ev.map((e) => e.ciHigh),
+          },
+          ...[false, true].flatMap((after) => {
+            const these = ev.filter((e) => e.rel >= 0 === after);
+            return these.length
+              ? [
+                  {
+                    geom: 'point' as const,
+                    color: after ? '#d93b2f' : '#4f46e5',
+                    x: these.map((e) => e.rel),
+                    y: these.map((e) => e.est),
+                  },
+                ]
+              : [];
+          }),
+        ],
+      })}
       defaults={{
         x: r.design === 'twfe' ? 'Period relative to treatment' : 'Periods since treatment',
         y: 'Effect on the outcome',

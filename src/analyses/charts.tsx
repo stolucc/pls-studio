@@ -2,7 +2,7 @@
 // the dataset, drawn in the browser (no R) and exportable like every chart.
 
 import { useMemo } from 'react';
-import { ChartFrame } from '../components/ChartFrame';
+import { ChartFrame, type AxisLabels } from '../components/ChartFrame';
 import type { Dataset } from '../engine/types';
 import { fmt } from '../format';
 import {
@@ -27,6 +27,7 @@ import {
   rawData,
 } from './common';
 import type { AnalysisType, OptionsProps } from './types';
+import type { FigureSpec, GgLayer } from '../figure/ggplot';
 import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
 import { seriesColor } from '../figure/palette';
 import { PlotPanel } from '../figure/panel';
@@ -251,6 +252,24 @@ function ChartView({ r }: { r: ChartResult }) {
         width={W}
         height={H}
         defaults={{ x: r.x, y: 'Count' }}
+        figure={(labels) => ({
+          title: `Histogram of ${r.x}`,
+          x: { title: labels.x, limits: xs },
+          y: { title: labels.y, limits: [0, yMax] },
+          width: W,
+          height: H,
+          layers: [
+            {
+              geom: 'rect',
+              color: ACCENT,
+              alpha: 0.8,
+              xmin: r.bins.map((b) => b.from),
+              xmax: r.bins.map((b) => b.to),
+              ymin: r.bins.map(() => 0),
+              ymax: r.bins.map((b) => b.count),
+            },
+          ],
+        })}
         caption={
           <span className="hint">
             n = {r.n}, mean {fmt(r.mean)}, SD {fmt(r.sd)}; {r.bins.length} bins of width{' '}
@@ -474,6 +493,53 @@ function ChartView({ r }: { r: ChartResult }) {
   return <Scatter r={r} id={id} />;
 }
 
+/** The chart colours ggplot2 draws with: the app's accent and the fitted line's red (styles.css). */
+const ACCENT = '#4f46e5';
+const FIT_COLOR = '#d93b2f';
+
+/** The scatterplot for ggplot2: the points of each group (named as in the legend) and the fitted line. */
+function scatterFigure(
+  r: Extract<ChartResult, { kind: 'scatter' }>,
+  xs: [number, number],
+  ys: [number, number],
+  labels: AxisLabels,
+): FigureSpec {
+  const grouped = r.groups.length > 1;
+  const groups = grouped ? r.groups : [r.fit ? 'Observations' : ''];
+  const points = groups.map((g, i): GgLayer => {
+    const mine = r.points.filter((p) => (grouped ? p.g === i : true));
+    return {
+      geom: 'point',
+      series: g,
+      color: seriesColor(i),
+      x: mine.map((p) => p.x),
+      y: mine.map((p) => p.y),
+    };
+  });
+  const f = r.fit;
+  return {
+    title: `Scatterplot of ${r.y} against ${r.x}`,
+    x: { title: labels.x, limits: xs },
+    y: { title: labels.y, limits: ys },
+    width: W,
+    height: H,
+    layers: [
+      ...points,
+      ...(f
+        ? [
+            {
+              geom: 'line' as const,
+              series: 'Least squares',
+              color: FIT_COLOR,
+              x: xs,
+              y: xs.map((x) => f.intercept + f.slope * x),
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
 function Scatter({ r, id }: { r: Extract<ChartResult, { kind: 'scatter' }>; id: string }) {
   const { xs, ys } = useMemo(() => {
     let x0 = Infinity;
@@ -513,6 +579,7 @@ function Scatter({ r, id }: { r: Extract<ChartResult, { kind: 'scatter' }>; id: 
       width={W}
       height={H + lh}
       defaults={{ x: r.x, y: r.y }}
+      figure={(labels) => scatterFigure(r, xs, ys, labels)}
       caption={
         <span className="hint">
           n = {r.n} pairs{r.omitted ? ` (${r.omitted} not drawn)` : ''}

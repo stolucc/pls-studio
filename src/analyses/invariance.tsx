@@ -12,6 +12,7 @@ import { IconCopy } from '../components/icons';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { InvarianceTable } from '../components/results/InvarianceTable';
 import { c, pCell, Table, type Row } from '../components/results/Table';
+import type { GgLayer } from '../figure/ggplot';
 import { seriesColor } from '../figure/palette';
 import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
 import { PlotPanel } from '../figure/panel';
@@ -1032,6 +1033,40 @@ function LsemChart({ r, params, kind }: { r: LsemResult; params: LsemParam[]; ki
       width={W}
       height={HT}
       defaults={{ x: r.moderator, y: yTitle }}
+      figure={(labels) => ({
+        title: `Local SEM: ${kind} along ${r.moderator}`,
+        x: { title: labels.x, limits: xs },
+        y: { title: labels.y, limits: ys },
+        width: W,
+        height: H,
+        // Each parameter's bootstrap band (when there is one) under its line; one parameter has no legend.
+        layers: params.flatMap((p, k): GgLayer[] => {
+          const idx = r.grid.map((_, i) => i).filter((i) => fin(p.est[i]));
+          const b = p.boot ? idx.filter((i) => fin(p.boot!.lower[i]) && fin(p.boot!.upper[i])) : [];
+          const series = params.length > 1 ? lsemLabel(p) : '';
+          return [
+            ...(b.length > 1
+              ? [
+                  {
+                    geom: 'ribbon' as const,
+                    color: seriesColor(k),
+                    alpha: 0.14,
+                    x: b.map((i) => r.grid[i]),
+                    ymin: b.map((i) => p.boot!.lower[i]!),
+                    ymax: b.map((i) => p.boot!.upper[i]!),
+                  },
+                ]
+              : []),
+            {
+              geom: 'line' as const,
+              series,
+              color: seriesColor(k),
+              x: idx.map((i) => r.grid[i]),
+              y: idx.map((i) => p.est[i]),
+            },
+          ];
+        }),
+      })}
       caption={
         <span className="hint">
           Each line: the parameter estimated at the focal points of {r.moderator}

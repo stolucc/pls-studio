@@ -29,7 +29,7 @@ export function moveCategory(order: number[], i: number, delta: -1 | 1): number[
   return out;
 }
 
-function Fusion({ heights }: { heights: number[] }) {
+export function Fusion({ heights }: { heights: number[] }) {
   const W = 420;
   const H = 200;
   const pad = { l: 48, r: 10, t: 10, b: 36 };
@@ -41,6 +41,25 @@ function Fusion({ heights }: { heights: number[] }) {
       name="rebus-fusion-levels"
       width={W}
       height={H}
+      figure={(labels) => ({
+        title: 'Fusion levels of the hierarchical clustering',
+        x: { title: labels.x, limits: [1.5, heights.length + 1.5] },
+        y: { title: labels.y, limits: [0, max] },
+        width: W,
+        height: H,
+        layers: [
+          {
+            // (bar i: the merge that leaves i + 2 classes, as the axis on screen counts them)
+            geom: 'rect',
+            color: '#6d28d9',
+            alpha: 0.75,
+            xmin: heights.map((_, i) => i + 2 - 0.4),
+            xmax: heights.map((_, i) => i + 2 + 0.4),
+            ymin: heights.map(() => 0),
+            ymax: heights,
+          },
+        ],
+      })}
       defaults={{ x: 'Classes below this merge', y: 'Fusion level (Ward)' }}
     >
       {(labels) => (

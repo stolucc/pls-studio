@@ -1,8 +1,16 @@
+// @vitest-environment happy-dom
 // The views of the mirt, glca and GLMMadaptive options: what they show for a result.
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { figureOf } from './figureOf';
 import { glmmAnalysis } from './glmm';
 import { irtAnalysis, lcaAnalysis } from './items';
+
+const gg = vi.hoisted(() => ({
+  file: vi.fn(async (_spec: unknown) => new Blob(['%PDF-'])),
+  script: vi.fn(async () => ''),
+}));
+vi.mock('../figure/ggplot', () => ({ ggplotFile: gg.file, ggplotScript: gg.script }));
 
 const engine = { package: 'x', version: '1' };
 
@@ -224,5 +232,44 @@ describe('views', () => {
     expect(html).toContain('Persons');
     expect(html).toContain('log θ');
     expect(html).toContain('15 points');
+  });
+});
+
+describe('the information chart drawn by ggplot2', () => {
+  it('draws each item’s information and the test information', async () => {
+    const r = {
+      model: 'twopl',
+      n: 10,
+      items: ['u1', 'u2'],
+      params: [],
+      logLik: -100,
+      aic: 206,
+      bic: 210,
+      reliability: 0.7,
+      theta: [-1, 0, 1],
+      information: [
+        [0.1, 0.3, 0.1],
+        [0.2, 0.2, 0.1],
+      ],
+      itemFit: [],
+      warnings: [],
+      engine,
+    };
+    const spec = await figureOf(
+      <irtAnalysis.View
+        result={r as never}
+        options={{ items: ['u1', 'u2'], model: 'twopl' } as never}
+        current
+      />,
+      'Test and item information',
+      gg.file,
+    );
+    expect(spec.x).toMatchObject({ title: 'Latent trait (θ)', limits: [-4, 4] });
+    expect(spec.layers.map((l) => l.series)).toEqual([
+      'Item information',
+      'Item information',
+      'Test information (the sum)',
+    ]);
+    expect(spec.layers[2].y).toEqual([0.30000000000000004, 0.5, 0.2]);
   });
 });

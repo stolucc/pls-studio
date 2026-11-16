@@ -1,9 +1,11 @@
+// @vitest-environment happy-dom
 // The marginal means section (analyses/emm.tsx): options survive a project file, bad values are
 // dropped, the section says what it still needs, the cards carry it, and its tables and profile
 // plot render. (Its numbers against emmeans, afex, rstatix and lmerTest: rengine/emm.webr.test.ts.)
 
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { figureOf } from './figureOf';
 import { DEFAULT_SETTINGS } from '../model/project';
 import { emmRequest, parseEmm, type EmmOptions } from '../rengine/emm';
 import { anovaRequest } from '../rengine/tests';
@@ -16,6 +18,7 @@ import {
   emmPart,
   emmTerms,
   EmmView,
+  ProfilePlot,
   parseEmmOptions,
   parseWeightText,
   withEmm,
@@ -23,6 +26,12 @@ import {
 import { lmmAnalysis } from './lmm';
 import { anovaAnalysis, rmAnovaAnalysis } from './tests';
 import type { AnalysisCtx } from './types';
+
+const gg = vi.hoisted(() => ({
+  file: vi.fn(async (_spec: unknown) => new Blob(['%PDF-'])),
+  script: vi.fn(async () => ''),
+}));
+vi.mock('../figure/ggplot', () => ({ ggplotFile: gg.file, ggplotScript: gg.script }));
 
 const data = {
   names: ['y', 'a', 'b', 'c'],
@@ -256,7 +265,7 @@ describe('the section renders', () => {
     expect(parseEmm(null)).toBeNull();
   });
 
-  it('tables, adjustments and the profile plot with a line per level', () => {
+  it('tables, adjustments and the profile plot with a line per level', async () => {
     const html = renderToStaticMarkup(<EmmView e={result} dependent="y" />);
     expect(html).toContain('Estimated marginal means: a');
     expect(html).toContain('p (Holm)');
@@ -272,6 +281,20 @@ describe('the section renders', () => {
     expect(svg).toContain('>b1</text>');
     expect(svg).toContain('>b2</text>');
     expect(svg).toContain('class="plot-panel"');
+    // (ggplot2: each line's means, interval bars and points, and the levels named along the bottom)
+    const spec = await figureOf(<ProfilePlot e={result} dependent="y" />, 'Profile plot', gg.file);
+    expect(spec.layers.map((l) => `${l.geom}:${l.series ?? ''}`)).toEqual([
+      'line:b1',
+      'segment:',
+      'point:b1',
+      'line:b2',
+      'segment:',
+      'point:b2',
+      'text:',
+    ]);
+    expect(spec.layers[0].y).toEqual([1, 2]);
+    expect(spec.layers[6].label).toEqual(['x', 'y']);
+    expect(spec.y.title).toBe('Marginal mean of y');
   });
 
   it('the form: off, then every part when on', () => {

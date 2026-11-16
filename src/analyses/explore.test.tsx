@@ -1,8 +1,10 @@
+// @vitest-environment happy-dom
 // The descriptives card without R: option parsing of untrusted projects, what it needs before it runs, the plots it
 // computes in the browser, and its result view. The statistics are checked against R in rengine/explore.webr.test.ts.
 
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { figureOf } from './figureOf';
 import { DEFAULT_SETTINGS } from '../model/project';
 import type { ExploreResult } from '../rengine/explore';
 import {
@@ -16,6 +18,12 @@ import {
   type ExploreOptions,
 } from './explore';
 import type { AnalysisCtx } from './types';
+
+const gg = vi.hoisted(() => ({
+  file: vi.fn(async (_spec: unknown) => new Blob(['%PDF-'])),
+  script: vi.fn(async () => ''),
+}));
+vi.mock('../figure/ggplot', () => ({ ggplotFile: gg.file, ggplotScript: gg.script }));
 
 const data = {
   names: ['y', 'g', 't', 'many'],
@@ -203,7 +211,7 @@ describe('descriptives view', () => {
     expect(html).not.toContain('role="tablist"');
     expect(html).toContain('Descriptive statistics');
   });
-  it('draws the histogram with density, the Q-Q plot and the raincloud; tables of frequencies and tests', () => {
+  it('draws the histogram with density, the Q-Q plot and the raincloud; tables of frequencies and tests', async () => {
     const plots = renderToStaticMarkup(<PlotsView r={full} />);
     expect(plots).toContain('Histogram of y · first');
     expect(plots).toContain('Q-Q plot of y · first');
@@ -221,5 +229,21 @@ describe('descriptives view', () => {
     expect(freq).toContain('Missing');
     const norm = renderToStaticMarkup(<NormalityTable r={full} />);
     expect(norm).toContain('Lilliefors');
+    // (ggplot2: the bars and density curve; the Q-Q points and line; the groups' violins, boxes and values)
+    const hist = await figureOf(<PlotsView r={full} />, 'Histogram of', gg.file);
+    expect(hist.layers.map((l) => l.geom)).toEqual(['rect', 'line']);
+    expect(hist.y.title).toBe('Density');
+    const qq = await figureOf(<PlotsView r={full} />, 'Q-Q plot of', gg.file);
+    expect(qq.layers.map((l) => l.geom)).toEqual(['segment', 'point']);
+    const cloud = await figureOf(<PlotsView r={full} />, 'Raincloud plot of', gg.file);
+    expect(cloud.layers.filter((l) => l.series).map((l) => l.series)).toEqual(['first', 'second']);
+    expect(cloud.layers.map((l) => l.geom).slice(0, 5)).toEqual([
+      'rect',
+      'segment',
+      'rect',
+      'segment',
+      'point',
+    ]);
+    expect(cloud.x.limits).toEqual([0.5, 2.5]);
   });
 });

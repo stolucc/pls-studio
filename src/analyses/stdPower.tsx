@@ -350,7 +350,7 @@ function StdPowerForm({ options: o, set, disabled }: OptionsProps<StdPowerOption
   );
 }
 
-function StdPowerCurve({ r }: { r: PwrResult }) {
+export function StdPowerCurve({ r }: { r: PwrResult }) {
   const cv = r.curve;
   const t = PWR_TESTS[r.test];
   const xs: [number, number] = [cv.n[0], cv.n[cv.n.length - 1]];
@@ -382,6 +382,28 @@ function StdPowerCurve({ r }: { r: PwrResult }) {
       width={W}
       height={H + legendH}
       defaults={{ x: t.nName, y: 'Power' }}
+      figure={(labels) => ({
+        title: `Power of the ${t.label.toLowerCase()}`,
+        x: { title: labels.x, limits: xs },
+        y: { title: labels.y, limits: [0, 1] },
+        width: W,
+        height: H,
+        layers: [
+          { geom: 'hline', series: 'Power .80', color: OTHER_COLOR, linetype: 'dashed', y: [0.8] },
+          { geom: 'line', series: 'Power', color: POSITIVE_COLOR, x: cv.n, y: cv.power },
+          ...(showDot
+            ? [
+                {
+                  geom: 'point' as const,
+                  series: legend[1].label,
+                  color: POSITIVE_COLOR,
+                  x: [r.n],
+                  y: [r.power],
+                },
+              ]
+            : []),
+        ],
+      })}
       caption={
         <span className="hint">
           The power of the {t.label.toLowerCase()} at each N ({t.es} = {fmt(r.effect, 3)}, α ={' '}
