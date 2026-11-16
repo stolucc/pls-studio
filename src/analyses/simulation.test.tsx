@@ -51,6 +51,25 @@ describe('Monte Carlo card', () => {
     ).toContain('PLS-SEM and CB-SEM');
   });
 
+  it('offers the CB-SEM measurement checks with a CB-SEM estimator; their χ²(1) refits take longer in R', async () => {
+    const { mcSeconds } = await import('./simulation');
+    const d = t.defaults(ctx());
+    const form = (o: typeof d) =>
+      renderToStaticMarkup(<t.Options options={o} set={() => {}} ctx={ctx()} disabled={false} />);
+    const pls = { ...d, estimators: d.estimators.filter((e) => e.method !== 'cb') };
+    expect(form(pls)).not.toContain('Measurement checks for CB-SEM');
+    const cb = {
+      ...d,
+      estimators: [{ id: 'CB-ML', method: 'cb' as const, estimator: 'ML' as const }],
+    };
+    expect(form(cb)).toContain('Measurement checks for CB-SEM');
+    expect(mcSeconds({ ...cb, cbChecks: true }, 'desktop', 1)).toBeCloseTo(
+      2 * mcSeconds(cb, 'desktop', 1),
+      9,
+    );
+    expect(mcSeconds({ ...cb, cbChecks: true }, 'builtin', 1)).toBe(mcSeconds(cb, 'builtin', 1));
+  });
+
   it('lets a construct correlation reach 1 (one factor split in two)', () => {
     const d = t.defaults(ctx({ model: { ...model, paths: [] } }));
     const form = renderToStaticMarkup(

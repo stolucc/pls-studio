@@ -7,6 +7,7 @@ import { blockMoments, buildPopulation, specFromPopulation } from '../engine/pop
 import {
   ciTruth,
   designParameters,
+  hasCbChecks,
   ordinalThresholds,
   replicationSeed,
   type McDesign,
@@ -59,6 +60,7 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
     alpha: design.alpha,
     bootSamples: design.bootSamples,
     mcDraws: design.mcDraws,
+    cbChecks: hasCbChecks(design),
     // R's set.seed takes a signed 32-bit integer.
     seeds: reps.map(({ n, rep }) => ({
       n,

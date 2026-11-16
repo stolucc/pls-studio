@@ -896,6 +896,19 @@ function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: Optio
           ))}
         </div>
       </div>
+      {design.estimators.some((e) => e.method === 'cb') && (
+        <label
+          className="check"
+          title="ρc, AVE, Fornell–Larcker and HTMT from each CB-SEM solution, and per pair of factors the tests of their correlation: the upper bound of its interval (1 − α) against 1, .90 and .85, and χ²(1), the χ² difference against the correlation fixed at 1 (R engine). HTMT inference takes the bootstrap samples below."
+        >
+          <input
+            type="checkbox"
+            checked={design.cbChecks === true}
+            onChange={(ev) => set({ cbChecks: ev.target.checked ? true : undefined })}
+          />
+          Measurement checks for CB-SEM (discriminant validity tests of Rönkkö &amp; Cho 2022)
+        </label>
+      )}
       <div className="row2">
         <div className="field">
           <label>Bootstrap / rep (PLS)</label>
@@ -1038,6 +1051,14 @@ const MS_PER_FIT = {
  * Roughly how long a simulation takes, in seconds: every estimation (each PLS bootstrap sample one) at its
  * typical speed, spread over the parallel sessions (R) or cores (built-in engine).
  */
+/** Pairs of common factors with two or more indicators: the pairs CB-SEM's χ²(1) refits for. */
+const factorPairs = (d: McDesign) => {
+  const k = d.population.constructs.filter(
+    (c) => c.type !== 'composite' && c.indicators.length >= 2,
+  ).length;
+  return (k * (k - 1)) / 2;
+};
+
 export function mcSeconds(
   d: McDesign,
   where: 'builtin' | 'desktop' | 'browser',
@@ -1046,6 +1067,9 @@ export function mcSeconds(
   const ms = MS_PER_FIT[where];
   const perReplication = d.estimators.reduce((s, e) => {
     if (e.method === 'pls') return s + ms.pls * (d.bootSamples > 0 ? d.bootSamples + 1 : 1);
+    // (CB measurement checks: χ²(1) refits the model once per pair of factors in R)
+    if (e.method === 'cb' && d.cbChecks && where !== 'builtin')
+      return s + ms.cb * (1 + factorPairs(d));
     return s + ms[e.method];
   }, 0);
   return (d.replications * d.sampleSizes.length * perReplication) / 1000 / Math.max(1, parallel);

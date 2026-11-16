@@ -10,6 +10,11 @@
 // construct the cross-loadings margin, the smallest own-construct correlation of its indicators less their
 // largest correlation with another construct's scores, > 0; and for the model GoF = √(mean AVE · mean R²)
 // (Tenenhaus et al. 2005), ≥ 0.36.
+// CB-SEM gets the same checks from its standardised loadings and factor correlations (AVE/SV_CFA in Rönkkö &
+// Cho 2022), and per pair of factors their tests of the factor correlation: the upper bound of its
+// (delta-method) interval at 1 − α against 1, .90 and .85 (CI_CFA(cut); α = .10 gives Franke & Sarstedt's
+// one-tailed 5% test), and χ²(1), the χ² difference
+// against the model with the correlation fixed at 1, which flags the pair when below 3.84 (not significant).
 // The true values are the same checks of the population: loadings are the
 // indicator–construct correlations, the construct and indicator correlations
 // the population's; HTMT inference's true value is the population HTMT. R/mc.R computes the same
@@ -17,7 +22,23 @@
 
 import { corStd, mulberry32, qnorm, standardize } from './stats';
 
-export type McValidityRule = 'cr' | 'ave' | 'fl' | 'xl' | 'htmt' | 'htmt90' | 'htmtci' | 'gof';
+export type McValidityRule =
+  | 'cr'
+  | 'ave'
+  | 'fl'
+  | 'xl'
+  | 'htmt'
+  | 'htmt90'
+  | 'htmtci'
+  | 'gof'
+  | 'cicfa'
+  | 'cicfa90'
+  | 'cicfa85'
+  | 'chi1';
+
+/** The checks only CB-SEM computes (tests of the factor correlation), and those only PLS does (from its scores). */
+export const CB_ONLY_RULES: McValidityRule[] = ['cicfa', 'cicfa90', 'cicfa85', 'chi1'];
+export const PLS_ONLY_RULES: McValidityRule[] = ['xl', 'gof'];
 
 export const MC_VALIDITY_RULES: Record<
   McValidityRule,
@@ -31,6 +52,14 @@ export const MC_VALIDITY_RULES: Record<
   htmt90: { label: 'HTMT (.90)', cutoff: 0.9, poorBelow: false },
   htmtci: { label: 'HTMT inference (upper 90% bound)', cutoff: 1, poorBelow: false },
   gof: { label: 'GoF', cutoff: 0.36, poorBelow: true },
+  cicfa: { label: 'Factor correlation CI (upper bound) vs 1', cutoff: 1, poorBelow: false },
+  cicfa90: { label: 'Factor correlation CI (upper bound) vs .90', cutoff: 0.9, poorBelow: false },
+  cicfa85: { label: 'Factor correlation CI (upper bound) vs .85', cutoff: 0.85, poorBelow: false },
+  chi1: {
+    label: 'χ²(1): correlation fixed at 1 (Δχ²)',
+    cutoff: 3.841458820694124,
+    poorBelow: true,
+  },
 };
 
 /** The checks' inputs, index-aligned: blocks index indicators, constructs index C and r2. */
@@ -54,6 +83,12 @@ export interface ValidityInputs {
    * population HTMT (none: not computed).
    */
   boot?: { cols: Float64Array[]; samples: number; seed: number } | 'population';
+  /**
+   * CB-SEM's tests of each factor correlation [construct][construct]: the upper bound of its interval and
+   * the χ² difference against the correlation fixed at 1 (NaN: not available); 'population': the true
+   * correlation (and no Δχ²).
+   */
+  factorTests?: { upper: number[][]; chi1: number[][] } | 'population';
 }
 
 /** HTMT of two blocks from an indicator correlation matrix. */
@@ -163,6 +198,14 @@ export function validityValues(v: ValidityInputs): Map<string, number> {
           `htmtci:${pair}`,
           htmtUpper(v.boot.cols, v.blocks[i], v.blocks[j], v.boot.samples, v.boot.seed),
         );
+      if (v.factorTests) {
+        const t = v.factorTests;
+        const upper = t === 'population' ? v.C[i][j] : t.upper[i][j];
+        out.set(`cicfa:${pair}`, upper);
+        out.set(`cicfa90:${pair}`, upper);
+        out.set(`cicfa85:${pair}`, upper);
+        out.set(`chi1:${pair}`, t === 'population' ? NaN : t.chi1[i][j]);
+      }
     }),
   );
   if (v.cross)

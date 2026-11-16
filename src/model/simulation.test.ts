@@ -59,6 +59,13 @@ describe('simulation design', () => {
     expect(other.population.nonnormal).toBeUndefined();
   });
 
+  it('keeps the CB-SEM measurement checks when asked for, and only a literal true', () => {
+    const d = defaultDesign(populationFromModel(model, null, null));
+    expect(parseDesign(JSON.parse(JSON.stringify({ ...d, cbChecks: true })))!.cbChecks).toBe(true);
+    expect(parseDesign({ ...d, cbChecks: 'yes' })!.cbChecks).toBeUndefined();
+    expect(parseDesign(d)!.cbChecks).toBeUndefined();
+  });
+
   it('keeps a construct correlation of 1 (one factor split in two), clamped to ±1', () => {
     const d = defaultDesign(populationFromModel(model, null, null));
     const one = { ...d, population: { ...d.population, exoCor: [{ a: 'A', b: 'B', value: 1 }] } };

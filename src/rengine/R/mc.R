@@ -66,7 +66,7 @@ ps_mc_body <- function(req) {
   })
   # A PLS measurement check: one of these (mcValidity.ts), '' for any other parameter.
   one_rule <- function(r) {
-    if (!r %in% c("", "cr", "ave", "fl", "xl", "htmt", "htmt90", "htmtci", "gof")) stop("Unknown measurement check.")
+    if (!r %in% c("", "cr", "ave", "fl", "xl", "htmt", "htmt90", "htmtci", "gof", "cicfa", "cicfa90", "cicfa85", "chi1")) stop("Unknown measurement check.")
     r
   }
   # Composite reliabilities: per construct, its block's covariances with the construct (a) and covariance
@@ -131,7 +131,7 @@ ps_mc_body <- function(req) {
       )
     } else {
       sprintf(
-        "  res[%d] <- list(tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\", missing = cb_missing%s), mc_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL }))",
+        "  res[%d] <- list(tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\", missing = cb_missing%s), mc_seed, boot_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL }))",
         ei,
         e$estimator,
         # WLSMV on ordinal indicators: polychoric correlations (the other estimators take the categories as numbers)
@@ -156,6 +156,7 @@ ps_mc_body <- function(req) {
     paste0("  ", cbm),
     "'",
     sprintf("alpha <- %s; mc_draws <- %d", format(ps_number(req$alpha, "significance level")), as.integer(req$mcDraws)),
+    sprintf("cb_checks <- %s; req_boot <- %d", if (isTRUE(req$cbChecks)) "TRUE" else "FALSE", as.integer(req$bootSamples)),
     sprintf("reg_from <- %s; reg_to <- %s", ps_q(cv[vapply(spec$paths, `[[`, "", "from")]), ps_q(cv[vapply(spec$paths, `[[`, "", "to")])),
     "# Parameters to evaluate: standardised paths, indirect effects and correlations of exogenous constructs.",
     "params <- data.frame(kind = ",
@@ -362,7 +363,40 @@ ps_mc_body <- function(req) {
     "  list(values = do.call(rbind, lapply(rows, `[[`, 'values')), tests = do.call(rbind, lapply(rows, `[[`, 'tests')), proper = as.numeric(ok))",
     "}",
     "# CB-SEM: standardised estimates; Wald CIs (marker metric) for paths, Monte Carlo CIs for indirect effects.",
-    "cb_stats <- function(fit, mc_seed) {",
+    "# CB-SEM measurement checks (as mcValidity.ts cbValidity): from the standardised loadings and factor",
+    "# correlations, HTMT from the complete cases; per pair of exogenous factors the upper bound of the factor",
+    "# correlation's 1 - alpha interval (standardizedSolution, delta method) and chi2(1), the chi2 difference against the",
+    "# model with the correlation fixed at 1 (std.lv; Ronkko & Cho 2022).",
+    "cb_validity_value <- function(fit, k, D, R, boot_seed) {",
+    "  ss <- standardizedSolution(fit, level = 1 - alpha)",
+    "  f <- params$from[k]; t <- params$to[k]",
+    "  lam <- function(g) vapply(blocks[[g]], function(i) ss$est.std[ss$op == '=~' & ss$lhs == g & ss$rhs == i], 0)",
+    "  C <- lavInspect(fit, 'cor.lv')",
+    "  endo <- unique(ss$lhs[ss$op == '~'])",
+    "  pair <- function() ss[ss$op == '~~' & ((ss$lhs == f & ss$rhs == t) | (ss$lhs == t & ss$rhs == f)), ]",
+    "  switch(params$rule[k],",
+    "    cr = { l <- lam(f); sum(l)^2 / (sum(l)^2 + sum(1 - l^2)) },",
+    "    ave = mean(lam(f)^2),",
+    "    fl = sqrt(mean(lam(f)^2)) - max(abs(C[f, colnames(C) != f])),",
+    "    htmt = , htmt90 = htmt_of(R, blocks[[f]], blocks[[t]]),",
+    "    htmtci = htmt_upper(D, blocks[[f]], blocks[[t]], req_boot, boot_seed + 5L),",
+    "    cicfa = , cicfa90 = , cicfa85 = if (f %in% endo || t %in% endo) NA_real_ else pair()$ci.upper[1],",
+    "    chi1 = {",
+    "      if (f %in% endo || t %in% endo) return(NA_real_)",
+    "      # (the model refitted with std.lv on the analysed data, the correlation fixed at 1; not for ordinal indicators)",
+    "      if (length(lavNames(fit, 'ov.ord'))) return(NA_real_)",
+    "      o <- lavInspect(fit, 'options')",
+    "      # (the marker loadings, 1*, freed: std.lv fixes the factor variances instead)",
+    "      std_model <- gsub('=~ 1*', '=~ NA*', cb_model, fixed = TRUE)",
+    "      con <- sem(paste(std_model, sprintf('%s ~~ 1*%s', f, t), sep = '\\n'), data = as.data.frame(lavInspect(fit, 'data')),",
+    "        estimator = o$estimator, se = o$se, test = o$test, missing = o$missing, std.lv = TRUE)",
+    "      if (!lavInspect(con, 'converged')) return(NA_real_)",
+    "      lavTestLRT(con, fit)[['Chisq diff']][2]",
+    "    },",
+    "    NA_real_",
+    "  )",
+    "}",
+    "cb_stats <- function(fit, mc_seed, boot_seed = NULL) {",
     "  if (!lavInspect(fit, 'converged')) stop('not converged')",
     "  ss <- standardizedSolution(fit, se = FALSE); pe <- parameterEstimates(fit, level = 1 - alpha)",
     "  lv <- lavNames(fit, 'lv'); reg <- pe[pe$op == '~', ]",
@@ -377,6 +411,8 @@ ps_mc_body <- function(req) {
     "    mc <- lapply(seq_len(mc_draws), function(d) { B <- matrix(0, length(lv), length(lv), dimnames = list(lv, lv)); B[cbind(idx[, 2], idx[, 1])] <- D[d, ]; effects(B)$indirect })",
     "  }",
     "  fm <- fitMeasures(fit); scaled <- 'chisq.scaled' %in% names(fm)",
+    "  D_cb <- if (cb_checks && any(params$kind == 'validity')) stats::na.omit(as.data.frame(lavInspect(fit, 'data'))) else NULL",
+    "  R_cb <- if (is.null(D_cb)) NULL else stats::cor(D_cb)",
     "  out <- lapply(seq_len(nrow(params)), function(k) {",
     "    if (params$index[k] != '') {",
     "      # A fit index against its cutoff (Hu & Bentler 1999); the robust index where the estimator has one.",
@@ -385,7 +421,12 @@ ps_mc_body <- function(req) {
     "      poor <- if (params$poor_below[k]) v < params$cutoff[k] else v > params$cutoff[k]",
     "      return(c(v, NA, NA, if (is.finite(v)) as.numeric(poor) else NA))",
     "    }",
-    "    if (params$kind[k] %in% c('reliability', 'validity')) return(c(NA, NA, NA, NA))  # (PLS composites and checks)",
+    "    if (params$kind[k] == 'reliability') return(c(NA, NA, NA, NA))  # (PLS composites)",
+    "    if (params$kind[k] == 'validity') {",
+    "      if (!cb_checks) return(c(NA, NA, NA, NA))",
+    "      v <- tryCatch(cb_validity_value(fit, k, D_cb, R_cb, boot_seed), error = function(e) NA_real_)",
+    "      return(c(v, NA, NA, fails_cutoff(v, k)))",
+    "    }",
     "    if (params$kind[k] == 'fit') {",
     "      pv <- if (scaled) fm[['pvalue.scaled']] else fm[['pvalue']]",
     "      return(c(if (scaled) fm[['chisq.scaled']] else fm[['chisq']], NA, NA, if (is.finite(pv)) as.numeric(pv < alpha) else NA))",

@@ -45,6 +45,29 @@ describe('PLS measurement checks in a simulation', () => {
     expect(failsCutoff('htmt90', 0.91)).toBe(1);
     expect(failsCutoff('htmtci', 1.02)).toBe(1);
     expect(failsCutoff('xl', -0.02)).toBe(1);
+    // CB-SEM: the upper 95% bound of the factor correlation, and χ²(1) when not significant
+    expect(failsCutoff('cicfa', 1.01)).toBe(1);
+    expect(failsCutoff('cicfa', 0.97)).toBe(0);
+    expect(failsCutoff('cicfa90', 0.95)).toBe(1);
+    expect(failsCutoff('chi1', 2.1)).toBe(1);
+    expect(failsCutoff('chi1', 5)).toBe(0);
+  });
+
+  it('CB-SEM factor-correlation tests: the population gives the true correlation, a fit its interval and Δχ²', () => {
+    expect(v.get('cicfa:A:B')).toBeCloseTo(0.6, 12);
+    expect(v.get('cicfa90:A:B')).toBeCloseTo(0.6, 12);
+    expect(v.get('chi1:A:B')).toBeNaN();
+    const inputs = populationValidityInputs(population);
+    const upper = [
+      [NaN, 0.8, NaN],
+      [0.8, NaN, NaN],
+      [NaN, NaN, NaN],
+    ];
+    const chi1 = upper.map((r) => r.map((x) => (x === 0.8 ? 12.5 : NaN)));
+    const fitted = validityValues({ ...inputs, factorTests: { upper, chi1 } });
+    expect(fitted.get('cicfa:A:B')).toBe(0.8);
+    expect(fitted.get('chi1:A:B')).toBe(12.5);
+    expect(validityValues({ ...inputs, factorTests: undefined }).has('cicfa:A:B')).toBe(false);
   });
 
   it('cross-loadings margin: own correlation less the largest with another construct, per indicator', () => {

@@ -231,6 +231,51 @@ it('discriminant validity (Henseler et al. 2015): one factor split in two is fla
   }
 }, 900_000);
 
+it("CB-SEM measurement checks (Rönkkö & Cho 2022): the factor correlation's interval and χ²(1) in R, the interval as built in", async () => {
+  const half = (name: string, p: string) => ({
+    name,
+    type: 'factor' as const,
+    indicators: [1, 2, 3].map((i) => `${p}${i}`),
+    loadings: [0.8, 0.8, 0.8],
+  });
+  const two = (phi: number): McDesign => ({
+    ...design,
+    population: {
+      constructs: [half('A', 'a'), half('B', 'b')],
+      paths: [],
+      exoCor: [{ a: 'A', b: 'B', value: phi }],
+    },
+    estimators: [{ id: 'CB-ML', method: 'cb', estimator: 'ML' }],
+    sampleSizes: [250],
+    replications: 40,
+    bootSamples: 100,
+    cbChecks: true,
+  });
+  const at = (rows: ReturnType<typeof summariseMc>, key: string) =>
+    rows.find((x) => x.param.key === key)!;
+  for (const phi of [1, 0.7]) {
+    const d = two(phi);
+    const r = summariseMc(d, [await runMcChunkR(d, 250, 0, 40)]);
+    const b = summariseMc(d, [runMcTask({ design: d, n: 250, start: 0, end: 40 })]);
+    // (Table 8, loadings .8, N = 250: CI_CFA(1) and χ²(1) .983 / .994 at φ = 1, 0 at .7)
+    const flags = phi === 1 ? (x: number) => x > 0.85 : (x: number) => x === 0;
+    for (const rows of [r, b]) expect(flags(at(rows, 'validity:cicfa:A:B').rejection!)).toBe(true);
+    expect(flags(at(r, 'validity:chi1:A:B').rejection!), `χ²(1) at φ = ${phi}`).toBe(true);
+    expect(at(r, 'validity:chi1:A:B').reps).toBe(40);
+    // AVE/SV_CFA flags φ = 1 always (Table 8: 1.000), and HTMT inference runs for CB-SEM too
+    if (phi === 1) expect(at(r, 'validity:fl:A').rejection!).toBe(1);
+    expect(at(r, 'validity:htmtci:A:B').reps).toBe(40);
+    // R's interval (standardizedSolution) and the built-in delta method estimate the same bound
+    for (const key of ['validity:cicfa:A:B', 'validity:ave:A', 'validity:htmt:A:B']) {
+      const x = at(r, key);
+      const y = at(b, key);
+      expect(Math.abs(x.mean - y.mean), `${key} at φ = ${phi}`).toBeLessThan(
+        4 * Math.sqrt((x.sd ** 2 + y.sd ** 2) / 40) + 0.01,
+      );
+    }
+  }
+}, 900_000);
+
 it('skewed indicators: Fleishman per indicator lowers the paths, as in the built-in engine; Vale–Maurelli does not', async () => {
   const skewed = (nonnormal?: 'fleishman'): McDesign => ({
     ...design,

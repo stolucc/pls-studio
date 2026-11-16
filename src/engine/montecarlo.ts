@@ -23,7 +23,13 @@ import {
 import { mcIndirect } from './mcci';
 import { regressionFit, tCrit } from './mcRegression';
 import { MC_FIT_INDICES, poorFit, type McFitIndex } from './mcFitIndices';
-import { failsCutoff, validityValues, type McValidityRule } from './mcValidity';
+import {
+  CB_ONLY_RULES,
+  failsCutoff,
+  PLS_ONLY_RULES,
+  validityValues,
+  type McValidityRule,
+} from './mcValidity';
 import { plscProblems, preparePls } from './pls';
 import {
   buildPopulation,
@@ -36,7 +42,16 @@ import {
   type Population,
   type PopulationSpec,
 } from './population';
-import { bandwidthNrd0, corStd, densityAt, mulberry32, qnorm, tTestP, zCrit } from './stats';
+import {
+  bandwidthNrd0,
+  corStd,
+  densityAt,
+  mulberry32,
+  qnorm,
+  standardize,
+  tTestP,
+  zCrit,
+} from './stats';
 import {
   DEFAULT_OPTIONS,
   type Dataset,
@@ -76,6 +91,11 @@ export interface McDesign {
   missing?: McMissing;
   /** Ordinal indicators: every indicator cut into categories (continuous when omitted). */
   ordinal?: McOrdinal;
+  /**
+   * CB-SEM estimators report the measurement checks too, with their tests of each factor correlation
+   * (mcValidity.ts; off when omitted).
+   */
+  cbChecks?: boolean;
 }
 
 /**
@@ -189,7 +209,12 @@ export const designParameters = (design: McDesign, pop: Population) =>
     design.estimators.some((e) => e.method !== 'cb'),
     design.estimators.some((e) => e.method === 'pls'),
     design.bootSamples > 0,
+    hasCbChecks(design),
   );
+
+/** Whether the design's CB-SEM estimators report the measurement checks. */
+export const hasCbChecks = (design: McDesign) =>
+  design.cbChecks === true && design.estimators.some((e) => e.method === 'cb');
 
 export function mcParameters(
   pop: Population,
@@ -197,6 +222,7 @@ export function mcParameters(
   withReliability = false,
   withValidity = false,
   bootstrap = false,
+  cbChecks = false,
 ): McParam[] {
   const C = pop.constructs;
   const out: McParam[] = [];
@@ -245,11 +271,13 @@ export function mcParameters(
         unit: unitReliability(pop, j),
       });
     });
-  if (withValidity)
+  if (withValidity || cbChecks)
     for (const [key, value] of validityValues(populationValidityInputs(pop))) {
       const [rule, a, b] = key.split(':') as [McValidityRule, string?, string?];
       // (HTMT inference needs the bootstrap)
       if (rule === 'htmtci' && !bootstrap) continue;
+      if (CB_ONLY_RULES.includes(rule) && !cbChecks) continue;
+      if (PLS_ONLY_RULES.includes(rule) && !withValidity) continue;
       out.push({
         key: `validity:${key}`,
         kind: 'validity',
@@ -315,6 +343,73 @@ function fitIndex(fit: CbFit, id: McFitIndex['id']): number {
   if (id === 'tli') return fit.tliRobust ?? fit.tli;
   if (id === 'rmsea') return fit.rmseaRobust ?? fit.rmsea;
   return fit.srmr;
+}
+
+/**
+ * CB-SEM's measurement checks of one replication: ρc, AVE and Fornell–Larcker from the standardised loadings
+ * and factor correlations, HTMT from the complete cases' indicator correlations, and per pair of exogenous
+ * factors the upper bound of the factor correlation's 1 − α delta-method interval (from the covariance and the
+ * two variances: r = c / √(v_a v_b)). χ²(1) needs a refit with the correlation fixed at 1: R engine only (NaN).
+ */
+function cbValidity(
+  cb: ReturnType<typeof estimateCb>,
+  data: Dataset,
+  pop: Population,
+  alpha: number,
+  bootSamples: number,
+  seed: number,
+): Map<string, number> {
+  const names = cb.indicators.map((x) => x.name);
+  const raw = names.map((nm) => data.cols[data.names.indexOf(nm)]);
+  const rows = raw[0].length;
+  const keep = Array.from({ length: rows }, (_, i) => i).filter((i) =>
+    raw.every((c) => Number.isFinite(c[i])),
+  );
+  const X = raw.map((c) => standardize(Float64Array.from(keep, (i) => c[i])));
+  const blocks = cb.constructs.map((_, j) =>
+    cb.indicators.flatMap((x, i) => (x.construct === j ? [i] : [])),
+  );
+  const find = (a: string, b: string) =>
+    cb.estimates.find(
+      (x) => x.op === '~~' && ((x.lhs === a && x.rhs === b) || (x.lhs === b && x.rhs === a)),
+    );
+  const K = cb.constructs.length;
+  // (an endogenous factor's ~~ is its residual variance: the interval needs two exogenous factors)
+  const endogenous = new Set(cb.estimates.filter((x) => x.op === '~').map((x) => x.lhs));
+  const upper = Array.from({ length: K }, () => new Array<number>(K).fill(NaN));
+  cb.constructs.forEach((a, i) =>
+    cb.constructs.forEach((b, j) => {
+      if (j <= i || !cb.vcov) return;
+      const c = find(a, b),
+        va = find(a, a),
+        vb = find(b, b);
+      if (!c || c.index === undefined || !va || !vb) return;
+      if (endogenous.has(a) || endogenous.has(b)) return;
+      const r = c.est / Math.sqrt(va.est * vb.est);
+      // gradient of r in (c, v_a, v_b); a fixed variance contributes nothing
+      const g: [number | undefined, number][] = [
+        [c.index, r / c.est],
+        [va.index, -r / (2 * va.est)],
+        [vb.index, -r / (2 * vb.est)],
+      ];
+      let v = 0;
+      for (const [p, gp] of g)
+        for (const [q, gq] of g)
+          if (p !== undefined && q !== undefined) v += gp * gq * cb.vcov![p][q];
+      upper[i][j] = upper[j][i] = r + qnorm(1 - alpha / 2) * Math.sqrt(v);
+    }),
+  );
+  return validityValues({
+    constructs: cb.constructs,
+    blocks,
+    factor: cb.constructs.map((name) => pop.factor[pop.constructs.indexOf(name)] ?? false),
+    loadings: cb.stdLoadings,
+    C: cb.lvCor,
+    R: X.map((a) => X.map((b) => corStd(a, b))),
+    r2: cb.r2Constructs,
+    ...(bootSamples > 0 ? { boot: { cols: X, samples: bootSamples, seed } } : {}),
+    factorTests: { upper, chi1: upper.map((row) => row.map(() => NaN)) },
+  });
 }
 
 export const replicationSeed = (seed: number, n: number, r: number) =>
@@ -498,9 +593,26 @@ export function runMcTask(
                   1 - design.alpha,
                 )
               : [];
+          const validity =
+            hasCbChecks(design) && params.some((p) => p.kind === 'validity')
+              ? cbValidity(
+                  cb,
+                  data,
+                  pop,
+                  design.alpha,
+                  design.bootSamples,
+                  replicationSeed(design.seed + 5, n, r),
+                )
+              : null;
           params.forEach((p, pi) => {
-            // (CB-SEM estimates no composites; the PLS checks are PLS's)
-            if (p.kind === 'reliability' || p.kind === 'validity') return;
+            if (p.kind === 'validity') {
+              const v = validity?.get(p.key.slice('validity:'.length)) ?? NaN;
+              est[ei][pi][k] = v;
+              sig[ei][pi][k] = failsCutoff(p.rule!, v);
+              return;
+            }
+            // (CB-SEM estimates no composites)
+            if (p.kind === 'reliability') return;
             if (p.kind === 'fit') {
               const index = MC_FIT_INDICES.find((f) => `fit:${f.id}` === p.key);
               if (index) {
@@ -729,7 +841,12 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
         const R = ests.length;
         if (param.kind === 'fit' && e.method !== 'cb') return;
         if (param.kind === 'reliability' && e.method === 'cb') return;
-        if (param.kind === 'validity' && e.method !== 'pls') return;
+        if (param.kind === 'validity') {
+          const rule = param.rule!;
+          if (e.method === 'regression') return;
+          if (e.method === 'pls' && CB_ONLY_RULES.includes(rule)) return;
+          if (e.method === 'cb' && (!hasCbChecks(design) || PLS_ONLY_RULES.includes(rule))) return;
+        }
         const mean = R ? ests.reduce((s, x) => s + x, 0) / R : NaN;
         const sd = R > 1 ? Math.sqrt(ests.reduce((s, x) => s + (x - mean) ** 2, 0) / (R - 1)) : NaN;
         let rmse = NaN;

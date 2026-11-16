@@ -392,5 +392,6 @@ export function populationValidityInputs(pop: Population) {
     r2: pop.r2,
     cross: pop.indicatorCov,
     boot: 'population' as const,
+    factorTests: 'population' as const,
   };
 }

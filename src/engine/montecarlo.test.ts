@@ -694,3 +694,65 @@ describe('the correlation of two exogenous constructs', () => {
     expect(ml.rejection!).toBeGreaterThan(0.8);
   });
 });
+
+describe('CB-SEM measurement checks (Rönkkö & Cho 2022)', () => {
+  const two = (phi: number): PopulationSpec => ({
+    constructs: [
+      { name: 'A', type: 'factor', indicators: ['a1', 'a2', 'a3'], loadings: [0.8, 0.8, 0.8] },
+      { name: 'B', type: 'factor', indicators: ['b1', 'b2', 'b3'], loadings: [0.8, 0.8, 0.8] },
+    ],
+    paths: [],
+    exoCor: [{ a: 'A', b: 'B', value: phi }],
+  });
+  const design = (phi: number, cbChecks = true): McDesign => ({
+    population: two(phi),
+    estimators: [{ id: 'ML', method: 'cb', estimator: 'ML' }],
+    sampleSizes: [250],
+    replications: 120,
+    seed: 22,
+    alpha: 0.05,
+    bootSamples: 0,
+    mcDraws: 0,
+    cbChecks,
+  });
+
+  it('are parameters only when asked for, without the PLS-only checks', () => {
+    const keys = (d: McDesign) =>
+      designParameters(d, buildPopulation(d.population))
+        .filter((p) => p.kind === 'validity')
+        .map((p) => p.rule);
+    expect(keys(design(0.5, false))).toEqual([]);
+    const on = keys(design(0.5));
+    expect(on).toEqual(
+      expect.arrayContaining(['cr', 'ave', 'fl', 'htmt', 'cicfa', 'cicfa90', 'cicfa85', 'chi1']),
+    );
+    expect(on).not.toContain('xl');
+    expect(on).not.toContain('gof');
+    expect(on).not.toContain('htmtci'); // (no bootstrap)
+  });
+
+  it('the interval of the factor correlation flags a correlation of 1 in about 97.5% of samples, .7 never', () => {
+    const one = run(design(1), 1);
+    const upper = row(one, 'ML', 'validity:cicfa:A:B');
+    expect(upper.param.value).toBe(1);
+    expect(upper.rejection!).toBeGreaterThan(0.93);
+    // (CI_CFA(1) Table 8, loadings .8: .983 at N = 250; the point estimate is unbiased)
+    expect(Math.abs(row(one, 'ML', 'cov:A:B').mean - 1)).toBeLessThan(0.01);
+    expect(row(one, 'ML', 'validity:fl:A').rejection!).toBe(1); // AVE/SV_CFA flags it too
+    // χ²(1) needs a refit: the R engine's (no value built in)
+    expect(row(one, 'ML', 'validity:chi1:A:B').reps).toBe(0);
+    const seven = run(design(0.7), 1);
+    expect(row(seven, 'ML', 'validity:cicfa:A:B').rejection!).toBe(0);
+    near(row(seven, 'ML', 'validity:htmt:A:B').mean, 0.7, 0.02);
+    // the delta-method SE is the SD of the estimates (upper − estimate ≈ 1.96 SD)
+    const est = row(seven, 'ML', 'cov:A:B');
+    near(row(seven, 'ML', 'validity:cicfa:A:B').mean - est.mean, 1.96 * est.sd, 0.015);
+    // α = .10: the 90% interval of Franke & Sarstedt's one-tailed 5% test, on the same data sets
+    const ninety = run({ ...design(0.7), alpha: 0.1 }, 1);
+    near(row(ninety, 'ML', 'validity:cicfa85:A:B').mean - est.mean, 1.645 * est.sd, 0.015);
+  });
+});
+
+function near(x: number, target: number, tol: number) {
+  expect(Math.abs(x - target), `${x} near ${target}`).toBeLessThan(tol);
+}
