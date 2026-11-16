@@ -88,9 +88,11 @@ export function mcParameters(pop: Population, withFit = false): McParam[] {
   const C = pop.constructs;
   const out: McParam[] = [];
   if (withFit) {
-    out.push({ key: 'fit:chisq', kind: 'fit', from: 'model', to: 'χ² test', value: 0 });
+    // 1: the estimated model is not the population's, so a rejection is power, not a Type I error.
+    const value = pop.misspecified ? 1 : 0;
+    out.push({ key: 'fit:chisq', kind: 'fit', from: 'model', to: 'χ² test', value });
     for (const f of MC_FIT_INDICES)
-      out.push({ key: `fit:${f.id}`, kind: 'fit', from: 'model', to: f.label, value: 0 });
+      out.push({ key: `fit:${f.id}`, kind: 'fit', from: 'model', to: f.label, value });
   }
   C.forEach((f, i) =>
     C.forEach((t, j) => {

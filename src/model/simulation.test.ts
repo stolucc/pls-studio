@@ -47,4 +47,32 @@ describe('simulation design', () => {
     expect(p.estimators.map((e) => e.id)).toEqual(['PLS']);
     expect(parseDesign({ nope: 1 })).toBeNull();
   });
+
+  it('keeps a misspecified population (cross-loadings, error correlations, omitted paths), clamped', () => {
+    const d = defaultDesign(populationFromModel(model, null, null));
+    const wrong = {
+      ...d,
+      population: {
+        ...d.population,
+        paths: d.population.paths.map((p) => ({ ...p, omitted: true })),
+        crossLoadings: [{ indicator: 'a1', construct: 'B', value: 0.3 }],
+        errorCors: [{ a: 'a1', b: 'a2', value: 0.2 }],
+      },
+    };
+    expect(parseDesign(JSON.parse(JSON.stringify(wrong)))).toEqual(wrong);
+    const evil = parseDesign({
+      ...wrong,
+      population: {
+        ...wrong.population,
+        paths: wrong.population.paths.map((p) => ({ ...p, omitted: 'yes' })),
+        crossLoadings: [{ indicator: 'a1', construct: 'B', value: 7 }, 'x'],
+        errorCors: [],
+      },
+    })!;
+    expect(evil.population.paths.every((p) => p.omitted === undefined)).toBe(true);
+    expect(evil.population.crossLoadings).toEqual([
+      { indicator: 'a1', construct: 'B', value: 0.999 },
+    ]);
+    expect(evil.population.errorCors).toBeUndefined();
+  });
 });

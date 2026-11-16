@@ -29,12 +29,17 @@ export interface PopConstruct {
 
 export interface PopulationSpec {
   constructs: PopConstruct[];
-  paths: { from: string; to: string; value: number }[];
+  /** Structural paths; `omitted`: in the population but left out of the model the replications are estimated with. */
+  paths: { from: string; to: string; value: number; omitted?: boolean }[];
   /** Correlations between exogenous constructs (0 when omitted). */
   exoCor: { a: string; b: string; value: number }[];
   /** Indicator skewness and excess kurtosis (Vale–Maurelli); normal when both are 0 or omitted. */
   skew?: number;
   kurtosis?: number;
+  /** Misspecification: a common-factor indicator also loading on another construct (standardised), not estimated. */
+  crossLoadings?: { indicator: string; construct: string; value: number }[];
+  /** Misspecification: correlations between the errors of two common-factor indicators, not estimated. */
+  errorCors?: { a: string; b: string; value: number }[];
 }
 
 export interface Population {
@@ -56,6 +61,8 @@ export interface Population {
   covariances: { a: number; b: number; value: number }[];
   /** Non-normal generation (null: multivariate normal). */
   vm: ValeMaurelli | null;
+  /** The estimated model differs from the population (cross-loadings, error correlations, omitted paths). */
+  misspecified: boolean;
 }
 
 export function buildPopulation(pop: PopulationSpec): Population {
@@ -63,17 +70,19 @@ export function buildPopulation(pop: PopulationSpec): Population {
   const J = C.length;
   const idx = new Map(C.map((n, i) => [n, i]));
   const B = zeros(J, J); // B[to][from]
-  const specified = zeros(J, J).map((r) => r.map(() => false)); // [from][to]
+  const inPopulation = zeros(J, J).map((r) => r.map(() => false)); // [from][to]
+  const specified = zeros(J, J).map((r) => r.map(() => false)); // [from][to]: estimated
   for (const p of pop.paths) {
     const f = idx.get(p.from),
       t = idx.get(p.to);
     if (f === undefined || t === undefined)
       throw new Error(`Population path ${p.from} → ${p.to} references an unknown construct.`);
     B[t][f] = p.value;
-    specified[f][t] = true;
+    inPopulation[f][t] = true;
+    if (!p.omitted) specified[f][t] = true;
   }
   // A path with population value 0 is still part of the model (Type I error).
-  const preds = C.map((_, t) => C.map((__, f) => f).filter((f) => specified[f][t]));
+  const preds = C.map((_, t) => C.map((__, f) => f).filter((f) => inPopulation[f][t]));
   const exo = preds.map((P) => P.length === 0);
 
   // Topological order.
@@ -151,6 +160,50 @@ export function buildPopulation(pop: PopulationSpec): Population {
     return R;
   });
   const p = names.length;
+  // Λ: each indicator's loading on its construct (for a composite indicator corr(x, η)), plus cross-loadings.
+  const Lambda = names.map((_, i) => C.map((__, j) => (j === ofC[i] ? load[i] : 0)));
+  const indicatorIndex = (name: string, what: string) => {
+    const i = names.indexOf(name);
+    if (i < 0) throw new Error(`${what} names an unknown indicator "${name}".`);
+    if (within[ofC[i]])
+      throw new Error(
+        `${what}: "${name}" is a composite indicator; only common-factor indicators can have one.`,
+      );
+    return i;
+  };
+  for (const x of pop.crossLoadings ?? []) {
+    const i = indicatorIndex(x.indicator, 'A cross-loading');
+    const j = idx.get(x.construct);
+    if (j === undefined)
+      throw new Error(`A cross-loading names an unknown construct "${x.construct}".`);
+    if (j === ofC[i]) throw new Error(`"${x.indicator}" already loads on "${x.construct}".`);
+    Lambda[i][j] += x.value;
+  }
+  // Common variance (ΛΦΛ')ᵢᵢ of factor indicators; the error variance makes each variance 1.
+  const common = (i: number, k: number) => {
+    let v = 0;
+    for (let a = 0; a < J; a++) {
+      if (!Lambda[i][a]) continue;
+      for (let b = 0; b < J; b++) v += Lambda[i][a] * Phi[a][b] * Lambda[k][b];
+    }
+    return v;
+  };
+  const theta = names.map((name, i) => {
+    if (within[ofC[i]]) return 0;
+    const t = 1 - common(i, i);
+    if (!(t > 0))
+      throw new Error(
+        `The loadings of "${name}" leave it no error variance: lower its (cross-)loadings.`,
+      );
+    return t;
+  });
+  const errorCov = zeros(p, p);
+  for (const r of pop.errorCors ?? []) {
+    const i = indicatorIndex(r.a, 'An error correlation');
+    const k = indicatorIndex(r.b, 'An error correlation');
+    if (i === k) throw new Error(`An error correlation needs two different indicators ("${r.a}").`);
+    errorCov[i][k] = errorCov[k][i] = r.value * Math.sqrt(theta[i] * theta[k]);
+  }
   const Sigma = zeros(p, p);
   for (let i = 0; i < p; i++)
     for (let k = 0; k < p; k++) {
@@ -162,7 +215,7 @@ export function buildPopulation(pop: PopulationSpec): Population {
         b = ofC[k];
       if (a === b && within[a])
         Sigma[i][k] = within[a]![blocks[a].indexOf(i)][blocks[a].indexOf(k)];
-      else Sigma[i][k] = load[i] * Phi[a][b] * load[k];
+      else Sigma[i][k] = common(i, k) + errorCov[i][k];
     }
   if (!cholesky(Sigma))
     throw new Error(
@@ -200,6 +253,10 @@ export function buildPopulation(pop: PopulationSpec): Population {
     markerLoading: blocks.map((b) => load[b[0]]),
     covariances,
     vm,
+    misspecified:
+      (pop.crossLoadings ?? []).some((x) => x.value !== 0) ||
+      (pop.errorCors ?? []).some((r) => r.value !== 0) ||
+      pop.paths.some((x) => x.omitted),
   };
 }
 
@@ -215,7 +272,7 @@ export function specFromPopulation(pop: PopulationSpec, as?: ConstructType): Mod
         mode: type === 'composite' ? 'B' : 'A',
       };
     }),
-    paths: pop.paths.map(({ from, to }) => ({ from, to })),
+    paths: pop.paths.filter((x) => !x.omitted).map(({ from, to }) => ({ from, to })),
   };
 }
 

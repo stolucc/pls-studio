@@ -91,6 +91,28 @@ it('PLS variants (unit weights, mode B with centroid weighting) agree with the b
   }
 }, 900_000);
 
+it('a misspecified population (a cross-loading, an omitted path): lavaan rejects the model', async () => {
+  const wrong: McDesign = {
+    ...design,
+    population: {
+      ...design.population,
+      paths: design.population.paths.map((p) =>
+        p.value === 0 ? { ...p, value: 0.3, omitted: true } : p,
+      ),
+      crossLoadings: [{ indicator: 'c2', construct: 'Price fairness', value: 0.25 }],
+    },
+    estimators: [{ id: 'CB-ML', method: 'cb', estimator: 'ML' }],
+    sampleSizes: [500],
+    replications: 10,
+  };
+  const rows = summariseMc(wrong, [await runMcChunkR(wrong, 500, 0, 10)]);
+  const chisq = rows.find((r) => r.param.key === 'fit:chisq')!;
+  expect(chisq.param.value).toBe(1);
+  expect(chisq.rejection!).toBeGreaterThan(0.7);
+  // The omitted path is not a parameter of the estimated model.
+  expect(rows.some((r) => r.param.key === 'path:Price fairness:Loyalty')).toBe(false);
+}, 900_000);
+
 it('counts inadmissible PLSc solutions by cSEM::verify; PLS composites never are', async () => {
   const weak = (name: string, p: string) => ({ ...f(name, p), loadings: [0.45, 0.4, 0.35] });
   const small: McDesign = {

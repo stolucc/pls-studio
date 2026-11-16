@@ -121,6 +121,7 @@ export function parseDesign(raw: unknown): McDesign | null {
         from: str(x.from),
         to: str(x.to),
         value: clampStrict(x.value, -0.999, 0.999, 0),
+        ...(x.omitted === true ? { omitted: true } : {}),
       })),
     exoCor: Array.isArray(p.exoCor)
       ? p.exoCor
@@ -130,6 +131,30 @@ export function parseDesign(raw: unknown): McDesign | null {
       : [],
     skew: clampStrict(p.skew, -5, 5, 0),
     kurtosis: clampStrict(p.kurtosis, -1.2, 60, 0),
+    ...(Array.isArray(p.crossLoadings) && p.crossLoadings.length
+      ? {
+          crossLoadings: p.crossLoadings
+            .filter(isObj)
+            .slice(0, 5000)
+            .map((x) => ({
+              indicator: str(x.indicator),
+              construct: str(x.construct),
+              value: clampStrict(x.value, -0.999, 0.999, 0),
+            })),
+        }
+      : {}),
+    ...(Array.isArray(p.errorCors) && p.errorCors.length
+      ? {
+          errorCors: p.errorCors
+            .filter(isObj)
+            .slice(0, 5000)
+            .map((x) => ({
+              a: str(x.a),
+              b: str(x.b),
+              value: clampStrict(x.value, -0.999, 0.999, 0),
+            })),
+        }
+      : {}),
   };
   const ids = Array.isArray(raw.estimators) ? raw.estimators.filter(isObj).map((e) => e.id) : [];
   const estimators = ESTIMATOR_CHOICES.filter((e) => ids.includes(e.id));

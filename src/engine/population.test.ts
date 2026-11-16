@@ -81,6 +81,74 @@ describe('population model', () => {
   });
 });
 
+describe('misspecified populations', () => {
+  const at = (pop: ReturnType<typeof buildPopulation>, a: string, b: string) =>
+    pop.Sigma[pop.names.indexOf(a)][pop.names.indexOf(b)];
+
+  it('a cross-loading adds λ′ · cov(η_other, ·) and keeps every variance 1', () => {
+    const pop = buildPopulation({
+      ...factorPop,
+      crossLoadings: [{ indicator: 'x1', construct: 'W', value: 0.3 }],
+    });
+    // x1 = .8 X + .3 W + ε; w1 = .7 W + ε; corr(X, W) = .3
+    expect(at(pop, 'x1', 'w1')).toBeCloseTo((0.8 * 0.3 + 0.3 * 1) * 0.7, 12);
+    expect(at(pop, 'x1', 'x2')).toBeCloseTo((0.8 + 0.3 * 0.3) * 0.7, 12);
+    pop.Sigma.forEach((r, i) => expect(r[i]).toBe(1));
+    expect(pop.misspecified).toBe(true);
+    expect(buildPopulation(factorPop).misspecified).toBe(false);
+  });
+
+  it('an error correlation is a correlation of the two errors', () => {
+    const pop = buildPopulation({ ...factorPop, errorCors: [{ a: 'x1', b: 'x2', value: 0.4 }] });
+    const theta = (l: number) => 1 - l * l;
+    expect(at(pop, 'x1', 'x2')).toBeCloseTo(
+      0.8 * 0.7 + 0.4 * Math.sqrt(theta(0.8) * theta(0.7)),
+      12,
+    );
+    expect(at(pop, 'x1', 'x3')).toBeCloseTo(0.8 * 0.75, 12);
+  });
+
+  it('an omitted path shapes the population but not the estimated model', () => {
+    const spec: PopulationSpec = {
+      ...factorPop,
+      paths: factorPop.paths.map((p) =>
+        p.from === 'X' && p.to === 'Y' ? { ...p, omitted: true } : p,
+      ),
+    };
+    const pop = buildPopulation(spec);
+    expect(pop.Sigma).toEqual(buildPopulation(factorPop).Sigma);
+    expect(pop.specified[0][3]).toBe(false);
+    expect(specFromPopulation(spec).paths).not.toContainEqual({ from: 'X', to: 'Y' });
+    expect(pop.misspecified).toBe(true);
+    // Estimated without it, the model no longer fits the population exactly.
+    expect(estimateCb(exactSample(spec), specFromPopulation(spec)).fit.chisq).toBeGreaterThan(1);
+  });
+
+  it('refuses what a common-factor population cannot have', () => {
+    expect(() =>
+      buildPopulation({
+        ...compositePop,
+        crossLoadings: [{ indicator: 'x1', construct: 'W', value: 0.2 }],
+      }),
+    ).toThrow(/composite indicator/);
+    expect(() =>
+      buildPopulation({
+        ...factorPop,
+        crossLoadings: [{ indicator: 'x1', construct: 'W', value: 0.7 }],
+      }),
+    ).toThrow(/no error variance/);
+    expect(() =>
+      buildPopulation({
+        ...factorPop,
+        crossLoadings: [{ indicator: 'x1', construct: 'X', value: 0.1 }],
+      }),
+    ).toThrow(/already loads/);
+    expect(() =>
+      buildPopulation({ ...factorPop, errorCors: [{ a: 'x1', b: 'zz', value: 0.1 }] }),
+    ).toThrow(/unknown indicator/);
+  });
+});
+
 describe('estimators recover the population from an exact sample', () => {
   it('CB-SEM ML recovers standardised paths of a common-factor population', () => {
     const cb = estimateCb(exactSample(factorPop), specFromPopulation(factorPop));

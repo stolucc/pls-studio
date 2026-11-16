@@ -426,6 +426,27 @@ describe('approximate fit indices', () => {
   });
 });
 
+describe('a misspecified population', () => {
+  it('turns the fit tests into power, and biases the paths the misspecification touches', () => {
+    const design: McDesign = {
+      population: { ...pop, crossLoadings: [{ indicator: 'y1', construct: 'X', value: 0.35 }] },
+      estimators: [{ id: 'ML', method: 'cb', estimator: 'ML' }],
+      sampleSizes: [500],
+      replications: 40,
+      seed: 21,
+      alpha: 0.05,
+      bootSamples: 0,
+      mcDraws: 0,
+    };
+    const rows = run(design, 1);
+    const chisq = row(rows, 'ML', 'fit:chisq');
+    expect(chisq.param.value).toBe(1);
+    expect(chisq.rejection!).toBeGreaterThan(0.8);
+    // The unmodelled X → y1 loading is absorbed by the X → Y path (true value 0).
+    expect(row(rows, 'ML', 'path:X:Y').mean).toBeGreaterThan(0.1);
+  });
+});
+
 describe('the correlation of two exogenous constructs', () => {
   // Muthén & Muthén's (2002) CFA population: two factors of five indicators (loadings .8), correlated .25.
   const cfa: PopulationSpec = {

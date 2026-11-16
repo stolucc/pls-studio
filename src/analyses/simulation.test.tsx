@@ -129,4 +129,25 @@ describe('Monte Carlo card', () => {
     expect(out.match(/class="mc-hit"/g)).toHaveLength(40);
     expect(out).toContain('class="ref-line"');
   });
+
+  it('the form offers misspecification: paths to leave out, cross-loadings, error correlations', () => {
+    const d = t.defaults(ctx());
+    const wrong = {
+      ...d,
+      population: {
+        ...d.population,
+        crossLoadings: [{ indicator: 'a1', construct: 'B', value: 0.3 }],
+        errorCors: [{ a: 'a1', b: 'b2', value: 0.2 }],
+      },
+    };
+    const out = renderToStaticMarkup(
+      <t.Options options={wrong} set={() => {}} ctx={ctx()} disabled={false} />,
+    );
+    expect(out).toContain('Misspecification');
+    expect(out).toContain('Paths left out');
+    expect(out).toContain('A → B');
+    expect(out).toContain('aria-label="Cross-loading 1: indicator"');
+    expect(out).toContain('aria-label="Remove error correlation 1"');
+    expect(out).toContain('Add cross-loading');
+  });
 });

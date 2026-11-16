@@ -77,7 +77,8 @@ const fitIndexOf = (p: McParam) => MC_FIT_INDICES.find((f) => `fit:${f.id}` === 
 
 /** A parameter in the menu, with its true value. */
 function paramOption(p: McParam): string {
-  if (p.kind === 'fit') return `${paramTitle(p)} (CB-SEM, correct model)`;
+  if (p.kind === 'fit')
+    return `${paramTitle(p)} (CB-SEM, ${p.value ? 'misspecified' : 'correct'} model)`;
   if (p.kind === 'covariance') return `${p.from} ↔ ${p.to} (correlation, true ${fmt(p.value)})`;
   const indirect = p.kind === 'indirect' ? 'indirect ' : '';
   return `${indirect}${p.from} → ${p.to} (true ${fmt(p.value)})`;
@@ -195,6 +196,201 @@ function PowerChart({
         </svg>
       )}
     </ChartFrame>
+  );
+}
+
+/**
+ * What the population has and the estimated model leaves out: cross-loadings and error correlations of
+ * common-factor indicators, structural paths. Fit tests then measure power to detect it, and the
+ * parameters show the bias it causes.
+ */
+function MisspecificationBlock({
+  pop,
+  setPop,
+}: {
+  pop: PopulationSpec;
+  setPop: (fn: (p: PopulationSpec) => PopulationSpec) => void;
+}) {
+  const factors = pop.constructs.filter((c) => c.type === 'factor');
+  const indicators = factors.flatMap((c) => c.indicators);
+  const owner = (ind: string) => pop.constructs.find((c) => c.indicators.includes(ind))?.name;
+  const cross = pop.crossLoadings ?? [];
+  const errors = pop.errorCors ?? [];
+  const setCross = (next: typeof cross) => setPop((p) => ({ ...p, crossLoadings: next }));
+  const setErrors = (next: typeof errors) => setPop((p) => ({ ...p, errorCors: next }));
+  const firstOther = (ind: string) => pop.constructs.find((c) => c.name !== owner(ind))?.name ?? '';
+  return (
+    <div className="pop-block mc-misspec">
+      <div className="pop-head">
+        <b>Misspecification</b>{' '}
+        <span className="muted">in the population, left out of the estimated model</span>
+      </div>
+      {pop.paths.length > 0 && (
+        <div className="mc-misspec-group">
+          <span className="mc-misspec-title">Paths left out</span>
+          {pop.paths.map((x, pi) => (
+            <label key={`${x.from}-${x.to}`} className="check">
+              <input
+                type="checkbox"
+                checked={!!x.omitted}
+                onChange={(e) =>
+                  setPop((p) => ({
+                    ...p,
+                    paths: p.paths.map((y, i) =>
+                      i === pi
+                        ? {
+                            from: y.from,
+                            to: y.to,
+                            value: y.value,
+                            ...(e.target.checked ? { omitted: true } : {}),
+                          }
+                        : y,
+                    ),
+                  }))
+                }
+              />
+              {x.from} → {x.to}
+            </label>
+          ))}
+        </div>
+      )}
+      {indicators.length > 0 && (
+        <>
+          <div className="mc-misspec-group">
+            <span className="mc-misspec-title">Cross-loadings</span>
+            {cross.map((x, i) => (
+              <div className="mc-misspec-row" key={i}>
+                <select
+                  className="select"
+                  aria-label={`Cross-loading ${i + 1}: indicator`}
+                  value={x.indicator}
+                  onChange={(e) =>
+                    setCross(
+                      cross.map((y, k) =>
+                        k === i
+                          ? {
+                              ...y,
+                              indicator: e.target.value,
+                              construct:
+                                y.construct === owner(e.target.value)
+                                  ? firstOther(e.target.value)
+                                  : y.construct,
+                            }
+                          : y,
+                      ),
+                    )
+                  }
+                >
+                  {indicators.map((ind) => (
+                    <option key={ind} value={ind}>
+                      {ind}
+                    </option>
+                  ))}
+                </select>
+                <span className="muted">also loads on</span>
+                <select
+                  className="select"
+                  aria-label={`Cross-loading ${i + 1}: construct`}
+                  value={x.construct}
+                  onChange={(e) =>
+                    setCross(
+                      cross.map((y, k) => (k === i ? { ...y, construct: e.target.value } : y)),
+                    )
+                  }
+                >
+                  {pop.constructs
+                    .filter((c) => c.name !== owner(x.indicator))
+                    .map((c) => (
+                      <option key={c.name} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                </select>
+                <Num
+                  value={x.value}
+                  min={-0.99}
+                  max={0.99}
+                  onChange={(v) =>
+                    setCross(cross.map((y, k) => (k === i ? { ...y, value: v } : y)))
+                  }
+                />
+                <button
+                  className="btn sm ghost"
+                  onClick={() => setCross(cross.filter((_, k) => k !== i))}
+                  aria-label={`Remove cross-loading ${i + 1}`}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            {pop.constructs.length > 1 && (
+              <button
+                className="btn sm"
+                onClick={() =>
+                  setCross([
+                    ...cross,
+                    { indicator: indicators[0], construct: firstOther(indicators[0]), value: 0.3 },
+                  ])
+                }
+              >
+                Add cross-loading
+              </button>
+            )}
+          </div>
+          <div className="mc-misspec-group">
+            <span className="mc-misspec-title">Error correlations</span>
+            {errors.map((r, i) => (
+              <div className="mc-misspec-row" key={i}>
+                {(['a', 'b'] as const).map((side) => (
+                  <select
+                    key={side}
+                    className="select"
+                    aria-label={`Error correlation ${i + 1}: ${side === 'a' ? 'first' : 'second'} indicator`}
+                    value={r[side]}
+                    onChange={(e) =>
+                      setErrors(
+                        errors.map((y, k) => (k === i ? { ...y, [side]: e.target.value } : y)),
+                      )
+                    }
+                  >
+                    {indicators.map((ind) => (
+                      <option key={ind} value={ind}>
+                        {ind}
+                      </option>
+                    ))}
+                  </select>
+                ))}
+                <Num
+                  value={r.value}
+                  min={-0.99}
+                  max={0.99}
+                  onChange={(v) =>
+                    setErrors(errors.map((y, k) => (k === i ? { ...y, value: v } : y)))
+                  }
+                />
+                <button
+                  className="btn sm ghost"
+                  onClick={() => setErrors(errors.filter((_, k) => k !== i))}
+                  aria-label={`Remove error correlation ${i + 1}`}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            {indicators.length > 1 && (
+              <button
+                className="btn sm"
+                onClick={() =>
+                  setErrors([...errors, { a: indicators[0], b: indicators[1], value: 0.3 }])
+                }
+              >
+                Add error correlation
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -353,6 +549,7 @@ function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: Optio
           ))}
         </div>
       </div>
+      <MisspecificationBlock pop={design.population} setPop={setPop} />
       <h3 style={{ marginTop: 14 }}>Design</h3>
       <div className="field">
         <label>Sample sizes</label>
@@ -813,19 +1010,37 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                 )}
               note={
                 activeParam.kind === 'fit' && fitIndexOf(activeParam) ? (
-                  <>
-                    Mean: average {fitIndexOf(activeParam)!.label}. Type I: share of replications
-                    whose {fitIndexOf(activeParam)!.label} misses its cutoff (poor fit if{' '}
-                    {poorFitRule(fitIndexOf(activeParam)!)}; Hu &amp; Bentler 1999) although the
-                    model is correct. Robust estimators use the robust index. Cutoffs that reject
-                    correct models often at your sample size are too strict for this model.
-                  </>
+                  activeParam.value ? (
+                    <>
+                      Mean: average {fitIndexOf(activeParam)!.label}. Power: share of replications
+                      whose {fitIndexOf(activeParam)!.label} misses its cutoff (poor fit if{' '}
+                      {poorFitRule(fitIndexOf(activeParam)!)}; Hu &amp; Bentler 1999), detecting
+                      that the estimated model leaves out what the population has (cross-loadings,
+                      error correlations or paths). Robust estimators use the robust index.
+                    </>
+                  ) : (
+                    <>
+                      Mean: average {fitIndexOf(activeParam)!.label}. Type I: share of replications
+                      whose {fitIndexOf(activeParam)!.label} misses its cutoff (poor fit if{' '}
+                      {poorFitRule(fitIndexOf(activeParam)!)}; Hu &amp; Bentler 1999) although the
+                      model is correct. Robust estimators use the robust index. Cutoffs that reject
+                      correct models often at your sample size are too strict for this model.
+                    </>
+                  )
                 ) : activeParam.kind === 'fit' ? (
-                  <>
-                    Mean: average (scaled) χ². Type I: share of replications rejecting the correct
-                    model at α = {design.alpha}; it should be close to α. Robust estimators use
-                    their scaled statistic.
-                  </>
+                  activeParam.value ? (
+                    <>
+                      Mean: average (scaled) χ². Power: share of replications rejecting the
+                      misspecified model at α = {design.alpha}. Robust estimators use their scaled
+                      statistic.
+                    </>
+                  ) : (
+                    <>
+                      Mean: average (scaled) χ². Type I: share of replications rejecting the correct
+                      model at α = {design.alpha}; it should be close to α. Robust estimators use
+                      their scaled statistic.
+                    </>
+                  )
                 ) : (
                   <>
                     Bias and RMSE against the true standardised value. Coverage: share of{' '}
