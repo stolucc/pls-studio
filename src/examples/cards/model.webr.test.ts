@@ -618,37 +618,51 @@ async function ronkkoEvermannRun(id: string) {
   const rows = summariseMc(design, parts);
   const path = (estimator: string) =>
     rows.find((x) => x.estimator === estimator && x.param.key === 'path:A:B')!;
-  return { parts, rows, path };
+  const reliability = (estimator: string) =>
+    rows.find((x) => x.estimator === estimator && x.param.key === 'reliability:A')!;
+  return { parts, rows, path, reliability };
 }
 
 slowIt(
   'ronkko-evermann-null: the PLS estimate of a null path is bimodal; sum scores and ML SEM are not',
   async () => {
-    const { parts, path } = await ronkkoEvermannRun('ronkko-evermann-null');
-    // (cSEM's PLS does not converge in a few samples of a null path: 9 of 500 in desktop cSEM 0.7.1)
-    expect(path('PLS mode A').failed, 'PLS: replications without convergence').toBeLessThan(25);
+    const { parts, path, reliability } = await ronkkoEvermannRun('ronkko-evermann-null');
+    const [modeA, modeB] = ['PLS mode A, centroid', 'PLS mode B, centroid'];
+    // (cSEM's PLS does not converge in a few samples of a null path: 9 (mode A) and 14 (mode B) of
+    // 500 in desktop cSEM 0.7.1)
+    for (const e of [modeA, modeB])
+      expect(path(e).failed, `${e}: replications without convergence`).toBeLessThan(25);
     for (const e of ['Sum scores', 'CB-ML']) same(`${e} failed`, path(e).failed, 0);
-    // (PLS mode A is the first estimator; A → B comes after the fit tests CB-SEM adds)
+    // (the PLS estimators come first, in the card's order; A → B comes after the fit tests CB-SEM adds)
     const card = exampleOf('ronkko-evermann-null').panel as unknown as McDesign;
     const at = designParameters(card, buildPopulation(card.population)).findIndex(
       (p) => p.key === 'path:A:B',
     );
-    const est = parts.flatMap((p) => Array.from(p.est[0][at])).filter(Number.isFinite);
-    const share = (lo: number, hi: number) =>
-      est.filter((x) => Math.abs(x) >= lo && Math.abs(x) < hi).length / est.length;
+    const share = (estimator: number, lo: number, hi: number) => {
+      const est = parts.flatMap((p) => Array.from(p.est[estimator][at])).filter(Number.isFinite);
+      return est.filter((x) => Math.abs(x) >= lo && Math.abs(x) < hi).length / est.length;
+    };
     against({
       label:
-        'Rönkkö & Evermann (2013): at β = 0 and N = 100 the PLS estimate is bimodal (fewer estimates within ±.05 of 0 than between ±.10 and ±.15) with a larger SD than sum scores; regression on sum scores and ML SEM center on 0',
+        'Rönkkö & Evermann (2013), Figures 2 and 3: at β = 0 and N = 100 the estimates of PLS mode A and mode B (centroid weighting) are bimodal (fewer within ±.05 of 0 than between ±.10 and ±.15), mode B the more spread; regression on sum scores and ML SEM center on 0; the composites of mode A are less reliable than sum scores, those of mode B less still',
       level: 'published',
       url: 'https://doi.org/10.1177/1094428112474693',
     });
-    expect(share(0, 0.05), 'PLS: fewer estimates near 0 than at ±.1 to ±.15').toBeLessThan(
-      share(0.1, 0.15),
-    );
+    for (const [k, e] of [modeA, modeB].entries())
+      expect(share(k, 0, 0.05), `${e}: fewer estimates near 0 than at ±.1 to ±.15`).toBeLessThan(
+        share(k, 0.1, 0.15),
+      );
     near('sum scores: mean estimate', path('Sum scores').mean, 0, 0.02);
     near('ML SEM: mean estimate', path('CB-ML').mean, 0, 0.03);
-    expect(path('PLS mode A').sd, 'PLS: larger SD than sum scores').toBeGreaterThan(
+    expect(path(modeA).sd, 'PLS mode A: larger SD than sum scores').toBeGreaterThan(
       1.5 * path('Sum scores').sd,
+    );
+    expect(path(modeB).sd, 'PLS mode B: larger SD than mode A').toBeGreaterThan(path(modeA).sd);
+    expect(reliability(modeA).mean, 'PLS mode A: less reliable than sum scores').toBeLessThan(
+      reliability('Sum scores').mean,
+    );
+    expect(reliability(modeB).mean, 'PLS mode B: less reliable than mode A').toBeLessThan(
+      reliability(modeA).mean,
     );
   },
   1_800_000,
@@ -657,20 +671,29 @@ slowIt(
 slowIt(
   'ronkko-evermann-beta: sum scores underestimate β = .3, PLS less so, ML SEM not at all',
   async () => {
-    const { path } = await ronkkoEvermannRun('ronkko-evermann-beta');
+    const { path, reliability } = await ronkkoEvermannRun('ronkko-evermann-beta');
+    const [modeA, modeB] = ['PLS mode A, centroid', 'PLS mode B, centroid'];
     against({
       label:
-        'Rönkkö & Evermann (2013): with loadings .6/.7/.8 and N = 100, sum scores are attenuated (composite reliability about .75: β ≈ .3 · .75 = .22); PLS weights capitalise on chance and raise the estimate above the sum scores’, below the true value; ML SEM is unbiased with the largest SD',
+        'Rönkkö & Evermann (2013), Figures 2 and 3: with loadings .6/.7/.8 and N = 100, sum scores are attenuated (composite reliability about .75: β ≈ .3 · .75 = .22); PLS weights capitalise on chance and raise the estimate above the sum scores’ (mode A below the true value, mode B about at it, with the larger SD) although their composites are less reliable; ML SEM is unbiased with a larger SD than PLS mode A',
       level: 'published',
       url: 'https://doi.org/10.1177/1094428112474693',
     });
     near('sum scores: mean estimate', path('Sum scores').mean, 0.22, 0.02);
-    expect(path('PLS mode A').mean, 'PLS: above sum scores').toBeGreaterThan(
+    expect(path(modeA).mean, 'PLS mode A: above sum scores').toBeGreaterThan(
       path('Sum scores').mean,
     );
-    expect(path('PLS mode A').mean, 'PLS: below the true .3').toBeLessThan(0.3);
+    expect(path(modeA).mean, 'PLS mode A: below the true .3').toBeLessThan(0.3);
+    expect(path(modeB).mean, 'PLS mode B: above mode A').toBeGreaterThan(path(modeA).mean);
+    expect(path(modeB).sd, 'PLS mode B: larger SD than mode A').toBeGreaterThan(path(modeA).sd);
     near('ML SEM: mean estimate', path('CB-ML').mean, 0.3, 0.03);
-    expect(path('CB-ML').sd, 'ML SEM: larger SD than PLS').toBeGreaterThan(path('PLS mode A').sd);
+    expect(path('CB-ML').sd, 'ML SEM: larger SD than PLS mode A').toBeGreaterThan(path(modeA).sd);
+    expect(reliability(modeA).mean, 'PLS mode A: less reliable than sum scores').toBeLessThan(
+      reliability('Sum scores').mean,
+    );
+    expect(reliability(modeB).mean, 'PLS mode B: less reliable than mode A').toBeLessThan(
+      reliability(modeA).mean,
+    );
   },
   1_800_000,
 );

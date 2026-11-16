@@ -15,6 +15,9 @@ export const ESTIMATOR_CHOICES: McEstimator[] = [
   { id: 'PLS mode B', method: 'pls', consistent: false, mode: 'B' },
   { id: 'PLS centroid', method: 'pls', consistent: false, scheme: 'centroid' },
   { id: 'PLS factorial', method: 'pls', consistent: false, scheme: 'factor' },
+  // plspm's defaults, as Rönkkö & Evermann (2013) estimated PLS: centroid weighting with mode A or mode B.
+  { id: 'PLS mode A, centroid', method: 'pls', consistent: false, mode: 'A', scheme: 'centroid' },
+  { id: 'PLS mode B, centroid', method: 'pls', consistent: false, mode: 'B', scheme: 'centroid' },
   // Regression on summed scales, plain and disattenuated (Goodhue et al. 2012; Aguirre-Urreta et al. 2024).
   { id: 'Sum scores', method: 'regression', dr: false },
   { id: 'DR', method: 'regression', dr: true },

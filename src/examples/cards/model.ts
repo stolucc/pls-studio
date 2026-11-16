@@ -144,7 +144,7 @@ export const ronkkoEvermannPopulation = (beta: number) => ({
 
 /** What the cards take from the paper, and what is the app's (both descriptions include it). */
 const RONKKO_EVERMANN_DIFFERS =
-  'As in the paper: the population, N = 100, 500 replications, PLS mode A against regression on sum scores and ML SEM. The app’s choices: 500 bootstrap samples per replication with percentile intervals (change them on the card), and the measurement checks as the app computes them (AVE − highest squared correlation appears as the Fornell–Larcker margin √AVE − highest correlation, which decides the same). The paper’s models with a misspecified measurement model are not part of these cards; cross-loadings and error correlations can be added on the card. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+  'As in the paper: the population, N = 100, 500 replications, PLS mode A and mode B with centroid weighting (the default of plspm, which the paper used) against regression on sum scores and ML SEM. The app’s choices: PLS by cSEM and SEM by the current lavaan; the reliability of a composite is the population reliability of each sample’s weights, (w′λ)² / w′Σw, where the paper correlates the estimated scores with the generated true scores; 500 bootstrap samples per replication with percentile intervals (change them on the card; the paper’s Figure 4, the bootstrap distributions of the first five replications, is not drawn); and the measurement checks as the app computes them (AVE − highest squared correlation appears as the Fornell–Larcker margin √AVE − highest correlation, which decides the same). The paper’s models with a misspecified measurement model (Table 4) are not part of these cards; cross-loadings and error correlations can be added on the card. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
 
 /** The parts both Rönkkö & Evermann cards share; beta: the path of the population. */
 const ronkkoEvermannCard = (beta: number) => ({
@@ -166,7 +166,20 @@ const ronkkoEvermannCard = (beta: number) => ({
     kind: 'mc' as const,
     population: ronkkoEvermannPopulation(beta),
     estimators: [
-      { id: 'PLS mode A', method: 'pls', consistent: false, mode: 'A' },
+      {
+        id: 'PLS mode A, centroid',
+        method: 'pls',
+        consistent: false,
+        mode: 'A',
+        scheme: 'centroid',
+      },
+      {
+        id: 'PLS mode B, centroid',
+        method: 'pls',
+        consistent: false,
+        mode: 'B',
+        scheme: 'centroid',
+      },
       { id: 'Sum scores', method: 'regression', dr: false },
       { id: 'CB-ML', method: 'cb', estimator: 'ML' },
     ],
@@ -181,7 +194,7 @@ const ronkkoEvermannCard = (beta: number) => ({
     method: 'pls' as const,
     plsPackage: 'cSEM' as const,
     consistent: false,
-    scheme: 'path' as const,
+    scheme: 'centroid' as const,
     missing: 'casewise' as const,
     seed: 2013,
   },
@@ -593,22 +606,22 @@ export const CARD_MODEL: PackageExample[] = [
     id: 'ronkko-evermann-null',
     title: 'Monte Carlo: PLS at a null path (Rönkkö & Evermann 2013)',
     description:
-      'The paper’s population: two common factors with three indicators each (loadings .6, .7, .8) and no effect of A on B. At N = 100 the PLS estimate of the null path is bimodal: PLS weights capitalise on chance correlations and pull the estimate away from 0 in either direction, so its SD is about twice the sum scores’; the bootstrap’s tests do not account for it, and in a few samples PLS does not converge (counted as failed). The card simulates 500 samples of 100, each estimated by PLS mode A (cSEM), regression on sum scores and ML SEM (lavaan), with every bootstrap test, the composites’ reliability and the measurement checks of a PLS report. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
+      'The paper’s population: two common factors with three indicators each (loadings .6, .7, .8) and no effect of A on B. At N = 100 the PLS estimate of the null path is bimodal: PLS weights capitalise on chance correlations and pull the estimate away from 0 in either direction, more so in mode B, and the weights chasing chance make the composites less reliable than sum scores. The bootstrap’s tests do not account for it, and in a few samples PLS does not converge (counted as failed). The card simulates 500 samples of 100, each estimated by PLS mode A and mode B (cSEM, centroid weighting), regression on sum scores and ML SEM (lavaan), with every bootstrap test, the composites’ reliability and the measurement checks of a PLS report. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
       RONKKO_EVERMANN_DIFFERS +
       ' Opens its card on the Analyses tab beside the diagram.',
     shows:
-      'The distribution of the PLS estimate of A → B has two peaks either side of 0 (SD about .19), where sum scores (SD about .10) and ML SEM (about .14) have one at 0. The Type I error by test table shows which bootstrap tests keep the 5% level. The reliability rows show PLS’s estimated weights below the ideal reliability, and the AVE, ρc, HTMT and Fornell–Larcker rows how often each check passes.',
+      'Figure 3 of the paper: the distributions of the PLS mode A and mode B estimates of A → B have two peaks either side of 0 (SD about .19 and .26), where sum scores (SD about .10) and ML SEM (about .14) have one at 0. Figure 2: the reliability rows put sum scores at .75, PLS mode A near .61 and mode B near .28 (the ideal weights reach .77). The Type I error by test table shows which bootstrap tests keep the 5% level, and the AVE, ρc, HTMT and Fornell–Larcker rows how often each check passes.',
     ...ronkkoEvermannCard(0),
   },
   {
     id: 'ronkko-evermann-beta',
     title: 'Monte Carlo: PLS, sum scores and ML SEM at β = .3 (Rönkkö & Evermann 2013)',
     description:
-      'The paper’s population with an effect of .3 of A on B: two common factors with three indicators each (loadings .6, .7, .8). Composites carry measurement error, so regression on sum scores underestimates the effect (about .22: reliability .75 times .3); PLS weights capitalise on chance, which raises the PLS estimate above the sum scores’ but not to .3, while ML SEM estimates it without bias but with the largest SD. The card simulates 500 samples of 100, each estimated by PLS mode A (cSEM), regression on sum scores and ML SEM (lavaan), with bias, power and coverage, every bootstrap test, the composites’ reliability and the measurement checks of a PLS report. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
+      'The paper’s population with an effect of .3 of A on B: two common factors with three indicators each (loadings .6, .7, .8). Composites carry measurement error, so regression on sum scores underestimates the effect (about .22: reliability .75 times .3). PLS weights capitalise on chance, which raises the PLS estimate above the sum scores’ although its composites are less reliable: mode A stays below .3, mode B reaches it on average with a larger SD. ML SEM estimates it without bias, with a larger SD than PLS mode A. The card simulates 500 samples of 100, each estimated by PLS mode A and mode B (cSEM, centroid weighting), regression on sum scores and ML SEM (lavaan), with bias, power and coverage, every bootstrap test, the composites’ reliability and the measurement checks of a PLS report. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
       RONKKO_EVERMANN_DIFFERS +
       ' Opens its card on the Analyses tab beside the diagram.',
     shows:
-      'In the A → B table sum scores have a mean near .22 and PLS near .27 for a true .3 (both with negative bias), ML SEM a mean near .3 with the largest SD (about .13 against .09 for PLS). The reliability rows show how close PLS’s weights come to the ideal weights and to unit weights.',
+      'Figure 3 of the paper: in the A → B table sum scores have a mean near .22, PLS mode A near .27 and mode B near .30 for a true .3; SDs about .10 (sum scores), .09 (mode A), .12 (mode B) and .13 (ML SEM, mean near .3). Figure 2: the reliability rows put sum scores at .75, PLS mode A near .72 and mode B near .51.',
     ...ronkkoEvermannCard(0.3),
   },
   {
