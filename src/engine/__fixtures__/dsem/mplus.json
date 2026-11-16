@@ -230,7 +230,7 @@
    "rstan": "2.32.7"
   },
   "request": "427cb491b76d96e1",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex6.26b": {
   "result": {
@@ -508,7 +508,7 @@
    "rstan": "2.32.7"
   },
   "request": "50fd10bfe6b5f1bd",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex6.27": {
   "result": {
@@ -681,7 +681,7 @@
    "rstan": "2.32.7"
   },
   "request": "fc21d7ef5cff2671",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex6.28": {
   "result": {
@@ -1169,7 +1169,7 @@
    "rstan": "2.32.7"
   },
   "request": "eed1268ffea0b8f3",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.19part1": {
   "result": {
@@ -1569,7 +1569,7 @@
    "rstan": "2.32.7"
   },
   "request": "88d90db59d1a8cfa",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.30": {
   "result": {
@@ -1849,7 +1849,7 @@
    "rstan": "2.32.7"
   },
   "request": "15ddcbb10acdf842",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.19part3": {
   "result": {
@@ -2309,7 +2309,7 @@
    "rstan": "2.32.7"
   },
   "request": "957d40a6de399f30",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.24": {
   "result": {
@@ -2545,7 +2545,7 @@
    "rstan": "2.32.7"
   },
   "request": "e84030774ba7fbf7",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.25": {
   "result": {
@@ -2826,7 +2826,7 @@
    "rstan": "2.32.7"
   },
   "request": "37aad28e094c13dc",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.26": {
   "result": {
@@ -2942,7 +2942,7 @@
    "rstan": "2.32.7"
   },
   "request": "da1e6866c0ae2f2a",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.28": {
   "result": {
@@ -3177,7 +3177,7 @@
    "rstan": "2.32.7"
   },
   "request": "8193366f06957ab7",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.29": {
   "result": {
@@ -3607,7 +3607,7 @@
    "rstan": "2.32.7"
   },
   "request": "c4b0c932b84999aa",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.31": {
   "result": {
@@ -3962,7 +3962,7 @@
    "rstan": "2.32.7"
   },
   "request": "15732f5af18454dd",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.32": {
   "result": {
@@ -4437,7 +4437,7 @@
    "rstan": "2.32.7"
   },
   "request": "3e729cbb846db4ab",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.30b": {
   "result": {
@@ -4822,7 +4822,7 @@
    "rstan": "2.32.7"
   },
   "request": "2944723d887854cd",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.33": {
   "result": {
@@ -4967,7 +4967,7 @@
    "rstan": "2.32.7"
   },
   "request": "0c07bfcb8a634438",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.32b": {
   "result": {
@@ -5832,7 +5832,7 @@
    "rstan": "2.32.7"
   },
   "request": "4b1516097603089e",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.35": {
   "result": {
@@ -6202,7 +6202,7 @@
    "rstan": "2.32.7"
   },
   "request": "3f0093187637c5f3",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.34": {
   "result": {
@@ -6647,7 +6647,7 @@
    "rstan": "2.32.7"
   },
   "request": "6a5d87941c816263",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.37": {
   "result": {
@@ -7122,7 +7122,7 @@
    "rstan": "2.32.7"
   },
   "request": "4f3945edf260107e",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.38": {
   "result": {
@@ -7358,7 +7358,7 @@
    "rstan": "2.32.7"
   },
   "request": "9cf70abe44480d47",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.39": {
   "result": {
@@ -7714,7 +7714,7 @@
    "rstan": "2.32.7"
   },
   "request": "bd583e5669b37dbd",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.38b": {
   "result": {
@@ -8160,7 +8160,7 @@
    "rstan": "2.32.7"
   },
   "request": "9104a1786c6ba1a0",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.40": {
   "result": {
@@ -8561,7 +8561,7 @@
    "rstan": "2.32.7"
   },
   "request": "bbdf37c60bdda6af",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.39b": {
   "result": {
@@ -9157,7 +9157,7 @@
    "rstan": "2.32.7"
   },
   "request": "23df90410b3e81e8",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.40part2": {
   "result": {
@@ -9513,7 +9513,7 @@
    "rstan": "2.32.7"
   },
   "request": "86bfd9120c12cbaa",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "rstan-dsem-sleepstudy": {
   "result": {
@@ -9628,7 +9628,7 @@
    "rstan": "2.32.7"
   },
   "request": "cc8f459561e58ea2",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  },
  "ex9.27": {
   "result": {
@@ -9969,6 +9969,6 @@
    "rstan": "2.32.7"
   },
   "request": "5f9de5d62b9fcc8d",
-  "rCode": "048b22a87e3f88b3"
+  "rCode": "97f028e032acac3e"
  }
 }
