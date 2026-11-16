@@ -9,8 +9,9 @@ import {
   type ChartTheme,
 } from '../figure/chartStyle';
 import { exportFigure, type FigureFormat } from '../figure/export';
+import type { FigureSpec, GgFormat } from '../figure/ggplot';
 import { standaloneSvg } from '../figure/standalone';
-import { safeFileName } from '../format';
+import { downloadBlob, downloadText, safeFileName } from '../format';
 import { useStore } from '../store';
 import { IconDownload } from './icons';
 import { useEscape } from './useEscape';
@@ -23,7 +24,9 @@ export interface AxisLabels {
 /**
  * A result chart with its tools: text style (font, size, colour, shared by all
  * charts of the project), this chart's axis titles, and export as vector PDF
- * or PNG. `children` draws the SVG with the axis titles it is given.
+ * or PNG. `children` draws the SVG with the axis titles it is given. A chart
+ * that describes what it draws (`figure`, src/figure/ggplot.ts) can also be
+ * drawn by ggplot2 (PDF, SVG, PNG) or exported as the ggplot2 script.
  */
 export function ChartFrame({
   id,
@@ -34,6 +37,7 @@ export function ChartFrame({
   children,
   caption,
   axes = true,
+  figure,
 }: {
   /** Stable key for this chart's axis titles. */
   id: string;
@@ -46,11 +50,15 @@ export function ChartFrame({
   caption?: ReactNode;
   /** false: a diagram without axes (no axis-title fields in Style). */
   axes?: boolean;
+  /** What the chart draws, for ggplot2 (with the axis titles in use). */
+  figure?: (labels: AxisLabels) => FigureSpec;
 }) {
   const style = useStore((s) => s.settings.charts);
   const project = useStore((s) => s.projectName);
   const readOnly = useStore((s) => s.cloud?.role === 'viewer');
   const [open, setOpen] = useState(false);
+  const [ggOpen, setGgOpen] = useState(false);
+  const [ggBusy, setGgBusy] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const own = style.labels[id] ?? {};
   const labels = { x: own.x || defaults.x, y: own.y || defaults.y };
@@ -87,15 +95,42 @@ export function ChartFrame({
     );
   };
 
+  const ggplot = async (format: GgFormat | 'r') => {
+    if (!figure) return;
+    setGgOpen(false);
+    setGgBusy(true);
+    const stem = `${safeFileName(project)}-${safeFileName(name)}`;
+    try {
+      const { ggplotFile, ggplotScript } = await import('../figure/ggplot');
+      if (format === 'r') {
+        downloadText(`${stem}-ggplot2.R`, await ggplotScript(figure(labels), style));
+      } else {
+        downloadBlob(`${stem}-ggplot2.${format}`, await ggplotFile(figure(labels), style, format));
+      }
+    } catch (e) {
+      useStore
+        .getState()
+        .toast(
+          'error',
+          `Could not draw the chart with ggplot2: ${e instanceof Error ? e.message : String(e)}`,
+        );
+    } finally {
+      setGgBusy(false);
+    }
+  };
+
   useEscape(() => setOpen(false), open);
+  useEscape(() => setGgOpen(false), ggOpen);
   useEffect(() => {
-    if (!open) return;
+    if (!open && !ggOpen) return;
     const onDown = (e: MouseEvent) => {
-      if (!box.current?.contains(e.target as Node)) setOpen(false);
+      if (box.current?.contains(e.target as Node)) return;
+      setOpen(false);
+      setGgOpen(false);
     };
     window.addEventListener('mousedown', onDown);
     return () => window.removeEventListener('mousedown', onDown);
-  }, [open]);
+  }, [open, ggOpen]);
 
   return (
     <figure
@@ -133,7 +168,43 @@ export function ChartFrame({
         >
           <IconDownload size={13} /> SVG
         </button>
+        {figure && (
+          <button
+            className={`btn sm ghost${ggOpen ? ' on' : ''}`}
+            onClick={() => setGgOpen(!ggOpen)}
+            aria-expanded={ggOpen}
+            disabled={ggBusy}
+            title="This chart drawn by ggplot2 in R, or the R script that draws it"
+          >
+            {ggBusy ? 'Drawing with ggplot2…' : 'ggplot2'}
+          </button>
+        )}
       </div>
+      {ggOpen && (
+        <div className="chart-style chart-ggplot" role="menu" aria-label="Draw with ggplot2">
+          <button className="btn sm" role="menuitem" onClick={() => ggplot('pdf')}>
+            <IconDownload size={13} /> PDF (vector)
+          </button>
+          <button
+            className="btn sm"
+            role="menuitem"
+            onClick={() => ggplot('svg')}
+            title="Needs desktop R through the helper (svglite)"
+          >
+            <IconDownload size={13} /> SVG (vector, desktop R)
+          </button>
+          <button className="btn sm" role="menuitem" onClick={() => ggplot('png')}>
+            <IconDownload size={13} /> PNG (300 dpi)
+          </button>
+          <button className="btn sm" role="menuitem" onClick={() => ggplot('r')}>
+            <IconDownload size={13} /> R script
+          </button>
+          <div className="hint">
+            Drawn by ggplot2 with this project’s theme, font and size. The script holds the data and
+            draws the same figure in your R.
+          </div>
+        </div>
+      )}
       {open && (
         <div className="chart-style" role="dialog" aria-label="Chart style">
           <label>
