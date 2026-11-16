@@ -25,7 +25,7 @@ export interface GgLayer {
   /** The legend entry ('' or absent: none). */
   series?: string;
   color: string;
-  linetype?: 'solid' | 'dashed' | 'dotted';
+  linetype?: 'solid' | 'dashed' | 'dotted' | 'dotdash' | 'longdash' | 'twodash';
   /** Points: open circles (filled otherwise). */
   open?: boolean;
   alpha?: number;

@@ -163,8 +163,14 @@ describe('Monte Carlo card', () => {
       expect(svg).toContain('class="plot-panel"');
       for (const e of ids) expect(svg).toContain(`>${e}</text>`);
     }
-    expect(power).toContain('>Power .80</text>');
+    // (a null effect: its rejection rate is the Type I error, against the nominal α, on a tight axis)
+    expect(power).toContain(`>Nominal α = ${d.alpha}</text>`);
+    expect(power).toContain('>Type I error rate</text>');
+    expect(power).not.toContain('>100%</text>');
     expect(dist).toContain('>True value</text>');
+    // (round ticks and a line type per estimator, as published simulation figures)
+    expect(dist).toMatch(/>−?0\.[0-9]+<\/text>/);
+    expect(dist).toContain('stroke-dasharray="7 4"');
     // (no key outside the charts, which an exported figure would lose)
     expect(out).not.toContain('class="legend"');
   });

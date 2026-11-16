@@ -8,21 +8,9 @@ import { fmt } from '../format';
 import type { MetaResult } from '../rengine/meta';
 import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
 import { PlotPanel } from '../figure/panel';
+import { niceTicks } from '../figure/ticks';
 
-/** About five round tick values covering [lo, hi]. */
-export function niceTicks(lo: number, hi: number, count = 5): number[] {
-  const span = hi - lo || Math.abs(hi) || 1;
-  const raw = span / count;
-  const magnitude = 10 ** Math.floor(Math.log10(raw));
-  const step = [1, 2, 2.5, 5, 10].map((m) => m * magnitude).find((s) => s >= raw) ?? raw;
-  const first = Math.ceil(lo / step) * step;
-  const ticks: number[] = [];
-  for (let t = first; t <= hi + step * 1e-9; t += step) {
-    // (rounded to the step's precision: no 0.30000000000000004)
-    ticks.push(Number(t.toFixed(10)));
-  }
-  return ticks;
-}
+export { niceTicks };
 
 /** The measure's scale, for the axis title. */
 export function scaleName(r: Pick<MetaResult, 'measure'>): string {

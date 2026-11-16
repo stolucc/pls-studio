@@ -578,11 +578,18 @@ export interface McHistogram {
   below: number;
   above: number;
   /**
-   * Kernel density of the estimates at DENSITY_POINTS evenly spaced points from lo to hi (Gaussian kernel,
+   * Kernel density of the estimates at DENSITY_POINTS evenly spaced points from densityLo to densityHi (Gaussian kernel,
    * R's default bandwidth bw.nrd0, as density() and ggplot2's geom_density draw it); absent in results saved
    * before it was added.
    */
   density?: number[];
+  /**
+   * The density's range: the histogram's widened by three of the widest bandwidth among the estimators, as
+   * R's density() reaches past the data (cut = 3), so the curves come down to 0; absent before it was added
+   * (the density then spans lo to hi).
+   */
+  densityLo?: number;
+  densityHi?: number;
 }
 
 const HIST_BINS = 40;
@@ -598,13 +605,26 @@ export function kernelDensity(values: number[], lo: number, hi: number): number[
  * estimator and sample size), widened to include the true value. Extreme estimates (an inadmissible PLSc
  * solution) would otherwise squeeze the rest into a few bins.
  */
-function histRanges(params: McParam[], parts: McPart[]): { lo: number; hi: number }[] {
+function histRanges(
+  params: McParam[],
+  parts: McPart[],
+): { lo: number; hi: number; densityLo: number; densityHi: number }[] {
   return params.map((param, pi) => {
     const all: number[] = [];
+    // (each estimator's estimates at each sample size, for its bandwidth)
+    const series = new Map<string, number[]>();
     for (const part of parts)
-      for (const perParam of part.est)
-        for (const v of perParam[pi]) if (Number.isFinite(v)) all.push(v);
-    if (!all.length) return { lo: NaN, hi: NaN };
+      part.est.forEach((perParam, ei) => {
+        const key = `${ei}:${part.n}`;
+        const own = series.get(key) ?? [];
+        for (const v of perParam[pi])
+          if (Number.isFinite(v)) {
+            all.push(v);
+            own.push(v);
+          }
+        series.set(key, own);
+      });
+    if (!all.length) return { lo: NaN, hi: NaN, densityLo: NaN, densityHi: NaN };
     all.sort((a, b) => a - b);
     const at = (q: number) => all[Math.min(all.length - 1, Math.floor(q * all.length))];
     let lo = Math.min(at(0.005), param.kind === 'fit' ? Infinity : param.value);
@@ -613,11 +633,17 @@ function histRanges(params: McParam[], parts: McPart[]): { lo: number; hi: numbe
       lo -= 0.05;
       hi += 0.05;
     }
-    return { lo, hi };
+    let bw = 0;
+    for (const values of series.values())
+      if (values.length > 1) bw = Math.max(bw, bandwidthNrd0(values) || 0);
+    return { lo, hi, densityLo: lo - 3 * bw, densityHi: hi + 3 * bw };
   });
 }
 
-function histogram(values: number[], range: { lo: number; hi: number }): McHistogram | undefined {
+function histogram(
+  values: number[],
+  range: { lo: number; hi: number; densityLo: number; densityHi: number },
+): McHistogram | undefined {
   if (!Number.isFinite(range.lo)) return undefined;
   const counts = new Array<number>(HIST_BINS).fill(0);
   let below = 0;
@@ -628,8 +654,17 @@ function histogram(values: number[], range: { lo: number; hi: number }): McHisto
     else if (v > range.hi) above++;
     else counts[Math.min(HIST_BINS - 1, Math.floor((v - range.lo) / width))]++;
   }
-  const density = values.length > 1 ? kernelDensity(values, range.lo, range.hi) : undefined;
-  return { lo: range.lo, hi: range.hi, counts, below, above, ...(density ? { density } : {}) };
+  if (values.length < 2) return { lo: range.lo, hi: range.hi, counts, below, above };
+  return {
+    lo: range.lo,
+    hi: range.hi,
+    counts,
+    below,
+    above,
+    density: kernelDensity(values, range.densityLo, range.densityHi),
+    densityLo: range.densityLo,
+    densityHi: range.densityHi,
+  };
 }
 
 export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {

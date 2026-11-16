@@ -600,6 +600,15 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .mc-chart .grid-line { stroke: var(--border); }
 .mc-chart .ref-line { stroke: var(--text-3); stroke-dasharray: 4 4; }
 .mc-chart .axis-title { font-weight: 500; }
+/* The Monte Carlo charts: two equal columns (one below a 940px pane), each with its title and controls above it. */
+.mc-row { flex: 1 1 100%; margin-bottom: 0; }
+.mc-charts { flex: 1 1 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); gap: 20px 28px; align-items: start; }
+.mc-chart-head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; min-height: 32px; margin-bottom: 6px; font-size: 12px; color: var(--text-2); }
+.mc-chart-head label { display: inline-flex; gap: 6px; align-items: center; }
+.mc-chart-head .select { width: auto; }
+.segmented.compact { display: inline-flex; flex-wrap: nowrap; }
+.segmented.compact button { flex: 0 0 auto; padding: 0 10px; }
+.mc-chart .truth-line { stroke-width: 1.25; }
 .mc-chart .mc-hit { fill: transparent; }
 .mc-chart .mc-hit:hover { fill: var(--text-3); fill-opacity: 0.08; }
 .mc-misspec-group { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
@@ -903,6 +912,12 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
    ggplot2's complete themes draw them. The app's own theme leaves the charts as they are. */
 .chart-frame .plot-panel { fill: none; stroke: none; }
 .chart-frame .plot-axes { fill: none; stroke: none; }
+.chart-frame[data-chart-theme=app] .plot-panel { stroke: var(--text-3); stroke-width: 1; }
+.chart-frame .tick-mark { stroke: var(--text-3); }
+.chart-frame[data-chart-theme=grey] .tick-mark,
+.chart-frame[data-chart-theme=bw] .tick-mark,
+.chart-frame[data-chart-theme=classic] .tick-mark { stroke: #333333; }
+.chart-frame[data-chart-theme=minimal] .tick-mark { stroke: none; }
 .chart-frame .chart-legend text { font-size: var(--chart-size); }
 .chart-frame[data-chart-theme=grey] .plot-panel { fill: #ebebeb; }
 .chart-frame[data-chart-theme=grey] .grid-line { stroke: #ffffff; }

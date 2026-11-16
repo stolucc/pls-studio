@@ -35,7 +35,8 @@ import { useCompute } from '../rengine/compute';
 import { useHelper } from '../rengine/helper';
 import { fingerprint } from './codec';
 import type { AnalysisType, OptionsProps } from './types';
-import { OTHER_COLOR, seriesColor } from '../figure/palette';
+import { OTHER_COLOR, seriesColor, seriesDash } from '../figure/palette';
+import { niceTicks, tickLabel } from '../figure/ticks';
 import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
 import { PlotPanel } from '../figure/panel';
 
@@ -85,9 +86,9 @@ function Num({
 
 /** Each chart's reference line (80% power, 95% coverage, no bias) and axis title. */
 const METRIC_AXIS = {
-  rejection: { ref: 0.8, refLabel: 'Power .80', title: 'Power (rejection rate)' },
-  coverage: { ref: 0.95, refLabel: 'Nominal .95', title: 'CI coverage' },
-  relBias: { ref: 0, refLabel: 'No bias', title: 'Relative bias' },
+  rejection: { title: 'Power (rejection rate)' },
+  coverage: { title: 'CI coverage' },
+  relBias: { title: 'Relative bias' },
 } as const;
 
 /** The fit index a fit parameter stands for; undefined for the χ² test. */
@@ -125,30 +126,47 @@ function PowerChart({
   paramKey,
   estimators,
   metric,
+  alpha,
 }: {
   rows: McSummaryRow[];
   paramKey: string;
   estimators: string[];
   metric: 'rejection' | 'relBias' | 'coverage';
+  alpha: number;
 }) {
   const W = 460;
-  // Each estimator's line, and the dashed reference line (the target power, the nominal coverage, no bias).
+  const sel = rows.filter((r) => r.param.key === paramKey);
+  // A null effect's rejection rate is the Type I error, against the nominal α (not the target power).
+  const typeI = metric === 'rejection' && sel.length > 0 && Math.abs(sel[0].param.value) < 1e-12;
+  const reference = {
+    rejection: typeI
+      ? { ref: alpha, label: `Nominal α = ${alpha}`, title: 'Type I error rate' }
+      : { ref: 0.8, label: 'Power .80', title: METRIC_AXIS.rejection.title },
+    coverage: {
+      ref: 1 - alpha,
+      label: `Nominal ${Number((1 - alpha).toFixed(6))}`,
+      title: METRIC_AXIS.coverage.title,
+    },
+    relBias: { ref: 0, label: 'No bias', title: METRIC_AXIS.relBias.title },
+  }[metric];
+  // Each estimator's line, and the dashed reference line (the target power or α, the nominal coverage, no bias).
   const legend: LegendItem[] = [
-    ...estimators.map((e, k) => ({ label: e, color: seriesColor(k) })),
-    { label: METRIC_AXIS[metric].refLabel, color: OTHER_COLOR, mark: 'dash' as const },
+    ...estimators.map((e, k) => ({ label: e, color: seriesColor(k), dash: seriesDash(k).svg })),
+    { label: reference.label, color: OTHER_COLOR, mark: 'dash' as const },
   ];
   const legendH = legendHeight(legend, W - 54 - 12);
   const H = 240 + legendH;
   const pad = { l: 54, r: 12, t: 12 + legendH, b: 36 };
-  const sel = rows.filter((r) => r.param.key === paramKey);
   const ns = [...new Set(sel.map((r) => r.n))].sort((a, b) => a - b);
   if (ns.length === 0) return null;
   const val = (r: McSummaryRow) => r[metric];
   const vals = sel.map(val).filter((v): v is number => v !== null && Number.isFinite(v));
-  // The y range: symmetric around 0 for the bias (at least ±.1), up to 1 for the rates.
+  // The y range: symmetric around 0 for the bias (at least ±.1), up to 1 for the rates (Type I errors: up to
+  // a little above the largest, at least 4α).
   let lo = 0;
   let hi = 1;
-  if (metric === 'relBias') {
+  if (typeI) hi = Math.min(1, Math.max(4 * alpha, ...vals.map((v) => v * 1.2)));
+  else if (metric === 'relBias') {
     lo = Math.min(-0.1, ...vals) * 1.1;
     hi = Math.max(0.1, ...vals) * 1.1;
   } else if (metric === 'coverage') lo = Math.min(0.8, ...vals);
@@ -159,8 +177,8 @@ function PowerChart({
   };
   const sx = (n: number) => pad.l + xShare(n) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((hi - v) / (hi - lo)) * (H - pad.t - pad.b);
-  const { ref, title: yTitle } = METRIC_AXIS[metric];
-  const ticks = Array.from({ length: 5 }, (_, i) => lo + ((hi - lo) * i) / 4);
+  const { ref, title: yTitle } = reference;
+  const ticks = niceTicks(lo, hi, 4);
   return (
     <ChartFrame
       id={`mc:${metric}`}
@@ -182,13 +200,20 @@ function PowerChart({
               return v !== null && Number.isFinite(v) ? v : null;
             });
             return [
-              { geom: 'line' as const, series: e, color: seriesColor(k), x: ns, y: line },
+              {
+                geom: 'line' as const,
+                series: e,
+                color: seriesColor(k),
+                linetype: seriesDash(k).ggplot,
+                x: ns,
+                y: line,
+              },
               { geom: 'point' as const, series: e, color: seriesColor(k), x: ns, y: line },
             ];
           }),
           {
             geom: 'hline' as const,
-            series: METRIC_AXIS[metric].refLabel,
+            series: reference.label,
             color: OTHER_COLOR,
             linetype: 'dashed' as const,
             y: [ref],
@@ -209,8 +234,12 @@ function PowerChart({
           {ticks.map((v) => (
             <g key={v}>
               <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />
-              <text x={pad.l - 6} y={sy(v) + 4} textAnchor="end">
-                {metric === 'relBias' ? `${(v * 100).toFixed(0)}%` : v.toFixed(2)}
+              <line className="tick-mark" x1={pad.l - 4} x2={pad.l} y1={sy(v)} y2={sy(v)} />
+              <text x={pad.l - 7} y={sy(v) + 4} textAnchor="end">
+                {`${tickLabel(
+                  v * 100,
+                  ticks.map((t) => t * 100),
+                )}%`}
               </text>
             </g>
           ))}
@@ -223,9 +252,12 @@ function PowerChart({
             y2={sy(ref)}
           />
           {ns.map((n) => (
-            <text key={n} x={sx(n)} y={H - pad.b + 16} textAnchor="middle">
-              {n}
-            </text>
+            <g key={n}>
+              <line className="tick-mark" x1={sx(n)} x2={sx(n)} y1={H - pad.b} y2={H - pad.b + 4} />
+              <text x={sx(n)} y={H - pad.b + 17} textAnchor="middle">
+                {n}
+              </text>
+            </g>
           ))}
           <text
             x={pad.l + (W - pad.l - pad.r) / 2}
@@ -252,11 +284,12 @@ function PowerChart({
                 <path
                   d={pts.map((r, i) => `${i ? 'L' : 'M'} ${sx(r.n)} ${sy(val(r)!)}`).join(' ')}
                   stroke={seriesColor(k)}
-                  strokeWidth={2.2}
+                  strokeWidth={1.75}
+                  strokeDasharray={seriesDash(k).svg || undefined}
                   fill="none"
                 />
                 {pts.map((r) => (
-                  <circle key={r.n} cx={sx(r.n)} cy={sy(val(r)!)} r={3.5} fill={seriesColor(k)} />
+                  <circle key={r.n} cx={sx(r.n)} cy={sy(val(r)!)} r={3} fill={seriesColor(k)} />
                 ))}
               </g>
             );
@@ -1043,9 +1076,12 @@ export function McDuration({ design, engine }: { design: McDesign; engine: 'r' |
   );
 }
 
+/** The true value's line (a solid dark line, as simulation figures draw it). */
+const TRUTH_COLOR = '#374151';
+
 /**
- * The distribution of the estimates at one sample size: an outline per estimator (share of replications per
- * bin), the true value as the reference line. A null effect estimated by PLS shows here as two humps
+ * The distribution of the estimates at one sample size: a kernel density per estimator (or its share of
+ * replications per bin), in its colour and line type, the true value as a solid line. A null effect estimated by PLS shows here as two humps
  * around 0 (Rönkkö & Evermann 2013) where a mean and SD show nothing unusual.
  */
 function DistributionChart({
@@ -1053,14 +1089,15 @@ function DistributionChart({
   param,
   n,
   estimators,
+  shape,
 }: {
   rows: McSummaryRow[];
   param: McParam;
   n: number;
   estimators: string[];
+  /** Density (a smooth kernel estimate, as published simulation figures draw it) or the histogram's bins. */
+  shape: 'density' | 'histogram';
 }) {
-  // Density (a smooth kernel estimate, as published simulation figures draw it) or the histogram's bins.
-  const [shape, setShape] = useState<'density' | 'histogram'>('density');
   const W = 460;
   const series = estimators
     .map((e, k) => ({
@@ -1073,209 +1110,198 @@ function DistributionChart({
         !!x.row?.hist,
     );
   if (!series.length) return null;
-  // Each estimator's curve, and the dashed line at the true value (fit indices have none).
+  const truth = param.kind !== 'fit';
+  // Each estimator's curve in its colour and line type, and the solid line at the true value (fit indices have none).
   const legend: LegendItem[] = [
-    ...series.map(({ e, k }) => ({ label: e, color: seriesColor(k) })),
-    ...(param.kind !== 'fit'
-      ? [{ label: 'True value', color: OTHER_COLOR, mark: 'dash' as const }]
-      : []),
+    ...series.map(({ e, k }) => ({ label: e, color: seriesColor(k), dash: seriesDash(k).svg })),
+    ...(truth ? [{ label: 'True value', color: TRUTH_COLOR }] : []),
   ];
   const legendH = legendHeight(legend, W - 54 - 12);
-  const H = 240 + legendH;
-  const pad = { l: 54, r: 12, t: 12 + legendH, b: 36 };
-  const { lo, hi, counts } = series[0].row.hist;
-  const bins = counts.length;
+  const H = 250 + legendH;
+  const pad = { l: 54, r: 14, t: 12 + legendH, b: 40 };
+  const hist = series[0].row.hist;
+  const bins = hist.counts.length;
   const smooth = shape === 'density' && series.every(({ row }) => row.hist.density);
+  // (the density reaches past the histogram's range, as R's density() does, so its curves come down to 0)
+  const lo = smooth ? (hist.densityLo ?? hist.lo) : hist.lo;
+  const hi = smooth ? (hist.densityHi ?? hist.hi) : hist.hi;
   const share = (row: McSummaryRow & { hist: McHistogram }, b: number) =>
     row.reps ? row.hist.counts[b] / row.reps : 0;
-  const top = smooth
+  const peak = smooth
     ? Math.max(1e-9, ...series.flatMap(({ row }) => row.hist.density!))
     : Math.max(0.01, ...series.flatMap(({ row }) => row.hist.counts.map((_, b) => share(row, b))));
-  const points = series[0].row.hist.density?.length ?? 0;
+  const xTicks = niceTicks(lo, hi);
+  // (the top at the round value just above the highest point)
+  const yStep = niceTicks(0, peak, 4)[1] ?? peak;
+  const top = Math.ceil(peak / yStep - 1e-9) * yStep;
+  const yTicks = niceTicks(0, top, 4);
+  const points = hist.density?.length ?? 0;
   const at = (i: number) => lo + ((hi - lo) * i) / Math.max(1, points - 1);
-  const sx = (v: number) => pad.l + ((v - lo) / (hi - lo)) * (W - pad.l - pad.r);
-  const sy = (v: number) => pad.t + (1 - v / top) * (H - pad.t - pad.b);
-  const edge = (b: number) => lo + ((hi - lo) * b) / bins;
-  const xTicks = Array.from({ length: 5 }, (_, i) => lo + ((hi - lo) * i) / 4);
-  const yTicks = Array.from({ length: 5 }, (_, i) => (top * i) / 4);
+  const x0 = pad.l;
+  const x1 = W - pad.r;
+  const y0 = H - pad.b;
+  const sx = (v: number) => x0 + ((v - lo) / (hi - lo)) * (x1 - x0);
+  const sy = (v: number) => pad.t + (1 - v / top) * (y0 - pad.t);
+  const edge = (b: number) => hist.lo + ((hist.hi - hist.lo) * b) / bins;
   const outline = (row: McSummaryRow & { hist: McHistogram }) => {
-    let d = `M ${sx(lo)} ${sy(0)}`;
+    let d = `M ${sx(hist.lo)} ${sy(0)}`;
     for (let b = 0; b < bins; b++) d += ` V ${sy(share(row, b))} H ${sx(edge(b + 1))}`;
     return `${d} V ${sy(0)}`;
   };
   const curve = (row: McSummaryRow & { hist: McHistogram }) =>
     row.hist.density!.map((y, i) => `${i ? 'L' : 'M'} ${sx(at(i))} ${sy(y)}`).join(' ');
-  const outside = series.filter(({ row }) => row.hist.below + row.hist.above > 0);
+  const outside = smooth ? [] : series.filter(({ row }) => row.hist.below + row.hist.above > 0);
   return (
-    <>
-      {series.every(({ row }) => row.hist.density) && (
-        <div className="segmented" role="radiogroup" aria-label="Shape of the distribution">
-          {(['density', 'histogram'] as const).map((k) => (
-            <button
-              key={k}
-              role="radio"
-              aria-checked={shape === k}
-              className={shape === k ? 'on' : ''}
-              onClick={() => setShape(k)}
-            >
-              {k === 'density' ? 'Density' : 'Histogram'}
-            </button>
+    <ChartFrame
+      id="mc:distribution"
+      name="simulation-distribution"
+      width={W}
+      height={H}
+      defaults={{ x: 'Estimate', y: smooth ? 'Density' : 'Share of replications' }}
+      caption={
+        outside.length > 0 && (
+          <figcaption className="hint">
+            Outside the range shown:{' '}
+            {outside.map(({ e, row }) => `${e} ${row.hist.below + row.hist.above}`).join(', ')}.
+          </figcaption>
+        )
+      }
+      figure={(labels) => ({
+        title: `Distribution of the estimates at N = ${n}`,
+        x: { title: labels.x, limits: [lo, hi] },
+        y: { title: labels.y, limits: [0, top], percent: !smooth },
+        width: W,
+        height: H - legendH,
+        layers: [
+          // (the density at its points, or each bin's share as a step outline like the chart's)
+          ...series.map(({ e, k, row }) => ({
+            geom: smooth ? ('line' as const) : ('step' as const),
+            series: e,
+            color: seriesColor(k),
+            linetype: seriesDash(k).ggplot,
+            x: smooth
+              ? row.hist.density!.map((_, i) => at(i))
+              : Array.from({ length: bins + 1 }, (_, b) => edge(b)),
+            y: smooth
+              ? row.hist.density!
+              : Array.from({ length: bins + 1 }, (_, b) => share(row, Math.min(b, bins - 1))),
+          })),
+          ...(truth
+            ? [
+                {
+                  geom: 'vline' as const,
+                  series: 'True value',
+                  color: TRUTH_COLOR,
+                  x: [param.value],
+                },
+              ]
+            : []),
+        ],
+      })}
+    >
+      {(labels) => (
+        <svg
+          className="mc-chart"
+          width={W}
+          height={H}
+          role="img"
+          aria-label={`Distribution of the estimates at N = ${n}`}
+        >
+          <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
+          <PlotPanel x={x0} y={pad.t} width={x1 - x0} height={y0 - pad.t} />
+          {yTicks.map((v) => (
+            <g key={`y${v}`}>
+              <line className="grid-line" x1={x0} x2={x1} y1={sy(v)} y2={sy(v)} />
+              <line className="tick-mark" x1={x0 - 4} x2={x0} y1={sy(v)} y2={sy(v)} />
+              <text x={x0 - 7} y={sy(v) + 4} textAnchor="end">
+                {smooth
+                  ? tickLabel(v, yTicks)
+                  : `${tickLabel(
+                      v * 100,
+                      yTicks.map((t) => t * 100),
+                    )}%`}
+              </text>
+            </g>
           ))}
-        </div>
-      )}
-      <ChartFrame
-        id="mc:distribution"
-        name="simulation-distribution"
-        width={W}
-        height={H}
-        defaults={{ x: 'Estimate', y: smooth ? 'Density' : 'Share of replications' }}
-        figure={(labels) => ({
-          title: `Distribution of the estimates at N = ${n}`,
-          x: { title: labels.x, limits: [lo, hi] },
-          y: { title: labels.y, limits: [0, top], percent: !smooth },
-          width: W,
-          height: H - legendH,
-          layers: [
-            // (the density at its points, or each bin's share as a step outline like the chart's)
-            ...series.map(({ e, k, row }) =>
-              smooth
-                ? {
-                    geom: 'line' as const,
-                    series: e,
-                    color: seriesColor(k),
-                    x: row.hist.density!.map((_, i) => at(i)),
-                    y: row.hist.density!,
-                  }
-                : {
-                    geom: 'step' as const,
-                    series: e,
-                    color: seriesColor(k),
-                    x: Array.from({ length: bins + 1 }, (_, b) => edge(b)),
-                    y: Array.from({ length: bins + 1 }, (_, b) =>
-                      share(row, Math.min(b, bins - 1)),
-                    ),
-                  },
-            ),
-            ...(param.kind !== 'fit'
-              ? [
-                  {
-                    geom: 'vline' as const,
-                    series: 'True value',
-                    color: OTHER_COLOR,
-                    linetype: 'dashed' as const,
-                    x: [param.value],
-                  },
-                ]
-              : []),
-          ],
-        })}
-      >
-        {(labels) => (
-          <svg
-            className="mc-chart"
-            width={W}
-            height={H}
-            role="img"
-            aria-label={`Distribution of the estimates at N = ${n}`}
+          {xTicks.map((v) => (
+            <g key={`x${v}`}>
+              <line className="tick-mark" x1={sx(v)} x2={sx(v)} y1={y0} y2={y0 + 4} />
+              <text x={sx(v)} y={y0 + 17} textAnchor="middle">
+                {tickLabel(v, xTicks)}
+              </text>
+            </g>
+          ))}
+          <text x={x0 + (x1 - x0) / 2} y={H - 4} textAnchor="middle" className="axis-title">
+            {labels.x}
+          </text>
+          <text
+            transform={`translate(11 ${pad.t + (y0 - pad.t) / 2}) rotate(-90)`}
+            textAnchor="middle"
+            className="axis-title"
           >
-            <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
-            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
-            {yTicks.map((v) => (
-              <g key={v}>
-                <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />
-                <text x={pad.l - 6} y={sy(v) + 4} textAnchor="end">
-                  {v.toFixed(2)}
-                </text>
-              </g>
+            {labels.y}
+          </text>
+          {truth && (
+            <line
+              className="truth-line"
+              stroke={TRUTH_COLOR}
+              x1={sx(param.value)}
+              x2={sx(param.value)}
+              y1={pad.t}
+              y2={y0}
+            />
+          )}
+          {series.map(({ e, k, row }) => (
+            <path
+              key={e}
+              d={smooth ? curve(row) : outline(row)}
+              stroke={seriesColor(k)}
+              strokeWidth={1.75}
+              strokeDasharray={seriesDash(k).svg || undefined}
+              fill="none"
+            />
+          ))}
+          {/* Hover (density): every estimator's density at the nearest point. */}
+          {smooth &&
+            Array.from({ length: points }, (_, i) => (
+              <rect
+                key={i}
+                className="mc-hit"
+                x={sx(at(Math.max(0, i - 0.5)))}
+                y={pad.t}
+                width={sx(at(Math.min(points - 1, i + 0.5))) - sx(at(Math.max(0, i - 0.5)))}
+                height={y0 - pad.t}
+              >
+                <title>
+                  {`${fmt(at(i))}\n` +
+                    series
+                      .map(({ e, row }) => `${e}: density ${fmt(row.hist.density![i])}`)
+                      .join('\n')}
+                </title>
+              </rect>
             ))}
-            {xTicks.map((v) => (
-              <text key={v} x={sx(v)} y={H - pad.b + 16} textAnchor="middle">
-                {fmt(v)}
-              </text>
+          {/* Hover (histogram): each bin's range and every estimator's share in it. */}
+          {!smooth &&
+            hist.counts.map((_, b) => (
+              <rect
+                key={b}
+                className="mc-hit"
+                x={sx(edge(b))}
+                y={pad.t}
+                width={sx(edge(b + 1)) - sx(edge(b))}
+                height={y0 - pad.t}
+              >
+                <title>
+                  {`${fmt(edge(b))} to ${fmt(edge(b + 1))}\n` +
+                    series
+                      .map(({ e, row }) => `${e}: ${(share(row, b) * 100).toFixed(1)}%`)
+                      .join('\n')}
+                </title>
+              </rect>
             ))}
-            {param.kind !== 'fit' && (
-              <line
-                className="ref-line"
-                style={{ stroke: OTHER_COLOR }}
-                x1={sx(param.value)}
-                x2={sx(param.value)}
-                y1={pad.t}
-                y2={H - pad.b}
-              />
-            )}
-            <text
-              x={pad.l + (W - pad.l - pad.r) / 2}
-              y={H - 4}
-              textAnchor="middle"
-              className="axis-title"
-            >
-              {labels.x}
-            </text>
-            <text
-              transform={`translate(11 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`}
-              textAnchor="middle"
-              className="axis-title"
-            >
-              {labels.y}
-            </text>
-            {series.map(({ e, k, row }) => (
-              <path
-                key={e}
-                d={smooth ? curve(row) : outline(row)}
-                stroke={seriesColor(k)}
-                strokeWidth={2}
-                fill="none"
-              />
-            ))}
-            {/* Hover (density): every estimator's density at the nearest point. */}
-            {smooth &&
-              Array.from({ length: points }, (_, i) => (
-                <rect
-                  key={i}
-                  className="mc-hit"
-                  x={sx(at(Math.max(0, i - 0.5)))}
-                  y={pad.t}
-                  width={sx(at(Math.min(points - 1, i + 0.5))) - sx(at(Math.max(0, i - 0.5)))}
-                  height={H - pad.t - pad.b}
-                >
-                  <title>
-                    {`${fmt(at(i))}\n` +
-                      series
-                        .map(({ e, row }) => `${e}: density ${fmt(row.hist.density![i])}`)
-                        .join('\n')}
-                  </title>
-                </rect>
-              ))}
-            {/* Hover (histogram): each bin's range and every estimator's share in it. */}
-            {!smooth &&
-              counts.map((_, b) => (
-                <rect
-                  key={b}
-                  className="mc-hit"
-                  x={sx(edge(b))}
-                  y={pad.t}
-                  width={sx(edge(b + 1)) - sx(edge(b))}
-                  height={H - pad.t - pad.b}
-                >
-                  <title>
-                    {`${fmt(edge(b))} to ${fmt(edge(b + 1))}\n` +
-                      series
-                        .map(({ e, row }) => `${e}: ${(share(row, b) * 100).toFixed(1)}%`)
-                        .join('\n')}
-                  </title>
-                </rect>
-              ))}
-            {outside.length > 0 && (
-              <text x={W - pad.r} y={pad.t + 10} textAnchor="end">
-                {`outside the range: ${outside
-                  .map(({ e, row }) => `${e} ${row.hist.below + row.hist.above}`)
-                  .join(', ')}`}
-              </text>
-            )}
-          </svg>
-        )}
-      </ChartFrame>
-    </>
+        </svg>
+      )}
+    </ChartFrame>
   );
 }
 
@@ -1286,6 +1312,7 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
   const activeParam = params.find((p) => p.key === paramKey) ?? params[0];
   const ns = [...new Set(rows.map((r) => r.n))].sort((a, b) => a - b);
   const [distN, setDistN] = useState<number | null>(null);
+  const [shape, setShape] = useState<'density' | 'histogram'>('density');
   const shownN = distN !== null && ns.includes(distN) ? distN : ns[0];
   return (
     <div className="tables">
@@ -1294,7 +1321,7 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
       ) : (
         activeParam && (
           <>
-            <div className="ipma-controls">
+            <div className="ipma-controls mc-row">
               <label>
                 Parameter
                 <select
@@ -1309,63 +1336,93 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                   ))}
                 </select>
               </label>
-              <div className="segmented" style={{ width: 270 }}>
-                <button
-                  className={metric === 'rejection' ? 'on' : ''}
-                  onClick={() => setMetric('rejection')}
-                >
-                  {Math.abs(activeParam.value) < 1e-12 ? 'Type I' : 'Power'}
-                </button>
-                <button
-                  className={metric === 'relBias' ? 'on' : ''}
-                  onClick={() => setMetric('relBias')}
-                  disabled={Math.abs(activeParam.value) < 1e-12}
-                >
-                  Rel. bias
-                </button>
-                <button
-                  className={metric === 'coverage' ? 'on' : ''}
-                  onClick={() => setMetric('coverage')}
-                >
-                  Coverage
-                </button>
-              </div>
             </div>
-            <PowerChart
-              rows={rows}
-              paramKey={activeParam.key}
-              estimators={(design.estimators ?? []).map((e) => e.id)}
-              metric={metric}
-            />
-            {rows.some((r) => r.hist) && (
-              <div className="mc-distribution">
-                <div className="ipma-controls">
-                  <span className="mc-subtitle">Distribution of the estimates</span>
-                  {ns.length > 1 && (
-                    <label>
-                      N
-                      <select
-                        className="select"
-                        value={shownN}
-                        onChange={(e) => setDistN(Number(e.target.value))}
+            <div className="mc-charts">
+              {ns.length > 1 && (
+                <div className="mc-chart-col">
+                  <div className="mc-chart-head">
+                    <span className="mc-subtitle">By sample size</span>
+                    <div className="segmented compact">
+                      <button
+                        className={metric === 'rejection' ? 'on' : ''}
+                        onClick={() => setMetric('rejection')}
                       >
-                        {ns.map((n) => (
-                          <option key={n} value={n}>
-                            {n}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
+                        {Math.abs(activeParam.value) < 1e-12 ? 'Type I' : 'Power'}
+                      </button>
+                      <button
+                        className={metric === 'relBias' ? 'on' : ''}
+                        onClick={() => setMetric('relBias')}
+                        disabled={Math.abs(activeParam.value) < 1e-12}
+                      >
+                        Rel. bias
+                      </button>
+                      <button
+                        className={metric === 'coverage' ? 'on' : ''}
+                        onClick={() => setMetric('coverage')}
+                      >
+                        Coverage
+                      </button>
+                    </div>
+                  </div>
+                  <PowerChart
+                    rows={rows}
+                    paramKey={activeParam.key}
+                    estimators={(design.estimators ?? []).map((e) => e.id)}
+                    metric={metric}
+                    alpha={design.alpha}
+                  />
                 </div>
-                <DistributionChart
-                  rows={rows}
-                  param={activeParam}
-                  n={shownN}
-                  estimators={(design.estimators ?? []).map((e) => e.id)}
-                />
-              </div>
-            )}
+              )}
+              {rows.some((r) => r.hist) && (
+                <div className="mc-chart-col">
+                  <div className="mc-chart-head">
+                    <span className="mc-subtitle">Distribution of the estimates</span>
+                    {ns.length > 1 && (
+                      <label>
+                        N
+                        <select
+                          className="select"
+                          value={shownN}
+                          onChange={(e) => setDistN(Number(e.target.value))}
+                        >
+                          {ns.map((n) => (
+                            <option key={n} value={n}>
+                              {n}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    {rows.every((r) => !r.hist || r.hist.density) && (
+                      <div
+                        className="segmented compact"
+                        role="radiogroup"
+                        aria-label="Shape of the distribution"
+                      >
+                        {(['density', 'histogram'] as const).map((k) => (
+                          <button
+                            key={k}
+                            role="radio"
+                            aria-checked={shape === k}
+                            className={shape === k ? 'on' : ''}
+                            onClick={() => setShape(k)}
+                          >
+                            {k === 'density' ? 'Density' : 'Histogram'}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <DistributionChart
+                    rows={rows}
+                    param={activeParam}
+                    n={shownN}
+                    estimators={(design.estimators ?? []).map((e) => e.id)}
+                    shape={shape}
+                  />
+                </div>
+              )}
+            </div>
             <Table
               title={paramTitle(activeParam)}
               file="simulation"

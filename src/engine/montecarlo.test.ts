@@ -439,15 +439,20 @@ describe('the distribution of the estimates', () => {
     );
   });
 
-  it('carries a kernel density over the same range, most of its area inside it (the tails spill past)', () => {
+  it('carries a kernel density reaching past the range as R draws it, down to 0, its area 1', () => {
     for (const r of rows.filter((x) => x.param.key === 'path:A:B')) {
       const h = r.hist!;
       expect(h.density).toHaveLength(DENSITY_POINTS);
-      const step = (h.hi - h.lo) / (DENSITY_POINTS - 1);
+      expect(h.densityLo!).toBeLessThan(h.lo);
+      expect(h.densityHi!).toBeGreaterThan(h.hi);
+      const step = (h.densityHi! - h.densityLo!) / (DENSITY_POINTS - 1);
       const area =
         h.density!.reduce((s, y, i) => s + (i && i < DENSITY_POINTS - 1 ? y : y / 2), 0) * step;
-      expect(area).toBeGreaterThan(0.8);
+      expect(area).toBeGreaterThan(0.97);
       expect(area).toBeLessThan(1.01);
+      const peak = Math.max(...h.density!);
+      expect(h.density![0]).toBeLessThan(0.05 * peak);
+      expect(h.density![DENSITY_POINTS - 1]).toBeLessThan(0.05 * peak);
     }
   });
 });

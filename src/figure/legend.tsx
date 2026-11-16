@@ -10,10 +10,12 @@ export interface LegendItem {
   label: string;
   color: string;
   mark?: LegendMark;
+  /** A line's own dash pattern (SVG stroke-dasharray), for series told apart by line type. */
+  dash?: string;
 }
 
 const ROW = 16;
-const SWATCH = 14;
+const SWATCH = 22;
 const GAP = 14;
 /** Width of a label, estimated from its length (the chart font at about 11px). */
 const textWidth = (s: string) => s.length * 6.2;
@@ -42,7 +44,7 @@ export function legendHeight(items: LegendItem[], width: number): number {
   return rows * ROW + 6;
 }
 
-function Swatch({ color, mark = 'line' }: Pick<LegendItem, 'color' | 'mark'>) {
+function Swatch({ color, mark = 'line', dash }: Pick<LegendItem, 'color' | 'mark' | 'dash'>) {
   const y = -4;
   if (mark === 'box') return <rect x={0} y={y - 5} width={10} height={10} rx={2} fill={color} />;
   if (mark === 'dot') return <circle cx={5} cy={y} r={4} fill={color} />;
@@ -54,7 +56,7 @@ function Swatch({ color, mark = 'line' }: Pick<LegendItem, 'color' | 'mark'>) {
       y2={y}
       stroke={color}
       strokeWidth={2}
-      strokeDasharray={mark === 'dash' ? '4 3' : undefined}
+      strokeDasharray={dash || (mark === 'dash' ? '4 3' : undefined)}
     />
   );
 }
@@ -81,7 +83,7 @@ export function SvgLegend({
           role="listitem"
           transform={`translate(${x + at[i].x} ${y + at[i].row * ROW + 12})`}
         >
-          <Swatch color={it.color} mark={it.mark} />
+          <Swatch color={it.color} mark={it.mark} dash={it.dash} />
           <text x={SWATCH + 5} y={0}>
             {it.label}
           </text>

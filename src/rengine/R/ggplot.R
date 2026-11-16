@@ -10,7 +10,7 @@
 GG_GEOMS <- c("line", "step", "point", "rect", "area", "ribbon", "polygon", "hline", "vline", "segment", "text")
 GG_THEMES <- c(app = "theme_minimal", grey = "theme_grey", bw = "theme_bw", minimal = "theme_minimal", classic = "theme_classic")
 GG_FONTS <- c(sans = "sans", serif = "serif", mono = "mono")
-GG_LINETYPES <- c("solid", "dashed", "dotted")
+GG_LINETYPES <- c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash")
 # (geoms whose colour is a fill, and those drawn as lines, whose series also get a line type in the legend)
 GG_FILLED <- c("rect", "area", "ribbon", "polygon")
 GG_LINES <- c("line", "step", "segment", "hline", "vline")
