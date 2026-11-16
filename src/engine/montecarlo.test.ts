@@ -319,6 +319,61 @@ describe('PLS variants', () => {
   });
 });
 
+describe('the distribution of the estimates', () => {
+  // Rönkkö & Evermann (2013): a null path between two constructs. PLS weights capitalise on chance
+  // correlations, which pushes the estimates away from 0 (a dip in the middle); sum scores do not.
+  const nullPath: PopulationSpec = {
+    constructs: [
+      { name: 'A', type: 'factor', indicators: ['a1', 'a2', 'a3'], loadings: [0.8, 0.7, 0.6] },
+      { name: 'B', type: 'factor', indicators: ['b1', 'b2', 'b3'], loadings: [0.8, 0.7, 0.6] },
+    ],
+    paths: [{ from: 'A', to: 'B', value: 0 }],
+    exoCor: [],
+  };
+  const design: McDesign = {
+    population: nullPath,
+    estimators: [
+      { id: 'PLS', method: 'pls', consistent: false },
+      { id: 'Sum scores', method: 'pls', consistent: false, mode: 'unit' },
+    ],
+    sampleSizes: [50, 100],
+    replications: 300,
+    seed: 13,
+    alpha: 0.05,
+    bootSamples: 0,
+    mcDraws: 0,
+  };
+  const rows = run(design, 2);
+
+  it('is a histogram over one range per parameter, holding every estimate', () => {
+    const hs = rows.filter((r) => r.param.key === 'path:A:B').map((r) => r.hist!);
+    expect(hs).toHaveLength(4);
+    for (const h of hs) {
+      expect(h.lo).toBe(hs[0].lo);
+      expect(h.hi).toBe(hs[0].hi);
+      expect(h.counts.reduce((a, b) => a + b, 0) + h.below + h.above).toBe(300);
+      expect(h.lo).toBeLessThanOrEqual(0); // (the true value is inside)
+      expect(h.hi).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('shows PLS pushing a null effect away from 0, unlike sum scores', () => {
+    const nearZero = (est: string) => {
+      const h = row(rows, est, 'path:A:B', 50).hist!;
+      const width = (h.hi - h.lo) / h.counts.length;
+      return h.counts.reduce((a, c, b) => {
+        const mid = h.lo + (b + 0.5) * width;
+        return Math.abs(mid) < 0.05 ? a + c : a;
+      }, 0);
+    };
+    expect(nearZero('PLS')).toBeLessThan(0.75 * nearZero('Sum scores'));
+    // (and so a larger spread: the same data, a different estimator)
+    expect(row(rows, 'PLS', 'path:A:B', 50).sd).toBeGreaterThan(
+      row(rows, 'Sum scores', 'path:A:B', 50).sd,
+    );
+  });
+});
+
 describe('approximate fit indices', () => {
   it('are reported with their cutoffs; under the correct model they rarely reject at large n', () => {
     const design: McDesign = {

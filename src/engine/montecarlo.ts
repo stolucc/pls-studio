@@ -329,6 +329,57 @@ export interface McSummaryRow {
   width: number | null;
   /** Rejection rate: power if the true value ≠ 0, else Type I error. */
   rejection: number | null;
+  /** The distribution of the estimates (one range per parameter, shared by all estimators and sample sizes). */
+  hist?: McHistogram;
+}
+
+/** Counts of estimates in HIST_BINS equal bins over [lo, hi]; estimates outside the range counted apart. */
+export interface McHistogram {
+  lo: number;
+  hi: number;
+  counts: number[];
+  below: number;
+  above: number;
+}
+
+const HIST_BINS = 40;
+
+/**
+ * The histogram range of each parameter: the 0.5th to 99.5th percentile of all its estimates (every
+ * estimator and sample size), widened to include the true value. Extreme estimates (an inadmissible PLSc
+ * solution) would otherwise squeeze the rest into a few bins.
+ */
+function histRanges(params: McParam[], parts: McPart[]): { lo: number; hi: number }[] {
+  return params.map((param, pi) => {
+    const all: number[] = [];
+    for (const part of parts)
+      for (const perParam of part.est)
+        for (const v of perParam[pi]) if (Number.isFinite(v)) all.push(v);
+    if (!all.length) return { lo: NaN, hi: NaN };
+    all.sort((a, b) => a - b);
+    const at = (q: number) => all[Math.min(all.length - 1, Math.floor(q * all.length))];
+    let lo = Math.min(at(0.005), param.kind === 'fit' ? Infinity : param.value);
+    let hi = Math.max(at(0.995), param.kind === 'fit' ? -Infinity : param.value);
+    if (hi - lo < 1e-9) {
+      lo -= 0.05;
+      hi += 0.05;
+    }
+    return { lo, hi };
+  });
+}
+
+function histogram(values: number[], range: { lo: number; hi: number }): McHistogram | undefined {
+  if (!Number.isFinite(range.lo)) return undefined;
+  const counts = new Array<number>(HIST_BINS).fill(0);
+  let below = 0;
+  let above = 0;
+  const width = (range.hi - range.lo) / HIST_BINS;
+  for (const v of values) {
+    if (v < range.lo) below++;
+    else if (v > range.hi) above++;
+    else counts[Math.min(HIST_BINS - 1, Math.floor((v - range.lo) / width))]++;
+  }
+  return { lo: range.lo, hi: range.hi, counts, below, above };
 }
 
 export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
@@ -338,6 +389,7 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
     design.estimators.some((e) => e.method === 'cb'),
   );
   const scale = ciScale(design, pop, params);
+  const ranges = histRanges(params, parts);
   const rows: McSummaryRow[] = [];
   for (const n of design.sampleSizes) {
     const ps = parts.filter((p) => p.n === n).sort((a, b) => a.start - b.start);
@@ -397,6 +449,7 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
           coverage: cover.length ? cover.reduce((s, x) => s + x, 0) / cover.length : null,
           width: widths.length ? widths.reduce((s, x) => s + x, 0) / widths.length : null,
           rejection: rej.length ? rej.reduce((s, x) => s + x, 0) / rej.length : null,
+          hist: histogram(ests, ranges[pi]),
         });
       });
     });

@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { MC_FIT_INDICES, poorFitRule } from '../engine/mcFitIndices';
-import type { McDesign, McParam, McSummaryRow } from '../engine/montecarlo';
+import type { McDesign, McHistogram, McParam, McSummaryRow } from '../engine/montecarlo';
 import { buildPopulation, type PopulationSpec } from '../engine/population';
 import { fmt } from '../format';
 import {
@@ -529,11 +529,150 @@ const workUnitsOf = (d: McDesign) =>
   d.sampleSizes.length *
   d.estimators.reduce((s, e) => s + (e.method === 'pls' ? Math.max(1, d.bootSamples) : 1), 0);
 
+/**
+ * The distribution of the estimates at one sample size: an outline per estimator (share of replications per
+ * bin), the true value as the reference line. A null effect estimated by PLS shows here as two humps
+ * around 0 (Rönkkö & Evermann 2013) where a mean and SD show nothing unusual.
+ */
+function DistributionChart({
+  rows,
+  param,
+  n,
+  estimators,
+}: {
+  rows: McSummaryRow[];
+  param: McParam;
+  n: number;
+  estimators: string[];
+}) {
+  const W = 460;
+  const H = 240;
+  const pad = { l: 54, r: 12, t: 12, b: 36 };
+  const series = estimators
+    .map((e, k) => ({
+      e,
+      k,
+      row: rows.find((r) => r.param.key === param.key && r.n === n && r.estimator === e),
+    }))
+    .filter(
+      (x): x is { e: string; k: number; row: McSummaryRow & { hist: McHistogram } } =>
+        !!x.row?.hist,
+    );
+  if (!series.length) return null;
+  const { lo, hi, counts } = series[0].row.hist;
+  const bins = counts.length;
+  const share = (row: McSummaryRow & { hist: McHistogram }, b: number) =>
+    row.reps ? row.hist.counts[b] / row.reps : 0;
+  const top = Math.max(
+    0.01,
+    ...series.flatMap(({ row }) => row.hist.counts.map((_, b) => share(row, b))),
+  );
+  const sx = (v: number) => pad.l + ((v - lo) / (hi - lo)) * (W - pad.l - pad.r);
+  const sy = (v: number) => pad.t + (1 - v / top) * (H - pad.t - pad.b);
+  const edge = (b: number) => lo + ((hi - lo) * b) / bins;
+  const xTicks = Array.from({ length: 5 }, (_, i) => lo + ((hi - lo) * i) / 4);
+  const yTicks = Array.from({ length: 5 }, (_, i) => (top * i) / 4);
+  const outline = (row: McSummaryRow & { hist: McHistogram }) => {
+    let d = `M ${sx(lo)} ${sy(0)}`;
+    for (let b = 0; b < bins; b++) d += ` V ${sy(share(row, b))} H ${sx(edge(b + 1))}`;
+    return `${d} V ${sy(0)}`;
+  };
+  const outside = series.filter(({ row }) => row.hist.below + row.hist.above > 0);
+  return (
+    <ChartFrame
+      id="mc:distribution"
+      name="simulation-distribution"
+      width={W}
+      height={H}
+      defaults={{ x: 'Estimate', y: 'Share of replications' }}
+    >
+      {(labels) => (
+        <svg
+          className="mc-chart"
+          width={W}
+          height={H}
+          role="img"
+          aria-label={`Distribution of the estimates at N = ${n}`}
+        >
+          {yTicks.map((v) => (
+            <g key={v}>
+              <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />
+              <text x={pad.l - 6} y={sy(v) + 4} textAnchor="end">
+                {v.toFixed(2)}
+              </text>
+            </g>
+          ))}
+          {xTicks.map((v) => (
+            <text key={v} x={sx(v)} y={H - pad.b + 16} textAnchor="middle">
+              {fmt(v)}
+            </text>
+          ))}
+          {param.kind !== 'fit' && (
+            <line
+              className="ref-line"
+              x1={sx(param.value)}
+              x2={sx(param.value)}
+              y1={pad.t}
+              y2={H - pad.b}
+            />
+          )}
+          <text
+            x={pad.l + (W - pad.l - pad.r) / 2}
+            y={H - 4}
+            textAnchor="middle"
+            className="axis-title"
+          >
+            {labels.x}
+          </text>
+          <text
+            transform={`translate(11 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`}
+            textAnchor="middle"
+            className="axis-title"
+          >
+            {labels.y}
+          </text>
+          {series.map(({ e, k, row }) => (
+            <path key={e} d={outline(row)} stroke={seriesColor(k)} strokeWidth={2} fill="none" />
+          ))}
+          {/* Hover: each bin's range and every estimator's share in it. */}
+          {counts.map((_, b) => (
+            <rect
+              key={b}
+              className="mc-hit"
+              x={sx(edge(b))}
+              y={pad.t}
+              width={sx(edge(b + 1)) - sx(edge(b))}
+              height={H - pad.t - pad.b}
+            >
+              <title>
+                {`${fmt(edge(b))} to ${fmt(edge(b + 1))}\n` +
+                  series
+                    .map(({ e, row }) => `${e}: ${(share(row, b) * 100).toFixed(1)}%`)
+                    .join('\n')}
+              </title>
+            </rect>
+          ))}
+          {outside.length > 0 && (
+            <text x={W - pad.r} y={pad.t + 10} textAnchor="end">
+              {`outside the range: ${outside
+                .map(({ e, row }) => `${e} ${row.hist.below + row.hist.above}`)
+                .join(', ')}`}
+            </text>
+          )}
+        </svg>
+      )}
+    </ChartFrame>
+  );
+}
+
 function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
   const [paramKey, setParamKey] = useState('');
   const [metric, setMetric] = useState<'rejection' | 'relBias' | 'coverage'>('rejection');
   const params = [...new Map(rows.map((r) => [r.param.key, r.param])).values()];
   const activeParam = params.find((p) => p.key === paramKey) ?? params[0];
+  const ns = [...new Set(rows.map((r) => r.n))].sort((a, b) => a - b);
+  const [distN, setDistN] = useState<number | null>(null);
+  const shownN = distN !== null && ns.includes(distN) ? distN : ns[0];
   return (
     <div className="tables">
       {!rows ? (
@@ -592,6 +731,35 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                 </span>
               ))}
             </div>
+            {rows.some((r) => r.hist) && (
+              <div className="mc-distribution">
+                <div className="ipma-controls">
+                  <span className="mc-subtitle">Distribution of the estimates</span>
+                  {ns.length > 1 && (
+                    <label>
+                      N
+                      <select
+                        className="select"
+                        value={shownN}
+                        onChange={(e) => setDistN(Number(e.target.value))}
+                      >
+                        {ns.map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
+                <DistributionChart
+                  rows={rows}
+                  param={activeParam}
+                  n={shownN}
+                  estimators={(design.estimators ?? []).map((e) => e.id)}
+                />
+              </div>
+            )}
             <Table
               title={paramTitle(activeParam)}
               file="simulation"

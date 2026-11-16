@@ -97,4 +97,36 @@ describe('Monte Carlo card', () => {
     expect(out).toContain('Inadmissible');
     expect(out).toContain('10.0%');
   });
+
+  it('draws the distribution of the estimates with the true value and a hover per bin', () => {
+    const d = t.defaults(ctx());
+    const path = { key: 'path:A:B', kind: 'path' as const, from: 'A', to: 'B', value: 0 };
+    const counts = Array.from({ length: 40 }, (_, b) => (b === 10 || b === 30 ? 20 : 0));
+    const row = (estimator: string, n: number): McSummaryRow => ({
+      estimator,
+      n,
+      param: path,
+      reps: 40,
+      failed: 0,
+      improper: 0,
+      mean: 0,
+      bias: 0,
+      relBias: null,
+      sd: 0.1,
+      rmse: 0.1,
+      coverage: null,
+      width: null,
+      rejection: 0.2,
+      hist: { lo: -0.4, hi: 0.4, counts, below: 0, above: 0 },
+    });
+    const ids = d.estimators.map((e) => e.id);
+    const out = renderToStaticMarkup(
+      <t.View result={ids.flatMap((e) => [row(e, 100), row(e, 200)])} options={d} current />,
+    );
+    expect(out).toContain('Distribution of the estimates');
+    expect(out).toContain('Distribution of the estimates at N = 100');
+    expect(out).toContain(`${ids[0]}: 50.0%`); // bin 10 holds half the replications
+    expect(out.match(/class="mc-hit"/g)).toHaveLength(40);
+    expect(out).toContain('class="ref-line"');
+  });
 });
