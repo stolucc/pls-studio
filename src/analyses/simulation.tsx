@@ -30,7 +30,9 @@ import {
 import { cancelSimulation, workerCount } from '../runner';
 import { ChartFrame } from '../components/ChartFrame';
 import { c, Table, type Row } from '../components/results/Table';
-import { emptyModel } from '../store';
+import { emptyModel, useStore } from '../store';
+import { useCompute } from '../rengine/compute';
+import { useHelper } from '../rengine/helper';
 import { fingerprint } from './codec';
 import type { AnalysisType, OptionsProps } from './types';
 import { OTHER_COLOR, seriesColor } from '../figure/palette';
@@ -652,7 +654,6 @@ function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: Optio
     set({ population: fn(design.population) });
   const fromEstimates = () =>
     setDesign({ ...design, population: populationFromModel(model, ctx.pls, ctx.cb ?? null) });
-  const workUnits = workUnitsOf(design);
   return (
     <fieldset className="card-options sim-options" disabled={disabled}>
       <div className="table-tools">
@@ -948,19 +949,7 @@ function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: Optio
         misspecification bias. Non-normal data use the Vale–Maurelli method (Fleishman polynomials,
         population correlations preserved); compare ML with MLM/MLMV/MLR via the model χ² test. PLS
         with 0 bootstrap samples reports bias and RMSE only.
-        {engine === 'r' ? (
-          <>
-            {' '}
-            Data: lavaan::simulateData; estimation: cSEM (PLS) and lavaan (CB-SEM), in your browser.
-            About {workUnits.toLocaleString()} model estimations, one at a time.
-          </>
-        ) : (
-          <>
-            {' '}
-            About {workUnits.toLocaleString()} model estimations on {workerCount()} cores (built-in
-            engine).
-          </>
-        )}
+        <McDuration design={design} engine={engine} />
       </div>
     </fieldset>
   );
@@ -970,6 +959,89 @@ const workUnitsOf = (d: McDesign) =>
   d.replications *
   d.sampleSizes.length *
   d.estimators.reduce((s, e) => s + (e.method === 'pls' ? Math.max(1, d.bootSamples) : 1), 0);
+
+/**
+ * Milliseconds per model estimation, as measured on the Rönkkö & Evermann card (N = 100, two constructs):
+ * cSEM refits each bootstrap sample (pls_boot) in about 3 to 6 ms in desktop R, the built-in engine in about
+ * 0.1 to 0.2 ms; R in the browser (webR) is about three times slower than desktop R.
+ */
+const MS_PER_FIT = {
+  builtin: { pls: 0.15, regression: 0.3, cb: 2 },
+  desktop: { pls: 4.5, regression: 15, cb: 50 },
+  browser: { pls: 13.5, regression: 45, cb: 150 },
+};
+
+/**
+ * Roughly how long a simulation takes, in seconds: every estimation (each PLS bootstrap sample one) at its
+ * typical speed, spread over the parallel sessions (R) or cores (built-in engine).
+ */
+export function mcSeconds(
+  d: McDesign,
+  where: 'builtin' | 'desktop' | 'browser',
+  parallel: number,
+): number {
+  const ms = MS_PER_FIT[where];
+  const perReplication = d.estimators.reduce((s, e) => {
+    if (e.method === 'pls') return s + ms.pls * (d.bootSamples > 0 ? d.bootSamples + 1 : 1);
+    return s + ms[e.method];
+  }, 0);
+  return (d.replications * d.sampleSizes.length * perReplication) / 1000 / Math.max(1, parallel);
+}
+
+/** A duration for the hint: seconds, minutes, or hours and minutes. */
+export function roughDuration(seconds: number): string {
+  if (seconds < 90) return `${Math.max(1, Math.round(seconds))} s`;
+  if (seconds < 5400) return `${Math.round(seconds / 60)} min`;
+  const h = Math.floor(seconds / 3600);
+  return `${h} h ${Math.round((seconds - h * 3600) / 60)} min`;
+}
+
+/**
+ * Where R runs and how long it takes, and when the built-in engine would be much quicker (a long R run with
+ * the bootstrap), the offer to switch: the same estimators, validated against the R packages.
+ */
+export function McDuration({ design, engine }: { design: McDesign; engine: 'r' | 'builtin' }) {
+  const backend = useCompute((s) => s.backend);
+  const browserSessions = useCompute((s) => s.workers);
+  const { state, info } = useHelper();
+  const cores = workerCount();
+  const builtin = mcSeconds(design, 'builtin', cores);
+  if (engine === 'builtin')
+    return (
+      <>
+        {' '}
+        About {workUnitsOf(design).toLocaleString()} model estimations on {cores} cores (built-in
+        engine): roughly {roughDuration(builtin)}.
+      </>
+    );
+  const desktop = backend === 'helper' && state === 'ready' && info !== null;
+  const sessions = desktop ? info.workers : browserSessions;
+  const r = mcSeconds(design, desktop ? 'desktop' : 'browser', sessions);
+  const offer = r > 60 && builtin * 5 < r;
+  return (
+    <>
+      {' '}
+      Data: lavaan::simulateData; estimation: cSEM (PLS) and lavaan (CB-SEM) in{' '}
+      {desktop ? 'desktop R through the helper' : 'R in this browser'}, {sessions}{' '}
+      {sessions === 1 ? 'session' : 'sessions'} at once: about{' '}
+      {workUnitsOf(design).toLocaleString()} model estimations, roughly {roughDuration(r)}.
+      {offer && (
+        <>
+          {' '}
+          The built-in engine runs the same estimators (validated against these packages) in roughly{' '}
+          {roughDuration(builtin)}.{' '}
+          <button
+            type="button"
+            className="btn sm"
+            onClick={() => useStore.getState().setSettings({ engine: 'builtin' })}
+          >
+            Use the built-in engine
+          </button>
+        </>
+      )}
+    </>
+  );
+}
 
 /**
  * The distribution of the estimates at one sample size: an outline per estimator (share of replications per

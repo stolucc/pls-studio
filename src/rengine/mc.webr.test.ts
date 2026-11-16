@@ -251,6 +251,16 @@ it('bootstrap tests (Rönkkö, McIntosh & Antonakis 2015): R and the built-in en
   // (coverage is of the chosen interval, BCa)
   expect(r.coverage).toBeCloseTo(1 - r.tests!.bca!, 10);
 
+  // The app's bootstrap loop (pls_boot: cSEM's estimation per draw, without its per-draw summaries) against
+  // cSEM's own resampling (which BCa keeps) on the same 40 samples: the same tests up to bootstrap error.
+  const own = paid('none', 'percentile');
+  const ro = summariseMc(own, [await runMcChunkR(own, 100, 0, 40)])[0];
+  for (const t of ['t', 'normal', 'basic', 'percentile'] as const)
+    expect(Math.abs(ro.tests![t]! - r.tests![t]!), `${t}: own loop vs cSEM's`).toBeLessThanOrEqual(
+      0.1,
+    );
+  expect(ro.mean).toBeCloseTo(r.mean, 12);
+
   const individual = paid('individual', 'percentile');
   const ri = summariseMc(individual, [await runMcChunkR(individual, 100, 0, 40)])[0];
   expect(ri.tests!.percentile, 'individual correction: percentile always rejects').toBeGreaterThan(

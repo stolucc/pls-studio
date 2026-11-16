@@ -86,7 +86,10 @@ ps_mc_body <- function(req) {
       ))
     }
     if (e$method == "pls") {
-      boot <- if (req$bootSamples > 0) {
+      # BCa: cSEM's own resampling (its acceleration needs cSEM's resample structure); otherwise pls_boot
+      # resamples (the same estimation per draw, without cSEM's per-draw summaries).
+      cSEM_boot <- req$bootSamples > 0 && interval == "bca"
+      boot <- if (cSEM_boot) {
         sprintf(
           ", .resample_method = \"bootstrap\", .R = %d, .seed = boot_seed, .sign_change_option = \"%s\"",
           as.integer(req$bootSamples),
@@ -95,6 +98,7 @@ ps_mc_body <- function(req) {
       } else {
         ""
       }
+      own_boot <- if (req$bootSamples > 0 && !cSEM_boot) sprintf(", boot = %d, seed = boot_seed", as.integer(req$bootSamples)) else ""
       # Every construct in one outer mode (unit: sum scores), else cSEM's default (=~ mode A, <~ mode B).
       modes <- c(A = "modeA", B = "modeB", unit = "unit")
       # (mode and scheme are checked by ps_validate; the lookups only ever give these fixed strings)
@@ -102,12 +106,13 @@ ps_mc_body <- function(req) {
       schemes <- c(path = "path", factor = "factorial", centroid = "centroid")
       scheme <- schemes[[e$scheme %||% "path"]]
       sprintf(
-        "  res[%d] <- list(tryCatch(pls_stats(csem(data_pls, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"%s\"%s%s)), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL }))",
+        "  res[%d] <- list(tryCatch(pls_stats(csem(data_pls, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"%s\"%s%s)%s), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL }))",
         ei,
         if (isTRUE(e$consistent)) "TRUE" else "FALSE",
         scheme,
         mode,
-        boot
+        boot,
+        own_boot
       )
     } else {
       sprintf(
@@ -234,10 +239,44 @@ ps_mc_body <- function(req) {
     "  t <- if (se > 0) as.numeric(2 * stats::pt(-abs(v / se), n_cases - 1) < alpha) else NA",
     "  list(ci = ci, reject = c(t = t, normal = ex0(ci$normal), basic = ex0(ci$basic), percentile = ex0(ci$percentile), bca = ex0(ci$bca)))",
     "}",
-    "# PLS: path and indirect estimates; with bootstrap draws, the tests and the chosen interval.",
-    "pls_stats <- function(fit) {",
+    "# The bootstrap of a PLS fit as cSEM's resampling does it: cSEM's estimation (cSEM:::foreman, which csem()",
+    "# runs for each draw) on each resample with the fit's own arguments; inadmissible draws dropped (cSEM's",
+    "# default); with the construct sign change, a draw whose construct's loadings flip is estimated again with",
+    "# that construct's weights reversed (cSEM's construct_reestimate). Without cSEM's summaries of every draw it",
+    "# takes about two thirds of the time. The draws: each one's direct and indirect effects.",
+    "pls_boot <- function(fit, R, seed) {",
+    "  args <- fit$Information$Arguments",
+    "  args <- args[intersect(names(args), names(formals(cSEM:::foreman)))]",
+    "  X <- args$.data",
+    "  n <- nrow(X)",
+    "  est0 <- fit$Estimates",
+    "  estimate <- function(a) tryCatch(do.call(cSEM:::foreman, a), error = function(e) NULL)",
+    "  set.seed(seed)",
+    "  draws <- lapply(seq_len(R), function(b) {",
+    "    a <- args",
+    "    a$.data <- X[sample.int(n, n, replace = TRUE), , drop = FALSE]",
+    "    est <- estimate(a)",
+    "    if (is.null(est) || sum(unlist(cSEM::verify(est))) != 0) return(NULL)",
+    "    W <- est$Estimates$Weight_estimates",
+    "    if (sign_change == 'construct_reestimate' && any(sign(est0$Weight_estimates) != sign(W))) {",
+    "      L0 <- est0$Loading_estimates",
+    "      L <- est$Estimates$Loading_estimates",
+    "      flip <- abs(rowSums(L0 - L)) > abs(rowSums(L0 + L))",
+    "      W[flip, ] <- -W[flip, ]",
+    "      a$.PLS_modes <- setNames(lapply(seq_len(nrow(W)), function(i) W[i, W[i, ] != 0]), rownames(W))",
+    "      est <- estimate(a)",
+    "      if (is.null(est)) return(NULL)",
+    "    }",
+    "    effects(t(est$Estimates$Path_estimates))",
+    "  })",
+    "  Filter(Negate(is.null), draws)",
+    "}",
+    "# PLS: path and indirect estimates; with bootstrap draws (pls_boot, or cSEM's own for BCa), the tests and the",
+    "# chosen interval.",
+    "pls_stats <- function(fit, boot = 0, seed = NULL) {",
     "  if (!isTRUE(fit$Information$Weight_info$Convergence_status)) stop('not converged')",
     "  P <- t(fit$Estimates$Path_estimates); E <- effects(P)",
+    "  draws <- if (boot > 0) pls_boot(fit, boot, seed) else NULL",
     "  r <- fit$Estimates$Estimates_resample$Estimates1",
     "  # Individual sign-change correction: every draw takes the sign of the original estimate, |draw| * sign(estimate)",
     "  if (!is.null(r) && individual) {",
@@ -264,9 +303,13 @@ ps_mc_body <- function(req) {
     "    if (params$kind[k] == 'covariance') return(list(values = c(fit$Estimates$Construct_VCV[params$from[k], params$to[k]], NA, NA, NA), tests = none$tests))",
     "    path <- params$kind[k] == 'path'",
     "    v <- if (path) E$direct[params$from[k], params$to[k]] else E$indirect[params$from[k], params$to[k]]",
-    "    if (is.null(r)) return(list(values = c(v, NA, NA, NA), tests = none$tests))",
+    "    if (is.null(r) && is.null(draws)) return(list(values = c(v, NA, NA, NA), tests = none$tests))",
     "    nm <- paste(params$to[k], '~', params$from[k])",
-    "    x <- if (path) r$Path_estimates$Resampled[, nm] else r$Indirect_effect$Resampled[, nm]",
+    "    x <- if (!is.null(draws)) {",
+    "      effect <- if (path) 'direct' else 'indirect'",
+    "      x <- vapply(draws, function(D) D[[effect]][params$from[k], params$to[k]], 0)",
+    "      if (individual) abs(x) * sign(v) else x",
+    "    } else if (path) r$Path_estimates$Resampled[, nm] else r$Indirect_effect$Resampled[, nm]",
     "    x <- x[is.finite(x)]",
     "    if (length(x) < 2) return(list(values = c(v, NA, NA, NA), tests = none$tests))",
     "    b <- if (is.null(bca)) NULL else if (path) bca$Path_estimates$CI_bca[, nm] else bca$Indirect_effect$CI_bca[, nm]",
@@ -331,6 +374,7 @@ ps_mc_body <- function(req) {
     sprintf("cuts <- %s", paste(deparse(unname(cuts)), collapse = "")),
     sprintf("interval <- %s", ps_q(interval)),
     sprintf("individual <- %s", if (individual) "TRUE" else "FALSE"),
+    sprintf("sign_change <- %s", ps_q(sign_change)),
     "# Missing values: MCAR, or MAR on the first indicator (kept complete): chance 2 * rate * rank / n.",
     "add_missing <- function(data, seed) {",
     "  set.seed(seed)",
