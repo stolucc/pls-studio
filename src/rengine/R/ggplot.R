@@ -7,17 +7,17 @@
 # are looked up from fixed lists, colours must be #rrggbb, numbers numeric, and text (titles, series, labels)
 # is quoted by ps_q or embedded as data (ps_embed_frame).
 
-GG_GEOMS <- c("line", "step", "point", "rect", "area", "ribbon", "hline", "vline", "segment", "text")
+GG_GEOMS <- c("line", "step", "point", "rect", "area", "ribbon", "polygon", "hline", "vline", "segment", "text")
 GG_THEMES <- c(app = "theme_minimal", grey = "theme_grey", bw = "theme_bw", minimal = "theme_minimal", classic = "theme_classic")
 GG_FONTS <- c(sans = "sans", serif = "serif", mono = "mono")
 GG_LINETYPES <- c("solid", "dashed", "dotted")
 # (geoms whose colour is a fill, and those drawn as lines, whose series also get a line type in the legend)
-GG_FILLED <- c("rect", "area", "ribbon")
+GG_FILLED <- c("rect", "area", "ribbon", "polygon")
 GG_LINES <- c("line", "step", "segment", "hline", "vline")
 # The columns each geom reads, and the aesthetics they map to.
 GG_COLUMNS <- list(
   line = c("x", "y"), step = c("x", "y"), point = c("x", "y"), area = c("x", "y"),
-  rect = c("xmin", "xmax", "ymin", "ymax"), ribbon = c("x", "ymin", "ymax"),
+  rect = c("xmin", "xmax", "ymin", "ymax"), ribbon = c("x", "ymin", "ymax"), polygon = c("x", "y"),
   hline = "y", vline = "x", segment = c("x", "y", "xend", "yend"), text = c("x", "y", "label")
 )
 # (a reference line's column is its intercept)
@@ -70,6 +70,25 @@ gg_limits <- function(x, what) {
   x
 }
 
+#' The scale of one axis (scale_x_continuous / scale_y_continuous), or nothing when it is ggplot2's default:
+#' breaks with their labels (categories at numeric positions, such as study names), percentages, a log10 or
+#' reversed axis.
+gg_scale <- function(a, axis) {
+  breaks <- gg_numbers(a$breaks, "axis breaks")
+  labels <- vapply(unlist(a$labels), gg_text, "", what = "axis label", max = 200)
+  if (length(breaks) > 500 || any(!is.finite(breaks))) stop("Invalid axis breaks in the request.")
+  if (length(labels) && length(labels) != length(breaks)) stop("Invalid axis labels in the request.")
+  transform <- c(if (isTRUE(a$log)) "log10", if (isTRUE(a$reverse)) "reverse")
+  if (length(transform) > 1) stop("An axis is either log10 or reversed in the request.")
+  parts <- c(
+    if (length(breaks)) sprintf("breaks = c(%s)", paste(format(breaks, digits = 15), collapse = ", ")),
+    if (length(labels)) sprintf("labels = c(%s)", paste(gg_q(labels), collapse = ", ")),
+    if (!length(labels) && isTRUE(a$percent)) "labels = scales::label_percent()",
+    if (length(transform)) sprintf("transform = \"%s\"", transform)
+  )
+  if (length(parts)) sprintf("  scale_%s_continuous(%s) +", axis, paste(parts, collapse = ", "))
+}
+
 #' The checked layers: geom, series ("" when it has no legend entry), colour, line type and its data frame.
 gg_layers <- function(raw) {
   if (!is.list(raw) || !length(raw) || length(raw) > 200) stop("Invalid layers in the request.")
@@ -114,7 +133,7 @@ gg_geom_line <- function(l, i) {
     if (!named && l$geom %in% GG_LINES) sprintf("linetype = \"%s\"", l$linetype),
     if (l$geom %in% GG_LINES) "linewidth = 0.7",
     if (l$geom == "point") sprintf("size = 2, shape = %d", if (l$open) 1L else 16L),
-    if (l$geom %in% c("rect", "area", "ribbon")) sprintf("alpha = %s", format(l$alpha %||% if (l$geom == "ribbon") 0.25 else 0.8)),
+    if (l$geom %in% GG_FILLED) sprintf("alpha = %s", format(l$alpha %||% if (l$geom %in% c("ribbon", "polygon")) 0.25 else 0.8)),
     if (l$geom == "rect") "colour = NA",
     if (l$geom == "text") "size = 3"
   )
@@ -154,8 +173,8 @@ gg_body <- function(req, layers) {
     if (length(series) && stroked) manual("scale_colour_manual", colours),
     if (length(series) && filled) manual("scale_fill_manual", colours),
     if (length(series) && lined) manual("scale_linetype_manual", types),
-    if (isTRUE(x$log)) "  scale_x_log10() +",
-    if (isTRUE(y$percent)) "  scale_y_continuous(labels = scales::label_percent()) +",
+    gg_scale(x, "x"),
+    gg_scale(y, "y"),
     if (!is.null(xlim) || !is.null(ylim)) {
       sprintf(
         "  coord_cartesian(%s) +",

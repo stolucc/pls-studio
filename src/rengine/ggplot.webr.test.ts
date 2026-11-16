@@ -122,12 +122,49 @@ describe('charts drawn by ggplot2', () => {
     expect(script).toContain(
       'geom_hline(data = layer_3, aes(yintercept = y, colour = series, linetype = series), linewidth = 0.7)',
     );
-    expect(script).toContain('scale_x_log10() +');
+    expect(script).toContain('scale_x_continuous(transform = "log10") +');
     expect(script).toContain('scale_y_continuous(labels = scales::label_percent()) +');
     expect(script).toContain(
       'scale_linetype_manual(values = c("PLS" = "solid", "Power .80" = "dashed")',
     );
     const pdf = await ggplotFile(power, style, 'pdf');
     expect(new TextDecoder().decode(await head(pdf, 5))).toBe('%PDF-');
+  }, 120_000);
+
+  it('puts categories at numeric positions, reverses an axis and fills a polygon', async () => {
+    const funnel: FigureSpec = {
+      title: 'Funnel plot',
+      x: { title: 'Effect', breaks: [0, 1], labels: ['Study "A"', 'Study B'] },
+      y: { title: 'Standard error', reverse: true, limits: [0, 0.5] },
+      width: 400,
+      height: 300,
+      layers: [
+        {
+          geom: 'polygon',
+          series: '95% region',
+          color: '#8a8f98',
+          x: [-0.5, 0.5, 1.5],
+          y: [0.5, 0, 0.5],
+        },
+        { geom: 'point', series: 'Studies', color: '#2a78d6', x: [0, 1], y: [0.1, 0.3] },
+      ],
+    };
+    const script = await ggplotScript(funnel, style);
+    expect(script).toContain(
+      'scale_x_continuous(breaks = c(0, 1), labels = c("Study \\"A\\"", "Study B")) +',
+    );
+    expect(script).toContain('scale_y_continuous(transform = "reverse") +');
+    expect(script).toContain(
+      'geom_polygon(data = layer_1, aes(x = x, y = y, fill = series), alpha = 0.25)',
+    );
+    const png = await ggplotFile(funnel, style, 'png');
+    expect([...(await head(png, 4))]).toEqual([0x89, 0x50, 0x4e, 0x47]);
+    await expect(
+      rCall(
+        'ps_ggplot',
+        { ...funnel, x: { title: 'x', breaks: [0, 1], labels: ['a'] } },
+        'ggplot2',
+      ),
+    ).rejects.toThrow('Invalid axis labels');
   }, 120_000);
 });

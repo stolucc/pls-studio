@@ -13,6 +13,7 @@ export type GgGeom =
   | 'rect'
   | 'area'
   | 'ribbon'
+  | 'polygon'
   | 'hline'
   | 'vline'
   | 'segment'
@@ -39,12 +40,25 @@ export interface GgLayer {
   label?: string[];
 }
 
+/**
+ * An axis: its title and range; breaks with labels put categories at numeric positions (study names, variables);
+ * percent labels; log10 (sample sizes) or reversed (a funnel plot's standard error) scales.
+ */
+export interface GgAxis {
+  title: string;
+  limits?: [number, number];
+  breaks?: number[];
+  labels?: string[];
+  percent?: boolean;
+  log?: boolean;
+  reverse?: boolean;
+}
+
 export interface FigureSpec {
   /** What the chart shows (the script's title). */
   title: string;
-  /** log: a log10 scale (sample sizes). */
-  x: { title: string; limits?: [number, number]; log?: boolean };
-  y: { title: string; limits?: [number, number]; percent?: boolean };
+  x: GgAxis;
+  y: GgAxis;
   layers: GgLayer[];
   /** Size in pixels on screen (the figure keeps the aspect ratio, 6 inches wide). */
   width: number;
