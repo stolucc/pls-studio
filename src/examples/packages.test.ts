@@ -219,6 +219,7 @@ it('ids are unique and every R package the app calculates with has an example', 
   // regressionBoot: the regression card with boot (bootstrap intervals), shown by the regression examples.
   // basicTests: effectsize, TOSTER, emmeans, WRS2, boot and coin together (a basic card's effect sizes, equivalence tests
   // or marginal means with the resampling), shown by those packages' examples.
+  // ggplot2, svglite: they draw, not calculate (any chart's ggplot2 menu: the figure and its script).
   const covered = new Set<string>([
     ...EXAMPLE_PACKAGES,
     'simulation',
@@ -248,6 +249,8 @@ it('ids are unique and every R package the app calculates with has an example', 
     'resampling',
     'regressionBoot',
     'basicTests',
+    'ggplot2',
+    'svglite',
   ]);
   for (const p of Object.keys(R_PACKAGES)) expect(covered, p).toContain(p);
 });

@@ -21,6 +21,7 @@ import {
   rawData,
 } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
+import { PlotPanel } from '../figure/panel';
 
 export interface DidOptions {
   design: DidInput['design'];
@@ -156,7 +157,7 @@ function DidOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<DidOpti
   );
 }
 
-function EventChart({ r }: { r: DidResult }) {
+export function EventChart({ r }: { r: DidResult }) {
   const W = 520;
   const H = 300;
   const pad = { l: 56, r: 16, t: 14, b: 44 };
@@ -196,6 +197,8 @@ function EventChart({ r }: { r: DidResult }) {
           role="img"
           aria-label="Event study"
         >
+          <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+
           {ticks.map((v) => (
             <g key={v}>
               <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />

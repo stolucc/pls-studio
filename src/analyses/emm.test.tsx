@@ -265,6 +265,13 @@ describe('the section renders', () => {
     expect(html).toContain('∞');
     expect(html).toContain('Profile plot');
     expect((html.match(/<polyline/g) ?? []).length).toBe(2);
+    // (the key to the lines, inside the plot's SVG, and a panel for the chart themes)
+    const from = html.indexOf('aria-label="Profile plot"');
+    const svg = html.slice(from, html.indexOf('</svg>', from));
+    expect(svg).toContain('aria-label="Legend"');
+    expect(svg).toContain('>b1</text>');
+    expect(svg).toContain('>b2</text>');
+    expect(svg).toContain('class="plot-panel"');
   });
 
   it('the form: off, then every part when on', () => {

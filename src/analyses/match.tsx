@@ -20,6 +20,8 @@ import {
   rawData,
 } from './common';
 import type { AnalysisType, OptionsProps } from './types';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 
 export type MatchPreset = Partial<MatchInput>;
 export type MatchOptions = Omit<
@@ -71,8 +73,14 @@ const METHODS: { id: MatchMethod; label: string; hint: string }[] = [
   },
 ];
 
-/** Love plot: absolute standardised mean differences before and after matching. */
-function LovePlot({ b }: { b: MatchResult['balance'] }) {
+/** Love plot: absolute standardised mean differences before and after matching (or weighting). */
+export function LovePlot({
+  b,
+  stage,
+}: {
+  b: MatchResult['balance'];
+  stage: 'matching' | 'weighting';
+}) {
   const rows = b.filter((x) => Number.isFinite(x.diffBefore));
   const W = 460;
   const rowH = 20;
@@ -83,61 +91,71 @@ function LovePlot({ b }: { b: MatchResult['balance'] }) {
     ...rows.flatMap((x) => [Math.abs(x.diffBefore), Math.abs(x.diffAfter)]),
   );
   const sx = (v: number) => pad.l + (Math.abs(v) / max) * (W - pad.l - pad.r);
+  const legend: LegendItem[] = [
+    { label: `Before ${stage} (open circle)`, color: '#94a3b8', mark: 'dot' },
+    { label: `After ${stage}`, color: '#6d28d9', mark: 'dot' },
+  ];
+  const lh = legendHeight(legend, W - pad.l - pad.r);
   return (
     <ChartFrame
       id="match:love"
       name="love-plot"
       width={W}
-      height={H}
+      height={H + lh}
       defaults={{ x: 'Absolute standardised mean difference', y: '' }}
     >
       {(labels) => (
-        <svg className="mc-chart" width={W} height={H} role="img" aria-label="Love plot">
-          <line
-            className="grid-line"
-            x1={sx(0.1)}
-            x2={sx(0.1)}
-            y1={pad.t}
-            y2={H - pad.b}
-            strokeDasharray="4 3"
-          />
-          <text x={sx(0.1)} y={H - pad.b + 14} textAnchor="middle">
-            0.1
-          </text>
-          <text x={sx(0)} y={H - pad.b + 14} textAnchor="middle">
-            0
-          </text>
-          <text x={sx(max)} y={H - pad.b + 14} textAnchor="end">
-            {fmt(max, 2)}
-          </text>
-          {rows.map((x, i) => {
-            const y = pad.t + i * rowH + rowH / 2;
-            return (
-              <g key={x.variable}>
-                <text x={pad.l - 6} y={y + 4} textAnchor="end">
-                  {x.variable}
-                </text>
-                <line x1={sx(x.diffBefore)} x2={sx(x.diffAfter)} y1={y} y2={y} stroke="#cbd5e1" />
-                <circle
-                  cx={sx(x.diffBefore)}
-                  cy={y}
-                  r={4}
-                  fill="none"
-                  stroke="#94a3b8"
-                  strokeWidth={1.6}
-                />
-                <circle cx={sx(x.diffAfter)} cy={y} r={4} fill="#6d28d9" />
-              </g>
-            );
-          })}
-          <text
-            x={pad.l + (W - pad.l - pad.r) / 2}
-            y={H - 4}
-            textAnchor="middle"
-            className="axis-title"
-          >
-            {labels.x}
-          </text>
+        <svg className="mc-chart" width={W} height={H + lh} role="img" aria-label="Love plot">
+          <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
+          <g transform={`translate(0 ${lh})`}>
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+
+            <line
+              className="grid-line"
+              x1={sx(0.1)}
+              x2={sx(0.1)}
+              y1={pad.t}
+              y2={H - pad.b}
+              strokeDasharray="4 3"
+            />
+            <text x={sx(0.1)} y={H - pad.b + 14} textAnchor="middle">
+              0.1
+            </text>
+            <text x={sx(0)} y={H - pad.b + 14} textAnchor="middle">
+              0
+            </text>
+            <text x={sx(max)} y={H - pad.b + 14} textAnchor="end">
+              {fmt(max, 2)}
+            </text>
+            {rows.map((x, i) => {
+              const y = pad.t + i * rowH + rowH / 2;
+              return (
+                <g key={x.variable}>
+                  <text x={pad.l - 6} y={y + 4} textAnchor="end">
+                    {x.variable}
+                  </text>
+                  <line x1={sx(x.diffBefore)} x2={sx(x.diffAfter)} y1={y} y2={y} stroke="#cbd5e1" />
+                  <circle
+                    cx={sx(x.diffBefore)}
+                    cy={y}
+                    r={4}
+                    fill="none"
+                    stroke="#94a3b8"
+                    strokeWidth={1.6}
+                  />
+                  <circle cx={sx(x.diffAfter)} cy={y} r={4} fill="#6d28d9" />
+                </g>
+              );
+            })}
+            <text
+              x={pad.l + (W - pad.l - pad.r) / 2}
+              y={H - 4}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.x}
+            </text>
+          </g>
         </svg>
       )}
     </ChartFrame>
@@ -192,11 +210,8 @@ function MatchView({ r, input }: { r: MatchResult; input: MatchInput }) {
             : 'Matched (ESS): the effective sample size after weighting. Unmatched cases are not used.'
         }
       />
-      <LovePlot b={r.balance} />
-      <div className="hint">
-        Open circles: before {weighting ? 'weighting' : 'matching'}; filled: after. Differences
-        under 0.1 (dashed) are usually considered balanced.
-      </div>
+      <LovePlot b={r.balance} stage={weighting ? 'weighting' : 'matching'} />
+      <div className="hint">Differences under 0.1 (dashed) are usually considered balanced.</div>
       <Table
         title="Covariate balance"
         file="matching-balance"

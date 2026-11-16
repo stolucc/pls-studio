@@ -1,5 +1,10 @@
 import type { JohnsonNeyman } from '../engine/jn';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 import { ChartFrame } from './ChartFrame';
+
+/** The plot's colours as styles.css draws them (.jn-line, .jn-band over white, .jn-sig, .jn-bound). */
+const JN_COLORS = { line: '#6d28d9', band: '#eee6fe', sig: '#e7f7ef', bound: '#0f9d63' };
 
 /**
  * Johnson–Neyman plot: conditional effect of the predictor across moderator
@@ -39,9 +44,19 @@ export function JohnsonNeymanPlot({
   center?: number;
   level?: number;
 }) {
-  const pad = { l: 52, r: 10, t: 10, b: 34 };
   const lo = center - 3 * jn.sdM;
   const hi = center + 3 * jn.sdM;
+  const shown = jn.boundaries.filter((b) => b > lo && b < hi);
+  // The effect, its band, the significant stretches and (when in range) the boundaries, keyed above.
+  const legend: LegendItem[] = [
+    { label: `Effect of ${from}`, color: JN_COLORS.line },
+    { label: `${Math.round(level * 100)}% band`, color: JN_COLORS.band, mark: 'box' },
+    { label: 'Significant', color: JN_COLORS.sig, mark: 'box' },
+    ...(shown.length ? [{ label: 'Boundary', color: JN_COLORS.bound, mark: 'dash' as const }] : []),
+  ];
+  const legendH = legendHeight(legend, width - 52 - 10);
+  const pad = { l: 52, r: 10, t: 10 + legendH, b: 34 };
+  const total = height + legendH;
   const N = 120;
   const pts = Array.from({ length: N + 1 }, (_, i) => {
     const m = lo + ((hi - lo) * i) / N;
@@ -53,7 +68,7 @@ export function JohnsonNeymanPlot({
   const yMax = Math.max(0, ...pts.map((p) => p.u));
   const span = yMax - yMin || 1;
   const W = width - pad.l - pad.r;
-  const H = height - pad.t - pad.b;
+  const H = total - pad.t - pad.b;
   const sx = (m: number) => pad.l + ((m - lo) / (hi - lo)) * W;
   const sy = (v: number) => pad.t + ((yMax + 0.05 * span - v) / (span * 1.1)) * H;
   const line = (key: 'e' | 'l' | 'u') =>
@@ -72,8 +87,8 @@ export function JohnsonNeymanPlot({
   const sdTicks = [-3, -2, -1, 0, 1, 2, 3];
   const caption = (
     <figcaption className="hint" style={{ marginTop: 4 }}>
-      Effect of {from} (unstandardised) with {Math.round(level * 100)}% band; shaded where
-      significant (α = {+(1 - level).toFixed(3)}).
+      Effect of {from} (unstandardised) with its {Math.round(level * 100)}% confidence band;
+      significance at α = {+(1 - level).toFixed(3)}.
       {jn.boundaries.length === 0
         ? ' No boundary: significance does not change with the moderator.'
         : ''}
@@ -84,7 +99,7 @@ export function JohnsonNeymanPlot({
       id={`jn:${from}:${moderator}${to ? `:${to}` : ''}`}
       name={`jn-${from}-${moderator}`}
       width={width}
-      height={height}
+      height={total}
       caption={caption}
       defaults={{
         x: `${moderator} (${center ? 'SD from the mean' : 'SD'})`,
@@ -95,10 +110,12 @@ export function JohnsonNeymanPlot({
         <svg
           className="jn"
           width={width}
-          height={height}
+          height={total}
           role="img"
           aria-label={`Johnson-Neyman plot of the effect of ${from} across ${moderator}`}
         >
+          <SvgLegend items={legend} x={pad.l} y={0} width={W} />
+          <PlotPanel x={pad.l} y={pad.t} width={W} height={H} />
           {regions.map(([a, b], i) => (
             <rect
               key={i}
@@ -121,7 +138,6 @@ export function JohnsonNeymanPlot({
           <path className="jn-band" d={band} />
           <path className="jn-line" d={line('e')} />
           {(() => {
-            const shown = jn.boundaries.filter((b) => b > lo && b < hi);
             const at = boundaryLabels(shown.map(sx));
             return shown.map((b, i) => (
               <g key={b}>
@@ -137,7 +153,7 @@ export function JohnsonNeymanPlot({
               {k}
             </text>
           ))}
-          <text className="axis-title" x={pad.l + W / 2} y={height - 4} textAnchor="middle">
+          <text className="axis-title" x={pad.l + W / 2} y={total - 4} textAnchor="middle">
             {labels.x}
           </text>
           <text

@@ -19,6 +19,8 @@ import {
 import { ChartFrame } from '../components/ChartFrame';
 import { IconX } from '../components/icons';
 import { NEGATIVE_COLOR, POSITIVE_COLOR } from '../figure/palette';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 import { Axes, H, pad, W } from './charts';
 import { indexPlotMarks } from './indexPlotMarks';
 import type { InfluenceApproach, InfluenceResult, ScreenResult } from '../rengine/screen';
@@ -412,6 +414,16 @@ function IndexPlot({ inf }: { inf: InfluenceResult }) {
   const stats = (Object.keys(STAT_LABEL) as InfluenceStat[]).filter(
     (k) => k !== 'kurtosis' || inf.kurtosis,
   );
+  // The key, when there is a fence (the Δ fit statistics have none: every case is drawn alike).
+  const fenced = s.fence !== null && Number.isFinite(s.fence);
+  const legend: LegendItem[] = fenced
+    ? [
+        { label: 'Case', color: POSITIVE_COLOR, mark: 'dot' },
+        { label: 'Far-out case', color: NEGATIVE_COLOR, mark: 'dot' },
+        { label: 'Q3 + 3 IQR', color: NEGATIVE_COLOR, mark: 'dash' },
+      ]
+    : [];
+  const top = legendHeight(legend, W - pad.l - pad.r);
   return (
     <div>
       <div className="segmented" role="radiogroup" aria-label="Statistic in the index plot">
@@ -431,7 +443,7 @@ function IndexPlot({ inf }: { inf: InfluenceResult }) {
         id={`influence:${stat}`}
         name={`influence-index-${stat}`}
         width={W}
-        height={H}
+        height={H + top}
         defaults={{ x: 'Row', y: STAT_LABEL[stat] }}
         caption={
           <span className="hint">
@@ -440,9 +452,7 @@ function IndexPlot({ inf }: { inf: InfluenceResult }) {
               ? `${s.rows.length.toLocaleString()} cases: per pixel column the largest and ` +
                 'smallest are drawn (they cover the others), and every far-out case. '
               : ''}
-            {s.fence !== null && Number.isFinite(s.fence)
-              ? `Dashed: Q3 + 3 IQR = ${fmt(s.fence)}; red: cases above it.`
-              : 'Δ: fit with the case minus without it.'}
+            {fenced ? `Q3 + 3 IQR = ${fmt(s.fence!)}.` : 'Δ: fit with the case minus without it.'}
           </span>
         }
       >
@@ -450,61 +460,65 @@ function IndexPlot({ inf }: { inf: InfluenceResult }) {
           <svg
             className="mc-chart data-chart"
             width={W}
-            height={H}
+            height={H + top}
             role="img"
             aria-label={`Index plot of ${STAT_LABEL[stat]}`}
           >
-            <Axes
-              xs={xs}
-              ys={[lo, hi]}
-              xTitle={labels.x}
-              yTitle={labels.y}
-              xTick={(v) => v.toFixed(0)}
-            />
-            {s.fence !== null && Number.isFinite(s.fence) && (
-              <line
-                x1={pad.l}
-                x2={W - pad.r}
-                y1={sy(s.fence)}
-                y2={sy(s.fence)}
-                stroke={NEGATIVE_COLOR}
-                strokeDasharray="4 3"
+            <SvgLegend items={legend} x={pad.l} y={4} width={W - pad.l - pad.r} />
+            <g transform={`translate(0 ${top})`}>
+              <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+              <Axes
+                xs={xs}
+                ys={[lo, hi]}
+                xTitle={labels.x}
+                yTitle={labels.y}
+                xTick={(v) => v.toFixed(0)}
               />
-            )}
-            {s.fence === null && (
-              <line
-                x1={pad.l}
-                x2={W - pad.r}
-                y1={sy(0)}
-                y2={sy(0)}
-                stroke="currentColor"
-                strokeOpacity={0.5}
-              />
-            )}
-            {marks.order.map((i) => (
-              <line
-                key={`l${s.rows[i]}`}
-                x1={px[i]}
-                x2={px[i]}
-                y1={sy(Math.max(lo, 0))}
-                y2={sy(s.values[i])}
-                stroke={far(s.values[i]) ? NEGATIVE_COLOR : POSITIVE_COLOR}
-                strokeOpacity={0.45}
-              />
-            ))}
-            {marks.order.map((i) => (
-              <circle
-                key={s.rows[i]}
-                cx={px[i]}
-                cy={sy(s.values[i])}
-                r={i === at ? marks.radius + 2 : marks.radius}
-                fill={far(s.values[i]) ? NEGATIVE_COLOR : POSITIVE_COLOR}
-                style={{ cursor: 'pointer' }}
-                onClick={() => setPicked(s.rows[i])}
-              >
-                <title>{`Row ${s.rows[i]}: ${fmt(s.values[i], 4)}`}</title>
-              </circle>
-            ))}
+              {s.fence !== null && Number.isFinite(s.fence) && (
+                <line
+                  x1={pad.l}
+                  x2={W - pad.r}
+                  y1={sy(s.fence)}
+                  y2={sy(s.fence)}
+                  stroke={NEGATIVE_COLOR}
+                  strokeDasharray="4 3"
+                />
+              )}
+              {s.fence === null && (
+                <line
+                  x1={pad.l}
+                  x2={W - pad.r}
+                  y1={sy(0)}
+                  y2={sy(0)}
+                  stroke="currentColor"
+                  strokeOpacity={0.5}
+                />
+              )}
+              {marks.order.map((i) => (
+                <line
+                  key={`l${s.rows[i]}`}
+                  x1={px[i]}
+                  x2={px[i]}
+                  y1={sy(Math.max(lo, 0))}
+                  y2={sy(s.values[i])}
+                  stroke={far(s.values[i]) ? NEGATIVE_COLOR : POSITIVE_COLOR}
+                  strokeOpacity={0.45}
+                />
+              ))}
+              {marks.order.map((i) => (
+                <circle
+                  key={s.rows[i]}
+                  cx={px[i]}
+                  cy={sy(s.values[i])}
+                  r={i === at ? marks.radius + 2 : marks.radius}
+                  fill={far(s.values[i]) ? NEGATIVE_COLOR : POSITIVE_COLOR}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setPicked(s.rows[i])}
+                >
+                  <title>{`Row ${s.rows[i]}: ${fmt(s.values[i], 4)}`}</title>
+                </circle>
+              ))}
+            </g>
           </svg>
         )}
       </ChartFrame>

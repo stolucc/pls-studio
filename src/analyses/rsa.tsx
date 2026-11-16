@@ -22,6 +22,7 @@ import {
   rawData,
 } from './common';
 import type { AnalysisType, OptionsProps } from './types';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
 
 export type RsaPreset = Partial<RsaInput>;
 export type RsaOptions = Omit<RsaInput, 'confidence'>;
@@ -55,7 +56,7 @@ const shade = (t: number) => {
 };
 
 /** The response surface as a 3D mesh (painter's algorithm), with the lines of congruence and incongruence. */
-function Surface({ r, input }: { r: RsaResult; input: RsaInput }) {
+export function Surface({ r, input }: { r: RsaResult; input: RsaInput }) {
   const [az, setAz] = useState(-25);
   const W = 520;
   const H = 400;
@@ -146,47 +147,61 @@ function Surface({ r, input }: { r: RsaResult; input: RsaInput }) {
   const axis = (x: number, y: number) => proj(x, y, zmin);
   const xa = [axis(gmin, gmin), axis(g[n - 1], gmin)];
   const ya = [axis(gmin, gmin), axis(gmin, g[n - 1])];
+  const legend: LegendItem[] = [
+    { label: 'Congruence (X = Y)', color: '#111827', mark: 'line' },
+    { label: 'Incongruence (X = −Y)', color: '#111827', mark: 'dash' },
+  ];
+  const lh = legendHeight(legend, W - 24);
   return (
     <>
       <ChartFrame
         id="rsa:surface"
         name="response-surface"
         width={W}
-        height={H}
+        height={H + lh}
         defaults={{ x: input.x, y: input.y }}
       >
         {(labels) => (
-          <svg className="mc-chart" width={W} height={H} role="img" aria-label="Response surface">
-            {quads.map((q, k) => (
-              <polygon
-                key={k}
-                points={q.pts}
-                fill={shade(q.t)}
-                fillOpacity={0.88}
-                stroke="#ffffff"
-                strokeOpacity={0.35}
-                strokeWidth={0.5}
+          <svg
+            className="mc-chart"
+            width={W}
+            height={H + lh}
+            role="img"
+            aria-label="Response surface"
+          >
+            <SvgLegend items={legend} x={12} y={0} width={W - 24} />
+            <g transform={`translate(0 ${lh})`}>
+              {quads.map((q, k) => (
+                <polygon
+                  key={k}
+                  points={q.pts}
+                  fill={shade(q.t)}
+                  fillOpacity={0.88}
+                  stroke="#ffffff"
+                  strokeOpacity={0.35}
+                  strokeWidth={0.5}
+                />
+              ))}
+              <path d={line((s) => [s, s])} stroke="#111827" strokeWidth={2} fill="none" />
+              <path
+                d={line((s) => [s, 2 * mid - s])}
+                stroke="#111827"
+                strokeWidth={2}
+                strokeDasharray="5 4"
+                fill="none"
               />
-            ))}
-            <path d={line((s) => [s, s])} stroke="#111827" strokeWidth={2} fill="none" />
-            <path
-              d={line((s) => [s, 2 * mid - s])}
-              stroke="#111827"
-              strokeWidth={2}
-              strokeDasharray="5 4"
-              fill="none"
-            />
-            <line x1={xa[0].sx} y1={xa[0].sy} x2={xa[1].sx} y2={xa[1].sy} stroke="#64748b" />
-            <line x1={ya[0].sx} y1={ya[0].sy} x2={ya[1].sx} y2={ya[1].sy} stroke="#64748b" />
-            <text x={xa[1].sx} y={xa[1].sy + 16} textAnchor="middle" className="axis-title">
-              {labels.x}
-            </text>
-            <text x={ya[1].sx} y={ya[1].sy + 16} textAnchor="middle" className="axis-title">
-              {labels.y}
-            </text>
-            <text x={12} y={18}>
-              {input.outcome}: {fmt(zmin, 2)} (violet) – {fmt(zmax, 2)} (amber)
-            </text>
+              <line x1={xa[0].sx} y1={xa[0].sy} x2={xa[1].sx} y2={xa[1].sy} stroke="#64748b" />
+              <line x1={ya[0].sx} y1={ya[0].sy} x2={ya[1].sx} y2={ya[1].sy} stroke="#64748b" />
+              <text x={xa[1].sx} y={xa[1].sy + 16} textAnchor="middle" className="axis-title">
+                {labels.x}
+              </text>
+              <text x={ya[1].sx} y={ya[1].sy + 16} textAnchor="middle" className="axis-title">
+                {labels.y}
+              </text>
+              <text x={12} y={18}>
+                {input.outcome}: {fmt(zmin, 2)} (violet) – {fmt(zmax, 2)} (amber)
+              </text>
+            </g>
           </svg>
         )}
       </ChartFrame>
@@ -201,8 +216,8 @@ function Surface({ r, input }: { r: RsaResult; input: RsaInput }) {
         />
       </div>
       <div className="hint">
-        Solid line: congruence (X = Y); dashed: incongruence (X = −Y)
-        {input.center === 'none' ? '' : `, through the centre`}. Controls at their means.
+        The lines of congruence and incongruence
+        {input.center === 'none' ? '' : ' run through the centre'}. Controls at their means.
       </div>
     </>
   );

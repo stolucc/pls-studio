@@ -46,6 +46,13 @@ describe('views', () => {
     expect(html).toContain('Guessing (g)');
     expect(html).toContain('−logit(g)');
     expect(html).toContain('Robust SE');
+    // (the information chart's key and plot panel, inside its SVG)
+    const from = html.indexOf('aria-label="Test and item information"');
+    const svg = html.slice(from, html.indexOf('</svg>', from));
+    expect(svg).toContain('aria-label="Legend"');
+    expect(svg).toContain('>Test information (the sum)</text>');
+    expect(svg).toContain('>Item information</text>');
+    expect(svg).toContain('class="plot-panel"');
     const mix = renderToStaticMarkup(
       <irtAnalysis.View
         result={

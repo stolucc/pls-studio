@@ -27,7 +27,9 @@ import {
   rawData,
 } from './common';
 import type { AnalysisType, OptionsProps } from './types';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
 import { seriesColor } from '../figure/palette';
+import { PlotPanel } from '../figure/panel';
 
 export type ChartKind = 'histogram' | 'scatter' | 'box' | 'bar';
 export interface ChartOptions {
@@ -264,6 +266,7 @@ function ChartView({ r }: { r: ChartResult }) {
             role="img"
             aria-label={`Histogram of ${r.x}`}
           >
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
             <Axes
               xs={xs}
               ys={[0, yMax]}
@@ -313,6 +316,7 @@ function ChartView({ r }: { r: ChartResult }) {
             role="img"
             aria-label={`Bar chart of ${r.x}`}
           >
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
             {ticks(0, yMax).map((v) => (
               <g key={v}>
                 <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />
@@ -392,6 +396,7 @@ function ChartView({ r }: { r: ChartResult }) {
             role="img"
             aria-label={`Box plot of ${r.x}`}
           >
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
             {ticks(ys[0], ys[1]).map((v) => (
               <g key={v}>
                 <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />
@@ -491,12 +496,22 @@ function Scatter({ r, id }: { r: Extract<ChartResult, { kind: 'scatter' }>; id: 
   const sx = (v: number) => pad.l + ((v - xs[0]) / (xs[1] - xs[0] || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((ys[1] - v) / (ys[1] - ys[0] || 1)) * (H - pad.t - pad.b);
   const f = r.fit;
+  // The legend names every colour: the groups (or the points, when there are none) and the fitted line.
+  const legend: LegendItem[] = [
+    ...(r.groups.length > 1
+      ? r.groups.map((g, i) => ({ label: g, color: seriesColor(i), mark: 'dot' as const }))
+      : f
+        ? [{ label: 'Observations', color: seriesColor(0), mark: 'dot' as const }]
+        : []),
+    ...(f ? [{ label: 'Least squares', color: 'var(--bad)', mark: 'line' as const }] : []),
+  ];
+  const lh = legendHeight(legend, W - pad.l - pad.r);
   return (
     <ChartFrame
       id={id}
       name={`scatter-${r.x}-${r.y}`}
       width={W}
-      height={H}
+      height={H + lh}
       defaults={{ x: r.x, y: r.y }}
       caption={
         <span className="hint">
@@ -504,7 +519,7 @@ function Scatter({ r, id }: { r: Extract<ChartResult, { kind: 'scatter' }>; id: 
           {f
             ? `; least squares: ${r.y} = ${fmt(f.intercept)} + ${fmt(f.slope)} × ${r.x}, r = ${fmt(f.r)}`
             : ''}
-          .{r.groups.length > 1 ? ` Colours: ${r.groups.join(', ')}.` : ''}
+          .
         </span>
       }
     >
@@ -512,44 +527,34 @@ function Scatter({ r, id }: { r: Extract<ChartResult, { kind: 'scatter' }>; id: 
         <svg
           className="mc-chart data-chart"
           width={W}
-          height={H}
+          height={H + lh}
           role="img"
           aria-label={`Scatterplot of ${r.y} against ${r.x}`}
         >
-          <Axes xs={xs} ys={ys} xTitle={labels.x} yTitle={labels.y} />
-          {r.points.map((p, i) => (
-            <circle
-              key={i}
-              className="dot"
-              cx={sx(p.x)}
-              cy={sy(p.y)}
-              r={3}
-              style={{ fill: seriesColor(p.g) }}
-            />
-          ))}
-          {f && (
-            <line
-              className="fit-line"
-              x1={sx(xs[0])}
-              y1={sy(f.intercept + f.slope * xs[0])}
-              x2={sx(xs[1])}
-              y2={sy(f.intercept + f.slope * xs[1])}
-            />
-          )}
-          {r.groups.length > 1 &&
-            r.groups.map((g, i) => (
-              <g key={g}>
-                <circle
-                  cx={W - pad.r - 110}
-                  cy={pad.t + 10 + i * 14}
-                  r={4}
-                  style={{ fill: seriesColor(i) }}
-                />
-                <text x={W - pad.r - 102} y={pad.t + 14 + i * 14}>
-                  {g}
-                </text>
-              </g>
+          <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
+          <g transform={`translate(0 ${lh})`}>
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+            <Axes xs={xs} ys={ys} xTitle={labels.x} yTitle={labels.y} />
+            {r.points.map((p, i) => (
+              <circle
+                key={i}
+                className="dot"
+                cx={sx(p.x)}
+                cy={sy(p.y)}
+                r={3}
+                style={{ fill: seriesColor(p.g) }}
+              />
             ))}
+            {f && (
+              <line
+                className="fit-line"
+                x1={sx(xs[0])}
+                y1={sy(f.intercept + f.slope * xs[0])}
+                x2={sx(xs[1])}
+                y2={sy(f.intercept + f.slope * xs[1])}
+              />
+            )}
+          </g>
         </svg>
       )}
     </ChartFrame>

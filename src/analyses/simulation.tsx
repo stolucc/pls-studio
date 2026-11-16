@@ -33,7 +33,9 @@ import { c, Table, type Row } from '../components/results/Table';
 import { emptyModel } from '../store';
 import { fingerprint } from './codec';
 import type { AnalysisType, OptionsProps } from './types';
-import { seriesColor } from '../figure/palette';
+import { OTHER_COLOR, seriesColor } from '../figure/palette';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 
 /** Number input that keeps the typed text until blur (so "-0." can be typed). */
 function Num({
@@ -81,9 +83,9 @@ function Num({
 
 /** Each chart's reference line (80% power, 95% coverage, no bias) and axis title. */
 const METRIC_AXIS = {
-  rejection: { ref: 0.8, title: 'Power (rejection rate)' },
-  coverage: { ref: 0.95, title: 'CI coverage' },
-  relBias: { ref: 0, title: 'Relative bias' },
+  rejection: { ref: 0.8, refLabel: 'Power .80', title: 'Power (rejection rate)' },
+  coverage: { ref: 0.95, refLabel: 'Nominal .95', title: 'CI coverage' },
+  relBias: { ref: 0, refLabel: 'No bias', title: 'Relative bias' },
 } as const;
 
 /** The fit index a fit parameter stands for; undefined for the χ² test. */
@@ -128,8 +130,14 @@ function PowerChart({
   metric: 'rejection' | 'relBias' | 'coverage';
 }) {
   const W = 460;
-  const H = 240;
-  const pad = { l: 54, r: 12, t: 12, b: 36 };
+  // Each estimator's line, and the dashed reference line (the target power, the nominal coverage, no bias).
+  const legend: LegendItem[] = [
+    ...estimators.map((e, k) => ({ label: e, color: seriesColor(k) })),
+    { label: METRIC_AXIS[metric].refLabel, color: OTHER_COLOR, mark: 'dash' as const },
+  ];
+  const legendH = legendHeight(legend, W - 54 - 12);
+  const H = 240 + legendH;
+  const pad = { l: 54, r: 12, t: 12 + legendH, b: 36 };
   const sel = rows.filter((r) => r.param.key === paramKey);
   const ns = [...new Set(sel.map((r) => r.n))].sort((a, b) => a - b);
   if (ns.length === 0) return null;
@@ -167,6 +175,8 @@ function PowerChart({
           role="img"
           aria-label={`${metric} by sample size`}
         >
+          <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
+          <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
           {ticks.map((v) => (
             <g key={v}>
               <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />
@@ -175,7 +185,14 @@ function PowerChart({
               </text>
             </g>
           ))}
-          <line className="ref-line" x1={pad.l} x2={W - pad.r} y1={sy(ref)} y2={sy(ref)} />
+          <line
+            className="ref-line"
+            style={{ stroke: OTHER_COLOR }}
+            x1={pad.l}
+            x2={W - pad.r}
+            y1={sy(ref)}
+            y2={sy(ref)}
+          />
           {ns.map((n) => (
             <text key={n} x={sx(n)} y={H - pad.b + 16} textAnchor="middle">
               {n}
@@ -946,8 +963,6 @@ function DistributionChart({
   // Density (a smooth kernel estimate, as published simulation figures draw it) or the histogram's bins.
   const [shape, setShape] = useState<'density' | 'histogram'>('density');
   const W = 460;
-  const H = 240;
-  const pad = { l: 54, r: 12, t: 12, b: 36 };
   const series = estimators
     .map((e, k) => ({
       e,
@@ -959,6 +974,16 @@ function DistributionChart({
         !!x.row?.hist,
     );
   if (!series.length) return null;
+  // Each estimator's curve, and the dashed line at the true value (fit indices have none).
+  const legend: LegendItem[] = [
+    ...series.map(({ e, k }) => ({ label: e, color: seriesColor(k) })),
+    ...(param.kind !== 'fit'
+      ? [{ label: 'True value', color: OTHER_COLOR, mark: 'dash' as const }]
+      : []),
+  ];
+  const legendH = legendHeight(legend, W - 54 - 12);
+  const H = 240 + legendH;
+  const pad = { l: 54, r: 12, t: 12 + legendH, b: 36 };
   const { lo, hi, counts } = series[0].row.hist;
   const bins = counts.length;
   const smooth = shape === 'density' && series.every(({ row }) => row.hist.density);
@@ -1014,6 +1039,8 @@ function DistributionChart({
             role="img"
             aria-label={`Distribution of the estimates at N = ${n}`}
           >
+            <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
             {yTicks.map((v) => (
               <g key={v}>
                 <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />
@@ -1030,6 +1057,7 @@ function DistributionChart({
             {param.kind !== 'fit' && (
               <line
                 className="ref-line"
+                style={{ stroke: OTHER_COLOR }}
                 x1={sx(param.value)}
                 x2={sx(param.value)}
                 y1={pad.t}
@@ -1170,14 +1198,6 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
               estimators={(design.estimators ?? []).map((e) => e.id)}
               metric={metric}
             />
-            <div className="legend">
-              {design.estimators.map((e, k) => (
-                <span key={e.id}>
-                  <i style={{ background: seriesColor(k) }} />
-                  {e.id}
-                </span>
-              ))}
-            </div>
             {rows.some((r) => r.hist) && (
               <div className="mc-distribution">
                 <div className="ipma-controls">

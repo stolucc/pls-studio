@@ -408,6 +408,34 @@ describe('regression view', () => {
     expect(html({ ...base, curves: [curve] })).toContain('Partial effect of a');
     expect(html({ ...base, curve })).toContain('Partial effect of a'); // the previous shape
     expect(html({ ...base, curve: null })).not.toContain('Partial effect');
+    // (a curve has a panel for the chart themes; a multinomial model keys its levels inside the SVG)
+    const svgOf = (h: string) => {
+      const from = h.indexOf('aria-label="Fitted curve"');
+      return h.slice(from, h.indexOf('</svg>', from));
+    };
+    const single = svgOf(html({ ...base, curves: [curve] }));
+    expect(single).toContain('class="plot-panel"');
+    expect(single).not.toContain('aria-label="Legend"');
+    const multinomial = svgOf(
+      html({
+        ...base,
+        family: 'multinomial',
+        curves: [
+          {
+            x: 'a',
+            grid: [0, 1],
+            levels: ['low', 'mid', 'high'],
+            probs: [
+              [0.6, 0.2],
+              [0.3, 0.3],
+              [0.1, 0.5],
+            ],
+          },
+        ],
+      }),
+    );
+    expect(multinomial).toContain('aria-label="Legend"');
+    for (const level of ['low', 'mid', 'high']) expect(multinomial).toContain(`>${level}</text>`);
     expect(html(base)).toContain('Coefficients');
     expect(html(base)).not.toContain('Durbin');
     const dw = { stat: 1.45, p: 0.011, exact: true, r1: 0.21 };

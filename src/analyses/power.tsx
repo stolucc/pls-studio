@@ -16,6 +16,8 @@ import type {
   PowerResult,
 } from '../rengine/power';
 import { Axes, H, pad, W } from './charts';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 import { fingerprint } from './codec';
 import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
 import { Choice, clampNum, isObj, name, NumField, oneOf } from './common';
@@ -307,17 +309,33 @@ function PowerCurve({ r, title }: { r: PowerResult; title: string }) {
     .map((n, i) => `${i ? 'L' : 'M'}${sx(n).toFixed(1)},${sy(cv.power[i]).toFixed(1)}`)
     .join(' ');
   const at = r.n;
+  const showDot = at !== undefined && r.power !== undefined && at >= xs[0] && at <= xs[1];
+  // The curve, the dot at the chosen N (when in range) and the .80 line, keyed above the plot.
+  const legend: LegendItem[] = [
+    { label: 'Power', color: POSITIVE_COLOR },
+    ...(showDot
+      ? [
+          {
+            label: `N = ${at}: power ${fmt(r.power ?? 0, 3)}`,
+            color: POSITIVE_COLOR,
+            mark: 'dot' as const,
+          },
+        ]
+      : []),
+    { label: 'Power .80', color: OTHER_COLOR, mark: 'dash' },
+  ];
+  const legendH = legendHeight(legend, W - pad.l - pad.r);
   return (
     <ChartFrame
       id={`power:curve:${r.analysis}`}
       name="power-curve"
       width={W}
-      height={H}
+      height={H + legendH}
       defaults={{ x: 'N', y: 'Power' }}
       caption={
         <span className="hint">
           {title}: the power of the χ² test at each N (α = {fmt(r.alpha ?? 0.05, 3)}, df = {r.df},
-          F0 = {fmt(r.fmin ?? 0, 4)}); the dot: N = {at}, power {fmt(r.power ?? 0, 3)}.
+          F0 = {fmt(r.fmin ?? 0, 4)}).
         </span>
       }
     >
@@ -325,31 +343,35 @@ function PowerCurve({ r, title }: { r: PowerResult; title: string }) {
         <svg
           className="mc-chart data-chart"
           width={W}
-          height={H}
+          height={H + legendH}
           role="img"
           aria-label="Power curve"
         >
-          <Axes
-            xs={xs}
-            ys={[0, 1]}
-            xTitle={labels.x}
-            yTitle={labels.y}
-            xTick={(v) => v.toFixed(0)}
-          />
-          <line
-            x1={pad.l}
-            x2={W - pad.r}
-            y1={sy(0.8)}
-            y2={sy(0.8)}
-            stroke={OTHER_COLOR}
-            strokeDasharray="4 3"
-          />
-          <path d={line} fill="none" stroke={POSITIVE_COLOR} strokeWidth={2} />
-          {at !== undefined && r.power !== undefined && at >= xs[0] && at <= xs[1] && (
-            <circle cx={sx(at)} cy={sy(r.power)} r={4} fill={POSITIVE_COLOR}>
-              <title>{`N = ${at}: power ${fmt(r.power, 3)}`}</title>
-            </circle>
-          )}
+          <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
+          <g transform={`translate(0 ${legendH})`}>
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+            <Axes
+              xs={xs}
+              ys={[0, 1]}
+              xTitle={labels.x}
+              yTitle={labels.y}
+              xTick={(v) => v.toFixed(0)}
+            />
+            <line
+              x1={pad.l}
+              x2={W - pad.r}
+              y1={sy(0.8)}
+              y2={sy(0.8)}
+              stroke={OTHER_COLOR}
+              strokeDasharray="4 3"
+            />
+            <path d={line} fill="none" stroke={POSITIVE_COLOR} strokeWidth={2} />
+            {showDot && (
+              <circle cx={sx(at!)} cy={sy(r.power!)} r={4} fill={POSITIVE_COLOR}>
+                <title>{`N = ${at}: power ${fmt(r.power!, 3)}`}</title>
+              </circle>
+            )}
+          </g>
         </svg>
       )}
     </ChartFrame>

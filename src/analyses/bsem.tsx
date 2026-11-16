@@ -25,6 +25,8 @@ import type {
 import { Choice, clampNum, columnsFingerprint, isObj, oneOf, rawData, rhatClass } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 import { fingerprint } from './codec';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 
 const engine = () => import('../rengine/bsem');
 /** MCMC (blavaan, desktop R) or the INLA approximation (INLAvaan). */
@@ -585,7 +587,7 @@ function BsemForm({ options: o, set, disabled, ctx }: OptionsProps<BsemOptions>)
   );
 }
 
-function LoopChart({ l, conf }: { l: BsemLoopResult; conf: number }) {
+export function LoopChart({ l, conf }: { l: BsemLoopResult; conf: number }) {
   const W = 520;
   const H = 300;
   const pad = { l: 56, r: 16, t: 14, b: 44 };
@@ -600,54 +602,70 @@ function LoopChart({ l, conf }: { l: BsemLoopResult; conf: number }) {
   const xt = Array.from({ length: 5 }, (_, i) => x0 + ((x1 - x0) * i) / 4);
   const line = (ys: number[]) =>
     ys.map((y, i) => `${i ? 'L' : 'M'}${sx(l.x[i]).toFixed(1)},${sy(y).toFixed(1)}`).join(' ');
+  const legend: LegendItem[] = [
+    { label: 'Posterior median', color: 'var(--accent)', mark: 'line' },
+    { label: `${pct(conf)} credible interval`, color: 'currentColor', mark: 'dash' },
+  ];
+  const lh = legendHeight(legend, W - pad.l - pad.r);
   return (
     <ChartFrame
       id="bsem:loop"
       name="bsem-loop"
       width={W}
-      height={H}
+      height={H + lh}
       defaults={{ x: l.variable, y: l.name }}
       caption={
         <span className="hint">
-          Posterior median of {l.name} at each value of {l.variable} (line) and the central{' '}
-          {pct(conf)} credible interval (dashed).
+          Posterior median of {l.name} at each value of {l.variable} and the central {pct(conf)}{' '}
+          credible interval.
         </span>
       }
     >
       {(labels) => (
-        <svg className="mc-chart data-chart" width={W} height={H} role="img" aria-label={l.name}>
-          {ticks.map((v) => (
-            <g key={v}>
-              <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />
-              <text x={pad.l - 6} y={sy(v) + 4} textAnchor="end">
+        <svg
+          className="mc-chart data-chart"
+          width={W}
+          height={H + lh}
+          role="img"
+          aria-label={l.name}
+        >
+          <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
+          <g transform={`translate(0 ${lh})`}>
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+
+            {ticks.map((v) => (
+              <g key={v}>
+                <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />
+                <text x={pad.l - 6} y={sy(v) + 4} textAnchor="end">
+                  {fmt(v, 2)}
+                </text>
+              </g>
+            ))}
+            {xt.map((v) => (
+              <text key={v} x={sx(v)} y={H - pad.b + 16} textAnchor="middle">
                 {fmt(v, 2)}
               </text>
-            </g>
-          ))}
-          {xt.map((v) => (
-            <text key={v} x={sx(v)} y={H - pad.b + 16} textAnchor="middle">
-              {fmt(v, 2)}
+            ))}
+            <line className="ref-line" x1={pad.l} x2={W - pad.r} y1={sy(0)} y2={sy(0)} />
+            <path d={line(l.low)} fill="none" stroke="currentColor" strokeDasharray="4 3" />
+            <path d={line(l.high)} fill="none" stroke="currentColor" strokeDasharray="4 3" />
+            <path d={line(l.median)} fill="none" stroke="var(--accent)" strokeWidth={2} />
+            <text
+              x={pad.l + (W - pad.l - pad.r) / 2}
+              y={H - 4}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.x}
             </text>
-          ))}
-          <line className="ref-line" x1={pad.l} x2={W - pad.r} y1={sy(0)} y2={sy(0)} />
-          <path d={line(l.low)} fill="none" stroke="currentColor" strokeDasharray="4 3" />
-          <path d={line(l.high)} fill="none" stroke="currentColor" strokeDasharray="4 3" />
-          <path d={line(l.median)} fill="none" stroke="var(--accent)" strokeWidth={2} />
-          <text
-            x={pad.l + (W - pad.l - pad.r) / 2}
-            y={H - 4}
-            textAnchor="middle"
-            className="axis-title"
-          >
-            {labels.x}
-          </text>
-          <text
-            transform={`translate(12 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`}
-            textAnchor="middle"
-            className="axis-title"
-          >
-            {labels.y}
-          </text>
+            <text
+              transform={`translate(12 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.y}
+            </text>
+          </g>
         </svg>
       )}
     </ChartFrame>

@@ -880,6 +880,25 @@ describe('local SEM card', () => {
     expect(html).toContain('Pointwise permutation p values');
     expect(html).toContain('Effective N');
     expect(html).toContain('A =~ a1');
+    // (one loading: no key, the vertical axis names the parameter; a panel for the chart themes)
+    const from = html.indexOf('aria-label="Local SEM: loading');
+    const svg = html.slice(from, html.indexOf('</svg>', from));
+    expect(svg).not.toContain('aria-label="Legend"');
+    expect(svg).toContain('class="axis-title">A =~ a1</text>');
+    expect(svg).toContain('class="plot-panel"');
+  });
+  it('keys the curves inside the chart when there are several of a kind', () => {
+    const r = lsemResult(raw) as LsemResult;
+    const two = {
+      ...r,
+      params: [r.params[0], { ...r.params[0], rhs: 'a2' }, ...r.params.slice(1)],
+    };
+    const html = renderToStaticMarkup(<lsemAnalysis.View result={two} options={d} current />);
+    const from = html.indexOf('aria-label="Local SEM: loading');
+    const svg = html.slice(from, html.indexOf('</svg>', from));
+    expect(svg).toContain('aria-label="Legend"');
+    expect(svg).toContain('>A =~ a1</text>');
+    expect(svg).toContain('>A =~ a2</text>');
   });
 });
 

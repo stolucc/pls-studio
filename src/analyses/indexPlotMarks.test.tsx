@@ -97,7 +97,9 @@ describe('the index plot of influential cases', () => {
 
   it('one dot per case for a small sample', () => {
     const svg = plotSvg(inf(50, [10]));
-    expect(svg.match(/<circle/g)).toHaveLength(50);
+    // (the legend's two dots, Case and Far-out case, come first)
+    const marks = svg.slice(svg.indexOf('class="plot-panel-group"'));
+    expect(marks.match(/<circle/g)).toHaveLength(50);
     expect(svg).toContain('r="3"');
   });
 

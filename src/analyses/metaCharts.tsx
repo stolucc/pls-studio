@@ -6,6 +6,8 @@ import { ChartFrame } from '../components/ChartFrame';
 import { qnorm } from '../engine/stats';
 import { fmt } from '../format';
 import type { MetaResult } from '../rengine/meta';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 
 /** About five round tick values covering [lo, hi]. */
 export function niceTicks(lo: number, hi: number, count = 5): number[] {
@@ -94,6 +96,8 @@ export function ForestPlot({ r, pct }: { r: MetaResult; pct: number }) {
           role="img"
           aria-label="Forest plot"
         >
+          <PlotPanel x={x0} y={top} width={plotWidth} height={bottom - top} />
+
           <text x={4} y={14} className="axis-title">
             {labels.y}
           </text>
@@ -193,12 +197,26 @@ export function FunnelPlot({ r, pct }: { r: MetaResult; pct: number }) {
     `${sx(centre + z * maxSe)},${sy(maxSe)}`,
     `${sx(centre - z * maxSe)},${sy(maxSe)}`,
   ].join(' ');
+  const legend: LegendItem[] = [
+    { label: 'Studies', color: 'var(--accent)', mark: 'dot' },
+    ...(filled.length > 0
+      ? [
+          {
+            label: 'Added by trim-and-fill (open circle)',
+            color: 'var(--text-2)',
+            mark: 'dot' as const,
+          },
+        ]
+      : []),
+    { label: `${pct}% region around the pooled estimate`, color: 'var(--border)', mark: 'box' },
+  ];
+  const lh = legendHeight(legend, W - pad.l - pad.r);
   return (
     <ChartFrame
       id="meta:funnel"
       name="meta-funnel"
       width={W}
-      height={H}
+      height={H + lh}
       defaults={{ x: scaleName(r), y: 'Standard error' }}
       caption={
         <span className="hint">
@@ -206,7 +224,7 @@ export function FunnelPlot({ r, pct }: { r: MetaResult; pct: number }) {
           would fall around the pooled estimate without heterogeneity or bias. An empty corner
           suggests small-study effects.
           {filled.length > 0 &&
-            ` Open circles: the ${filled.length} ${filled.length === 1 ? 'study' : 'studies'} trim-and-fill adds.`}
+            ` Trim-and-fill adds ${filled.length} ${filled.length === 1 ? 'study' : 'studies'}.`}
         </span>
       }
     >
@@ -214,51 +232,56 @@ export function FunnelPlot({ r, pct }: { r: MetaResult; pct: number }) {
         <svg
           className="mc-chart data-chart"
           width={W}
-          height={H}
+          height={H + lh}
           role="img"
           aria-label="Funnel plot"
         >
-          <polygon points={region} fill="var(--border)" fillOpacity={0.35} />
-          {niceTicks(0, maxSe, 4).map((t) => (
-            <g key={`y${t}`}>
-              <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(t)} y2={sy(t)} />
-              <text x={pad.l - 6} y={sy(t) + 4} textAnchor="end">
+          <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
+          <g transform={`translate(0 ${lh})`}>
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+
+            <polygon points={region} fill="var(--border)" fillOpacity={0.35} />
+            {niceTicks(0, maxSe, 4).map((t) => (
+              <g key={`y${t}`}>
+                <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(t)} y2={sy(t)} />
+                <text x={pad.l - 6} y={sy(t) + 4} textAnchor="end">
+                  {fmt(t, 2)}
+                </text>
+              </g>
+            ))}
+            {niceTicks(lo, hi).map((t) => (
+              <text key={`x${t}`} x={sx(t)} y={H - pad.b + 16} textAnchor="middle">
                 {fmt(t, 2)}
               </text>
-            </g>
-          ))}
-          {niceTicks(lo, hi).map((t) => (
-            <text key={`x${t}`} x={sx(t)} y={H - pad.b + 16} textAnchor="middle">
-              {fmt(t, 2)}
+            ))}
+            <line className="ref-line" x1={sx(centre)} x2={sx(centre)} y1={sy(0)} y2={sy(maxSe)} />
+            {points.map((p, i) => (
+              <circle
+                key={i}
+                className={p.filled ? undefined : 'dot'}
+                cx={sx(p.yi)}
+                cy={sy(p.se)}
+                r={4}
+                fill={p.filled ? 'none' : undefined}
+                stroke={p.filled ? 'var(--text-2)' : undefined}
+              />
+            ))}
+            <text
+              x={pad.l + (W - pad.l - pad.r) / 2}
+              y={H - 4}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.x}
             </text>
-          ))}
-          <line className="ref-line" x1={sx(centre)} x2={sx(centre)} y1={sy(0)} y2={sy(maxSe)} />
-          {points.map((p, i) => (
-            <circle
-              key={i}
-              className={p.filled ? undefined : 'dot'}
-              cx={sx(p.yi)}
-              cy={sy(p.se)}
-              r={4}
-              fill={p.filled ? 'none' : undefined}
-              stroke={p.filled ? 'var(--text-2)' : undefined}
-            />
-          ))}
-          <text
-            x={pad.l + (W - pad.l - pad.r) / 2}
-            y={H - 4}
-            textAnchor="middle"
-            className="axis-title"
-          >
-            {labels.x}
-          </text>
-          <text
-            transform={`translate(14 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`}
-            textAnchor="middle"
-            className="axis-title"
-          >
-            {labels.y}
-          </text>
+            <text
+              transform={`translate(14 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.y}
+            </text>
+          </g>
         </svg>
       )}
     </ChartFrame>

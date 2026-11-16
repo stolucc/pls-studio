@@ -117,6 +117,16 @@ describe('NCA card', () => {
       conditions: [condition],
     };
     expect(renderToStaticMarkup(<NcaView r={r} />)).not.toContain('Potential outliers');
+    // (the ceiling plot's legend and plot panel, inside its SVG; no CR-FDH line here, so no CR-FDH entry)
+    const plain = renderToStaticMarkup(<NcaView r={r} />);
+    const chart = plain.slice(plain.indexOf('aria-label="Ceiling lines for x"'));
+    const svg = chart.slice(0, chart.indexOf('</svg>'));
+    expect(svg).toContain('aria-label="Legend"');
+    expect(svg).toContain('>Observations</text>');
+    expect(svg).toContain('>CE-FDH ceiling</text>');
+    expect(svg).not.toContain('CR-FDH ceiling');
+    expect(svg).toContain('class="plot-panel"');
+    expect(plain).not.toContain('Purple:');
     const robustness = {
       outliers: {
         ceFdh: [{ case: 7, d: 0.4, change: 0.15, percent: 60, ceiling: true, scope: false }],

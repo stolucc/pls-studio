@@ -15,6 +15,8 @@ import type {
   LcsResult,
 } from '../rengine/longitudinal';
 import { seriesColor } from '../figure/palette';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 import { columnsFingerprint, flag, isObj, missingColumns, names, rawData } from './common';
 import { fitCards, IN_TIME_ORDER, lavaanOf, MISSING_NOTE } from './longitudinal';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
@@ -193,8 +195,6 @@ function LcsOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<LcsOpti
 /** Observed (dots) and model-implied (lines) means of each variable at each occasion. */
 function LcsTrajectory({ r }: { r: LcsResult }) {
   const W = 460;
-  const H = 240;
-  const pad = { l: 56, r: 14, t: 12, b: 40 };
   const series = [
     { name: lcsName(r.x, 'X'), imp: r.impliedMeans.x, obs: r.observedMeans.x },
     ...(r.bivariate
@@ -203,6 +203,14 @@ function LcsTrajectory({ r }: { r: LcsResult }) {
   ];
   const all = series.flatMap((s) => [...s.imp, ...s.obs]).filter(Number.isFinite);
   if (!all.length) return null;
+  // The key: each series' model-implied means (line) and observed means (dots), in its colour.
+  const legend: LegendItem[] = series.flatMap((s, k): LegendItem[] => [
+    { label: `${s.name}: model-implied mean`, color: seriesColor(k) },
+    { label: `${s.name}: observed mean`, color: seriesColor(k), mark: 'dot' },
+  ]);
+  const top = legendHeight(legend, W - 56 - 14);
+  const H = 240 + top;
+  const pad = { l: 56, r: 14, t: 12 + top, b: 40 };
   const lo = Math.min(...all);
   const hi = Math.max(...all);
   const span = hi - lo || 1;
@@ -216,18 +224,11 @@ function LcsTrajectory({ r }: { r: LcsResult }) {
       width={W}
       height={H}
       defaults={{ x: 'Occasion', y: 'Mean' }}
-      caption={
-        <span className="hint">
-          Lines: model-implied means; dots: observed means
-          {series.length > 1
-            ? `; ${series.map((s, k) => `${s.name} in ${k ? 'the second' : 'the first'} colour`).join(', ')}`
-            : ''}
-          .
-        </span>
-      }
     >
       {(labels) => (
         <svg className="mc-chart" width={W} height={H} role="img" aria-label="Mean trajectories">
+          <SvgLegend items={legend} x={pad.l} y={4} width={W - pad.l - pad.r} />
+          <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
           <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(lo)} y2={sy(lo)} />
           <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(hi)} y2={sy(hi)} />
           <text x={pad.l - 6} y={sy(lo) + 4} textAnchor="end">

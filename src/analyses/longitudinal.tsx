@@ -31,6 +31,8 @@ import {
 } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 import { seriesColor } from '../figure/palette';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 
 /** `syntax`: the model as lavaan syntax for growth() instead of the shape and covariates; `group`: a grouping column for it. */
 export interface GrowthOptions {
@@ -93,11 +95,19 @@ const estRow = (e: LongEstimate, label: string): Row => [
 ];
 const estCols = ['Parameter', 'Estimate', 'Std. error', 'z', 'p', 'Standardised'];
 
+const IMPLIED_COLOR = '#6d28d9';
+const OBSERVED_COLOR = '#0f9d63';
+
 /** The model-implied mean at each occasion (line) and the observed means (dots). */
-function Trajectory({ r }: { r: GrowthResult }) {
+export function Trajectory({ r }: { r: GrowthResult }) {
   const W = 460;
-  const H = 240;
-  const pad = { l: 56, r: 14, t: 12, b: 40 };
+  const legend: LegendItem[] = [
+    { label: 'Model-implied mean', color: IMPLIED_COLOR },
+    { label: 'Observed mean', color: OBSERVED_COLOR, mark: 'dot' },
+  ];
+  const top = legendHeight(legend, W - 56 - 14);
+  const H = 240 + top;
+  const pad = { l: 56, r: 14, t: 12 + top, b: 40 };
   const all = [...r.impliedMeans, ...r.observedMeans];
   const lo = Math.min(...all);
   const hi = Math.max(...all);
@@ -117,6 +127,8 @@ function Trajectory({ r }: { r: GrowthResult }) {
       >
         {(labels) => (
           <svg className="mc-chart" width={W} height={H} role="img" aria-label="Mean trajectory">
+            <SvgLegend items={legend} x={pad.l} y={4} width={W - pad.l - pad.r} />
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
             <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(lo)} y2={sy(lo)} />
             <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(hi)} y2={sy(hi)} />
             <text x={pad.l - 6} y={sy(lo) + 4} textAnchor="end">
@@ -134,12 +146,12 @@ function Trajectory({ r }: { r: GrowthResult }) {
               d={r.times
                 .map((t, i) => `${i ? 'L' : 'M'} ${sx(t)} ${sy(r.impliedMeans[i])}`)
                 .join(' ')}
-              stroke="#6d28d9"
+              stroke={IMPLIED_COLOR}
               strokeWidth={2.2}
               fill="none"
             />
             {r.times.map((t, i) => (
-              <circle key={i} cx={sx(t)} cy={sy(r.observedMeans[i])} r={4} fill="#0f9d63" />
+              <circle key={i} cx={sx(t)} cy={sy(r.observedMeans[i])} r={4} fill={OBSERVED_COLOR} />
             ))}
             <text
               x={pad.l + (W - pad.l - pad.r) / 2}
@@ -159,7 +171,6 @@ function Trajectory({ r }: { r: GrowthResult }) {
           </svg>
         )}
       </ChartFrame>
-      <div className="hint">Line: model-implied mean at each occasion; dots: observed means.</div>
     </>
   );
 }
@@ -355,10 +366,15 @@ function RiclpmView({ r, input }: { r: RiclpmResult; input: RiclpmInput }) {
 export const bestByBic = (models: GmmModel[]) =>
   models.reduce((a, b) => (b.bic < a.bic ? b : a), models[0]);
 
-function Trajectories({ r, m }: { r: GmmResult; m: GmmModel }) {
+export function Trajectories({ r, m }: { r: GmmResult; m: GmmModel }) {
   const W = 480;
-  const H = 260;
-  const pad = { l: 56, r: 14, t: 12, b: 40 };
+  const legend: LegendItem[] = m.trajectories.map((_, k) => ({
+    label: `Class ${k + 1} (${fmt(100 * m.shares[k], 0)}%)`,
+    color: seriesColor(k),
+  }));
+  const top = legendHeight(legend, W - 56 - 14);
+  const H = 260 + top;
+  const pad = { l: 56, r: 14, t: 12 + top, b: 40 };
   const all = [
     ...m.trajectories.flat(),
     ...(m.observed ?? []).flat().filter((v): v is number => v !== null),
@@ -380,6 +396,8 @@ function Trajectories({ r, m }: { r: GmmResult; m: GmmModel }) {
     >
       {(labels) => (
         <svg className="mc-chart" width={W} height={H} role="img" aria-label="Class trajectories">
+          <SvgLegend items={legend} x={pad.l} y={4} width={W - pad.l - pad.r} />
+          <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
           <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(lo)} y2={sy(lo)} />
           <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(hi)} y2={sy(hi)} />
           <text x={pad.l - 6} y={sy(lo) + 4} textAnchor="end">

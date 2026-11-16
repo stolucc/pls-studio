@@ -613,6 +613,15 @@ describe('the view', () => {
     ])
       expect(html).toContain(s);
     expect(html.match(/role="img"/g)?.length).toBe(6);
+    // Each histogram keys its colours and lines inside the SVG (an exported figure keeps them).
+    const charts = html.match(/<svg[\s\S]*?<\/svg>/g)!.filter((x) => x.includes('Distribution of'));
+    expect(charts).toHaveLength(6);
+    for (const svg of charts) {
+      expect(svg).toContain('aria-label="Legend"');
+      expect(svg).toContain('class="plot-panel"');
+      for (const k of ['>Correct model</text>', '>Misspecified</text>', 'Dynamic cutoff'])
+        expect(svg).toContain(k);
+    }
     const eq = renderToStaticMarkup(
       <DfiView
         r={result({
@@ -663,6 +672,10 @@ describe('the view', () => {
     );
     expect(ex).toContain('95th percentile');
     expect(ex.match(/role="img"/g)?.length).toBe(4);
+    // (exact fit: one histogram and its 95th percentile, no misspecified model)
+    expect(ex).toContain('>Correct model</text>');
+    expect(ex).not.toContain('>Misspecified</text>');
+    expect(ex).not.toContain('Dynamic cutoff');
   });
   it('renders its options form for a model, with the functions that do not fit disabled', () => {
     const html = renderToStaticMarkup(

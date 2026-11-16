@@ -172,6 +172,12 @@ describe('SEMsens card', () => {
     expect(html).toContain('0.175');
     expect(html).toContain('<svg');
     expect(html).toContain('Phantom → x × phantom → y');
+    // The two colours of the points are keyed inside the chart (an exported figure keeps them).
+    const svg = html.match(/<svg[\s\S]*?<\/svg>/)![0];
+    expect(svg).toContain('aria-label="Legend"');
+    expect(svg).toContain('class="plot-panel"');
+    expect(svg).toContain('>Not significant</text>');
+    expect(svg).toMatch(/>p &lt; [^<]+<\/text>/);
   });
 });
 
@@ -242,5 +248,8 @@ describe('Mediation sensitivity card', () => {
     expect(html).toContain('Where the effects are zero');
     expect(html).toContain('none in (−1, 1)');
     expect((html.match(/aria-label="[^"]* by rho"/g) ?? []).length).toBe(2);
+    // (one colour each: plot panels, no key)
+    expect((html.match(/class="plot-panel"/g) ?? []).length).toBe(2);
+    expect(html).not.toContain('aria-label="Legend"');
   });
 });

@@ -30,6 +30,13 @@ describe('influential cases view', () => {
     expect(h).toContain('Index plot of Generalized Cook’s distance');
     expect(h).toContain('Row 7: 5');
     expect(h).toContain('#e34948');
+    // (the key and the plot panel, inside the chart's SVG so an exported figure keeps them)
+    const from = h.indexOf('aria-label="Index plot');
+    const svg = h.slice(from, h.indexOf('</svg>', from));
+    expect(svg).toContain('aria-label="Legend"');
+    for (const label of ['Case', 'Far-out case', 'Q3 + 3 IQR'])
+      expect(svg).toContain(`>${label}</text>`);
+    expect(svg).toContain('class="plot-panel"');
     expect(h).toContain('Exclude row');
     expect(h).toContain('Exclude the 1 far-out case');
     // (no kurtosis contributions in a result saved before them: neither the table nor the plot's choice)

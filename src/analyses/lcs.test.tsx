@@ -140,6 +140,18 @@ describe('latent change score card', () => {
     expect(html).toContain('Robust SE');
     expect(html).toContain('alpha_g2');
     expect(html).toContain('Mean trajectories');
+    // (the key inside the chart's SVG: each variable's implied and observed means)
+    const from = html.indexOf('aria-label="Mean trajectories"');
+    const svg = html.slice(from, html.indexOf('</svg>', from));
+    expect(svg).toContain('aria-label="Legend"');
+    for (const label of [
+      'anx: model-implied mean',
+      'anx: observed mean',
+      'dep: model-implied mean',
+      'dep: observed mean',
+    ])
+      expect(svg).toContain(`>${label}</text>`);
+    expect(svg).toContain('class="plot-panel"');
     expect(
       lcsRows({ ...r, bivariate: false, estimates: [est('gamma_lx1', 2)] }).map((x) => x.title),
     ).toEqual(['Change components']);

@@ -8,7 +8,9 @@
 import { useState } from 'react';
 import { ChartFrame } from '../components/ChartFrame';
 import { c, pCell, Table } from '../components/results/Table';
-import { SERIES_COLORS } from '../figure/palette';
+import { OTHER_COLOR, SERIES_COLORS } from '../figure/palette';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 import { fmt, fmtP } from '../format';
 import { type ModelState } from '../model/project';
 import { clampStrict } from '../parse';
@@ -226,6 +228,21 @@ function SemsensChart({ r }: { r: SemsensResult }) {
   const sy = (v: number) =>
     pad.t + ((ylim[1] - v) / (ylim[1] - ylim[0] || 1)) * (H - pad.t - pad.b);
   const [SIG, NS] = [SERIES_COLORS[0], SERIES_COLORS[1]];
+  // The two colours of the points, the model's estimate (dashed) and 0 (solid), keyed above the plot.
+  const legend: LegendItem[] = [
+    { label: `p < ${fmt(r.alpha, 3)}`, color: SIG, mark: 'dot' },
+    { label: 'Not significant', color: NS, mark: 'dot' },
+    ...(Number.isFinite(model)
+      ? [
+          {
+            label: `Model’s estimate (${fmt(model, 3)})`,
+            color: OTHER_COLOR,
+            mark: 'dash' as const,
+          },
+        ]
+      : []),
+  ];
+  const legendH = legendHeight(legend, W - pad.l - pad.r);
   return (
     <>
       {interest.length > 1 && (
@@ -248,13 +265,11 @@ function SemsensChart({ r }: { r: SemsensResult }) {
         id={`semsens:${key(p)}`}
         name={`semsens-${p.from}-${p.to}`}
         width={W}
-        height={H}
+        height={H + legendH}
         defaults={{ x: xLabel, y: `Standardised ${p.from} → ${p.to}` }}
         caption={
           <span className="hint">
-            Each point: one evaluation of the search. <span style={{ color: SIG }}>●</span> p &lt;{' '}
-            {fmt(r.alpha, 3)}, <span style={{ color: NS }}>●</span> not significant; dashed: the
-            model’s estimate ({fmt(model, 3)}); solid: 0.{' '}
+            Each point: one evaluation of the search; the solid line marks 0.{' '}
             {both
               ? 'The horizontal axis is the confounding strength: a confounder biases the path by about the product of its coefficients on the two ends.'
               : ''}
@@ -265,33 +280,37 @@ function SemsensChart({ r }: { r: SemsensResult }) {
           <svg
             className="mc-chart data-chart"
             width={W}
-            height={H}
+            height={H + legendH}
             role="img"
             aria-label={`Sensitivity of ${p.from} → ${p.to}`}
           >
-            <Axes xs={xr} ys={ylim} xTitle={labels.x} yTitle={labels.y} />
-            <line className="ref-line" x1={pad.l} x2={W - pad.r} y1={sy(0)} y2={sy(0)} />
-            {Number.isFinite(model) && (
-              <line
-                x1={pad.l}
-                x2={W - pad.r}
-                y1={sy(model)}
-                y2={sy(model)}
-                stroke="currentColor"
-                strokeDasharray="6 4"
-                strokeWidth={1.2}
-              />
-            )}
-            {pts.map((d, i) => (
-              <circle
-                key={i}
-                cx={sx(d.x)}
-                cy={sy(d.y)}
-                r={3}
-                fill={d.sig ? SIG : NS}
-                fillOpacity={0.75}
-              />
-            ))}
+            <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
+            <g transform={`translate(0 ${legendH})`}>
+              <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+              <Axes xs={xr} ys={ylim} xTitle={labels.x} yTitle={labels.y} />
+              <line className="ref-line" x1={pad.l} x2={W - pad.r} y1={sy(0)} y2={sy(0)} />
+              {Number.isFinite(model) && (
+                <line
+                  x1={pad.l}
+                  x2={W - pad.r}
+                  y1={sy(model)}
+                  y2={sy(model)}
+                  stroke={OTHER_COLOR}
+                  strokeDasharray="6 4"
+                  strokeWidth={1.2}
+                />
+              )}
+              {pts.map((d, i) => (
+                <circle
+                  key={i}
+                  cx={sx(d.x)}
+                  cy={sy(d.y)}
+                  r={3}
+                  fill={d.sig ? SIG : NS}
+                  fillOpacity={0.75}
+                />
+              ))}
+            </g>
           </svg>
         )}
       </ChartFrame>

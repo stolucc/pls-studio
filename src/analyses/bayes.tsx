@@ -4,6 +4,7 @@
 // project's confidence level.
 
 import { ChartFrame } from '../components/ChartFrame';
+import { PlotPanel } from '../figure/panel';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, Table, type Row } from '../components/results/Table';
 import { fmt } from '../format';
@@ -131,7 +132,7 @@ function PriorWidth({
 }
 
 /** BF10 on a log scale over the prior width (robustness) or the number of cases (sequential), with the evidence bands. */
-function BFCurve({
+export function BFCurve({
   id,
   x: xAll,
   y: yAll,
@@ -181,6 +182,7 @@ function BFCurve({
     >
       {(labels) => (
         <svg className="mc-chart data-chart" width={W} height={H} role="img" aria-label={title}>
+          <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
           {ticks.map((t) => (
             <g key={t}>
               <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(t)} y2={sy(t)} />

@@ -7,6 +7,8 @@ import { ChartFrame } from '../components/ChartFrame';
 import type { Dataset } from '../engine/types';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { seriesColor } from '../figure/palette';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 import { fmt } from '../format';
 import {
   EMM_ADJUST,
@@ -587,9 +589,13 @@ export function ProfilePlot({ e, dependent }: { e: EmmResult; dependent: string 
   const xs = [...new Set(p.rows.map((r) => r.x))];
   const lines = [...new Set(p.rows.map((r) => r.line))];
   const W = 520;
-  const H = 320;
-  const legend = p.lines ? 120 : 0;
-  const pad = { l: 60, r: 16 + legend, t: 14, b: 46 };
+  // The key: one line per level of the line factor (none without one).
+  const legend: LegendItem[] = p.lines
+    ? lines.map((line, k) => ({ label: line, color: seriesColor(k) }))
+    : [];
+  const top = legendHeight(legend, W - 60 - 16);
+  const H = 320 + top;
+  const pad = { l: 60, r: 16, t: 14 + top, b: 46 };
   const lo = Math.min(...p.rows.map((r) => r.lower));
   const hi = Math.max(...p.rows.map((r) => r.upper));
   const margin = (hi - lo || 1) * 0.08;
@@ -625,6 +631,8 @@ export function ProfilePlot({ e, dependent }: { e: EmmResult; dependent: string 
           role="img"
           aria-label="Profile plot"
         >
+          <SvgLegend items={legend} x={pad.l} y={4} width={plotW} />
+          <PlotPanel x={pad.l} y={pad.t} width={plotW} height={plotH} />
           {ticks.map((v) => (
             <g key={v}>
               <line className="grid-line" x1={pad.l} x2={pad.l + plotW} y1={sy(v)} y2={sy(v)} />
@@ -681,21 +689,6 @@ export function ProfilePlot({ e, dependent }: { e: EmmResult; dependent: string 
               </g>
             );
           })}
-          {p.lines &&
-            lines.map((line, k) => (
-              <g key={`legend${line}`}>
-                <rect
-                  x={W - legend + 4}
-                  y={pad.t + 4 + k * 18}
-                  width={12}
-                  height={12}
-                  fill={seriesColor(k)}
-                />
-                <text x={W - legend + 22} y={pad.t + 14 + k * 18}>
-                  {line}
-                </text>
-              </g>
-            ))}
           <text x={pad.l + plotW / 2} y={H - 4} textAnchor="middle" className="axis-title">
             {labels.x}
           </text>

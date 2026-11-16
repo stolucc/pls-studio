@@ -7,6 +7,8 @@ import { useState } from 'react';
 import { ChartFrame } from '../components/ChartFrame';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { NEGATIVE_COLOR, POSITIVE_COLOR, OTHER_COLOR } from '../figure/palette';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 import { fmt } from '../format';
 import { useCompute } from '../rengine/compute';
 import { useStore } from '../store';
@@ -152,10 +154,17 @@ function TreeChart({
   const LEVEL = 110;
   const M = 16;
   const W = Math.max(420, L.leaves * (BW + GAP) + 2 * M);
-  const H = (L.depthMax + 1) * LEVEL + BH - LEVEL + 2 * M + 20;
+  // The key to the nodes' outlines (nodeColor).
+  const legend: LegendItem[] = [
+    { label: 'Split', color: OTHER_COLOR, mark: 'box' },
+    { label: 'Final group (leaf)', color: POSITIVE_COLOR, mark: 'box' },
+    { label: 'Selected node', color: NEGATIVE_COLOR, mark: 'box' },
+  ];
+  const top = legendHeight(legend, W - 2 * M);
+  const H = (L.depthMax + 1) * LEVEL + BH - LEVEL + 2 * M + 20 + top;
   const cx = (id: number) =>
     M + BW / 2 + L.x.get(id)! * (BW + GAP) + (W - 2 * M - L.leaves * (BW + GAP) + GAP) / 2;
-  const cy = (id: number) => M + L.depth.get(id)! * LEVEL;
+  const cy = (id: number) => top + M + L.depth.get(id)! * LEVEL;
   return (
     <ChartFrame
       id="semtree:tree"
@@ -174,6 +183,7 @@ function TreeChart({
     >
       {() => (
         <svg className="mc-chart data-chart" width={W} height={H} role="img" aria-label="SEM tree">
+          <SvgLegend items={legend} x={M} y={4} width={W - 2 * M} />
           {r.nodes
             .filter((n) => n.parent !== undefined)
             .map((n) => {
@@ -274,6 +284,7 @@ function ImportanceChart({ f }: { f: NonNullable<SemTreeResult['forest']> }) {
           role="img"
           aria-label="Variable importance"
         >
+          <PlotPanel x={padL} y={14} width={W - padL - padR} height={rows.length * bar} />
           {rows.map((x, i) => (
             <g key={x.v}>
               <text x={padL - 8} y={14 + i * bar + bar / 2} textAnchor="end">

@@ -137,3 +137,76 @@ describe('network view labels', () => {
     ).toContain('regularised (EBICglasso)');
   });
 });
+
+describe('the network plot', () => {
+  const weights = [
+    [0, 0.3, -0.2],
+    [0.3, 0, 0.2],
+    [-0.2, 0.2, 0],
+  ];
+  const layout = [
+    [0, 0],
+    [1, 0],
+    [0, 1],
+  ];
+  const svgOf = (html: string) => {
+    const from = html.indexOf('aria-label="Network"');
+    return html.slice(from, html.indexOf('</svg>', from));
+  };
+
+  it('keys the edge signs inside the SVG', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const r = {
+      names: ['a', 'b', 'c'],
+      weights,
+      layout,
+      n: 50,
+      nComplete: 50,
+      centrality: {
+        strength: [0.5, 0.5, 0.4],
+        expectedInfluence: [0.1, 0.5, 0],
+        closeness: [1, 1, 1],
+        betweenness: [0, 1, 0],
+      },
+      cs: null,
+      samples: 0,
+      warnings: [],
+      engine: { package: 'bootnet', version: '1' },
+    };
+    const o = { ...net.defaults(ctx()), vars: ['a', 'b', 'c'] };
+    const svg = svgOf(renderToStaticMarkup(<net.View result={r} options={o} current />));
+    expect(svg).toContain('aria-label="Legend"');
+    expect(svg).toContain('>Positive edge</text>');
+    expect(svg).toContain('>Negative edge</text>');
+    expect(svg).not.toContain('Community');
+  });
+
+  it('names each community’s colour in exploratory graph analysis', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const r = {
+      names: ['a', 'b', 'c'],
+      dims: 2,
+      membership: [1, 1, 2],
+      weights,
+      loadings: [
+        [0.5, 0],
+        [0.5, 0],
+        [0, 0.5],
+      ],
+      loadingDims: ['1', '2'],
+      layout,
+      tefi: null,
+      frequency: null,
+      itemStability: null,
+      samples: 0,
+      n: 50,
+      warnings: [],
+      engine: { package: 'EGAnet', version: '1' },
+    };
+    const o = { ...ega.defaults(ctx()), vars: ['a', 'b', 'c'] };
+    const svg = svgOf(renderToStaticMarkup(<ega.View result={r} options={o} current />));
+    expect(svg).toContain('>Community 1</text>');
+    expect(svg).toContain('>Community 2</text>');
+    expect(svg).toContain('>Positive edge</text>');
+  });
+});

@@ -209,6 +209,13 @@ describe('descriptives view', () => {
     expect(plots).toContain('Q-Q plot of y · first');
     expect(plots).toContain('Raincloud plot of y');
     expect(plots).toContain('>second<');
+    // (the raincloud keys the groups' colours inside its SVG; every plot has a panel for the themes)
+    const from = plots.indexOf('aria-label="Raincloud plot of y"');
+    const rain = plots.slice(from, plots.indexOf('</svg>', from));
+    expect(rain).toContain('aria-label="Legend"');
+    expect(rain).toContain('>first</text>');
+    expect(rain).toContain('>second</text>');
+    expect(plots.match(/class="plot-panel"/g)).toHaveLength(3);
     const freq = renderToStaticMarkup(<FrequencyTables r={full} />);
     expect(freq).toContain('Frequencies: t · first');
     expect(freq).toContain('Missing');

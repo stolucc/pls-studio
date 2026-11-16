@@ -17,6 +17,7 @@ import type {
   MedsensZero,
 } from '../rengine/sensitivity';
 import { Axes, H, pad, W } from './charts';
+import { PlotPanel } from '../figure/panel';
 import { columnsFingerprint, isObj, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
@@ -156,6 +157,7 @@ function CurveChart({
           role="img"
           aria-label={`${label} by rho`}
         >
+          <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
           <Axes xs={xs} ys={ys} xTitle={labels.x} yTitle={labels.y} />
           <polygon points={band} fill={col} fillOpacity={0.18} />
           <line className="ref-line" x1={pad.l} x2={W - pad.r} y1={sy(0)} y2={sy(0)} />

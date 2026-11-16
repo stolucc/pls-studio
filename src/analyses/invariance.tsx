@@ -13,6 +13,8 @@ import { OrderedPicker } from '../components/OrderedPicker';
 import { InvarianceTable } from '../components/results/InvarianceTable';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { seriesColor } from '../figure/palette';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 import { fmt, fmtP } from '../format';
 import {
   detectOccasions,
@@ -1011,9 +1013,17 @@ function LsemChart({ r, params, kind }: { r: LsemResult; params: LsemParam[]; ki
   const xs: [number, number] = [r.grid[0], r.grid[r.grid.length - 1]];
   const sx = (v: number) => pad.l + ((v - xs[0]) / (xs[1] - xs[0] || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((ys[1] - v) / (ys[1] - ys[0] || 1)) * (H - pad.t - pad.b);
-  const perRow = 3;
-  const legendH = Math.ceil(params.length / perRow) * 16 + 8;
-  const HT = H + legendH;
+  const legend: LegendItem[] = params.map((p, k) => ({
+    label: lsemLabel(p),
+    color: seriesColor(k),
+  }));
+  const top = legendHeight(legend, W - pad.l - pad.r);
+  const HT = H + top;
+  // (one parameter: no key, the vertical axis names it)
+  const yTitle =
+    params.length === 1
+      ? lsemLabel(params[0])
+      : (LSEM_KINDS.find(([k]) => k === kind)?.[1] ?? 'Estimate');
   const fin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
   return (
     <ChartFrame
@@ -1021,7 +1031,7 @@ function LsemChart({ r, params, kind }: { r: LsemResult; params: LsemParam[]; ki
       name={`lsem-${kind}`}
       width={W}
       height={HT}
-      defaults={{ x: r.moderator, y: LSEM_KINDS.find(([k]) => k === kind)?.[1] ?? 'Estimate' }}
+      defaults={{ x: r.moderator, y: yTitle }}
       caption={
         <span className="hint">
           Each line: the parameter estimated at the focal points of {r.moderator}
@@ -1038,54 +1048,39 @@ function LsemChart({ r, params, kind }: { r: LsemResult; params: LsemParam[]; ki
           role="img"
           aria-label={`Local SEM: ${kind} along ${r.moderator}`}
         >
-          <Axes xs={xs} ys={ys} xTitle={labels.x} yTitle={labels.y} />
-          {params.map((p, k) => {
-            const idx = r.grid.map((_, i) => i).filter((i) => fin(p.est[i]));
-            const b = p.boot
-              ? idx.filter((i) => fin(p.boot!.lower[i]) && fin(p.boot!.upper[i]))
-              : [];
-            return (
-              <g key={p.par}>
-                {b.length > 1 && (
-                  <polygon
-                    points={[
-                      ...b.map((i) => `${sx(r.grid[i])},${sy(p.boot!.upper[i]!)}`),
-                      ...[...b].reverse().map((i) => `${sx(r.grid[i])},${sy(p.boot!.lower[i]!)}`),
-                    ].join(' ')}
-                    fill={seriesColor(k)}
-                    fillOpacity={0.14}
-                  />
-                )}
-                <polyline
-                  points={idx.map((i) => `${sx(r.grid[i])},${sy(p.est[i])}`).join(' ')}
-                  fill="none"
-                  stroke={seriesColor(k)}
-                  strokeWidth={2}
-                >
-                  <title>{lsemLabel(p)}</title>
-                </polyline>
-              </g>
-            );
-          })}
-          {params.map((p, k) => {
-            const x = pad.l + (k % perRow) * ((W - pad.l - pad.r) / perRow);
-            const y = H + 12 + Math.floor(k / perRow) * 16;
-            return (
-              <g key={`l${p.par}`}>
-                <line
-                  x1={x}
-                  x2={x + 18}
-                  y1={y - 4}
-                  y2={y - 4}
-                  stroke={seriesColor(k)}
-                  strokeWidth={2.5}
-                />
-                <text x={x + 24} y={y}>
-                  {lsemLabel(p)}
-                </text>
-              </g>
-            );
-          })}
+          <SvgLegend items={legend} x={pad.l} y={4} width={W - pad.l - pad.r} />
+          <g transform={`translate(0 ${top})`}>
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+            <Axes xs={xs} ys={ys} xTitle={labels.x} yTitle={labels.y} />
+            {params.map((p, k) => {
+              const idx = r.grid.map((_, i) => i).filter((i) => fin(p.est[i]));
+              const b = p.boot
+                ? idx.filter((i) => fin(p.boot!.lower[i]) && fin(p.boot!.upper[i]))
+                : [];
+              return (
+                <g key={p.par}>
+                  {b.length > 1 && (
+                    <polygon
+                      points={[
+                        ...b.map((i) => `${sx(r.grid[i])},${sy(p.boot!.upper[i]!)}`),
+                        ...[...b].reverse().map((i) => `${sx(r.grid[i])},${sy(p.boot!.lower[i]!)}`),
+                      ].join(' ')}
+                      fill={seriesColor(k)}
+                      fillOpacity={0.14}
+                    />
+                  )}
+                  <polyline
+                    points={idx.map((i) => `${sx(r.grid[i])},${sy(p.est[i])}`).join(' ')}
+                    fill="none"
+                    stroke={seriesColor(k)}
+                    strokeWidth={2}
+                  >
+                    <title>{lsemLabel(p)}</title>
+                  </polyline>
+                </g>
+              );
+            })}
+          </g>
         </svg>
       )}
     </ChartFrame>

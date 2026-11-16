@@ -226,6 +226,12 @@ describe('power analysis card', () => {
     );
     expect(h).toContain('N needed: 154');
     expect(h).toContain('aria-label="Power curve"');
+    // The curve's key, inside its SVG: the curve, the dot at N = 154 and the .80 line.
+    const svg = h.match(/<svg[^>]*aria-label="Power curve"[\s\S]*?<\/svg>/)![0];
+    expect(svg).toContain('aria-label="Legend"');
+    expect(svg).toContain('class="plot-panel"');
+    for (const k of ['>Power</text>', '>N = 154: power 0.951</text>', '>Power .80</text>'])
+      expect(svg).toContain(k);
     const p: PowerResult = {
       analysis: 'parameter',
       type: 'apriori',

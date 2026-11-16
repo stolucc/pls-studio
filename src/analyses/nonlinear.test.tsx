@@ -115,5 +115,8 @@ describe('nonlinear paths card', () => {
     expect(html).toContain('Simpson’s paradox ratio (SPR)');
     expect(html).toContain('NLBCDR');
     expect(html.match(/class="chart-frame"/g)).toHaveLength(3);
+    // (one colour per chart: a plot panel, no key)
+    expect(html.match(/class="plot-panel"/g)).toHaveLength(3);
+    expect(html).not.toContain('aria-label="Legend"');
   });
 });

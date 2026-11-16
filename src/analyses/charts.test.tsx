@@ -262,6 +262,24 @@ describe('chart card', () => {
       renderToStaticMarkup(<chartAnalysis.View result={sc} options={o({})} current />),
     ).toContain('fit-line');
   });
+  it('draws a plot panel under every chart, and the scatterplot’s legend inside its SVG', () => {
+    const sc = chartResult(o({ kind: 'scatter', x: 'x', y: 'y', group: 't', fit: true }), data);
+    const hist = chartResult(o({ x: 'x' }), data);
+    for (const r of [sc, hist])
+      expect(
+        renderToStaticMarkup(<chartAnalysis.View result={r} options={o({})} current />),
+      ).toContain('class="plot-panel"');
+    const html = renderToStaticMarkup(<chartAnalysis.View result={sc} options={o({})} current />);
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+    expect(svg).toContain('aria-label="Legend"');
+    for (const l of ['a', 'b', 'c', 'Least squares']) expect(svg).toContain(`>${l}</text>`);
+    expect(html).not.toContain('Colours:');
+    // (no groups and no line: one colour, nothing to tell apart)
+    const plain = chartResult(o({ kind: 'scatter', x: 'x', y: 'y', fit: false }), data);
+    expect(
+      renderToStaticMarkup(<chartAnalysis.View result={plain} options={o({})} current />),
+    ).not.toContain('aria-label="Legend"');
+  });
   it('caps the points it stores and counts the rest', () => {
     const n = MAX_POINTS + 7;
     const big = {

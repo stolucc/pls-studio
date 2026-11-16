@@ -102,6 +102,11 @@ describe('power for standard tests: view', () => {
     expect(html).toContain('greater (one-sided)');
     expect(html).toContain('Power curve');
     expect(html).toContain('pwr::pwr.t.test (two.sample)');
+    // The curve's key, inside its SVG: the curve, the dot at the N and the .80 line.
+    const svg = html.match(/<svg[^>]*aria-label="Power curve"[\s\S]*?<\/svg>/)![0];
+    expect(svg).toContain('aria-label="Legend"');
+    expect(svg).toContain('class="plot-panel"');
+    for (const k of ['>Power</text>', '>Power .80</text>', ': power ']) expect(svg).toContain(k);
   });
   it('heads a sensitivity analysis with the detectable effect', () => {
     const html = renderToStaticMarkup(

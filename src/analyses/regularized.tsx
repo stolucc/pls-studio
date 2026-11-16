@@ -4,6 +4,8 @@
 
 import { useEffect, useState } from 'react';
 import { seriesColor, OTHER_COLOR } from '../figure/palette';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 import { fmt } from '../format';
 
 import type { Delta, Penalty, RegsemRaw, RegsemRequest, TestKind } from '../rengine/search';
@@ -86,8 +88,6 @@ function PathChart({ r }: { r: RegsemResult }) {
     .sort((a, b) => a.lambda - b.lambda);
   if (levels.length < 2) return null;
   const W = 560;
-  const H = 300;
-  const pad = { l: 54, r: 12, t: 12, b: 38 };
   const xs = levels.map((l) => l.lambda);
   const lo = Math.min(...xs);
   const hi = Math.max(...xs);
@@ -95,8 +95,6 @@ function PathChart({ r }: { r: RegsemResult }) {
   const ymin = Math.min(0, ...vals);
   const ymax = Math.max(0, ...vals);
   const span = ymax - ymin || 1;
-  const sx = (x: number) => pad.l + ((x - lo) / (hi - lo || 1)) * (W - pad.l - pad.r);
-  const sy = (y: number) => pad.t + (1 - (y - ymin) / span) * (H - pad.t - pad.b);
   const sel = levels.findIndex((l) => Math.abs(l.lambda - r.selected.lambda) < 1e-12);
   // (the coefficients non-zero at the selected level in colour, the others grey)
   const nonzero = r.penalised.map(
@@ -106,6 +104,27 @@ function PathChart({ r }: { r: RegsemResult }) {
     const k = nonzero.slice(0, j + 1).filter(Boolean).length - 1;
     return nonzero[j] ? seriesColor(k) : OTHER_COLOR;
   };
+  // Each coefficient non-zero at the chosen level by name, the zero ones together, and the chosen level.
+  const legend: LegendItem[] = [
+    ...r.penalised.flatMap((name, j) => (nonzero[j] ? [{ label: name, color: colorOf(j) }] : [])),
+    ...(nonzero.some((nz) => !nz)
+      ? [{ label: 'Zero at the chosen level', color: OTHER_COLOR }]
+      : []),
+    ...(sel >= 0
+      ? [
+          {
+            label: `Chosen by ${r.selector.toUpperCase()}`,
+            color: OTHER_COLOR,
+            mark: 'dash' as const,
+          },
+        ]
+      : []),
+  ];
+  const legendH = legendHeight(legend, W - 54 - 12);
+  const H = 300 + legendH;
+  const pad = { l: 54, r: 12, t: 12 + legendH, b: 38 };
+  const sx = (x: number) => pad.l + ((x - lo) / (hi - lo || 1)) * (W - pad.l - pad.r);
+  const sy = (y: number) => pad.t + (1 - (y - ymin) / span) * (H - pad.t - pad.b);
   const yt = [ymin, (ymin + ymax) / 2, ymax];
   return (
     <ChartFrame
@@ -117,8 +136,8 @@ function PathChart({ r }: { r: RegsemResult }) {
       caption={
         <>
           The penalised estimates over the penalty levels
-          {r.selected.delta !== null ? ` (δ = ${r.selected.delta})` : ''}; the dashed line marks the
-          level chosen by {r.selector.toUpperCase()}. Coloured: non-zero there.
+          {r.selected.delta !== null ? ` (δ = ${r.selected.delta})` : ''}, and the level chosen by{' '}
+          {r.selector.toUpperCase()}.
         </>
       }
     >
@@ -130,6 +149,8 @@ function PathChart({ r }: { r: RegsemResult }) {
           role="img"
           aria-label="Path of the penalised estimates"
         >
+          <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
+          <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
           {yt.map((v, i) => (
             <g key={i}>
               <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />
@@ -147,6 +168,7 @@ function PathChart({ r }: { r: RegsemResult }) {
           {sel >= 0 && (
             <line
               className="ref-line"
+              style={{ stroke: OTHER_COLOR }}
               x1={sx(levels[sel].lambda)}
               x2={sx(levels[sel].lambda)}
               y1={pad.t}

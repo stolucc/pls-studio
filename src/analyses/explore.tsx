@@ -11,6 +11,8 @@ import type { Dataset } from '../engine/types';
 import { mulberry32 } from '../engine/stats';
 import { extent, fmt } from '../format';
 import { seriesColor } from '../figure/palette';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 import type { ExploreInput, ExploreResult, ExploreStats, ExploreTest } from '../rengine/explore';
 import {
   boxStats,
@@ -349,6 +351,7 @@ function HistogramPlot({ p, label }: { p: ExplorePlot; label: string }) {
           role="img"
           aria-label={`Histogram of ${label}`}
         >
+          <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
           <Axes xs={[lo, hi]} ys={[0, yMax]} xTitle={labels.x} yTitle={labels.y} />
           {bins.map((b, k) => (
             <rect
@@ -412,6 +415,7 @@ function QQPlotChart({ p, label }: { p: ExplorePlot; label: string }) {
           role="img"
           aria-label={`Q-Q plot of ${label}`}
         >
+          <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
           <Axes xs={xs} ys={ys} xTitle={labels.x} yTitle={labels.y} />
           <line
             className="fit-line"
@@ -443,12 +447,17 @@ function RaincloudPlot({ plots, variable }: { plots: ExplorePlot[]; variable: st
   const sy = syOf(ys);
   const band = (W - pad.l - pad.r) / shown.length;
   const grouped = shown.length > 1 || shown[0].group !== 'All';
+  // The key to the groups' colours (each group is also named under its cloud).
+  const legend: LegendItem[] = grouped
+    ? shown.map((p, k) => ({ label: p.group, color: seriesColor(k), mark: 'box' }))
+    : [];
+  const top = legendHeight(legend, W - pad.l - pad.r);
   return (
     <ChartFrame
       id={`explore:rain:${variable}`}
       name={`raincloud-${variable}`}
       width={W}
-      height={H}
+      height={H + top}
       defaults={{ x: grouped ? 'Group' : '', y: variable }}
       caption={
         <span className="hint">
@@ -462,58 +471,62 @@ function RaincloudPlot({ plots, variable }: { plots: ExplorePlot[]; variable: st
         <svg
           className="mc-chart data-chart"
           width={W}
-          height={H}
+          height={H + top}
           role="img"
           aria-label={`Raincloud plot of ${variable}`}
         >
-          <Axes xs={[0, 1]} ys={ys} xTitle={labels.x} yTitle={labels.y} xTick={() => ''} />
-          {shown.map((p, k) => {
-            const cx = pad.l + band * k + band / 2;
-            const half = Math.min(60, band * 0.4);
-            const yMax = Math.max(...p.density.map((d) => d.y)) || 1;
-            const violin = [
-              ...p.density.map((d): [number, number] => [cx - 4 - (d.y / yMax) * half, sy(d.x)]),
-              ...[...p.density].reverse().map((d): [number, number] => [cx - 4, sy(d.x)]),
-            ];
-            const b = p.box!;
-            const random = mulberry32(k + 1);
-            const colour = seriesColor(k);
-            return (
-              <g key={p.group}>
-                <path d={`${path(violin)}Z`} fill={colour} fillOpacity={0.35} stroke={colour} />
-                <line className="whisker" x1={cx} x2={cx} y1={sy(b.hi)} y2={sy(b.lo)} />
-                <rect
-                  className="box"
-                  x={cx - 4}
-                  y={sy(b.q3)}
-                  width={8}
-                  height={Math.max(1, sy(b.q1) - sy(b.q3))}
-                />
-                <line
-                  className="median"
-                  x1={cx - 4}
-                  x2={cx + 4}
-                  y1={sy(b.median)}
-                  y2={sy(b.median)}
-                />
-                {p.dots.map((v, i) => (
-                  <circle
-                    key={i}
-                    cx={cx + 8 + random() * half * 0.8}
-                    cy={sy(v)}
-                    r={2}
-                    fill={colour}
-                    fillOpacity={0.6}
+          <SvgLegend items={legend} x={pad.l} y={4} width={W - pad.l - pad.r} />
+          <g transform={`translate(0 ${top})`}>
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+            <Axes xs={[0, 1]} ys={ys} xTitle={labels.x} yTitle={labels.y} xTick={() => ''} />
+            {shown.map((p, k) => {
+              const cx = pad.l + band * k + band / 2;
+              const half = Math.min(60, band * 0.4);
+              const yMax = Math.max(...p.density.map((d) => d.y)) || 1;
+              const violin = [
+                ...p.density.map((d): [number, number] => [cx - 4 - (d.y / yMax) * half, sy(d.x)]),
+                ...[...p.density].reverse().map((d): [number, number] => [cx - 4, sy(d.x)]),
+              ];
+              const b = p.box!;
+              const random = mulberry32(k + 1);
+              const colour = seriesColor(k);
+              return (
+                <g key={p.group}>
+                  <path d={`${path(violin)}Z`} fill={colour} fillOpacity={0.35} stroke={colour} />
+                  <line className="whisker" x1={cx} x2={cx} y1={sy(b.hi)} y2={sy(b.lo)} />
+                  <rect
+                    className="box"
+                    x={cx - 4}
+                    y={sy(b.q3)}
+                    width={8}
+                    height={Math.max(1, sy(b.q1) - sy(b.q3))}
                   />
-                ))}
-                {grouped && (
-                  <text x={cx} y={H - pad.b + 16} textAnchor="middle">
-                    {p.group}
-                  </text>
-                )}
-              </g>
-            );
-          })}
+                  <line
+                    className="median"
+                    x1={cx - 4}
+                    x2={cx + 4}
+                    y1={sy(b.median)}
+                    y2={sy(b.median)}
+                  />
+                  {p.dots.map((v, i) => (
+                    <circle
+                      key={i}
+                      cx={cx + 8 + random() * half * 0.8}
+                      cy={sy(v)}
+                      r={2}
+                      fill={colour}
+                      fillOpacity={0.6}
+                    />
+                  ))}
+                  {grouped && (
+                    <text x={cx} y={H - pad.b + 16} textAnchor="middle">
+                      {p.group}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+          </g>
         </svg>
       )}
     </ChartFrame>

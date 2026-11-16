@@ -6,6 +6,8 @@ import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table } from '../components/results/Table';
 import { seriesColor } from '../figure/palette';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 import { fmt, pIs } from '../format';
 import type { RocInput, RocPoints, RocResult } from '../rengine/roc';
 import { rocColumns } from '../rengine/roc';
@@ -307,11 +309,6 @@ function RocOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<RocOpti
 /** The ROC curves: the main one first, then the comparison's. */
 function RocChart({ r }: { r: Result }) {
   const W = 400;
-  const H = 400;
-  const pad = { l: 56, r: 16, t: 14, b: 44 };
-  const size = W - pad.l - pad.r;
-  const sx = (v: number) => pad.l + v * size;
-  const sy = (v: number) => pad.t + (1 - v) * (H - pad.t - pad.b);
   const comparison = r.comparison;
   const curves: { label: string; points: RocPoints }[] = [];
   if (comparison?.type === 'groups') {
@@ -322,10 +319,22 @@ function RocChart({ r }: { r: Result }) {
     curves.push({ label: r.input.predictor || 'Fitted probability', points: r.curve });
     if (comparison) curves.push({ label: r.input.predictor2, points: comparison.curves[0] });
   }
+  const best = r.best[0];
+  const showBest = !!best && comparison?.type !== 'groups';
+  // The key: every curve, and the best cut-point's dot when it is drawn.
+  const legend: LegendItem[] = [
+    ...curves.map((cv, i): LegendItem => ({ label: cv.label, color: seriesColor(i) })),
+    ...(showBest ? [{ label: 'Best cut-point', color: seriesColor(0), mark: 'dot' as const }] : []),
+  ];
+  const top = legendHeight(legend, W - 56 - 16);
+  const H = 400 + top;
+  const pad = { l: 56, r: 16, t: 14 + top, b: 44 };
+  const size = W - pad.l - pad.r;
+  const sx = (v: number) => pad.l + v * size;
+  const sy = (v: number) => pad.t + (1 - v) * (H - pad.t - pad.b);
   const path = (p: RocPoints) =>
     p.fpr.map((x, i) => `${i ? 'L' : 'M'}${sx(x).toFixed(1)},${sy(p.tpr[i]).toFixed(1)}`).join('');
   const ticks = [0, 0.2, 0.4, 0.6, 0.8, 1];
-  const best = r.best[0];
   return (
     <ChartFrame
       id="roc:curve"
@@ -339,14 +348,15 @@ function RocChart({ r }: { r: Result }) {
       caption={
         <span className="hint">
           The diagonal is a predictor no better than chance.
-          {best &&
-            comparison?.type !== 'groups' &&
-            ` The dot: the best cut-point (${r.cutpoint === 'youden' ? 'Youden’s J' : 'closest to the top-left corner'}), threshold ${fmt(best.threshold)}.`}
+          {showBest &&
+            ` Best cut-point (${r.cutpoint === 'youden' ? 'Youden’s J' : 'closest to the top-left corner'}): threshold ${fmt(best.threshold)}.`}
         </span>
       }
     >
       {(labels) => (
         <svg className="mc-chart data-chart" width={W} height={H} role="img" aria-label="ROC curve">
+          <SvgLegend items={legend} x={pad.l} y={4} width={size} />
+          <PlotPanel x={pad.l} y={pad.t} width={size} height={H - pad.t - pad.b} />
           {ticks.map((t) => (
             <g key={t}>
               <line className="grid-line" x1={sx(0)} x2={sx(1)} y1={sy(t)} y2={sy(t)} />
@@ -363,7 +373,7 @@ function RocChart({ r }: { r: Result }) {
           {curves.map((cv, i) => (
             <path key={i} d={path(cv.points)} fill="none" stroke={seriesColor(i)} strokeWidth={2} />
           ))}
-          {best && comparison?.type !== 'groups' && (
+          {showBest && (
             <circle
               cx={sx(1 - best.specificity)}
               cy={sy(best.sensitivity)}
@@ -372,22 +382,6 @@ function RocChart({ r }: { r: Result }) {
               stroke="white"
             />
           )}
-          {curves.length > 1 &&
-            curves.map((cv, i) => (
-              <g key={`legend${i}`}>
-                <line
-                  x1={sx(0.55)}
-                  x2={sx(0.62)}
-                  y1={sy(0.2 - i * 0.07)}
-                  y2={sy(0.2 - i * 0.07)}
-                  stroke={seriesColor(i)}
-                  strokeWidth={2}
-                />
-                <text x={sx(0.64)} y={sy(0.2 - i * 0.07) + 4}>
-                  {cv.label}
-                </text>
-              </g>
-            ))}
           <text x={pad.l + size / 2} y={H - 4} textAnchor="middle" className="axis-title">
             {labels.x}
           </text>

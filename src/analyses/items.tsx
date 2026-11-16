@@ -18,6 +18,8 @@ import {
   type LpaStructure,
 } from '../rengine/items';
 import { ChartFrame } from '../components/ChartFrame';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table } from '../components/results/Table';
 import {
@@ -162,12 +164,21 @@ function logitNote(r: IrtResult): string {
   return `The same model as Mplus prints it (factor variance 1): a loading is the discrimination, a threshold (a partial credit model’s step) is minus the package’s intercept, P(u = 1) = 1 / (1 + exp(threshold − loading × θ))${asymptotes}. ${errors}${quadrature}`;
 }
 
+/** The information curves: the test's (the sum) dark, each item's light. */
+const TEST_INFO_COLOR = '#4f46e5';
+const ITEM_INFO_COLOR = '#a5b4fc';
+
 function IrtView({ r }: { r: IrtResult }) {
   const keys = [...new Set(r.params.flatMap((p) => Object.keys(p.values)))];
   const total = r.theta.map((_, i) => r.information.reduce((s, a) => s + (a[i] ?? 0), 0));
   const W = 460;
-  const H = 240;
-  const pad = { l: 52, r: 14, t: 12, b: 40 };
+  const legend: LegendItem[] = [
+    { label: 'Test information (the sum)', color: TEST_INFO_COLOR },
+    { label: 'Item information', color: ITEM_INFO_COLOR },
+  ];
+  const top = legendHeight(legend, W - 52 - 14);
+  const H = 240 + top;
+  const pad = { l: 52, r: 14, t: 12 + top, b: 40 };
   const max = Math.max(...total, 1e-9);
   const sx = (t: number) => pad.l + ((t + 4) / 8) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((max * 1.08 - v) / (max * 1.08)) * (H - pad.t - pad.b);
@@ -264,6 +275,8 @@ function IrtView({ r }: { r: IrtResult }) {
               role="img"
               aria-label="Test and item information"
             >
+              <SvgLegend items={legend} x={pad.l} y={4} width={W - pad.l - pad.r} />
+              <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
               <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(0)} y2={sy(0)} />
               <text x={pad.l - 6} y={sy(max) + 4} textAnchor="end">
                 {fmt(max, 1)}
@@ -277,9 +290,9 @@ function IrtView({ r }: { r: IrtResult }) {
                 </text>
               ))}
               {r.information.map((a, i) => (
-                <path key={i} d={line(a)} stroke="#a5b4fc" strokeWidth={1.2} fill="none" />
+                <path key={i} d={line(a)} stroke={ITEM_INFO_COLOR} strokeWidth={1.2} fill="none" />
               ))}
-              <path d={line(total)} stroke="#4f46e5" strokeWidth={2.4} fill="none" />
+              <path d={line(total)} stroke={TEST_INFO_COLOR} strokeWidth={2.4} fill="none" />
               <text
                 x={pad.l + (W - pad.l - pad.r) / 2}
                 y={H - 4}
@@ -301,8 +314,7 @@ function IrtView({ r }: { r: IrtResult }) {
       )}
       {r.information.length > 0 && (
         <div className="hint">
-          Bold: test information (the sum); light: each item. Information is the precision of θ: the
-          standard error is 1/√information.
+          Information is the precision of θ: the standard error is 1/√information.
         </div>
       )}
     </div>

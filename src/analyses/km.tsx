@@ -5,6 +5,8 @@
 import { ChartFrame } from '../components/ChartFrame';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { seriesColor } from '../figure/palette';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 import { fmt } from '../format';
 import type { KmConfType, KmInput, KmResult, KmStratum } from '../rengine/km';
 import {
@@ -144,7 +146,7 @@ function stepPath(
   return path;
 }
 
-/** Each group's curve with censoring marks, optional bands, a legend and the risk table below the axes. */
+/** Each group's curve with censoring marks, optional bands, the key above and the risk table below the axes. */
 function KmPlot({ r, showCi }: { r: KmResult; showCi: boolean }) {
   const times = r.riskTimes;
   const tMax = Math.max(times[times.length - 1] ?? 0, ...r.strata.flatMap((s) => s.time), 1);
@@ -154,12 +156,16 @@ function KmPlot({ r, showCi }: { r: KmResult; showCi: boolean }) {
   const sy = (v: number) => KPAD.t + (1 - v) * (PLOT_H - KPAD.t - KPAD.b);
   const yTicks = [0, 0.2, 0.4, 0.6, 0.8, 1];
   const groups = r.strata.length > 1;
+  const legend: LegendItem[] = groups
+    ? r.strata.map((s, j) => ({ label: s.name, color: seriesColor(j) }))
+    : [];
+  const top = legendHeight(legend, KW - KPAD.l - KPAD.r);
   return (
     <ChartFrame
       id="km:curves"
       name="kaplan-meier"
       width={KW}
-      height={height}
+      height={height + top}
       defaults={{ x: 'Time', y: 'Survival probability' }}
       caption={
         <span className="hint">
@@ -173,113 +179,107 @@ function KmPlot({ r, showCi }: { r: KmResult; showCi: boolean }) {
         <svg
           className="mc-chart data-chart"
           width={KW}
-          height={height}
+          height={height + top}
           role="img"
           aria-label="Kaplan–Meier curves"
         >
-          {yTicks.map((v) => (
-            <g key={`y${v}`}>
-              <line className="grid-line" x1={KPAD.l} x2={KW - KPAD.r} y1={sy(v)} y2={sy(v)} />
-              <text x={KPAD.l - 6} y={sy(v) + 4} textAnchor="end">
-                {v.toFixed(1)}
-              </text>
-            </g>
-          ))}
-          {times.map((t) => (
-            <text key={`x${t}`} x={sx(t)} y={PLOT_H - KPAD.b + 16} textAnchor="middle">
-              {fmt(t, Number.isInteger(t) ? 0 : 1)}
-            </text>
-          ))}
-          <text
-            x={KPAD.l + (KW - KPAD.l - KPAD.r) / 2}
-            y={PLOT_H - 6}
-            textAnchor="middle"
-            className="axis-title"
-          >
-            {labels.x}
-          </text>
-          <text
-            transform={`translate(12 ${KPAD.t + (PLOT_H - KPAD.t - KPAD.b) / 2}) rotate(-90)`}
-            textAnchor="middle"
-            className="axis-title"
-          >
-            {labels.y}
-          </text>
-          {r.strata.map((s, j) => (
-            <g key={s.name} style={{ stroke: seriesColor(j) }}>
-              {showCi && (
-                <>
-                  <path
-                    d={stepPath(s.time, s.lower, sx, sy)}
-                    fill="none"
-                    strokeDasharray="4 3"
-                    strokeWidth={1}
-                  />
-                  <path
-                    d={stepPath(s.time, s.upper, sx, sy)}
-                    fill="none"
-                    strokeDasharray="4 3"
-                    strokeWidth={1}
-                  />
-                </>
-              )}
-              <path d={stepPath(s.time, s.surv, sx, sy)} fill="none" strokeWidth={2} />
-              {s.time.map((t, i) =>
-                s.nCensor[i] > 0 ? (
-                  <line
-                    key={`c${i}`}
-                    x1={sx(t)}
-                    x2={sx(t)}
-                    y1={sy(s.surv[i]) - 4}
-                    y2={sy(s.surv[i]) + 4}
-                    strokeWidth={1.5}
-                  >
-                    <title>{`${s.name}: ${s.nCensor[i]} censored at ${fmt(t, 2)}`}</title>
-                  </line>
-                ) : null,
-              )}
-            </g>
-          ))}
-          {groups &&
-            r.strata.map((s, j) => (
-              <g key={`legend-${s.name}`}>
-                <line
-                  x1={KW - KPAD.r - 150}
-                  x2={KW - KPAD.r - 136}
-                  y1={KPAD.t + 10 + j * 14}
-                  y2={KPAD.t + 10 + j * 14}
-                  style={{ stroke: seriesColor(j), strokeWidth: 2 }}
-                />
-                <text x={KW - KPAD.r - 132} y={KPAD.t + 14 + j * 14}>
-                  {s.name}
+          <SvgLegend items={legend} x={KPAD.l} y={4} width={KW - KPAD.l - KPAD.r} />
+          <g transform={`translate(0 ${top})`}>
+            <PlotPanel
+              x={KPAD.l}
+              y={KPAD.t}
+              width={KW - KPAD.l - KPAD.r}
+              height={PLOT_H - KPAD.t - KPAD.b}
+            />
+            {yTicks.map((v) => (
+              <g key={`y${v}`}>
+                <line className="grid-line" x1={KPAD.l} x2={KW - KPAD.r} y1={sy(v)} y2={sy(v)} />
+                <text x={KPAD.l - 6} y={sy(v) + 4} textAnchor="end">
+                  {v.toFixed(1)}
                 </text>
               </g>
             ))}
-          <text x={4} y={riskTop + ROW_H - 5} className="axis-title">
-            At risk
-          </text>
-          {r.strata.map((s, j) => (
-            <g key={`risk-${s.name}`}>
-              <text
-                x={KPAD.l - 6}
-                y={riskTop + ROW_H * (j + 2) - 5}
-                textAnchor="end"
-                style={{ fill: seriesColor(j) }}
-              >
-                {groups ? s.name : 'All'}
+            {times.map((t) => (
+              <text key={`x${t}`} x={sx(t)} y={PLOT_H - KPAD.b + 16} textAnchor="middle">
+                {fmt(t, Number.isInteger(t) ? 0 : 1)}
               </text>
-              {times.map((t, i) => (
+            ))}
+            <text
+              x={KPAD.l + (KW - KPAD.l - KPAD.r) / 2}
+              y={PLOT_H - 6}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.x}
+            </text>
+            <text
+              transform={`translate(12 ${KPAD.t + (PLOT_H - KPAD.t - KPAD.b) / 2}) rotate(-90)`}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.y}
+            </text>
+            {r.strata.map((s, j) => (
+              <g key={s.name} style={{ stroke: seriesColor(j) }}>
+                {showCi && (
+                  <>
+                    <path
+                      d={stepPath(s.time, s.lower, sx, sy)}
+                      fill="none"
+                      strokeDasharray="4 3"
+                      strokeWidth={1}
+                    />
+                    <path
+                      d={stepPath(s.time, s.upper, sx, sy)}
+                      fill="none"
+                      strokeDasharray="4 3"
+                      strokeWidth={1}
+                    />
+                  </>
+                )}
+                <path d={stepPath(s.time, s.surv, sx, sy)} fill="none" strokeWidth={2} />
+                {s.time.map((t, i) =>
+                  s.nCensor[i] > 0 ? (
+                    <line
+                      key={`c${i}`}
+                      x1={sx(t)}
+                      x2={sx(t)}
+                      y1={sy(s.surv[i]) - 4}
+                      y2={sy(s.surv[i]) + 4}
+                      strokeWidth={1.5}
+                    >
+                      <title>{`${s.name}: ${s.nCensor[i]} censored at ${fmt(t, 2)}`}</title>
+                    </line>
+                  ) : null,
+                )}
+              </g>
+            ))}
+            <text x={4} y={riskTop + ROW_H - 5} className="axis-title">
+              At risk
+            </text>
+            {r.strata.map((s, j) => (
+              <g key={`risk-${s.name}`}>
                 <text
-                  key={`${s.name}-${t}`}
-                  x={sx(t)}
+                  x={KPAD.l - 6}
                   y={riskTop + ROW_H * (j + 2) - 5}
-                  textAnchor="middle"
+                  textAnchor="end"
+                  style={{ fill: seriesColor(j) }}
                 >
-                  {s.riskAt[i] ?? ''}
+                  {groups ? s.name : 'All'}
                 </text>
-              ))}
-            </g>
-          ))}
+                {times.map((t, i) => (
+                  <text
+                    key={`${s.name}-${t}`}
+                    x={sx(t)}
+                    y={riskTop + ROW_H * (j + 2) - 5}
+                    textAnchor="middle"
+                  >
+                    {s.riskAt[i] ?? ''}
+                  </text>
+                ))}
+              </g>
+            ))}
+          </g>
         </svg>
       )}
     </ChartFrame>

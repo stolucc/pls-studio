@@ -27,7 +27,9 @@ import { Axes, H, pad, W } from './charts';
 import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
 import { clampNum, isObj, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType } from './types';
-import { SERIES_COLORS } from '../figure/palette';
+import { OTHER_COLOR, SERIES_COLORS } from '../figure/palette';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 
 export type DfiOptions = DfiArgs;
 export const DFI_CARD_ID = 'dynamicfit';
@@ -785,6 +787,7 @@ function DfiHistogram({
   truth,
   misspec,
   cutoff,
+  cutoffName = 'Dynamic cutoff',
   title,
 }: {
   id: string;
@@ -792,6 +795,8 @@ function DfiHistogram({
   truth: number[];
   misspec: number[] | null;
   cutoff: number | null;
+  /** What the dashed line is (exact fit: the 95th percentile). */
+  cutoffName?: string;
   title: string;
 }) {
   const all = [...truth, ...(misspec ?? [])].filter((v) => Number.isFinite(v));
@@ -819,24 +824,29 @@ function DfiHistogram({
   const sx = (v: number) => pad.l + ((v - xs[0]) / (xs[1] - xs[0] || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((yMax - v) / yMax) * (H - pad.t - pad.b);
   const hb = HB[index];
+  // The histograms (the misspecified one when simulated) and the two cutoffs, keyed above the plot.
+  const legend: LegendItem[] = [
+    { label: 'Correct model', color: TRUE_COLOR, mark: 'box' },
+    ...(misspec ? [{ label: 'Misspecified', color: MISSPEC_COLOR, mark: 'box' as const }] : []),
+    ...(cutoff !== null
+      ? [{ label: `${cutoffName} ${fmt(cutoff, 3)}`, color: OTHER_COLOR, mark: 'dash' as const }]
+      : []),
+    ...(hb !== undefined
+      ? [{ label: `Hu & Bentler ${hb} (dotted)`, color: OTHER_COLOR, mark: 'dash' as const }]
+      : []),
+  ];
+  const legendH = legendHeight(legend, W - pad.l - pad.r);
   return (
     <ChartFrame
       id={id}
       name={`dfi-${index}`}
       width={W}
-      height={H}
+      height={H + legendH}
       defaults={{ x: index, y: 'Replications' }}
       caption={
         <span className="hint">
-          {title}:{' '}
-          {misspec ? (
-            <>
-              <span style={{ color: TRUE_COLOR }}>■</span> correct model,{' '}
-              <span style={{ color: MISSPEC_COLOR }}>■</span> misspecified;{' '}
-            </>
-          ) : null}
-          dashed: dynamic cutoff{cutoff !== null ? ` ${fmt(cutoff, 3)}` : ' (none)'}
-          {hb !== undefined ? `; dotted: Hu & Bentler ${hb}` : ''}.
+          {title}
+          {cutoff === null ? `; no ${cutoffName.toLowerCase()}` : ''}.
         </span>
       }
     >
@@ -844,67 +854,71 @@ function DfiHistogram({
         <svg
           className="mc-chart data-chart"
           width={W}
-          height={H}
+          height={H + legendH}
           role="img"
           aria-label={`Distribution of ${index}: ${title}`}
         >
-          <Axes
-            xs={xs}
-            ys={[0, yMax]}
-            xTitle={labels.x}
-            yTitle={labels.y}
-            yTick={(v) => v.toFixed(0)}
-          />
-          {a.map(
-            (n, i) =>
-              n > 0 && (
-                <rect
-                  key={`t${i}`}
-                  x={sx(edges[i]) + 0.5}
-                  y={sy(n)}
-                  width={Math.max(1, sx(edges[i + 1]) - sx(edges[i]) - 1)}
-                  height={sy(0) - sy(n)}
-                  fill={TRUE_COLOR}
-                  fillOpacity={0.55}
-                />
-              ),
-          )}
-          {b?.map(
-            (n, i) =>
-              n > 0 && (
-                <rect
-                  key={`m${i}`}
-                  x={sx(edges[i]) + 0.5}
-                  y={sy(n)}
-                  width={Math.max(1, sx(edges[i + 1]) - sx(edges[i]) - 1)}
-                  height={sy(0) - sy(n)}
-                  fill={MISSPEC_COLOR}
-                  fillOpacity={0.55}
-                />
-              ),
-          )}
-          {cutoff !== null && (
-            <line
-              x1={sx(cutoff)}
-              x2={sx(cutoff)}
-              y1={pad.t}
-              y2={H - pad.b}
-              stroke="currentColor"
-              strokeDasharray="6 4"
-              strokeWidth={1.5}
+          <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
+          <g transform={`translate(0 ${legendH})`}>
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+            <Axes
+              xs={xs}
+              ys={[0, yMax]}
+              xTitle={labels.x}
+              yTitle={labels.y}
+              yTick={(v) => v.toFixed(0)}
             />
-          )}
-          {hb !== undefined && (
-            <line
-              x1={sx(hb)}
-              x2={sx(hb)}
-              y1={pad.t}
-              y2={H - pad.b}
-              stroke="currentColor"
-              strokeDasharray="2 3"
-              strokeWidth={1.5}
-            />
-          )}
+            {a.map(
+              (n, i) =>
+                n > 0 && (
+                  <rect
+                    key={`t${i}`}
+                    x={sx(edges[i]) + 0.5}
+                    y={sy(n)}
+                    width={Math.max(1, sx(edges[i + 1]) - sx(edges[i]) - 1)}
+                    height={sy(0) - sy(n)}
+                    fill={TRUE_COLOR}
+                    fillOpacity={0.55}
+                  />
+                ),
+            )}
+            {b?.map(
+              (n, i) =>
+                n > 0 && (
+                  <rect
+                    key={`m${i}`}
+                    x={sx(edges[i]) + 0.5}
+                    y={sy(n)}
+                    width={Math.max(1, sx(edges[i + 1]) - sx(edges[i]) - 1)}
+                    height={sy(0) - sy(n)}
+                    fill={MISSPEC_COLOR}
+                    fillOpacity={0.55}
+                  />
+                ),
+            )}
+            {cutoff !== null && (
+              <line
+                x1={sx(cutoff)}
+                x2={sx(cutoff)}
+                y1={pad.t}
+                y2={H - pad.b}
+                stroke={OTHER_COLOR}
+                strokeDasharray="6 4"
+                strokeWidth={1.5}
+              />
+            )}
+            {hb !== undefined && (
+              <line
+                x1={sx(hb)}
+                x2={sx(hb)}
+                y1={pad.t}
+                y2={H - pad.b}
+                stroke={OTHER_COLOR}
+                strokeDasharray="2 3"
+                strokeWidth={1.5}
+              />
+            )}
+          </g>
         </svg>
       )}
     </ChartFrame>
@@ -1044,7 +1058,8 @@ export function DfiView({ r }: { r: DfiResult }) {
                       truth={v}
                       misspec={null}
                       cutoff={p95}
-                      title={`${index} under exact fit (dashed: 95th percentile)`}
+                      cutoffName="95th percentile"
+                      title={`${index} under exact fit`}
                     />
                   );
                 })

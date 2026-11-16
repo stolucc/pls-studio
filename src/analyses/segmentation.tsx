@@ -18,6 +18,7 @@ import { c, pCell, Table } from '../components/results/Table';
 import { clampNum, flag, freeColumnName, Hint, isObj, name, rawData } from './common';
 import { modelFingerprint, plsModelBlocked, specOf } from './plsAssessment';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
+import { PlotPanel } from '../figure/panel';
 
 /** Move one category up or down in an ordered segmentation variable. */
 export function moveCategory(order: number[], i: number, delta: -1 | 1): number[] {
@@ -50,6 +51,8 @@ function Fusion({ heights }: { heights: number[] }) {
           role="img"
           aria-label="Fusion levels of the hierarchical clustering"
         >
+          <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+
           <text x={pad.l - 6} y={pad.t + 8} textAnchor="end">
             {fmt(max, 1)}
           </text>

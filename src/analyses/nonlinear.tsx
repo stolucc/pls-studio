@@ -13,6 +13,7 @@ import {
   type PathShape,
 } from '../engine/nonlinear';
 import { SERIES_COLORS } from '../figure/palette';
+import { PlotPanel } from '../figure/panel';
 import { fmt } from '../format';
 import { fingerprint } from './codec';
 import { isObj, oneOf, sourceFingerprint } from './common';
@@ -126,6 +127,7 @@ function Curve({
           role="img"
           aria-label={`${path.from} → ${path.to}: scores and the fitted ${path.shape} curve`}
         >
+          <PlotPanel x={pad.l} y={pad.t} width={W} height={H} />
           <line className="axis" x1={pad.l} y1={pad.t} x2={pad.l} y2={pad.t + H} />
           <line className="axis" x1={pad.l} y1={pad.t + H} x2={pad.l + W} y2={pad.t + H} />
           <text x={pad.l - 4} y={sy(yhi) + 4} textAnchor="end">

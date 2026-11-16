@@ -19,6 +19,7 @@ import {
 } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 import { NEGATIVE_COLOR, POSITIVE_COLOR, seriesColor } from '../figure/palette';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
 
 /** Nodes at the layout's coordinates; edges by sign (blue positive, red negative) and strength. */
 function NetworkPlot({
@@ -35,14 +36,24 @@ function NetworkPlot({
   groups?: number[];
 }) {
   const W = 520;
-  const H = 420;
   const pad = 36;
   const r = 14;
+  // The key: edge signs, and each community's colour when there are communities.
+  const communities = groups ? [...new Set(groups)].sort((a, b) => a - b) : [];
+  const legend: LegendItem[] = [
+    { label: 'Positive edge', color: POSITIVE_COLOR },
+    { label: 'Negative edge', color: NEGATIVE_COLOR, mark: 'dash' },
+    ...communities.map(
+      (g): LegendItem => ({ label: `Community ${g}`, color: seriesColor(g - 1), mark: 'dot' }),
+    ),
+  ];
+  const top = legendHeight(legend, W - 2 * pad);
+  const H = 420 + top;
   const xs = layout.map((p) => p[0]);
   const ys = layout.map((p) => p[1]);
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
   const sx = (v: number) => pad + ((v - x0) / (x1 - x0 || 1)) * (W - 2 * pad);
-  const sy = (v: number) => pad + ((y1 - v) / (y1 - y0 || 1)) * (H - 2 * pad);
+  const sy = (v: number) => top + pad + ((y1 - v) / (y1 - y0 || 1)) * (H - top - 2 * pad);
   const max = Math.max(
     1e-9,
     ...weights.flatMap((row, i) => row.filter((_, j) => j > i).map(Math.abs)),
@@ -61,6 +72,7 @@ function NetworkPlot({
     >
       {() => (
         <svg className="mc-chart" width={W} height={H} role="img" aria-label="Network">
+          <SvgLegend items={legend} x={pad} y={4} width={W - 2 * pad} />
           {edges
             .sort((a, b) => Math.abs(a.w) - Math.abs(b.w))
             .map((e) => (
@@ -175,9 +187,8 @@ function NetworkView({
       <NetworkPlot id="network:graph" names={r.names} weights={r.weights} layout={r.layout} />
       <div className="hint">
         Edges: {kind}
-        {estimator === 'EBICglasso' ? ', regularised (EBICglasso)' : ''} (blue positive, red dashed
-        negative; thicker = stronger), {edges} of {possible} possible. Layout: qgraph’s spring
-        layout (Fruchterman–Reingold).
+        {estimator === 'EBICglasso' ? ', regularised (EBICglasso)' : ''} (thicker = stronger),{' '}
+        {edges} of {possible} possible. Layout: qgraph’s spring layout (Fruchterman–Reingold).
       </div>
       <Table
         title="Centrality"
@@ -381,8 +392,8 @@ function EgaView({ r }: { r: EgaResult }) {
         groups={r.membership}
       />
       <div className="hint">
-        {r.dims} dimension{r.dims === 1 ? '' : 's'} (colours): the communities of the network.
-        Edges: partial correlations (blue positive, red dashed negative).
+        {r.dims} dimension{r.dims === 1 ? '' : 's'}: the communities of the network. Edges: partial
+        correlations.
       </div>
       <Table
         title={`Dimensions: ${r.dims}`}

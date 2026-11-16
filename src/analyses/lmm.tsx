@@ -37,9 +37,11 @@ import {
   EmmView,
   withEmm,
 } from './emm';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 
 /** Cluster-specific regression lines of the focal predictor (other predictors at 0). */
-function ClusterLines({ l }: { l: NonNullable<LmmResult['lines']> }) {
+export function ClusterLines({ l }: { l: NonNullable<LmmResult['lines']> }) {
   const W = 460;
   const H = 260;
   const pad = { l: 56, r: 14, t: 12, b: 40 };
@@ -51,71 +53,81 @@ function ClusterLines({ l }: { l: NonNullable<LmmResult['lines']> }) {
   const sx = (x: number) => pad.l + ((x - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((hi + 0.06 * span - v) / (span * 1.12)) * (H - pad.t - pad.b);
   const shown = l.intercepts.slice(0, 200);
+  const legend: LegendItem[] = [
+    { label: 'Each cluster’s line', color: '#94a3b8', mark: 'line' },
+    { label: 'Average (fixed) line', color: '#6d28d9', mark: 'line' },
+  ];
+  const lh = legendHeight(legend, W - pad.l - pad.r);
   return (
     <ChartFrame
       id="lmm:lines"
       name="multilevel-cluster-lines"
       width={W}
-      height={H}
+      height={H + lh}
       defaults={{ x: l.predictor, y: 'Predicted outcome' }}
     >
       {(labels) => (
         <svg
           className="mc-chart"
           width={W}
-          height={H}
+          height={H + lh}
           role="img"
           aria-label="Regression lines per cluster"
         >
-          <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(lo)} y2={sy(lo)} />
-          <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(hi)} y2={sy(hi)} />
-          <text x={pad.l - 6} y={sy(lo) + 4} textAnchor="end">
-            {fmt(lo, 1)}
-          </text>
-          <text x={pad.l - 6} y={sy(hi) + 4} textAnchor="end">
-            {fmt(hi, 1)}
-          </text>
-          <text x={sx(x0)} y={H - pad.b + 16} textAnchor="middle">
-            {fmt(x0, 2)}
-          </text>
-          <text x={sx(x1)} y={H - pad.b + 16} textAnchor="middle">
-            {fmt(x1, 2)}
-          </text>
-          {shown.map((a, i) => (
+          <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
+          <g transform={`translate(0 ${lh})`}>
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+
+            <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(lo)} y2={sy(lo)} />
+            <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(hi)} y2={sy(hi)} />
+            <text x={pad.l - 6} y={sy(lo) + 4} textAnchor="end">
+              {fmt(lo, 1)}
+            </text>
+            <text x={pad.l - 6} y={sy(hi) + 4} textAnchor="end">
+              {fmt(hi, 1)}
+            </text>
+            <text x={sx(x0)} y={H - pad.b + 16} textAnchor="middle">
+              {fmt(x0, 2)}
+            </text>
+            <text x={sx(x1)} y={H - pad.b + 16} textAnchor="middle">
+              {fmt(x1, 2)}
+            </text>
+            {shown.map((a, i) => (
+              <line
+                key={i}
+                x1={sx(x0)}
+                x2={sx(x1)}
+                y1={sy(a + l.slopes[i] * x0)}
+                y2={sy(a + l.slopes[i] * x1)}
+                stroke="#94a3b8"
+                strokeWidth={1}
+                opacity={0.7}
+              />
+            ))}
             <line
-              key={i}
               x1={sx(x0)}
               x2={sx(x1)}
-              y1={sy(a + l.slopes[i] * x0)}
-              y2={sy(a + l.slopes[i] * x1)}
-              stroke="#94a3b8"
-              strokeWidth={1}
-              opacity={0.7}
+              y1={sy(l.fixed[0] + l.fixed[1] * x0)}
+              y2={sy(l.fixed[0] + l.fixed[1] * x1)}
+              stroke="#6d28d9"
+              strokeWidth={2.6}
             />
-          ))}
-          <line
-            x1={sx(x0)}
-            x2={sx(x1)}
-            y1={sy(l.fixed[0] + l.fixed[1] * x0)}
-            y2={sy(l.fixed[0] + l.fixed[1] * x1)}
-            stroke="#6d28d9"
-            strokeWidth={2.6}
-          />
-          <text
-            x={pad.l + (W - pad.l - pad.r) / 2}
-            y={H - 4}
-            textAnchor="middle"
-            className="axis-title"
-          >
-            {labels.x}
-          </text>
-          <text
-            transform={`translate(11 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`}
-            textAnchor="middle"
-            className="axis-title"
-          >
-            {labels.y}
-          </text>
+            <text
+              x={pad.l + (W - pad.l - pad.r) / 2}
+              y={H - 4}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.x}
+            </text>
+            <text
+              transform={`translate(11 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.y}
+            </text>
+          </g>
         </svg>
       )}
     </ChartFrame>
@@ -258,8 +270,7 @@ export function LmmView({ r }: { r: LmmResult }) {
       {r.lines && <ClusterLines l={r.lines} />}
       {r.lines && (
         <div className="hint">
-          Grey: each cluster’s line for {r.lines.predictor} (other predictors at 0); purple: the
-          average (fixed) line.
+          Each cluster’s line for {r.lines.predictor}, with the other predictors at 0.
         </div>
       )}
     </div>

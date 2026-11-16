@@ -98,6 +98,13 @@ describe('Kaplan–Meier card', () => {
     expect(html).toContain('Peto &amp; Peto');
     expect(html).toContain('Kaplan–Meier curves');
     expect(html).toContain('At risk');
+    // (the key to the groups' curves, inside the chart's SVG, and a panel for the chart themes)
+    const from = html.indexOf('aria-label="Kaplan–Meier curves"');
+    const svg = html.slice(from, html.indexOf('</svg>', from));
+    expect(svg).toContain('aria-label="Legend"');
+    expect(svg).toContain('>Maintained</text>');
+    expect(svg).toContain('>Nonmaintained</text>');
+    expect(svg).toContain('class="plot-panel"');
     expect(html).toContain('1 censored at 13.00');
     expect(html).toContain('Kaplan–Meier estimates: Nonmaintained');
   });

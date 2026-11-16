@@ -130,6 +130,45 @@ describe('Monte Carlo card', () => {
     expect(out).toContain('class="ref-line"');
   });
 
+  it('keys both charts inside their SVG: every estimator, the reference line and the true value', () => {
+    const d = t.defaults(ctx());
+    const path = { key: 'path:A:B', kind: 'path' as const, from: 'A', to: 'B', value: 0 };
+    const counts = Array.from({ length: 40 }, (_, b) => (b === 10 ? 40 : 0));
+    const row = (estimator: string, n: number): McSummaryRow => ({
+      estimator,
+      n,
+      param: path,
+      reps: 40,
+      failed: 0,
+      improper: 0,
+      mean: 0,
+      bias: 0,
+      relBias: null,
+      sd: 0.1,
+      rmse: 0.1,
+      coverage: null,
+      width: null,
+      rejection: 0.2,
+      hist: { lo: -0.4, hi: 0.4, counts, below: 0, above: 0 },
+    });
+    const ids = d.estimators.map((e) => e.id);
+    const out = renderToStaticMarkup(
+      <t.View result={ids.flatMap((e) => [row(e, 100), row(e, 200)])} options={d} current />,
+    );
+    const svgs = out.match(/<svg[\s\S]*?<\/svg>/g)!;
+    const power = svgs.find((x) => x.includes('by sample size'))!;
+    const dist = svgs.find((x) => x.includes('Distribution of the estimates at N'))!;
+    for (const svg of [power, dist]) {
+      expect(svg).toContain('aria-label="Legend"');
+      expect(svg).toContain('class="plot-panel"');
+      for (const e of ids) expect(svg).toContain(`>${e}</text>`);
+    }
+    expect(power).toContain('>Power .80</text>');
+    expect(dist).toContain('>True value</text>');
+    // (no key outside the charts, which an exported figure would lose)
+    expect(out).not.toContain('class="legend"');
+  });
+
   it('the form offers misspecification: paths to leave out, cross-loadings, error correlations', () => {
     const d = t.defaults(ctx());
     const wrong = {

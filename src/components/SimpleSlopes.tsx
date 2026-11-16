@@ -1,4 +1,6 @@
 import { quadraticSlope, quadraticValue, turningPoint } from '../engine/quadratic';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 import { ChartFrame } from './ChartFrame';
 
 /**
@@ -25,17 +27,21 @@ export function SimpleSlopes({
   width?: number;
   height?: number;
 }) {
-  const pad = { l: 46, r: 10, t: 10, b: 30 };
   const levels = [
     { m: -1, label: `${moderator} −1 SD`, color: '#c4b5fd' },
     { m: 0, label: `${moderator} mean`, color: '#8b5cf6' },
     { m: 1, label: `${moderator} +1 SD`, color: '#5b21b6' },
   ];
+  // One line per level of the moderator, keyed above the plot.
+  const legend: LegendItem[] = levels.map((l) => ({ label: l.label, color: l.color }));
+  const legendH = legendHeight(legend, width - 46 - 10);
+  const pad = { l: 46, r: 10, t: 10 + legendH, b: 30 };
+  const total = height + legendH;
   const y = (x: number, m: number) => bx * x + bm * m + bint * x * m;
   const ys = levels.flatMap((l) => [y(-1, l.m), y(1, l.m)]);
   const lim = Math.max(0.5, ...ys.map(Math.abs)) * 1.1;
   const W = width - pad.l - pad.r;
-  const H = height - pad.t - pad.b;
+  const H = total - pad.t - pad.b;
   const sx = (x: number) => pad.l + ((x + 1) / 2) * W;
   const sy = (v: number) => pad.t + ((lim - v) / (2 * lim)) * H;
   const caption = (
@@ -50,8 +56,7 @@ export function SimpleSlopes({
       }}
     >
       {levels.map((l) => (
-        <span key={l.m} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-          <span style={{ width: 12, height: 3, borderRadius: 2, background: l.color }} />
+        <span key={l.m}>
           {l.label}: slope {(bx + bint * l.m).toFixed(3)}
         </span>
       ))}
@@ -62,7 +67,7 @@ export function SimpleSlopes({
       id={`slopes:${from}:${moderator}:${to}`}
       name={`slopes-${from}-${moderator}-${to}`}
       width={width}
-      height={height}
+      height={total}
       caption={caption}
       defaults={{ x: `${from} (SD)`, y: `${to} (predicted, SD)` }}
     >
@@ -70,10 +75,12 @@ export function SimpleSlopes({
         <svg
           className="slopes"
           width={width}
-          height={height}
+          height={total}
           role="img"
           aria-label={`Simple slopes of ${from} on ${to} at three levels of ${moderator}`}
         >
+          <SvgLegend items={legend} x={pad.l} y={0} width={W} />
+          <PlotPanel x={pad.l} y={pad.t} width={W} height={H} />
           <line
             className="axis"
             x1={pad.l}
@@ -93,13 +100,13 @@ export function SimpleSlopes({
           <text x={pad.l - 4} y={sy(-lim) + 4} textAnchor="end">
             {(-lim).toFixed(1)}
           </text>
-          <text x={sx(-1)} y={height - 14} textAnchor="start">
+          <text x={sx(-1)} y={total - 14} textAnchor="start">
             −1 SD
           </text>
-          <text x={sx(1)} y={height - 14} textAnchor="end">
+          <text x={sx(1)} y={total - 14} textAnchor="end">
             +1 SD
           </text>
-          <text className="axis-title" x={pad.l + W / 2} y={height - 2} textAnchor="middle">
+          <text className="axis-title" x={pad.l + W / 2} y={total - 2} textAnchor="middle">
             {labels.x}
           </text>
           <text
@@ -147,21 +154,28 @@ export function QuadraticCurve({
   width?: number;
   height?: number;
 }) {
-  const pad = { l: 46, r: 10, t: 10, b: 30 };
   const R = 2;
   const xs = Array.from({ length: 81 }, (_, i) => -R + (2 * R * i) / 80);
   const ys = xs.map((x) => quadraticValue(b, bq, x));
   const lim = Math.max(0.5, ...ys.map(Math.abs)) * 1.1;
-  const W = width - pad.l - pad.r;
-  const H = height - pad.t - pad.b;
-  const sx = (x: number) => pad.l + ((x + R) / (2 * R)) * W;
-  const sy = (v: number) => pad.t + ((lim - v) / (2 * lim)) * H;
-  const tp = turningPoint(b, bq);
   const levels = [
     { x: -1, label: '−1 SD', color: '#c4b5fd' },
     { x: 0, label: 'mean', color: '#8b5cf6' },
     { x: 1, label: '+1 SD', color: '#5b21b6' },
   ];
+  // The fitted curve and the three points whose slopes the caption gives, keyed above the plot.
+  const legend: LegendItem[] = [
+    { label: 'Fitted curve', color: '#8b5cf6' },
+    ...levels.map((l) => ({ label: `${from} ${l.label}`, color: l.color, mark: 'dot' as const })),
+  ];
+  const legendH = legendHeight(legend, width - 46 - 10);
+  const pad = { l: 46, r: 10, t: 10 + legendH, b: 30 };
+  const total = height + legendH;
+  const W = width - pad.l - pad.r;
+  const H = total - pad.t - pad.b;
+  const sx = (x: number) => pad.l + ((x + R) / (2 * R)) * W;
+  const sy = (v: number) => pad.t + ((lim - v) / (2 * lim)) * H;
+  const tp = turningPoint(b, bq);
   const caption = (
     <figcaption
       style={{
@@ -174,8 +188,7 @@ export function QuadraticCurve({
       }}
     >
       {levels.map((l) => (
-        <span key={l.x} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-          <span style={{ width: 8, height: 8, borderRadius: 4, background: l.color }} />
+        <span key={l.x}>
           slope at {l.label}: {quadraticSlope(b, bq, l.x).toFixed(3)}
         </span>
       ))}
@@ -191,7 +204,7 @@ export function QuadraticCurve({
       id={`quad:${from}:${to}`}
       name={`quadratic-${from}-${to}`}
       width={width}
-      height={height}
+      height={total}
       caption={caption}
       defaults={{ x: `${from} (SD)`, y: `${to} (predicted, SD)` }}
     >
@@ -199,10 +212,12 @@ export function QuadraticCurve({
         <svg
           className="slopes"
           width={width}
-          height={height}
+          height={total}
           role="img"
           aria-label={`Quadratic effect of ${from} on ${to}`}
         >
+          <SvgLegend items={legend} x={pad.l} y={0} width={W} />
+          <PlotPanel x={pad.l} y={pad.t} width={W} height={H} />
           <line
             className="axis"
             x1={pad.l}
@@ -222,13 +237,13 @@ export function QuadraticCurve({
           <text x={pad.l - 4} y={sy(-lim) + 4} textAnchor="end">
             {(-lim).toFixed(1)}
           </text>
-          <text x={sx(-R)} y={height - 14} textAnchor="start">
+          <text x={sx(-R)} y={total - 14} textAnchor="start">
             −2 SD
           </text>
-          <text x={sx(R)} y={height - 14} textAnchor="end">
+          <text x={sx(R)} y={total - 14} textAnchor="end">
             +2 SD
           </text>
-          <text className="axis-title" x={pad.l + W / 2} y={height - 2} textAnchor="middle">
+          <text className="axis-title" x={pad.l + W / 2} y={total - 2} textAnchor="middle">
             {labels.x}
           </text>
           <text

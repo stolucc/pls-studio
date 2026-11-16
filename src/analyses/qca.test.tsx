@@ -353,6 +353,7 @@ describe('fsQCA card', () => {
     expect(html).toContain('dev: present, urb: –; 1 easy counterfactuals');
     expect(html).toContain('Intermediate solution: dev*urb -&gt; ~surv');
     expect((html.match(/<svg class="mc-chart"/g) ?? []).length).toBe(2);
+    expect((html.match(/class="plot-panel"/g) ?? []).length).toBe(2);
     // (a minimisation QCA refused: said so; no expectations: the intermediate solution is not reported, and the hint says so)
     const failed = renderToStaticMarkup(
       <t.View

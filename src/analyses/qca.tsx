@@ -21,6 +21,7 @@ import {
 import { fingerprint } from './codec';
 import { clampNum } from './common';
 import type { AnalysisCtx, AnalysisType } from './types';
+import { PlotPanel } from '../figure/panel';
 
 export interface QcaOptions {
   source: 'data' | 'scores';
@@ -155,6 +156,8 @@ function XYPlot({ m, r }: { m: QcaModel; r: QcaResult }) {
           role="img"
           aria-label={`XY plot of ${qcaOutcomeLabel(r.outcome, r.negated)} against the membership in ${m.label}`}
         >
+          <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+
           <rect
             x={pad.l}
             y={pad.t}

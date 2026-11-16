@@ -157,7 +157,15 @@ describe('the regularised SEM card (lslx)', () => {
     expect(host.textContent).toContain('Selected model (BIC)');
     expect(host.textContent).toContain('1 of 2');
     expect(host.textContent).toContain('Free parameters at the selected level');
-    expect(host.querySelectorAll('svg.mc-chart path')).toHaveLength(2);
+    // (one path per penalised coefficient; the plot panel's axis path is not one)
+    expect(host.querySelectorAll('svg.mc-chart path:not(.plot-axes)')).toHaveLength(2);
+    // The key, inside the chart: the coefficients non-zero at the chosen level by name, the others, the level.
+    const svg = host.querySelector('svg.mc-chart')!;
+    expect(svg.querySelector('[aria-label="Legend"]')).not.toBeNull();
+    expect(svg.querySelector('.plot-panel')).not.toBeNull();
+    const keys = [...svg.querySelectorAll('.chart-legend text')].map((t) => t.textContent);
+    expect(keys).toContain('Chosen by BIC');
+    expect(keys.length).toBeGreaterThanOrEqual(2);
     act(() => root.unmount());
   });
 });

@@ -162,5 +162,13 @@ describe('the ROC card', () => {
     expect(html).toContain('AUC wfns');
     expect(html).toContain('Z = -2.209');
     expect(html).toContain('Partial AUC over specificity 0.8 to 1');
+    // (the key to both curves and the cut-point's dot, inside the chart's SVG)
+    const from = html.indexOf('aria-label="ROC curve"');
+    const svg = html.slice(from, html.indexOf('</svg>', from));
+    expect(svg).toContain('aria-label="Legend"');
+    expect(svg).toContain('>wfns</text>');
+    expect(svg).toContain('>Best cut-point</text>');
+    expect(svg.match(/role="listitem"/g)).toHaveLength(3);
+    expect(svg).toContain('class="plot-panel"');
   });
 });

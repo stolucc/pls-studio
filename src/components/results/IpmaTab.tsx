@@ -7,6 +7,18 @@ import { useStore } from '../../store';
 import { c, Table } from './Table';
 import { RScriptButton } from './RScriptButton';
 import { ChartFrame } from '../ChartFrame';
+import { legendHeight, SvgLegend, type LegendItem } from '../../figure/legend';
+import { PlotPanel } from '../../figure/panel';
+
+/** The dots' colours as styles.css draws them (.ipma .dot, .ipma .dot.hot). */
+const IPMA_LEGEND: LegendItem[] = [
+  { label: 'Construct', color: '#4f46e5', mark: 'dot' },
+  {
+    label: 'Priority: above-mean importance, below-mean performance',
+    color: '#d93b2f',
+    mark: 'dot',
+  },
+];
 
 /** Greedy vertical de-overlap of point labels (labels sit right of their point). */
 export function placeLabels<T extends { name: string; x: number; y: number }>(
@@ -37,8 +49,9 @@ function IpmaChart({
   yMax: number;
 }) {
   const W = 520;
-  const H = 320;
-  const pad = { l: 50, r: 16, t: 14, b: 40 };
+  const legendH = legendHeight(IPMA_LEGEND, W - 50 - 16);
+  const H = 320 + legendH;
+  const pad = { l: 50, r: 16, t: 14 + legendH, b: 40 };
   const xs = points.map((p) => p.importance);
   const xMin = Math.min(0, ...xs);
   const xMax = Math.max(...xs, 0.01) * 1.12;
@@ -61,6 +74,8 @@ function IpmaChart({
           role="img"
           aria-label="Importance-performance map"
         >
+          <SvgLegend items={IPMA_LEGEND} x={pad.l} y={0} width={W - pad.l - pad.r} />
+          <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
           {ticks(yLo, yHi, 4).map((v) => (
             <g key={`y${v}`}>
               <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />

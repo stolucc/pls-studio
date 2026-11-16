@@ -29,6 +29,8 @@ import { VariablePicker } from '../components/VariablePicker';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { columnsFingerprint, missingColumns, rawData } from './common';
 import type { AnalysisType, OptionsProps } from './types';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 
 export type EfaPreset = Partial<EfaDesign>;
 type EfaTab =
@@ -43,7 +45,7 @@ type EfaTab =
   | 'schmid';
 
 /** Scree plot: eigenvalues, with parallel analysis's simulated ones and the eigenvalue-1 line. */
-function Scree({ r }: { r: EfaResult }) {
+export function Scree({ r }: { r: EfaResult }) {
   const W = 380;
   const H = 230;
   const pad = { l: 44, r: 12, t: 12, b: 36 };
@@ -56,67 +58,82 @@ function Scree({ r }: { r: EfaResult }) {
   const sy = (v: number) => pad.t + ((top - v) / (top - bottom || 1)) * (H - pad.t - pad.b);
   const line = (v: number[]) => v.map((y, i) => `${i ? 'L' : 'M'} ${sx(i)} ${sy(y)}`).join(' ');
   const pca = r.method === 'pca';
+  const legend: LegendItem[] = [
+    { label: 'Eigenvalues', color: '#6d28d9', mark: 'line' },
+    ...(sim.length > 0
+      ? [{ label: 'Parallel analysis (random data)', color: '#d97706', mark: 'dash' as const }]
+      : []),
+    { label: 'Eigenvalue 1', color: '#cbd5e1', mark: 'dash' },
+  ];
+  const lh = legendHeight(legend, W - pad.l - pad.r);
   return (
     <ChartFrame
       id="efa:scree"
       name="scree"
       width={W}
-      height={H}
+      height={H + lh}
       defaults={{ x: pca ? 'Component' : 'Factor', y: 'Eigenvalue' }}
     >
       {(labels) => (
-        <svg className="mc-chart" width={W} height={H} role="img" aria-label="Scree plot">
-          <line
-            x1={pad.l}
-            x2={W - pad.r}
-            y1={sy(1)}
-            y2={sy(1)}
-            stroke="#cbd5e1"
-            strokeDasharray="4 3"
-          />
-          {bottom < 0 && <line x1={pad.l} x2={W - pad.r} y1={sy(0)} y2={sy(0)} stroke="#e2e8f0" />}
-          {sim.length > 0 && (
-            <path
-              d={line(sim)}
-              stroke="#d97706"
-              strokeWidth={1.6}
-              strokeDasharray="5 3"
-              fill="none"
+        <svg className="mc-chart" width={W} height={H + lh} role="img" aria-label="Scree plot">
+          <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
+          <g transform={`translate(0 ${lh})`}>
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+
+            <line
+              x1={pad.l}
+              x2={W - pad.r}
+              y1={sy(1)}
+              y2={sy(1)}
+              stroke="#cbd5e1"
+              strokeDasharray="4 3"
             />
-          )}
-          <path d={line(obs)} stroke="#6d28d9" strokeWidth={1.8} fill="none" />
-          {obs.map((y, i) => (
-            <circle key={i} cx={sx(i)} cy={sy(y)} r={2.8} fill="#6d28d9" />
-          ))}
-          {obs.map(
-            (_, i) =>
-              (n <= 15 || i % 2 === 0) && (
-                <text key={i} x={sx(i)} y={H - pad.b + 14} textAnchor="middle">
-                  {i + 1}
-                </text>
-              ),
-          )}
-          <text x={pad.l - 6} y={sy(top / 1.05) + 4} textAnchor="end">
-            {fmt(top / 1.05, 1)}
-          </text>
-          <text x={pad.l - 6} y={sy(1) + 4} textAnchor="end">
-            1
-          </text>
-          <text
-            x={pad.l + (W - pad.l - pad.r) / 2}
-            y={H - 4}
-            textAnchor="middle"
-            className="axis-title"
-          >
-            {labels.x}
-          </text>
-          <text
-            transform={`translate(11 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`}
-            textAnchor="middle"
-            className="axis-title"
-          >
-            {labels.y}
-          </text>
+            {bottom < 0 && (
+              <line x1={pad.l} x2={W - pad.r} y1={sy(0)} y2={sy(0)} stroke="#e2e8f0" />
+            )}
+            {sim.length > 0 && (
+              <path
+                d={line(sim)}
+                stroke="#d97706"
+                strokeWidth={1.6}
+                strokeDasharray="5 3"
+                fill="none"
+              />
+            )}
+            <path d={line(obs)} stroke="#6d28d9" strokeWidth={1.8} fill="none" />
+            {obs.map((y, i) => (
+              <circle key={i} cx={sx(i)} cy={sy(y)} r={2.8} fill="#6d28d9" />
+            ))}
+            {obs.map(
+              (_, i) =>
+                (n <= 15 || i % 2 === 0) && (
+                  <text key={i} x={sx(i)} y={H - pad.b + 14} textAnchor="middle">
+                    {i + 1}
+                  </text>
+                ),
+            )}
+            <text x={pad.l - 6} y={sy(top / 1.05) + 4} textAnchor="end">
+              {fmt(top / 1.05, 1)}
+            </text>
+            <text x={pad.l - 6} y={sy(1) + 4} textAnchor="end">
+              1
+            </text>
+            <text
+              x={pad.l + (W - pad.l - pad.r) / 2}
+              y={H - 4}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.x}
+            </text>
+            <text
+              transform={`translate(11 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.y}
+            </text>
+          </g>
         </svg>
       )}
     </ChartFrame>
@@ -228,7 +245,7 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
                 [c('Velicer’s MAP (minimum average partial)'), c(r.map.suggested, undefined, 0)],
                 [c('Eigenvalues > 1 (Kaiser; tends to overestimate)'), c(r.kaiser, undefined, 0)],
               ]}
-              note={`Purple: eigenvalues of the ${pca ? 'correlation matrix' : 'reduced correlation matrix (factor analysis)'}${r.parallel ? '; dashed amber: the mean eigenvalues of random data of the same size (parallel analysis: keep those above it)' : ''}. Parallel analysis and MAP are the more reliable guides; then judge the solution’s interpretability.`}
+              note={`Eigenvalues of the ${pca ? 'correlation matrix' : 'reduced correlation matrix (factor analysis)'}${r.parallel ? '; parallel analysis: the mean eigenvalues of random data of the same size (keep those above it)' : ''}. Parallel analysis and MAP are the more reliable guides; then judge the solution’s interpretability.`}
             />
           </>
         )}

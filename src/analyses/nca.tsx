@@ -9,6 +9,8 @@ import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { fingerprint } from './codec';
 import type { AnalysisCtx, AnalysisType } from './types';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 
 export type NcaPreset = {
   x: string[];
@@ -60,73 +62,90 @@ function CeilingPlot({ k, y }: { k: NcaCondition; y: string }) {
           return xa < xb ? [xa, xb].map((v) => [sx(v), sy(a + b * v)]) : null;
         })()
       : null;
+  const legend: LegendItem[] = [
+    { label: 'Observations', color: '#64748b', mark: 'dot' },
+    { label: 'CE-FDH ceiling', color: '#6d28d9', mark: 'line' },
+    ...(cr ? [{ label: 'CR-FDH ceiling', color: '#d97706', mark: 'dash' as const }] : []),
+  ];
+  const lh = legendHeight(legend, W - pad.l - pad.r);
   return (
-    <ChartFrame id={`nca:${k.x}`} name={`nca-${k.x}`} width={W} height={H} defaults={{ x: k.x, y }}>
+    <ChartFrame
+      id={`nca:${k.x}`}
+      name={`nca-${k.x}`}
+      width={W}
+      height={H + lh}
+      defaults={{ x: k.x, y }}
+    >
       {(labels) => (
         <svg
           className="mc-chart"
           width={W}
-          height={H}
+          height={H + lh}
           role="img"
           aria-label={`Ceiling lines for ${k.x}`}
         >
-          <rect
-            x={pad.l}
-            y={pad.t}
-            width={W - pad.l - pad.r}
-            height={H - pad.t - pad.b}
-            fill="none"
-            stroke="#cbd5e1"
-          />
-          {k.points.x.map((px, i) => (
-            <circle
-              key={i}
-              cx={sx(px)}
-              cy={sy(k.points.y[i])}
-              r={2.6}
-              fill="#64748b"
-              opacity={0.6}
+          <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
+          <g transform={`translate(0 ${lh})`}>
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+
+            <rect
+              x={pad.l}
+              y={pad.t}
+              width={W - pad.l - pad.r}
+              height={H - pad.t - pad.b}
+              fill="none"
+              stroke="#cbd5e1"
             />
-          ))}
-          <path d={step} stroke="#6d28d9" strokeWidth={1.8} fill="none" />
-          {cr && (
-            <line
-              x1={cr[0][0]}
-              y1={cr[0][1]}
-              x2={cr[1][0]}
-              y2={cr[1][1]}
-              stroke="#d97706"
-              strokeWidth={2}
-              strokeDasharray="6 3"
-            />
-          )}
-          <text x={pad.l} y={H - pad.b + 14} textAnchor="middle">
-            {fmt(x0, 1)}
-          </text>
-          <text x={W - pad.r} y={H - pad.b + 14} textAnchor="end">
-            {fmt(x1, 1)}
-          </text>
-          <text x={pad.l - 6} y={sy(y0) + 4} textAnchor="end">
-            {fmt(y0, 1)}
-          </text>
-          <text x={pad.l - 6} y={sy(y1) + 4} textAnchor="end">
-            {fmt(y1, 1)}
-          </text>
-          <text
-            x={pad.l + (W - pad.l - pad.r) / 2}
-            y={H - 4}
-            textAnchor="middle"
-            className="axis-title"
-          >
-            {labels.x}
-          </text>
-          <text
-            transform={`translate(11 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`}
-            textAnchor="middle"
-            className="axis-title"
-          >
-            {labels.y}
-          </text>
+            {k.points.x.map((px, i) => (
+              <circle
+                key={i}
+                cx={sx(px)}
+                cy={sy(k.points.y[i])}
+                r={2.6}
+                fill="#64748b"
+                opacity={0.6}
+              />
+            ))}
+            <path d={step} stroke="#6d28d9" strokeWidth={1.8} fill="none" />
+            {cr && (
+              <line
+                x1={cr[0][0]}
+                y1={cr[0][1]}
+                x2={cr[1][0]}
+                y2={cr[1][1]}
+                stroke="#d97706"
+                strokeWidth={2}
+                strokeDasharray="6 3"
+              />
+            )}
+            <text x={pad.l} y={H - pad.b + 14} textAnchor="middle">
+              {fmt(x0, 1)}
+            </text>
+            <text x={W - pad.r} y={H - pad.b + 14} textAnchor="end">
+              {fmt(x1, 1)}
+            </text>
+            <text x={pad.l - 6} y={sy(y0) + 4} textAnchor="end">
+              {fmt(y0, 1)}
+            </text>
+            <text x={pad.l - 6} y={sy(y1) + 4} textAnchor="end">
+              {fmt(y1, 1)}
+            </text>
+            <text
+              x={pad.l + (W - pad.l - pad.r) / 2}
+              y={H - 4}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.x}
+            </text>
+            <text
+              transform={`translate(11 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.y}
+            </text>
+          </g>
         </svg>
       )}
     </ChartFrame>
@@ -257,7 +276,6 @@ export function NcaView({ r }: { r: NcaResult }) {
           <CeilingPlot key={k.x} k={k} y={r.y} />
         ))}
       </div>
-      <div className="hint">Purple: CE-FDH ceiling; dashed amber: CR-FDH.</div>
       <Table
         title="Bottleneck table (CR-FDH)"
         file="nca-bottleneck"

@@ -37,6 +37,8 @@ import {
 } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 import { seriesColor } from '../figure/palette';
+import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
+import { PlotPanel } from '../figure/panel';
 import {
   bootColumns,
   bootRow,
@@ -646,9 +648,14 @@ function diagnosticsNote(dw: DurbinWatson | undefined): string {
 
 function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
   const W = 520;
-  const H = 300;
-  const pad = { l: 56, r: 16, t: 14, b: 44 };
   const probs = cv.probs;
+  // The key to the levels' probability curves (multinomial models).
+  const legend: LegendItem[] = probs
+    ? cv.levels!.map((l, j) => ({ label: l, color: seriesColor(j) }))
+    : [];
+  const top = legendHeight(legend, W - 56 - 16);
+  const H = 300 + top;
+  const pad = { l: 56, r: 16, t: 14 + top, b: 44 };
   const ys = probs
     ? [0, 1]
     : (() => {
@@ -694,6 +701,8 @@ function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
           role="img"
           aria-label="Fitted curve"
         >
+          <SvgLegend items={legend} x={pad.l} y={4} width={W - pad.l - pad.r} />
+          <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
           {ticks(ys[0], ys[1]).map((v) => (
             <g key={v}>
               <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />
@@ -727,21 +736,6 @@ function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
                 style={{ stroke: seriesColor(j) }}
                 points={cv.grid.map((x, i) => `${sx(x)},${sy(p[i])}`).join(' ')}
               />
-            ))}
-          {probs &&
-            cv.levels!.map((l, j) => (
-              <g key={l}>
-                <line
-                  x1={W - pad.r - 110}
-                  x2={W - pad.r - 96}
-                  y1={pad.t + 10 + j * 14}
-                  y2={pad.t + 10 + j * 14}
-                  style={{ stroke: seriesColor(j), strokeWidth: 2 }}
-                />
-                <text x={W - pad.r - 92} y={pad.t + 14 + j * 14}>
-                  {l}
-                </text>
-              </g>
             ))}
           <text
             x={pad.l + (W - pad.l - pad.r) / 2}

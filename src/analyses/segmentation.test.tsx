@@ -214,5 +214,6 @@ describe('REBUS solutions that cannot be estimated', () => {
     );
     expect(html).toContain('Solutions that could not be estimated');
     expect(html).toContain('20, 12, 6, 2');
+    expect(html).toContain('class="plot-panel"'); // (the fusion chart's plot area)
   });
 });

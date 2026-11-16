@@ -193,6 +193,14 @@ describe('the Meta-analysis card', () => {
     const html = renderToStaticMarkup(<meta.View result={r} options={rr} current />);
     expect(html).toContain('Forest plot');
     expect(html).toContain('Funnel plot');
+    // (both plots draw a plot panel; the funnel plot names its marks in a legend inside its SVG)
+    expect(html.match(/class="plot-panel"/g)).toHaveLength(2);
+    const funnel = html.slice(html.indexOf('aria-label="Funnel plot"'));
+    const funnelSvg = funnel.slice(0, funnel.indexOf('</svg>'));
+    expect(funnelSvg).toContain('aria-label="Legend"');
+    for (const l of ['Studies', 'Added by trim-and-fill (open circle)'])
+      expect(funnelSvg).toContain(`>${l}</text>`);
+    expect(html).not.toContain('Open circles:');
     expect(html).toContain('Aronson');
     expect(html).toContain('0.489');
     expect(html).toContain('a ratio (exp)');

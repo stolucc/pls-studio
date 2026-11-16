@@ -197,11 +197,19 @@ describe('SEM tree card', () => {
     });
     const h = renderToStaticMarkup(<t.View result={r} options={opts} current />);
     expect(h).toContain('aria-label="SEM tree"');
+    // (the key to the node outlines, inside the tree's SVG)
+    const from = h.indexOf('aria-label="SEM tree"');
+    const svg = h.slice(from, h.indexOf('</svg>', from));
+    expect(svg).toContain('aria-label="Legend"');
+    for (const label of ['Split', 'Final group (leaf)', 'Selected node'])
+      expect(svg).toContain(`>${label}</text>`);
     expect(h).toContain('agegroup ≤ 0');
     expect(h).toContain('Node 1: N = 400 (all cases)');
     expect(h).toContain('Node 5 (N = 100)');
     expect(h).toContain('Node 4: agegroup &gt; 0 and training ∉ {1}');
     expect(h).toContain('aria-label="Variable importance"');
+    const at = h.indexOf('aria-label="Variable importance"');
+    expect(h.slice(at, h.indexOf('</svg>', at))).toContain('class="plot-panel"');
     expect(h).toContain('not used');
   });
 });

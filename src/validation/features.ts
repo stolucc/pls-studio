@@ -832,6 +832,8 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
 
   // Plumbing: syntax, security, messages, chunking.
   'rengine/common': 'none',
+  // (charts drawn by ggplot2: the files, the script and the request checks; no estimate to compare)
+  'rengine/ggplot': 'none',
   'rengine/htmt2': 'none',
   'rengine/injection': 'none',
   'rengine/mplus': 'none',
