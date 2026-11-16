@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MC_FIT_INDICES, poorFitRule } from '../engine/mcFitIndices';
 import { MC_VALIDITY_RULES } from '../engine/mcValidity';
+import { MC_STUDIES, studyOf } from '../model/studies';
 import {
   DEFAULT_INFERENCE,
   MC_TEST_LABELS,
@@ -590,6 +591,37 @@ function MissingFields({ design, set }: { design: McDesign; set: (p: Partial<McD
   );
 }
 
+/** The published study a design started from: what it reproduces, where it differs, and whether it was changed. */
+function StudyNote({ design }: { design: McDesign }) {
+  const study = studyOf(design.study);
+  if (!study) return null;
+  // (both as a project file keeps them, so a saved and reopened design still counts as unchanged)
+  const same = (d: McDesign) => JSON.stringify(parseDesign(JSON.parse(JSON.stringify(d))));
+  const changed = same(study.design()) !== same(design);
+  return (
+    <details className="hint study-note">
+      <summary>
+        {changed
+          ? `Started from ${study.title}; the design has been changed since.`
+          : `The design of ${study.title}.`}
+      </summary>
+      <p>{study.reference}</p>
+      <b>As in the study</b>
+      <ul>
+        {study.exact.map((x) => (
+          <li key={x}>{x}</li>
+        ))}
+      </ul>
+      <b>Different</b>
+      <ul>
+        {study.differs.map((x) => (
+          <li key={x}>{x}</li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: OptionsProps<McDesign>) {
   const model = ctx.model ?? emptyModel();
   const method = ctx.settings.method;
@@ -611,6 +643,7 @@ function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: Optio
   const workUnits = workUnitsOf(design);
   return (
     <fieldset className="card-options sim-options" disabled={disabled}>
+      <StudyNote design={design} />
       <div className="table-tools">
         <h3>Population model</h3>
         <button
@@ -1073,6 +1106,7 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
   const shownN = distN !== null && ns.includes(distN) ? distN : ns[0];
   return (
     <div className="tables">
+      <StudyNote design={design} />
       {!rows ? (
         <div className="empty-results">Run the simulation to see power curves and bias.</div>
       ) : (
@@ -1351,6 +1385,23 @@ export const mcAnalysis: AnalysisType<McDesign, McSummaryRow[]> = {
   id: 'mc',
   title: 'Monte Carlo simulation',
   sub: 'power, sample size, estimators: from a population built on the model',
+  entries: [
+    {
+      title: 'Monte Carlo simulation',
+      sub: 'power, sample size, estimators: from a population built on the model',
+      options: (o) => o,
+    },
+    // (published studies: their own population, not the model's)
+    ...MC_STUDIES.map((study) => ({
+      title: `Monte Carlo: ${study.title}`,
+      sub: study.sub,
+      options: () => study.design(),
+    })),
+  ],
+  cardTitle: (d) => {
+    const study = studyOf(d.study);
+    return study ? `Monte Carlo: ${study.title}` : 'Monte Carlo simulation';
+  },
   group: 'PLS-SEM model',
   defaults: (ctx) =>
     defaultDesign(populationFromModel(ctx.model ?? emptyModel(), ctx.pls, ctx.cb ?? null)),

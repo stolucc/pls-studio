@@ -76,6 +76,8 @@ export interface McDesign {
   missing?: McMissing;
   /** Ordinal indicators: every indicator cut into categories (continuous when omitted). */
   ordinal?: McOrdinal;
+  /** The published study the design started from (model/studies.ts), for the card's title and notes. */
+  study?: string;
 }
 
 /**

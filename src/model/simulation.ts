@@ -5,6 +5,7 @@ import type { PopulationSpec } from '../engine/population';
 import type { CbResult } from '../engine/cbsem';
 import type { PlsResult } from '../engine/types';
 import type { ModelState } from './project';
+import { studyOf } from './studies';
 
 export const ESTIMATOR_CHOICES: McEstimator[] = [
   // PLS with each construct in its model mode (factors mode A, composites mode B), path weighting.
@@ -190,6 +191,7 @@ export function parseDesign(raw: unknown): McDesign | null {
           },
         }
       : {}),
+    ...(typeof raw.study === 'string' && studyOf(raw.study) ? { study: raw.study } : {}),
     ...(isObj(raw.inference)
       ? {
           inference: {

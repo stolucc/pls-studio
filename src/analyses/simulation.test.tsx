@@ -256,6 +256,39 @@ describe('Monte Carlo card', () => {
     expect(out).toContain('Rönkkö &amp; Evermann (2013)');
   });
 
+  it('offers the published studies in the Add menu; the card names the study and what it reproduces', () => {
+    const titles = t.entries!.map((e) => e.title);
+    expect(titles).toContain('Monte Carlo: Rönkkö & Evermann (2013): β = 0');
+    expect(titles).toContain('Monte Carlo: Rönkkö & Evermann (2013): β = 0.3');
+    const entry = t.entries!.find((e) => e.title.endsWith('β = 0'))!;
+    const d = entry.options(t.defaults(ctx()));
+    expect(t.cardTitle!(d)).toBe('Monte Carlo: Rönkkö & Evermann (2013): β = 0');
+    expect(t.cardTitle!(t.defaults(ctx()))).toBe('Monte Carlo simulation');
+    expect(t.blocked(d, ctx())).toBeNull();
+    const form = renderToStaticMarkup(
+      <t.Options options={d} set={() => {}} ctx={ctx()} disabled={false} />,
+    );
+    expect(form).toContain('The design of Rönkkö &amp; Evermann (2013): β = 0.');
+    expect(form).toContain('loadings .6, .7 and .8');
+    expect(form).toContain('Organizational Research Methods');
+    const changed = renderToStaticMarkup(
+      <t.Options
+        options={{ ...d, replications: 50 }}
+        set={() => {}}
+        ctx={ctx()}
+        disabled={false}
+      />,
+    );
+    expect(changed).toContain('the design has been changed since');
+    // (a saved and reopened design is still the study's)
+    const reopened = t.parseOptions(JSON.parse(JSON.stringify(d)))!;
+    expect(
+      renderToStaticMarkup(
+        <t.Options options={reopened} set={() => {}} ctx={ctx()} disabled={false} />,
+      ),
+    ).toContain('The design of Rönkkö');
+  });
+
   it('FIML needs the R engine; the form shows the missing-value fields', () => {
     const d = {
       ...t.defaults(ctx()),
