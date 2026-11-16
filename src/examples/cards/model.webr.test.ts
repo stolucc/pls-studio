@@ -610,10 +610,13 @@ async function mcCardRun(id: string, boot = false) {
   const { options } = await open(id, 'Simulation', ['cSEM', 'lavaan']);
   const card = options as McDesign;
   const design: McDesign = boot ? card : { ...card, bootSamples: 0 };
-  const parts: McPart[] = [];
-  for (const n of design.sampleSizes)
-    for (let s = 0; s < design.replications; s += 100)
-      parts.push(await runMcChunkR(design, n, s, Math.min(design.replications, s + 100)));
+  // (all chunks at once: the native R pool runs them on its workers, in order of the request)
+  const chunks = design.sampleSizes.flatMap((n) =>
+    Array.from({ length: Math.ceil(design.replications / 100) }, (_, c) => ({ n, s: 100 * c })),
+  );
+  const parts: McPart[] = await Promise.all(
+    chunks.map(({ n, s }) => runMcChunkR(design, n, s, Math.min(design.replications, s + 100))),
+  );
   const rows = summariseMc(design, parts);
   const row = (estimator: string, key: string, n: number) =>
     rows.find((x) => x.estimator === estimator && x.n === n && x.param.key === key)!;
@@ -1052,6 +1055,113 @@ slowIt(
     expect(fail(close, 'htmt:A:B', 1000)).toBeGreaterThan(0.95);
     expect(fail(close, 'htmtci:A:B', 100)).toBeGreaterThan(0.4);
     expect(fail(close, 'htmtci:A:B', 1000)).toBeLessThan(0.02);
+  },
+  3_600_000,
+);
+
+const RONKKO_CHO = { level: 'published' as const, url: 'https://doi.org/10.1177/1094428120968614' };
+
+slowIt(
+  "ronkko-cho cards: the factor correlation's interval and χ²(1) keep their level at φ = 1; HTMT is biased by unequal loadings (Tables 6, 8, 9)",
+  async () => {
+    const ML = 'CB-ML';
+    const NS = [50, 100, 250, 1000];
+    const one = await mcCardRun('ronkko-cho-one', true);
+    against({
+      ...RONKKO_CHO,
+      label:
+        'Rönkkö & Cho (2022), Table 8, loadings .8, φ = 1 at N = 50 / 100 / 250 / 1,000: CI_CFA(1) .992 / .990 / .983 / .983, χ²(1) .967 / .973 / .974 / .979, AVE/SV_CFA 1.000',
+    });
+    const fail = (run: typeof one, key: string, n: number) =>
+      run.row(ML, `validity:${key}`, n).rejection!;
+    for (const n of NS) {
+      near(`φ = 1: CI_CFA(1) at N = ${n}`, fail(one, 'cicfa:F1:F2', n), 0.98, 0.025);
+      near(`φ = 1: χ²(1) at N = ${n}`, fail(one, 'chi1:F1:F2', n), 0.95, 0.04);
+      expect(fail(one, 'fl:F1', n)).toBe(1);
+      near(`φ = 1: correlation at N = ${n}`, one.row(ML, 'cov:F1:F2', n).mean, 1, 0.01);
+    }
+
+    const nine = await mcCardRun('ronkko-cho-nine', true);
+    against({
+      ...RONKKO_CHO,
+      label:
+        'Rönkkö & Cho (2022), Tables 8 and 9, φ = .9 at N = 50 / 100 / 250 / 1,000: CI_CFA(1) .293 / .106 / .005 / .000 and χ²(1) .199 / .081 / .004 / .000 (averaged over 3, 6 and 9 items), CI_CFA(.90) .982 / .987 / .985 / .980, AVE/SV_CFA .968 / .993 / 1.000 / 1.000',
+    });
+    const ci1 = NS.map((n) => fail(nine, 'cicfa:F1:F2', n));
+    for (let k = 1; k < NS.length; k++)
+      expect(ci1[k], 'CI_CFA(1): fewer flags as N grows').toBeLessThan(ci1[k - 1]);
+    expect(ci1[2]).toBeLessThan(0.03);
+    expect(ci1[3]).toBe(0);
+    expect(fail(nine, 'chi1:F1:F2', 250)).toBeLessThan(0.03);
+    for (const n of NS) {
+      near(`φ = .9: CI_CFA(.90) at N = ${n}`, fail(nine, 'cicfa90:F1:F2', n), 0.983, 0.02);
+      near(`φ = .9: HTMT (.90) at N = ${n}`, fail(nine, 'htmt90:F1:F2', n), 0.53, 0.06);
+    }
+    near('φ = .9: AVE/SV_CFA at N = 100', fail(nine, 'fl:F1', 100), 0.97, 0.03);
+
+    const unequal = await mcCardRun('ronkko-cho-unequal', true);
+    against({
+      ...RONKKO_CHO,
+      label:
+        'Rönkkö & Cho (2022), Tables 6 and 8, loadings .9 / .6 / .3, φ = .9: r_DPR (HTMT) .989 and r_CFA .901 at N = 250; CI_CFA(1) .388 / .241 / .124 / .001 at N = 50 / 100 / 250 / 1,000',
+    });
+    near(
+      'unequal: HTMT at N = 250 (.989)',
+      unequal.row(ML, 'validity:htmt:F1:F2', 250).mean,
+      0.989,
+      0.015,
+    );
+    near(
+      'unequal: CFA correlation at N = 250 (.901)',
+      unequal.row(ML, 'cov:F1:F2', 250).mean,
+      0.901,
+      0.01,
+    );
+    expect(fail(unequal, 'htmt90:F1:F2', 1000)).toBeGreaterThan(0.95);
+    expect(fail(unequal, 'cicfa:F1:F2', 1000)).toBeLessThan(0.02);
+  },
+  3_600_000,
+);
+
+const FRANKE_SARSTEDT = {
+  level: 'published' as const,
+  url: 'https://doi.org/10.1108/IntR-12-2017-0515',
+};
+
+slowIt(
+  'franke-sarstedt cards: PHI tests at the cutoffs and the heuristics against Tables I and II',
+  async () => {
+    const ML = 'CB-ML';
+    // (the paper's share indicating discriminant validity is 1 − the card's failing share)
+    const dv = (run: Awaited<ReturnType<typeof mcCardRun>>, key: string, n: number) =>
+      1 - run.row(ML, `validity:${key}`, n).rejection!;
+    const cutoff = await mcCardRun('franke-sarstedt-cutoff', true);
+    against({
+      ...FRANKE_SARSTEDT,
+      label:
+        'Franke & Sarstedt (2019), Tables I and II, loadings .71, φ = .85, three items, N = 100 / 500: PHI.85 .04 / .04, PHI.90 .13 / .45, PHI1 .73 / 1; HTMT.85 (heuristic) .46 / .47, HTMT.90 .74 / .94; FL1 .06 / 0',
+    });
+    for (const n of [100, 500])
+      near(`PHI.85 at N = ${n} (.04)`, dv(cutoff, 'cicfa85:X:Y', n), 0.04, 0.025);
+    near('PHI.90 at N = 100 (.13)', dv(cutoff, 'cicfa90:X:Y', 100), 0.13, 0.05);
+    near('PHI.90 at N = 500 (.45)', dv(cutoff, 'cicfa90:X:Y', 500), 0.45, 0.06);
+    near('PHI1 at N = 100 (.73)', dv(cutoff, 'cicfa:X:Y', 100), 0.73, 0.05);
+    near('HTMT.85 heuristic at N = 100 (.46)', dv(cutoff, 'htmt:X:Y', 100), 0.46, 0.05);
+    near('HTMT.90 heuristic at N = 500 (.94)', dv(cutoff, 'htmt90:X:Y', 500), 0.94, 0.03);
+    expect(dv(cutoff, 'fl:X', 500)).toBe(0);
+
+    const unequal = await mcCardRun('franke-sarstedt-unequal', true);
+    against({
+      ...FRANKE_SARSTEDT,
+      label:
+        'Franke & Sarstedt (2019), Tables I and II, loadings .85 / .71, φ = .9, three items, N = 100 / 500: PHI1 .67 / 1, PHI.90 .03 / .05; FL1 (heuristic) .17 / .03, FL2 0 / 0; HTMT.90 .48 / .49',
+    });
+    near('PHI1 at N = 100 (.67)', dv(unequal, 'cicfa:X:Y', 100), 0.67, 0.05);
+    for (const n of [100, 500])
+      near(`PHI.90 at N = ${n}`, dv(unequal, 'cicfa90:X:Y', n), 0.04, 0.025);
+    near('FL for X at N = 100 (.17)', dv(unequal, 'fl:X', 100), 0.17, 0.05);
+    expect(dv(unequal, 'fl:Y', 500)).toBe(0);
+    near('HTMT.90 heuristic at N = 500 (.49)', dv(unequal, 'htmt90:X:Y', 500), 0.49, 0.05);
   },
   3_600_000,
 );

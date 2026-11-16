@@ -406,6 +406,119 @@ const henseler2015Card = (file: string, loadings: number[], phi: number) => ({
   },
 });
 
+/**
+ * Rönkkö & Cho (2022), the simulation's population (after Voorhees et al. 2016): three common factors with three
+ * indicators each and the same loadings, factor variances 1; discriminant validity is assessed between F1 and F2,
+ * correlated φ, and F3 correlates .5 with both.
+ */
+export const ronkkoChoPopulation = (phi: number, loadings: number[]) => ({
+  constructs: ['F1', 'F2', 'F3'].map((name, k) => ({
+    name,
+    type: 'factor',
+    indicators: items('x', 3, 3 * k + 1),
+    loadings,
+  })),
+  paths: [],
+  exoCor: [
+    { a: 'F1', b: 'F2', value: phi },
+    { a: 'F1', b: 'F3', value: 0.5 },
+    { a: 'F2', b: 'F3', value: 0.5 },
+  ],
+  skew: 0,
+  kurtosis: 0,
+});
+
+/** What the Rönkkö & Cho cards take from the paper, and what is the app's. */
+const RONKKO_CHO_DIFFERS =
+  'As in the paper: the population (three items per factor; the paper’s Tables 8 and 9 average over 3, 6 and 9), N = 50, 100, 250 and 1,000, 1,000 replications, CFA by ML (lavaan) with the factor correlation’s 95% Wald interval (delta method, the same as with factor variances fixed at 1), χ²(1) against the model with the correlation fixed at 1, AVE/SV_CFA (Fornell–Larcker with the CFA’s loadings and correlation) and HTMT, which the paper shows to be the correlation of sum scores disattenuated by standardised alpha (its r_DPR). The app’s choices: HTMT inference is Henseler et al.’s upper bound of a 90% normal bootstrap interval from 500 samples, where the paper’s CI_DPR is a 95% percentile interval from 1,000; the CFI(1), χ²(merge) and omega-disattenuated (r_DCR) techniques and the cutoff .95 are not computed. A check flags the pair when its value fails the cutoff (the paper’s detection rate). Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+
+const RONKKO_CHO_RUN =
+  'The card simulates 1,000 samples at N = 50, 100, 250 and 1,000, each fitted by ML (lavaan) with every measurement check of CB-SEM and 500 bootstrap samples for HTMT inference.';
+
+const ronkkoChoCard = (file: string, phi: number, loadings: number[]) => ({
+  package: 'lavaan' as const,
+  source:
+    'Rönkkö & Cho (2022), An updated guideline for assessing discriminant validity: the Monte Carlo simulation',
+  links: [{ label: 'Rönkkö & Cho (2022)', url: 'https://doi.org/10.1177/1094428120968614' }],
+  tags: FACTOR_DEBATE_TAGS,
+  data: {
+    package: 'lavaan' as const,
+    name: `Rönkkö & Cho (2022), a sample of 250 (φ = ${phi})`,
+    file: `examples/montecarlo/${file}.csv`,
+  },
+  constructs: [f('F1', items('x', 3)), f('F2', items('x', 3, 4)), f('F3', items('x', 3, 7))],
+  paths: [] as [string, string][],
+  correlations: [
+    ['F1', 'F2', 'construct'],
+    ['F1', 'F3', 'construct'],
+    ['F2', 'F3', 'construct'],
+  ] as [string, string, 'construct'][],
+  panel: {
+    kind: 'mc' as const,
+    population: ronkkoChoPopulation(phi, loadings),
+    estimators: [{ id: 'CB-ML', method: 'cb', estimator: 'ML' }],
+    sampleSizes: [50, 100, 250, 1000],
+    replications: 1000,
+    seed: 2022,
+    alpha: 0.05,
+    bootSamples: 500,
+    mcDraws: 0,
+    cbChecks: true,
+  },
+  settings: CB('ML'),
+});
+
+/**
+ * Franke & Sarstedt (2019): two common factors X and Y of three parallel items each (loadings .71, or .85 for X
+ * and .71 for Y), correlated φ.
+ */
+export const frankeSarstedtPopulation = (phi: number, lx: number, ly: number) => ({
+  constructs: [
+    { name: 'X', type: 'factor', indicators: items('x', 3), loadings: [lx, lx, lx] },
+    { name: 'Y', type: 'factor', indicators: items('y', 3), loadings: [ly, ly, ly] },
+  ],
+  paths: [],
+  exoCor: [{ a: 'X', b: 'Y', value: phi }],
+  skew: 0,
+  kurtosis: 0,
+});
+
+/** What the Franke & Sarstedt cards take from the paper, and what is the app's. */
+const FRANKE_SARSTEDT_DIFFERS =
+  'As in the paper: the population (three items per construct; the paper also has five), N = 100 and 500, 1,000 replications, CFA by ML with the factor correlation’s delta-method interval, and α = .10, so the interval is 90% and each test one-tailed at 5%: PHI(c) concludes discriminant validity when the upper bound lies below c. The card’s rows give the share failing each check, which is 1 minus the paper’s share indicating discriminant validity. The app’s choices: lavaan where the paper used Mplus; HTMT is compared by its point estimate (the paper’s Table II heuristic), its delta-method interval and McDonald’s criterion (MCD) are not computed; Fornell–Larcker is the margin √AVE − φ, which decides as AVE − φ² does. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+
+const FRANKE_SARSTEDT_RUN =
+  'The card simulates 1,000 samples at N = 100 and 500, each fitted by ML (lavaan) with every measurement check of CB-SEM.';
+
+const frankeSarstedtCard = (file: string, phi: number, lx: number, ly: number) => ({
+  package: 'lavaan' as const,
+  source:
+    'Franke & Sarstedt (2019), Heuristics versus statistics in discriminant validity testing: a comparison of four procedures, the simulation',
+  links: [{ label: 'Franke & Sarstedt (2019)', url: 'https://doi.org/10.1108/IntR-12-2017-0515' }],
+  tags: FACTOR_DEBATE_TAGS,
+  data: {
+    package: 'lavaan' as const,
+    name: `Franke & Sarstedt (2019), a sample of 500 (φ = ${phi})`,
+    file: `examples/montecarlo/${file}.csv`,
+  },
+  constructs: [f('X', items('x', 3)), f('Y', items('y', 3))],
+  paths: [] as [string, string][],
+  correlations: [['X', 'Y', 'construct']] as [string, string, 'construct'][],
+  panel: {
+    kind: 'mc' as const,
+    population: frankeSarstedtPopulation(phi, lx, ly),
+    estimators: [{ id: 'CB-ML', method: 'cb', estimator: 'ML' }],
+    sampleSizes: [100, 500],
+    replications: 1000,
+    seed: 2019,
+    alpha: 0.1,
+    bootSamples: 0,
+    mcDraws: 0,
+    cbChecks: true,
+  },
+  settings: CB('ML'),
+});
+
 /** Muthén & Muthén (2002), the CFA model: two factors of five indicators, loadings .8, residual variances .36, factor correlation .25. */
 export const MUTHEN_POPULATION = {
   constructs: [
@@ -956,6 +1069,76 @@ export const CARD_MODEL: PackageExample[] = [
     shows:
       'Figure 5 of the paper, loadings .7, read at φ = .9: the HTMT (.85) row fails about 79%, 88%, 95% and 99% of samples (specificity near 0 at large N); HTMT (.90) about 50% at every N; HTMT inference 58% at N = 100, 21% at 250, 3% at 500 and 0 at 1,000; Fornell–Larcker and the cross-loadings never fail (specificity 100%). The construct correlation row: about .67 for a true .9 (the composites’ reliability is .74).',
     ...henseler2015Card('henseler2015-close', [0.7, 0.7, 0.7], 0.9),
+  },
+  {
+    id: 'ronkko-cho-one',
+    title: 'Monte Carlo: testing a factor correlation of 1 (Rönkkö & Cho 2022)',
+    description:
+      'Rönkkö & Cho’s sensitivity condition: three factors with three indicators each (loadings .8), the first two perfectly correlated (φ = 1) and the third correlated .5 with both, so F1 and F2 are one construct and every discriminant validity test should say so. The CFA estimates the correlation without bias (about 1.00); the upper bound of its 95% interval reaches 1 in about 97–98% of samples (CI_CFA(1)), and χ²(1), the χ² difference against the model with the correlation fixed at 1, is not significant in about 93–95%: both keep their 5% level. AVE/SV_CFA (Fornell–Larcker with the CFA’s correlation) and HTMT against .85 and .90 flag every sample. ' +
+      RONKKO_CHO_RUN +
+      ' The diagram is fitted to one sample of 250 from that population (lavaan::simulateData, seed 2022). ' +
+      RONKKO_CHO_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Table 8 of the paper, loadings .8, φ = 1 at N = 50 / 100 / 250 / 1,000: the CI_CFA(1) row (factor correlation CI vs 1) fails about 98%, 98%, 98% and 97% of samples (paper .992, .990, .983, .983); χ²(1) about 92%, 94%, 95% and 94% (paper .967 to .979, averaged over 3, 6 and 9 items, where more items keep the test closer to its level at small N); Fornell–Larcker 100% (1.000); HTMT (.85) and (.90) 98% to 100%; the correlation row about 1.00 at every N.',
+    ...ronkkoChoCard('ronkko2022-one', 1, [0.8, 0.8, 0.8]),
+  },
+  {
+    id: 'ronkko-cho-nine',
+    title: 'Monte Carlo: a factor correlation of .9 against the cutoffs (Rönkkö & Cho 2022)',
+    description:
+      'Rönkkö & Cho’s population with a high but not perfect correlation, φ = .9 (loadings .8): whether the two factors are distinct depends on the cutoff. Against 1, the tests flag them less and less often as N grows (they are distinct), and at N = 50 they still flag many samples: three indicators per factor make the correlation imprecise. Against .90, the factor correlation’s interval flags them about 98% of the time (the correlation is not below .90) and HTMT against .90 about half the time, as an unbiased estimate at its cutoff should. Fornell–Larcker with the CFA’s correlation flags nearly every sample: AVE (.64) is below φ² (.81), so it calls the factors not distinct although they are, at any N. ' +
+      RONKKO_CHO_RUN +
+      ' The diagram is fitted to one sample of 250 from that population (lavaan::simulateData, seed 2022). ' +
+      RONKKO_CHO_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Tables 8 and 9 of the paper, φ = .9 at N = 50 / 100 / 250 / 1,000: CI_CFA(1) fails about 69%, 32%, 1% and 0% of samples, χ²(1) about 53%, 23%, 1% and 0% (paper, averaged over 3, 6 and 9 items: .293, .106, .005, .000 and .199, .081, .004, .000; three items are the least precise); CI_CFA(.90) about 99%, 99%, 99% and 98% (Table 9: .982, .987, .985, .980); HTMT (.90) about 55%, 54%, 53% and 51% (r_DPR(.90): .576 to .622); Fornell–Larcker about 90%, 97%, 100% and 100% (AVE/SV_CFA: .968, .993, 1.000, 1.000).',
+    ...ronkkoChoCard('ronkko2022-nine', 0.9, [0.8, 0.8, 0.8]),
+  },
+  {
+    id: 'ronkko-cho-unequal',
+    title: 'Monte Carlo: HTMT with unequal loadings .9, .6, .3 (Rönkkö & Cho 2022)',
+    description:
+      'Rönkkö & Cho’s condition with unequal loadings .9, .6 and .3 and φ = .9: HTMT averages the indicator correlations as if the items were parallel, so with loadings this unequal it overestimates the correlation (about .98 to 1.03 for a true .9) and calls the factors the same in most samples at every N, while the CFA estimates .90 without bias and its interval flags them less and less often as N grows. Weak items also make small samples hard: a few replications at N = 50 and 100 do not converge, and many solutions are improper. ' +
+      RONKKO_CHO_RUN +
+      ' The diagram is fitted to one sample of 250 from that population (lavaan::simulateData, seed 2022). ' +
+      RONKKO_CHO_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Tables 6 and 8 of the paper, loadings .9, .6, .3, φ = .9, at N = 50 / 100 / 250 / 1,000: the HTMT rows average about 1.03, 1.01, .99 and .98 (r_DPR .989 at N = 250) and fail against .90 in 82% to 99% of samples; the correlation row about .90 (r_CFA .901); CI_CFA(1) about 84%, 73%, 38% and 0% (paper .388, .241, .124, .001, averaged over 3, 6 and 9 items); Fornell–Larcker 95% to 100% (AVE/SV_CFA .992 to 1.000).',
+    ...ronkkoChoCard('ronkko2022-unequal', 0.9, [0.9, 0.6, 0.3]),
+  },
+  {
+    id: 'franke-sarstedt-cutoff',
+    title: 'Monte Carlo: a factor correlation at the .85 cutoff (Franke & Sarstedt 2019)',
+    description:
+      'Franke & Sarstedt’s condition with the correlation at a cutoff: two factors of three parallel items (loadings .71, AVE .50) correlated .85. The inferential test of PHI against .85 (the 90% interval’s upper bound below .85) concludes discriminant validity in about 4% of samples at both N, its 5% Type I error; against .90 it does so about as often as its power allows (16% at N = 100, 50% at 500), and against 1 in about 73% and 100%. The heuristics are cruder: HTMT against .85 says the factors are distinct about half the time, as a point estimate at its cutoff must, and Fornell–Larcker almost never (AVE .50 is below φ² = .72). ' +
+      FRANKE_SARSTEDT_RUN +
+      ' The diagram is fitted to one sample of 500 from that population (lavaan::simulateData, seed 2019). ' +
+      FRANKE_SARSTEDT_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Tables I and II of the paper, loadings .71, φ = .85, three items, N = 100 / 500, as 1 minus the card’s failing share: the factor correlation CI vs .85 row about .04 and .04 (paper PHI.85 .04, .04), vs .90 about .16 and .50 (PHI.90 .13, .45), vs 1 about .73 and 1.00 (PHI1 .73, 1); HTMT (.85) about .46 and .50 (Table II .46, .47), HTMT (.90) about .75 and .96 (.74, .94); Fornell–Larcker about .05 and 0 (Table II FL1 .06, 0).',
+    ...frankeSarstedtCard('franke2019-cutoff', 0.85, 0.71, 0.71),
+  },
+  {
+    id: 'franke-sarstedt-unequal',
+    title: 'Monte Carlo: Fornell–Larcker with unequal loadings (Franke & Sarstedt 2019)',
+    description:
+      'Franke & Sarstedt’s condition with unequal loadings: X’s items load .85 (AVE .72) and Y’s .71 (AVE .50), and the factors correlate .90. Fornell–Larcker is computed per construct and its verdict depends on which one: for X it says the factors are distinct in some samples at N = 100 and almost never at 500, for Y never; the factor correlation’s interval treats the pair as one question and concludes the same for both (against 1: about 68% and 100%; against .90: about 4%, its Type I error). HTMT is unbiased with parallel items, so against .90 it says distinct about half the time. ' +
+      FRANKE_SARSTEDT_RUN +
+      ' The diagram is fitted to one sample of 500 from that population (lavaan::simulateData, seed 2019). ' +
+      FRANKE_SARSTEDT_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Tables I and II of the paper, loadings .85 / .71, φ = .9, three items, N = 100 / 500, as 1 minus the card’s failing share: the factor correlation CI vs 1 row about .68 and 1.00 (PHI1 .67, 1), vs .90 about .04 and .04 (PHI.90 .03, .05); Fornell–Larcker for X about .18 and .02 (Table II FL1 .17, .03), for Y 0 (FL2 0, 0); HTMT (.90) about .46 and .49 (.48, .49), HTMT (.85) about .16 and .01 (.14, .02).',
+    ...frankeSarstedtCard('franke2019-unequal', 0.9, 0.85, 0.71),
   },
   {
     id: 'mulder-riclpm',
