@@ -150,4 +150,21 @@ describe('Monte Carlo card', () => {
     expect(out).toContain('aria-label="Remove error correlation 1"');
     expect(out).toContain('Add cross-loading');
   });
+
+  it('FIML needs the R engine; the form shows the missing-value fields', () => {
+    const d = {
+      ...t.defaults(ctx()),
+      missing: { rate: 0.1, mechanism: 'MCAR' as const, pls: 'mean' as const, cb: 'fiml' as const },
+    };
+    const builtin = ctx({ settings: { ...DEFAULT_SETTINGS, engine: 'builtin' } });
+    expect(t.blocked(d, builtin)).toMatch(/FIML is estimated by lavaan/);
+    expect(t.blocked(d, ctx({ settings: { ...DEFAULT_SETTINGS, engine: 'r' } }))).toBeNull();
+    expect(t.blocked({ ...d, missing: { ...d.missing, cb: 'casewise' } }, builtin)).toBeNull();
+    const out = renderToStaticMarkup(
+      <t.Options options={d} set={() => {}} ctx={ctx()} disabled={false} />,
+    );
+    expect(out).toContain('Missing values');
+    expect(out).toContain('MAR (on the first indicator)');
+    expect(out).toContain('FIML (R engine)');
+  });
 });

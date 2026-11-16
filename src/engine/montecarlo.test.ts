@@ -6,7 +6,9 @@ import {
   replicationSeed,
   runMcTask,
   summariseMc,
+  withMissing,
   type McDesign,
+  type McMissing,
 } from './montecarlo';
 import {
   buildPopulation,
@@ -444,6 +446,62 @@ describe('a misspecified population', () => {
     expect(chisq.rejection!).toBeGreaterThan(0.8);
     // The unmodelled X → y1 loading is absorbed by the X → Y path (true value 0).
     expect(row(rows, 'ML', 'path:X:Y').mean).toBeGreaterThan(0.1);
+  });
+});
+
+describe('missing values', () => {
+  const complete = generateData(buildPopulation(pop), 4000, 1);
+  const share = (c: Float64Array) => Array.from(c).filter(Number.isNaN).length / c.length;
+
+  it('MCAR: the rate in every column, drawn by the seed', () => {
+    const m: McMissing = { rate: 0.2, mechanism: 'MCAR', pls: 'mean', cb: 'casewise' };
+    const d = withMissing(complete, m, 5);
+    for (const c of d.cols) expect(share(c)).toBeCloseTo(0.2, 1);
+    expect(withMissing(complete, m, 5).cols[3]).toEqual(d.cols[3]);
+    expect(complete.cols.every((c) => share(c) === 0)).toBe(true); // (the complete data are not changed)
+  });
+
+  it('MAR: the first indicator stays complete; high values on it make the others missing', () => {
+    const d = withMissing(
+      complete,
+      { rate: 0.2, mechanism: 'MAR', pls: 'mean', cb: 'casewise' },
+      5,
+    );
+    expect(share(d.cols[0])).toBe(0);
+    expect(share(d.cols[4])).toBeCloseTo(0.2, 1);
+    const x = complete.cols[0];
+    const missingAt = (lowHalf: boolean) => {
+      const median = [...x].sort((a, b) => a - b)[x.length >> 1];
+      const idx = Array.from(x.keys()).filter((i) => x[i] < median === lowHalf);
+      return idx.filter((i) => Number.isNaN(d.cols[4][i])).length / idx.length;
+    };
+    expect(missingAt(false)).toBeGreaterThan(2 * missingAt(true));
+  });
+
+  it('casewise deletion costs precision; every estimator still runs', () => {
+    const base: McDesign = {
+      population: pop,
+      estimators: [
+        { id: 'PLS', method: 'pls', consistent: false },
+        { id: 'ML', method: 'cb', estimator: 'ML' },
+      ],
+      sampleSizes: [200],
+      replications: 80,
+      seed: 31,
+      alpha: 0.05,
+      bootSamples: 0,
+      mcDraws: 0,
+    };
+    const none = run(base, 1);
+    const lost = run(
+      { ...base, missing: { rate: 0.1, mechanism: 'MCAR', pls: 'casewise', cb: 'casewise' } },
+      1,
+    );
+    for (const est of ['PLS', 'ML']) {
+      expect(row(lost, est, 'path:X:M').failed).toBe(0);
+      // About 1 − .9⁹ ≈ 61% of the cases lose a value: the SD grows by roughly 1/√.39.
+      expect(row(lost, est, 'path:X:M').sd).toBeGreaterThan(1.3 * row(none, est, 'path:X:M').sd);
+    }
   });
 });
 

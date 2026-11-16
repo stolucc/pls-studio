@@ -21,8 +21,14 @@ import {
   type Population,
   type PopulationSpec,
 } from './population';
-import { zCrit } from './stats';
-import { DEFAULT_OPTIONS, type Mode, type ModelSpec, type WeightingScheme } from './types';
+import { mulberry32, zCrit } from './stats';
+import {
+  DEFAULT_OPTIONS,
+  type Dataset,
+  type Mode,
+  type ModelSpec,
+  type WeightingScheme,
+} from './types';
 
 export type McEstimator =
   | {
@@ -47,6 +53,38 @@ export interface McDesign {
   bootSamples: number;
   /** Monte Carlo draws per replication for CB indirect-effect CIs. */
   mcDraws: number;
+  /** Missing values put into every replication (none when omitted or the rate is 0). */
+  missing?: McMissing;
+}
+
+/**
+ * Missing values: a share `rate` of the values, completely at random (MCAR) or depending on an observed
+ * variable (MAR: the first indicator stays complete; the higher a case's value on it, the likelier its other
+ * values are missing, with probability 2 · rate · rank / n, so `rate` on average). Then each estimator's
+ * treatment: PLS mean replacement or casewise deletion, CB-SEM casewise deletion or FIML (lavaan only).
+ */
+export interface McMissing {
+  rate: number;
+  mechanism: 'MCAR' | 'MAR';
+  pls: 'mean' | 'casewise';
+  cb: 'casewise' | 'fiml';
+}
+
+/** A replication's data with missing values (NaN) put in as `m` says; `seed` draws which. */
+export function withMissing(data: Dataset, m: McMissing, seed: number): Dataset {
+  const u = mulberry32(seed);
+  const n = data.cols[0]?.length ?? 0;
+  // MAR: each case's chance follows its rank on the first indicator (0 … n − 1), which stays complete.
+  const chance = new Float64Array(n).fill(m.rate);
+  if (m.mechanism === 'MAR' && n > 1) {
+    const order = Array.from(data.cols[0], (v, i) => [v, i] as const).sort((a, b) => a[0] - b[0]);
+    order.forEach(([, i], rank) => (chance[i] = Math.min(1, (2 * m.rate * (rank + 0.5)) / n)));
+  }
+  const cols = data.cols.map((c, j) => {
+    if (m.mechanism === 'MAR' && j === 0) return c;
+    return Float64Array.from(c, (v, i) => (u() < chance[i] ? NaN : v));
+  });
+  return { ...data, cols };
 }
 
 export interface McParam {
@@ -193,11 +231,20 @@ export function runMcTask(
 
   for (let k = 0; k < count; k++) {
     const r = task.start + k;
-    const data = generateData(pop, n, replicationSeed(design.seed, n, r));
+    const complete = generateData(pop, n, replicationSeed(design.seed, n, r));
+    const miss = design.missing && design.missing.rate > 0 ? design.missing : null;
+    const data = miss
+      ? withMissing(complete, miss, replicationSeed(design.seed + 3, n, r))
+      : complete;
     design.estimators.forEach((e, ei) => {
       try {
         if (e.method === 'pls') {
-          const opts = { ...DEFAULT_OPTIONS, consistent: e.consistent, scheme: e.scheme ?? 'path' };
+          const opts = {
+            ...DEFAULT_OPTIONS,
+            consistent: e.consistent,
+            scheme: e.scheme ?? 'path',
+            missing: miss?.pls ?? DEFAULT_OPTIONS.missing,
+          };
           const spec = withMode(plsSpec, e.mode);
           const prep = preparePls(data, spec, opts);
           const { m, st, core } = prep.estimate(prep.cols);
@@ -242,7 +289,7 @@ export function runMcTask(
           // PLS composites are always admissible.
           proper[ei][k] = e.consistent && plscProblems(m, st).problems.length ? 0 : 1;
         } else {
-          const cb = estimateCb(data, cbSpec, 'casewise', e.estimator);
+          const cb = estimateCb(data, cbSpec, miss?.cb ?? 'casewise', e.estimator);
           if (!cb.converged) throw new Error('not converged');
           const mc =
             params.some((p) => p.kind === 'indirect') && design.mcDraws > 0

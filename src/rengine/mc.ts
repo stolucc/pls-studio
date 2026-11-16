@@ -57,7 +57,9 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
       data: rSeed(replicationSeed(design.seed, n, rep)),
       boot: rSeed(replicationSeed(design.seed + 1, n, rep)),
       mc: rSeed(replicationSeed(design.seed + 2, n, rep)),
+      miss: rSeed(replicationSeed(design.seed + 3, n, rep)),
     })),
+    ...(design.missing && design.missing.rate > 0 ? { nonresponse: design.missing } : {}),
   };
 }
 

@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { MC_FIT_INDICES, poorFitRule } from '../engine/mcFitIndices';
-import type { McDesign, McHistogram, McParam, McSummaryRow } from '../engine/montecarlo';
+import type { McDesign, McHistogram, McMissing, McParam, McSummaryRow } from '../engine/montecarlo';
 import { buildPopulation, type PopulationSpec } from '../engine/population';
 import { fmt } from '../format';
 import {
@@ -394,6 +394,70 @@ function MisspecificationBlock({
   );
 }
 
+const NO_MISSING: McMissing = { rate: 0, mechanism: 'MCAR', pls: 'mean', cb: 'casewise' };
+
+/** Missing values in every replication, and how PLS and CB-SEM treat them. */
+function MissingFields({ design, set }: { design: McDesign; set: (p: Partial<McDesign>) => void }) {
+  const m = design.missing ?? NO_MISSING;
+  const change = (patch: Partial<McMissing>) => set({ missing: { ...m, ...patch } });
+  return (
+    <>
+      <div className="field">
+        <label>Missing values</label>
+        <div className="row2">
+          <Num
+            value={Math.round(m.rate * 100)}
+            step={5}
+            min={0}
+            max={50}
+            width={70}
+            onChange={(v) => change({ rate: v / 100 })}
+          />
+          <span className="muted">% of the values</span>
+        </div>
+      </div>
+      {m.rate > 0 && (
+        <div className="row2">
+          <div className="field">
+            <label>Mechanism</label>
+            <select
+              className="select"
+              value={m.mechanism}
+              onChange={(e) => change({ mechanism: e.target.value as McMissing['mechanism'] })}
+            >
+              <option value="MCAR">MCAR (completely at random)</option>
+              <option value="MAR">MAR (on the first indicator)</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>Treatment (PLS / CB-SEM)</label>
+            <div className="row2">
+              <select
+                className="select"
+                aria-label="PLS treatment of missing values"
+                value={m.pls}
+                onChange={(e) => change({ pls: e.target.value as McMissing['pls'] })}
+              >
+                <option value="mean">Mean replacement</option>
+                <option value="casewise">Casewise deletion</option>
+              </select>
+              <select
+                className="select"
+                aria-label="CB-SEM treatment of missing values"
+                value={m.cb}
+                onChange={(e) => change({ cb: e.target.value as McMissing['cb'] })}
+              >
+                <option value="casewise">Casewise deletion</option>
+                <option value="fiml">FIML (R engine)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: OptionsProps<McDesign>) {
   const model = ctx.model ?? emptyModel();
   const method = ctx.settings.method;
@@ -687,6 +751,7 @@ function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: Optio
           </div>
         </div>
       ) : null}
+      <MissingFields design={design} set={set} />
       <div className="field">
         <label>Random seed</label>
         <Num
@@ -1089,6 +1154,14 @@ export const mcAnalysis: AnalysisType<McDesign, McSummaryRow[]> = {
     if (!d.population.constructs.length)
       return 'Build a model first (Model tab), then press Reset to defaults: the population uses its constructs, indicators and paths.';
     if (!d.estimators.length) return 'Choose at least one estimator.';
+    if (
+      d.missing &&
+      d.missing.rate > 0 &&
+      d.missing.cb === 'fiml' &&
+      ctx.settings.engine !== 'r' &&
+      d.estimators.some((e) => e.method === 'cb')
+    )
+      return 'FIML is estimated by lavaan: choose the R engine, or casewise deletion for CB-SEM.';
     if (!d.population.paths.length && d.estimators.some((e) => e.method === 'pls'))
       return 'PLS-SEM needs at least one path between constructs; for a measurement model only (correlated factors), use the CB-SEM estimators.';
     return populationError(d);

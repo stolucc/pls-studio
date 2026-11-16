@@ -50,6 +50,10 @@ ps_validate <- function(req) {
   one_of(get(req, "hc"), c("none", "HC0", "HC1", "HC2", "HC3", "HC4"), "standard error type")
   one_of(get(req, "options", "scheme"), c("path", "centroid", "factor"), "weighting scheme")
   one_of(get(req, "options", "missing"), c("mean", "casewise", "fiml", "mi"), "missing-value treatment")
+  # A simulation's missing values (rate checked as a number where it is written)
+  one_of(get(req, "nonresponse", "mechanism"), c("MCAR", "MAR"), "missing-value mechanism")
+  one_of(get(req, "nonresponse", "pls"), c("mean", "casewise"), "missing-value treatment")
+  one_of(get(req, "nonresponse", "cb"), c("casewise", "fiml"), "missing-value treatment")
   for (e in get(req, "estimators")) {
     one_of(get(e, "method"), c("pls", "cb"), "estimator")
     one_of(get(e, "estimator"), cb_est, "estimator")

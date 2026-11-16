@@ -173,5 +173,15 @@ export function parseDesign(raw: unknown): McDesign | null {
     alpha: clampStrict(raw.alpha, 0.001, 0.2, 0.05),
     bootSamples: Math.round(clampStrict(raw.bootSamples, 0, 10000, 200)),
     mcDraws: Math.round(clampStrict(raw.mcDraws, 0, 1000000, 1000)),
+    ...(isObj(raw.missing) && clampStrict(raw.missing.rate, 0, 0.5, 0) > 0
+      ? {
+          missing: {
+            rate: clampStrict(raw.missing.rate, 0, 0.5, 0),
+            mechanism: raw.missing.mechanism === 'MAR' ? 'MAR' : 'MCAR',
+            pls: raw.missing.pls === 'casewise' ? 'casewise' : 'mean',
+            cb: raw.missing.cb === 'fiml' ? 'fiml' : 'casewise',
+          },
+        }
+      : {}),
   };
 }

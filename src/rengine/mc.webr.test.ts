@@ -113,6 +113,25 @@ it('a misspecified population (a cross-loading, an omitted path): lavaan rejects
   expect(rows.some((r) => r.param.key === 'path:Price fairness:Loyalty')).toBe(false);
 }, 900_000);
 
+it('missing values: MAR with mean replacement (PLS) and FIML (lavaan); FIML is more precise than deletion', async () => {
+  const withNa = (cb: 'fiml' | 'casewise'): McDesign => ({
+    ...design,
+    estimators: [
+      { id: 'PLS', method: 'pls', consistent: false },
+      { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+    ],
+    replications: 30,
+    missing: { rate: 0.15, mechanism: 'MAR', pls: 'mean', cb },
+  });
+  const sd = async (cb: 'fiml' | 'casewise') => {
+    const d = withNa(cb);
+    const rows = summariseMc(d, [await runMcChunkR(d, 300, 0, 30)]);
+    expect(rows.every((r) => r.failed === 0)).toBe(true);
+    return rows.find((r) => r.estimator === 'CB-ML' && r.param.key === 'path:Trust:Loyalty')!.sd;
+  };
+  expect(await sd('fiml')).toBeLessThan(await sd('casewise'));
+}, 900_000);
+
 it('counts inadmissible PLSc solutions by cSEM::verify; PLS composites never are', async () => {
   const weak = (name: string, p: string) => ({ ...f(name, p), loadings: [0.45, 0.4, 0.35] });
   const small: McDesign = {

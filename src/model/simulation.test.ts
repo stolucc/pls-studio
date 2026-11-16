@@ -75,4 +75,19 @@ describe('simulation design', () => {
     ]);
     expect(evil.population.errorCors).toBeUndefined();
   });
+
+  it('keeps the missing values of a design, clamped; rate 0 is no missing values', () => {
+    const d = defaultDesign(populationFromModel(model, null, null));
+    const m = {
+      rate: 0.2,
+      mechanism: 'MAR' as const,
+      pls: 'casewise' as const,
+      cb: 'fiml' as const,
+    };
+    expect(parseDesign(JSON.parse(JSON.stringify({ ...d, missing: m })))!.missing).toEqual(m);
+    expect(
+      parseDesign({ ...d, missing: { rate: 3, mechanism: 'x', pls: 'x', cb: 'x' } })!.missing,
+    ).toEqual({ rate: 0.5, mechanism: 'MCAR', pls: 'mean', cb: 'casewise' });
+    expect(parseDesign({ ...d, missing: { rate: 0 } })!.missing).toBeUndefined();
+  });
 });

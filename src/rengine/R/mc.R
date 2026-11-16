@@ -8,6 +8,14 @@
 #' The script for one sample size and a set of replications (seeds given).
 ps_mc_body <- function(req) {
   spec <- req$spec
+  # Missing values (checked by ps_validate); none: rate 0.
+  nr <- req$nonresponse
+  miss <- list(
+    rate = if (is.null(nr)) 0 else ps_number(nr$rate, "missing-value rate"),
+    mar = identical(nr$mechanism, "MAR"),
+    pls = c(mean = "mean", casewise = "casewise")[[nr$pls %||% "mean"]],
+    cb = c(casewise = "listwise", fiml = "ml")[[nr$cb %||% "casewise"]]
+  )
   n <- ps_names(spec$constructs)
   cv <- n$cv
   vars <- unname(n$iv[req$population$names])
@@ -54,7 +62,7 @@ ps_mc_body <- function(req) {
       schemes <- c(path = "path", factor = "factorial", centroid = "centroid")
       scheme <- schemes[[e$scheme %||% "path"]]
       sprintf(
-        "  res[[%d]] <- tryCatch(pls_stats(csem(data, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"%s\"%s%s)), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
+        "  res[[%d]] <- tryCatch(pls_stats(csem(data_pls, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"%s\"%s%s)), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
         ei,
         if (isTRUE(e$consistent)) "TRUE" else "FALSE",
         scheme,
@@ -63,7 +71,7 @@ ps_mc_body <- function(req) {
       )
     } else {
       sprintf(
-        "  res[[%d]] <- tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\"), mc_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
+        "  res[[%d]] <- tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\", missing = cb_missing), mc_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
         ei,
         e$estimator
       )
@@ -171,9 +179,24 @@ ps_mc_body <- function(req) {
     "  list(values = do.call(rbind, out), proper = as.numeric(isTRUE(suppressWarnings(lavInspect(fit, 'post.check')))))",
     "}",
     "if (all(c(skew, kurt) == 0)) skew <- kurt <- NULL  # multivariate normal",
-    "one_replication <- function(n, seed, boot_seed, mc_seed) {",
+    sprintf(
+      "miss_rate <- %s; miss_mar <- %s; pls_missing <- %s; cb_missing <- %s",
+      format(miss$rate), if (miss$mar) "TRUE" else "FALSE", ps_q(miss$pls), ps_q(miss$cb)
+    ),
+    "# Missing values: MCAR, or MAR on the first indicator (kept complete): chance 2 * rate * rank / n.",
+    "add_missing <- function(data, seed) {",
+    "  set.seed(seed)",
+    "  n <- nrow(data)",
+    "  chance <- if (miss_mar) pmin(1, 2 * miss_rate * (rank(data[[1]], ties.method = 'first') - 0.5) / n) else rep(miss_rate, n)",
+    "  for (j in seq_along(data)) if (!(miss_mar && j == 1)) data[[j]][stats::runif(n) < chance] <- NA",
+    "  data",
+    "}",
+    "one_replication <- function(n, seed, boot_seed, mc_seed, miss_seed) {",
     "  set.seed(seed)",
     "  data <- simulateData(pop_model, sample.nobs = n, skewness = skew, kurtosis = kurt)[, vars]",
+    "  if (miss_rate > 0) data <- add_missing(data, miss_seed)",
+    "  # PLS (cSEM) needs complete data: mean replacement or casewise deletion.",
+    "  data_pls <- if (pls_missing == 'mean') as.data.frame(lapply(data, function(x) { x[is.na(x)] <- mean(x, na.rm = TRUE); x })) else stats::na.omit(data)",
     "  res <- list()",
     est_lines,
     "  res",
@@ -187,13 +210,13 @@ ps_mc <- function(req_json, export = FALSE) {
   seeds <- req$seeds # list of {n, rep, data, boot, mc}
   run <- c(
     "mc_errors <- character(0)",
-    "results <- lapply(seq_len(nrow(seeds)), function(i) one_replication(seeds$n[i], seeds$data[i], seeds$boot[i], seeds$mc[i]))",
+    "results <- lapply(seq_len(nrow(seeds)), function(i) one_replication(seeds$n[i], seeds$data[i], seeds$boot[i], seeds$mc[i], seeds$miss[i]))",
     "# Estimations that failed count as not converged; how many, and why, is reported.",
     "if (length(mc_errors)) warning(sprintf(\"%d estimations failed or did not converge (counted as not converged); most common: %s\", length(mc_errors), names(sort(table(mc_errors), decreasing = TRUE))[1]))"
   )
   sd <- data.frame(
     n = vapply(seeds, `[[`, 0, "n"), rep = vapply(seeds, `[[`, 0, "rep"), data = vapply(seeds, `[[`, 0, "data"),
-    boot = vapply(seeds, `[[`, 0, "boot"), mc = vapply(seeds, `[[`, 0, "mc")
+    boot = vapply(seeds, `[[`, 0, "boot"), mc = vapply(seeds, `[[`, 0, "mc"), miss = vapply(seeds, `[[`, 0, "miss")
   )
   if (export) {
     est_ids <- vapply(req$estimators, `[[`, "", "id")
