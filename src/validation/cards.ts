@@ -879,7 +879,17 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     note: 'No reference package exists: recovery of simulated segments.',
   },
   mc: {
-    examples: ['muthen-mc-cfa', 'ronkko-evermann-null', 'ronkko-evermann-beta'],
+    examples: [
+      'muthen-mc-cfa',
+      'ronkko-evermann-null',
+      'ronkko-evermann-beta',
+      'henseler-beta5',
+      'henseler-n500',
+      'henseler-loadings',
+      'henseler-four',
+      'goodhue-sample-size',
+      'goodhue-nonnormal',
+    ],
     features: ['rengine/mc'],
   },
   rsa: { examples: ['rsa-motcon'], features: ['rengine/rsa'] },

@@ -126,45 +126,75 @@ const SIMDATA = {
   ] as [string, string][],
 };
 
-/** Muthén & Muthén (2002), the CFA model: two factors of five indicators, loadings .8, residual variances .36, factor correlation .25. */
 /**
  * Rönkkö & Evermann (2013): two common factors with three indicators each (loadings .6, .7, .8) and one path,
- * β = 0 or .3; the paper simulates N = 100 with 500 replications.
+ * β = 0 or .3; the paper simulates N = 100 with 500 replications. Henseler et al. (2014) vary it: β = .5, N = 500,
+ * loadings .5, .7, .9, and a four-construct model that adds C → A and D → B (both .3).
  */
-export const ronkkoEvermannPopulation = (beta: number) => ({
-  constructs: [
-    { name: 'A', type: 'factor', indicators: items('a', 3), loadings: [0.6, 0.7, 0.8] },
-    { name: 'B', type: 'factor', indicators: items('b', 3), loadings: [0.6, 0.7, 0.8] },
-  ],
-  paths: [{ from: 'A', to: 'B', value: beta }],
-  exoCor: [],
-  skew: 0,
-  kurtosis: 0,
-});
+export const ronkkoEvermannPopulation = (
+  beta: number,
+  { loadings = [0.6, 0.7, 0.8], four = false }: { loadings?: number[]; four?: boolean } = {},
+) => {
+  const factor = (name: string) => ({
+    name,
+    type: 'factor',
+    indicators: items(name.toLowerCase(), 3),
+    loadings,
+  });
+  const paths = [{ from: 'A', to: 'B', value: beta }];
+  if (four) paths.push({ from: 'C', to: 'A', value: 0.3 }, { from: 'D', to: 'B', value: 0.3 });
+  return {
+    constructs: (four ? ['A', 'B', 'C', 'D'] : ['A', 'B']).map(factor),
+    paths,
+    exoCor: [],
+    skew: 0,
+    kurtosis: 0,
+  };
+};
 
 /** What the cards take from the paper, and what is the app's (both descriptions include it). */
 const RONKKO_EVERMANN_DIFFERS =
   'As in the paper: the population, N = 100, 500 replications, PLS mode A and mode B with centroid weighting (the default of plspm, which the paper used) against regression on sum scores and ML SEM. The app’s choices: PLS by cSEM and SEM by the current lavaan; the reliability of a composite is the population reliability of each sample’s weights, (w′λ)² / w′Σw, where the paper correlates the estimated scores with the generated true scores; 500 bootstrap samples per replication with percentile intervals (change them on the card; the paper’s Figure 4, the bootstrap distributions of the first five replications, is not drawn); and the measurement checks as the app computes them (AVE − highest squared correlation appears as the Fornell–Larcker margin √AVE − highest correlation, which decides the same). The paper’s models with a misspecified measurement model (Table 4) are not part of these cards; cross-loadings and error correlations can be added on the card. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
 
-/** The parts both Rönkkö & Evermann cards share; beta: the path of the population. */
-const ronkkoEvermannCard = (beta: number) => ({
+/** A card on Rönkkö & Evermann's population: the paper's (or the reply's) design, estimators and settings. */
+const factorCard = ({
+  beta,
+  loadings,
+  four = false,
+  sampleSizes = [100],
+  source,
+  links,
+  file,
+}: {
+  beta: number;
+  loadings?: number[];
+  four?: boolean;
+  sampleSizes?: number[];
+  source: string;
+  links: { label: string; url: string }[];
+  file: string;
+}) => ({
   package: 'cSEM' as const,
-  source:
-    'Rönkkö & Evermann (2013), A critical examination of common beliefs about partial least squares path modeling: the two-construct simulation',
-  links: [
-    { label: 'Rönkkö & Evermann (2013)', url: 'https://doi.org/10.1177/1094428112474693' },
-    { label: 'Henseler et al. (2014), the reply', url: 'https://doi.org/10.1177/1094428114526928' },
-  ],
+  source,
+  links,
   data: {
     package: 'cSEM' as const,
-    name: `Rönkkö & Evermann (2013), a sample of 100 (β = ${beta})`,
-    file: `examples/montecarlo/ronkko2013-${beta === 0 ? 'null' : 'beta'}.csv`,
+    name: `${source.split(',')[0]}, a sample of 100 (β = ${beta})`,
+    file: `examples/montecarlo/${file}.csv`,
   },
-  constructs: [f('A', items('a', 3)), f('B', items('b', 3))],
-  paths: [['A', 'B']] as [string, string][],
+  constructs: (four ? ['A', 'B', 'C', 'D'] : ['A', 'B']).map((name) =>
+    f(name, items(name.toLowerCase(), 3)),
+  ),
+  paths: (four
+    ? [
+        ['C', 'A'],
+        ['A', 'B'],
+        ['D', 'B'],
+      ]
+    : [['A', 'B']]) as [string, string][],
   panel: {
     kind: 'mc' as const,
-    population: ronkkoEvermannPopulation(beta),
+    population: ronkkoEvermannPopulation(beta, { loadings, four }),
     estimators: [
       {
         id: 'PLS mode A, centroid',
@@ -183,7 +213,7 @@ const ronkkoEvermannCard = (beta: number) => ({
       { id: 'Sum scores', method: 'regression', dr: false },
       { id: 'CB-ML', method: 'cb', estimator: 'ML' },
     ],
-    sampleSizes: [100],
+    sampleSizes,
     replications: 500,
     seed: 2013,
     alpha: 0.05,
@@ -200,6 +230,108 @@ const ronkkoEvermannCard = (beta: number) => ({
   },
 });
 
+const RONKKO_EVERMANN_LINKS = [
+  { label: 'Rönkkö & Evermann (2013)', url: 'https://doi.org/10.1177/1094428112474693' },
+  { label: 'Henseler et al. (2014), the reply', url: 'https://doi.org/10.1177/1094428114526928' },
+];
+
+/** What the Henseler et al. cards take from the reply, and what is the app's. */
+const HENSELER_DIFFERS =
+  'As in the paper: Rönkkö & Evermann’s population with the one factor changed, 500 replications, PLS mode A and mode B with centroid weighting (semPLS’s default, which the paper used) against regression on sum scores; the card adds ML SEM (lavaan), which the paper’s Figures 3 and 5 leave out. The paper measures a composite’s reliability as the correlation of its scores with the generated true scores, the square root of the reliability the card reports ((w′λ)² / w′Σw, the population reliability of each sample’s weights): its .862 for sum scores is √.743. The paper’s most reliable single indicator and the share of samples in which PLS beats sum scores (Table 2) are not drawn. The paper’s Table 4 compares four bootstrap intervals; the card’s Type I error / power by test table has the t, normal, basic and percentile tests, and BCa when the card’s interval is set to BCa. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+
+/** The parts both Rönkkö & Evermann cards share; beta: the path of the population. */
+const ronkkoEvermannCard = (beta: number) =>
+  factorCard({
+    beta,
+    source:
+      'Rönkkö & Evermann (2013), A critical examination of common beliefs about partial least squares path modeling: the two-construct simulation',
+    links: RONKKO_EVERMANN_LINKS,
+    file: `ronkko2013-${beta === 0 ? 'null' : 'beta'}`,
+  });
+
+/** Henseler et al. (2014): Rönkkö & Evermann's design with one factor changed (Table 2's conditions c to f). */
+const henselerCard = (
+  condition: string,
+  file: string,
+  design: { beta: number; loadings?: number[]; four?: boolean; sampleSizes?: number[] },
+) =>
+  factorCard({
+    ...design,
+    source: `Henseler et al. (2014), Common beliefs and reality about PLS: condition ${condition} of the replication of Rönkkö & Evermann (2013)`,
+    links: [...RONKKO_EVERMANN_LINKS].reverse(),
+    file,
+  });
+
+/**
+ * Goodhue, Lewis & Thompson (2012), Figure 1: four independent constructs Ksi1 … Ksi4 and Eta1, each with three
+ * indicators (loadings .7, .8, .9); Ksi1 … Ksi4 → Eta1 = .48, .314, .114 and 0 (Cohen's f² .35, .15, .02 and none).
+ * Study 2 makes the indicators skewed with Fleishman's polynomial applied to each indicator (Appendix D), which
+ * also lowers their correlations; the card's other choice, Vale–Maurelli, keeps them.
+ */
+export const goodhuePopulation = ({ skew = 0, kurtosis = 0 } = {}) => ({
+  ...(skew || kurtosis ? { nonnormal: 'fleishman' as const } : {}),
+  constructs: [
+    ...[1, 2, 3, 4].map((k) => ({
+      name: `Ksi${k}`,
+      type: 'factor',
+      indicators: items('x', 3, 3 * k - 2),
+      loadings: [0.7, 0.8, 0.9],
+    })),
+    { name: 'Eta1', type: 'factor', indicators: items('y', 3), loadings: [0.7, 0.8, 0.9] },
+  ],
+  paths: [0.48, 0.314, 0.114, 0].map((value, k) => ({ from: `Ksi${k + 1}`, to: 'Eta1', value })),
+  exoCor: [],
+  skew,
+  kurtosis,
+});
+
+/** What both Goodhue et al. cards take from the paper, and what is the app's. */
+const GOODHUE_DIFFERS =
+  'As in the paper: the population of its Figure 1, 500 replications per sample size, PLS against regression on sum scores and ML SEM, PLS tested with 100 bootstrap samples. The app’s choices: PLS by cSEM with path weighting (the paper used PLS-Graph 3.0 and does not state its weighting scheme) and SEM by the current lavaan, where the paper used LISREL. The card tests PLS paths with the normal interval (z with the bootstrap standard error), where PLS-Graph uses t: at N = 20 and 40 this rejects a little more often, the null path Ksi4 → Eta1 included; the Type I error / power by test table has the t test as well. The paper rounds every indicator to a whole number (Appendix D), the card keeps them continuous, which makes them a little more reliable. The paper counts a LISREL run without an admissible solution as not detecting the path; the card leaves failed runs out of power and reports them, and improper solutions (a negative variance), separately. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+
+const goodhueCard = (
+  file: string,
+  design: { sampleSizes: number[]; skew?: number; kurtosis?: number },
+) => ({
+  package: 'cSEM' as const,
+  source: `Goodhue, Lewis & Thompson (2012), Does PLS have advantages for small sample size or non-normal data?: Study ${design.skew ? 2 : 1}`,
+  links: [{ label: 'Goodhue et al. (2012)', url: 'https://doi.org/10.2307/41703490' }],
+  data: {
+    package: 'cSEM' as const,
+    name: `Goodhue et al. (2012), a sample of 90${design.skew ? ' (skewed indicators)' : ''}`,
+    file: `examples/montecarlo/${file}.csv`,
+  },
+  constructs: [
+    ...[1, 2, 3, 4].map((k) => f(`Ksi${k}`, items('x', 3, 3 * k - 2))),
+    f('Eta1', items('y', 3)),
+  ],
+  paths: [1, 2, 3, 4].map((k) => [`Ksi${k}`, 'Eta1']) as [string, string][],
+  panel: {
+    kind: 'mc' as const,
+    population: goodhuePopulation({ skew: design.skew, kurtosis: design.kurtosis }),
+    estimators: [
+      { id: 'PLS', method: 'pls', consistent: false },
+      { id: 'Sum scores', method: 'regression', dr: false },
+      { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+    ],
+    sampleSizes: design.sampleSizes,
+    replications: 500,
+    seed: 2012,
+    alpha: 0.05,
+    bootSamples: 100,
+    mcDraws: 0,
+    inference: { signChange: 'none', interval: 'normal' },
+  },
+  settings: {
+    method: 'pls' as const,
+    plsPackage: 'cSEM' as const,
+    consistent: false,
+    missing: 'casewise' as const,
+    seed: 2012,
+  },
+});
+
+/** Muthén & Muthén (2002), the CFA model: two factors of five indicators, loadings .8, residual variances .36, factor correlation .25. */
 export const MUTHEN_POPULATION = {
   constructs: [
     { name: 'f1', type: 'factor', indicators: items('y', 5), loadings: [0.8, 0.8, 0.8, 0.8, 0.8] },
@@ -623,6 +755,72 @@ export const CARD_MODEL: PackageExample[] = [
     shows:
       'Figure 3 of the paper: in the A → B table sum scores have a mean near .22, PLS mode A near .27 and mode B near .30 for a true .3; SDs about .10 (sum scores), .09 (mode A), .12 (mode B) and .13 (ML SEM, mean near .3). Figure 2: the reliability rows put sum scores at .75, PLS mode A near .72 and mode B near .51.',
     ...ronkkoEvermannCard(0.3),
+  },
+  {
+    id: 'henseler-beta5',
+    title: 'Monte Carlo: PLS at a moderate effect, β = .5 (Henseler et al. 2014)',
+    description:
+      'Henseler et al.’s condition c: Rönkkö & Evermann’s population (two common factors with three indicators each, loadings .6, .7, .8) with a moderate effect of A on B, β = .5 (R² = .25, more typical of applied work). With more covariance between the blocks to go on, PLS mode A weights the better indicators more and its composites become as reliable as sum scores, slightly more; mode B catches up much of its gap. The card simulates 500 samples of 100, each estimated by PLS mode A and mode B (cSEM, centroid weighting), regression on sum scores and ML SEM (lavaan), with bias, power and coverage, every bootstrap test and the composites’ reliability. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
+      HENSELER_DIFFERS +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Table 2 of the paper, squared: the reliability rows put PLS mode A at about .75 (paper .867² = .752) and sum scores at .745 (.862² = .743), mode B lower (about .67). Figure 5c: the estimates of A → B are unimodal, PLS mode A near .40 and mode B near .43 against sum scores near .37 for a true .5 (all composites attenuate the path); ML SEM centers on .5 with the larger SD.',
+    ...henselerCard('c', 'henseler2014-beta5', { beta: 0.5 }),
+  },
+  {
+    id: 'henseler-n500',
+    title: 'Monte Carlo: PLS at N = 100 and 500 (Henseler et al. 2014)',
+    description:
+      'Henseler et al.’s condition d: Rönkkö & Evermann’s population with β = .3 (two common factors with three indicators each, loadings .6, .7, .8) at N = 100 (condition b, the original) and N = 500. At N = 100 PLS mode A weights chase chance and its composites are less reliable than sum scores; at N = 500 the weights settle on the better indicators and mode A becomes the more reliable, while the spread of every estimator shrinks and the PLS estimates lose their wide tails. The card simulates 500 samples at each size, each estimated by PLS mode A and mode B (cSEM, centroid weighting), regression on sum scores and ML SEM (lavaan), with bias, power and coverage, every bootstrap test and the composites’ reliability. The diagram is fitted to one sample of 500 from that population (lavaan::simulateData, seed 2013). ' +
+      HENSELER_DIFFERS +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Table 2 of the paper, squared: at N = 100 PLS mode A near .72 (paper .843² = .711) against sum scores .745 (.743); at N = 500 mode A near .75 (.868² = .753) above them, mode B rising from about .51 to .70. Figure 5d: at N = 500 the A → B estimates are unimodal with SD about .04 (PLS mode A mean near .23, sum scores .22, ML SEM .30).',
+    ...henselerCard('d', 'henseler2014-n500', { beta: 0.3, sampleSizes: [100, 500] }),
+  },
+  {
+    id: 'henseler-loadings',
+    title: 'Monte Carlo: PLS with loadings .5, .7, .9 (Henseler et al. 2014)',
+    description:
+      'Henseler et al.’s condition e: Rönkkö & Evermann’s population with β = .3 and more unequal loadings, .5, .7 and .9 (two common factors with three indicators each). When the indicators differ more in quality, weighting them pays off more: PLS mode A’s composites become more reliable than sum scores even at N = 100, the paper’s argument that PLS reduces measurement error when there is something to weight. The card simulates 500 samples of 100, each estimated by PLS mode A and mode B (cSEM, centroid weighting), regression on sum scores and ML SEM (lavaan), with bias, power and coverage, every bootstrap test and the composites’ reliability. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
+      HENSELER_DIFFERS +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Table 2 of the paper, squared: PLS mode A near .76 (paper .871² = .759) against sum scores .75 (.867² = .752); mode B well below (about .60). The A → B table: sum scores near .22, PLS mode A near .28 and mode B near .32 for a true .3; ML SEM near .29, with many improper solutions (the .5 loading leaves little to identify a factor of three indicators at N = 100).',
+    ...henselerCard('e', 'henseler2014-loadings', { beta: 0.3, loadings: [0.5, 0.7, 0.9] }),
+  },
+  {
+    id: 'henseler-four',
+    title: 'Monte Carlo: PLS in a four-construct model (Henseler et al. 2014)',
+    description:
+      'Henseler et al.’s condition f: Rönkkö & Evermann’s two factors embedded in a nomological net, C → A → B ← D, every path .3 and every construct a common factor with three indicators (loadings .6, .7, .8). Each construct now has a neighbour PLS can weight toward, so the bimodal estimates of the two-construct model give way to unimodal ones and mode A’s composites are about as reliable as sum scores. The card simulates 500 samples of 100, each estimated by PLS mode A and mode B (cSEM, centroid weighting), regression on sum scores and ML SEM (lavaan), with bias, power and coverage for all three paths, every bootstrap test and the composites’ reliability. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
+      HENSELER_DIFFERS +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Table 2 of the paper, squared: PLS mode A’s reliability about level with sum scores (both near .745; paper .858² = .736 against .862² = .743, mode A better in 59% of samples). Figure 5f: the A → B estimates are unimodal, PLS mode A near .24 and mode B near .26 against sum scores near .22 for a true .3; ML SEM near .29 with the larger SD.',
+    ...henselerCard('f', 'henseler2014-four', { beta: 0.3, four: true }),
+  },
+  {
+    id: 'goodhue-sample-size',
+    title: 'Monte Carlo: power of PLS, regression and SEM at small samples (Goodhue et al. 2012)',
+    description:
+      'Goodhue, Lewis & Thompson’s Study 1, which tested the belief that PLS has an advantage at small samples: four independent constructs Ksi1 to Ksi4 predict Eta1 with paths .48, .314, .114 and 0 (Cohen’s large, medium, small and no effect), each construct a common factor with three indicators (loadings .7, .8, .9). At every sample size PLS and regression on sum scores detect the paths about equally often and estimate them about equally (both attenuated by measurement error); ML SEM estimates them without bias with a larger SD, and fails or gives improper solutions often at N = 20 and 40. None of the three reaches 80% power for the medium path below N = 90, so the ten-times rule (N = 40 here) gives too little power whatever the method. The card simulates 500 samples at N = 20, 40, 90, 150 and 200, each estimated by PLS (cSEM, 100 bootstrap samples), regression on sum scores and ML SEM (lavaan). The diagram is fitted to one sample of 90 from that population (lavaan::simulateData, seed 2012). ' +
+      GOODHUE_DIFFERS +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Table A2 of the paper: the power chart’s medium path Ksi2 → Eta1 rises from about .2 at N = 20 to .4 to .5 at N = 40, .8 at 90 and near 1 at 200 for all three methods (paper: regression .22, .40, .76, .97; PLS .15, .41, .75, .97; LISREL .10, .37, .79, .98). Table A1: the mean estimates of the large path .48 are about .40 for regression, .41 for PLS and .48 for ML SEM at every N, while the SDs triple from N = 200 to 20. The null path Ksi4 → Eta1 is rejected about 5% of the time at N = 90 and above.',
+    ...goodhueCard('goodhue2012-normal', { sampleSizes: [20, 40, 90, 150, 200] }),
+  },
+  {
+    id: 'goodhue-nonnormal',
+    title: 'Monte Carlo: power with skewed data (Goodhue et al. 2012)',
+    description:
+      'Goodhue, Lewis & Thompson’s Study 2: the population of their Study 1 (Ksi1 to Ksi4 → Eta1 = .48, .314, .114 and 0, three indicators each with loadings .7, .8, .9) with extremely skewed indicators, skewness 1.75 and excess kurtosis 3.75, at N = 40 and 90. The paper finds that all three methods lose power with such data (for the medium path at N = 90 from about 75% to about 50%), PLS no less than the others. Its data were made by applying Fleishman’s polynomial to each indicator after generating it (Appendix D), which also shrinks the correlations between indicators by about a quarter: the estimates drop (the large path from about .39 to .33 for regression) and the lost power follows from that. The card uses the same generator, so it reproduces the drop; switch Generated by to Vale–Maurelli, which keeps the population’s correlations, and the estimates and power return almost to those with normal data. The card simulates 500 samples at each size, each estimated by PLS (cSEM, 100 bootstrap samples), regression on sum scores and ML SEM (lavaan). The diagram is fitted to one sample of 90 from that population with Vale–Maurelli skewed indicators (lavaan::simulateData, seed 2012). ' +
+      GOODHUE_DIFFERS +
+      ' Fleishman’s table steps by .25: the paper’s skewness 1.8 and kurtosis 3.8 lie just outside what his polynomial can generate, 1.75 and 3.75 inside. Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Tables A4 and A5 of the paper, extreme skew: mean estimates of the large path .48 about .33 for regression (paper .330 and .334), .35 for PLS (.351, .350) and .41 for ML SEM (.407, .428); power for the medium path .314 at N = 90 about .55 for regression, .50 for PLS and .53 for ML SEM (paper .53, .48, .50), at N = 40 about .3 and below. ML SEM gives many improper solutions. With Vale–Maurelli the same rows come out near the normal-data values (about .40, .41, .47 and power near .75).',
+    ...goodhueCard('goodhue2012-skewed', { sampleSizes: [40, 90], skew: 1.75, kurtosis: 3.75 }),
   },
   {
     id: 'mulder-riclpm',
