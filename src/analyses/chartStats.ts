@@ -3,7 +3,7 @@
 // dataset's columns; missing values are left out.
 
 import type { Dataset } from '../engine/types';
-import { mean, qnorm, quantileSorted, sd } from '../engine/stats';
+import { bandwidthNrd0, densityAt, mean, qnorm, quantileSorted, sd } from '../engine/stats';
 
 export interface HistogramBin {
   from: number;
@@ -150,19 +150,7 @@ export function counts(
   }));
 }
 
-/** R's bw.nrd0: Silverman's rule of thumb, 0.9 min(SD, IQR / 1.34) n^(-1/5), with R's fallbacks. */
-export function bandwidthNrd0(col: ArrayLike<number>): number {
-  const v = finite(col).sort((a, b) => a - b);
-  const n = v.length;
-  if (n < 2) return NaN;
-  const iqr = quantileSorted(v, 0.75) - quantileSorted(v, 0.25);
-  let lo = Math.min(sd(v), iqr / 1.34);
-  // (R: a zero spread falls back to the SD, then |x[1]|, then 1)
-  if (!(lo > 0)) lo = sd(v);
-  if (!(lo > 0)) lo = Math.abs(v[0]);
-  if (!(lo > 0)) lo = 1;
-  return 0.9 * lo * n ** -0.2;
-}
+export { bandwidthNrd0 };
 
 /**
  * A Gaussian kernel density estimate with R's default bandwidth (bw.nrd0), evaluated exactly at `points` points
@@ -171,7 +159,6 @@ export function bandwidthNrd0(col: ArrayLike<number>): number {
  */
 export function kernelDensity(col: ArrayLike<number>, points = 128): { x: number; y: number }[] {
   const v = finite(col);
-  const n = v.length;
   const bw = bandwidthNrd0(v);
   if (!(bw > 0)) return [];
   let lo = Infinity;
@@ -180,18 +167,7 @@ export function kernelDensity(col: ArrayLike<number>, points = 128): { x: number
     if (x < lo) lo = x;
     if (x > hi) hi = x;
   }
-  const from = lo - 3 * bw;
-  const to = hi + 3 * bw;
-  const norm = 1 / (n * bw * Math.sqrt(2 * Math.PI));
-  return Array.from({ length: points }, (_, i) => {
-    const x = from + ((to - from) * i) / (points - 1);
-    let s = 0;
-    for (const xi of v) {
-      const z = (x - xi) / bw;
-      s += Math.exp(-0.5 * z * z);
-    }
-    return { x, y: s * norm };
-  });
+  return densityAt(v, bw, lo - 3 * bw, hi + 3 * bw, points);
 }
 
 /** A normal Q-Q plot as R's qqnorm and qqline draw it. */

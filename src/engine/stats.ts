@@ -41,6 +41,46 @@ export function quantileSorted(sorted: ArrayLike<number>, p: number): number {
   return sorted[lo] + (h - lo) * (sorted[hi] - sorted[lo]);
 }
 
+/** R's bw.nrd0: Silverman's rule of thumb, 0.9 min(SD, IQR / 1.34) n^(-1/5), with R's fallbacks; finite values only. */
+export function bandwidthNrd0(values: ArrayLike<number>): number {
+  const v = Array.from(values)
+    .filter((x) => Number.isFinite(x))
+    .sort((a, b) => a - b);
+  const n = v.length;
+  if (n < 2) return NaN;
+  const iqr = quantileSorted(v, 0.75) - quantileSorted(v, 0.25);
+  let lo = Math.min(sd(v), iqr / 1.34);
+  // (R: a zero spread falls back to the SD, then |x[1]|, then 1)
+  if (!(lo > 0)) lo = sd(v);
+  if (!(lo > 0)) lo = Math.abs(v[0]);
+  if (!(lo > 0)) lo = 1;
+  return 0.9 * lo * n ** -0.2;
+}
+
+/**
+ * A Gaussian kernel density of the finite values with bandwidth bw, evaluated exactly at `points` evenly spaced
+ * points from `from` to `to` (R's density() bins the data first, so its curve differs in the third decimal or so).
+ */
+export function densityAt(
+  values: ArrayLike<number>,
+  bw: number,
+  from: number,
+  to: number,
+  points: number,
+): { x: number; y: number }[] {
+  const v = Array.from(values).filter((x) => Number.isFinite(x));
+  const norm = 1 / (v.length * bw * Math.sqrt(2 * Math.PI));
+  return Array.from({ length: points }, (_, i) => {
+    const x = from + ((to - from) * i) / (points - 1);
+    let s = 0;
+    for (const xi of v) {
+      const z = (x - xi) / bw;
+      s += Math.exp(-0.5 * z * z);
+    }
+    return { x, y: s * norm };
+  });
+}
+
 /** Quantile (type 7) of unsorted values. */
 export const quantileOf = (values: ArrayLike<number>, p: number): number =>
   quantileSorted(Float64Array.from(values).sort(), p);

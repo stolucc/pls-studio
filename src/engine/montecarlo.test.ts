@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { estimateCb } from './cbsem';
 import {
-  bandwidthNrd0,
   DENSITY_POINTS,
   designParameters,
   kernelDensity,
@@ -23,6 +22,7 @@ import {
   specFromPopulation,
   type PopulationSpec,
 } from './population';
+import { bandwidthNrd0 } from './stats';
 
 const pop: PopulationSpec = {
   constructs: [

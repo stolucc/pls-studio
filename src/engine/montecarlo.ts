@@ -36,7 +36,7 @@ import {
   type Population,
   type PopulationSpec,
 } from './population';
-import { corStd, mulberry32, qnorm, quantileSorted, tTestP, zCrit } from './stats';
+import { bandwidthNrd0, corStd, densityAt, mulberry32, qnorm, tTestP, zCrit } from './stats';
 import {
   DEFAULT_OPTIONS,
   type Dataset,
@@ -588,28 +588,9 @@ export interface McHistogram {
 const HIST_BINS = 40;
 export const DENSITY_POINTS = 101;
 
-/** R's bw.nrd0: 0.9 · min(SD, IQR / 1.34) · n^(−1/5), falling back as R does when that is 0. */
-export function bandwidthNrd0(values: number[]): number {
-  const n = values.length;
-  const sorted = Float64Array.from(values).sort();
-  const mean = values.reduce((s, v) => s + v, 0) / n;
-  const sd = n > 1 ? Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1)) : 0;
-  const iqr = quantileSorted(sorted, 0.75) - quantileSorted(sorted, 0.25);
-  let spread = Math.min(sd, iqr / 1.34);
-  if (!(spread > 0)) spread = sd || Math.abs(values[0]) || 1;
-  return 0.9 * spread * n ** -0.2;
-}
-
-/** Gaussian kernel density of the values at DENSITY_POINTS points from lo to hi. */
+/** Gaussian kernel density of the values (R's bandwidth bw.nrd0) at DENSITY_POINTS points from lo to hi. */
 export function kernelDensity(values: number[], lo: number, hi: number): number[] {
-  const h = bandwidthNrd0(values);
-  const scale = 1 / (values.length * h * Math.sqrt(2 * Math.PI));
-  return Array.from({ length: DENSITY_POINTS }, (_, i) => {
-    const x = lo + ((hi - lo) * i) / (DENSITY_POINTS - 1);
-    let s = 0;
-    for (const v of values) s += Math.exp(-0.5 * ((x - v) / h) ** 2);
-    return s * scale;
-  });
+  return densityAt(values, bandwidthNrd0(values), lo, hi, DENSITY_POINTS).map((p) => p.y);
 }
 
 /**
