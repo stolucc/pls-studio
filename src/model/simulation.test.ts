@@ -90,4 +90,15 @@ describe('simulation design', () => {
     ).toEqual({ rate: 0.5, mechanism: 'MCAR', pls: 'mean', cb: 'casewise' });
     expect(parseDesign({ ...d, missing: { rate: 0 } })!.missing).toBeUndefined();
   });
+
+  it('keeps ordinal indicators of a design, clamped', () => {
+    const d = defaultDesign(populationFromModel(model, null, null));
+    const o = { categories: 4, thresholds: 'asymmetric' as const };
+    expect(parseDesign(JSON.parse(JSON.stringify({ ...d, ordinal: o })))!.ordinal).toEqual(o);
+    expect(parseDesign({ ...d, ordinal: { categories: 99, thresholds: '<x>' } })!.ordinal).toEqual({
+      categories: 10,
+      thresholds: 'symmetric',
+    });
+    expect(parseDesign(d)!.ordinal).toBeUndefined();
+  });
 });

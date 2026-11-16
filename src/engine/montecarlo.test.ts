@@ -6,9 +6,12 @@ import {
   replicationSeed,
   runMcTask,
   summariseMc,
+  categorise,
+  ordinalThresholds,
   withMissing,
   type McDesign,
   type McMissing,
+  type McOrdinal,
 } from './montecarlo';
 import {
   buildPopulation,
@@ -502,6 +505,48 @@ describe('missing values', () => {
       // About 1 − .9⁹ ≈ 61% of the cases lose a value: the SD grows by roughly 1/√.39.
       expect(row(lost, est, 'path:X:M').sd).toBeGreaterThan(1.3 * row(none, est, 'path:X:M').sd);
     }
+  });
+});
+
+describe('ordinal indicators', () => {
+  it('cuts at the normal quantiles: equal shares when symmetric, most cases high when asymmetric', () => {
+    expect(ordinalThresholds({ categories: 2, thresholds: 'symmetric' })[0]).toBeCloseTo(0, 12);
+    const t = ordinalThresholds({ categories: 4, thresholds: 'symmetric' });
+    expect(t.map((x) => +x.toFixed(4))).toEqual([-0.6745, 0, 0.6745]);
+    const data = generateData(buildPopulation(pop), 4000, 2);
+    const shares = (o: McOrdinal) => {
+      const c = categorise(data, o).cols[0];
+      return [1, 2, 3, 4].map((k) => Array.from(c).filter((v) => v === k).length / c.length);
+    };
+    for (const sh of shares({ categories: 4, thresholds: 'symmetric' }))
+      expect(sh).toBeCloseTo(0.25, 1);
+    // Asymmetric: cumulative shares (k/4)² = 1/16, 4/16, 9/16.
+    const asym = shares({ categories: 4, thresholds: 'asymmetric' });
+    expect(asym[0]).toBeCloseTo(1 / 16, 1);
+    expect(asym[3]).toBeCloseTo(7 / 16, 1);
+  });
+
+  it('few categories attenuate estimators that take them as continuous', () => {
+    const base: McDesign = {
+      population: pop,
+      estimators: [{ id: 'ML', method: 'cb', estimator: 'ML' }],
+      sampleSizes: [500],
+      replications: 30,
+      seed: 41,
+      alpha: 0.05,
+      bootSamples: 0,
+      mcDraws: 0,
+    };
+    const continuous = row(run(base, 1), 'ML', 'path:X:M').mean;
+    const binary = row(
+      run({ ...base, ordinal: { categories: 2, thresholds: 'asymmetric' } }, 1),
+      'ML',
+      'path:X:M',
+    );
+    expect(binary.failed).toBe(0);
+    expect(continuous).toBeCloseTo(0.4, 1);
+    // (standardised paths between factors survive coarsening better than loadings, but not untouched)
+    expect(Math.abs(binary.mean - 0.4)).toBeGreaterThan(Math.abs(continuous - 0.4));
   });
 });
 

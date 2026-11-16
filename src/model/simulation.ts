@@ -9,7 +9,7 @@ import type { ModelState } from './project';
 export const ESTIMATOR_CHOICES: McEstimator[] = [
   { id: 'PLS', method: 'pls', consistent: false },
   { id: 'PLSc', method: 'pls', consistent: true },
-  ...(['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS'] as CbEstimator[]).map(
+  ...(['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', 'WLSMV'] as CbEstimator[]).map(
     (e): McEstimator => ({ id: `CB-${e}`, method: 'cb', estimator: e }),
   ),
 ];
@@ -173,6 +173,14 @@ export function parseDesign(raw: unknown): McDesign | null {
     alpha: clampStrict(raw.alpha, 0.001, 0.2, 0.05),
     bootSamples: Math.round(clampStrict(raw.bootSamples, 0, 10000, 200)),
     mcDraws: Math.round(clampStrict(raw.mcDraws, 0, 1000000, 1000)),
+    ...(isObj(raw.ordinal)
+      ? {
+          ordinal: {
+            categories: Math.round(clampStrict(raw.ordinal.categories, 2, 10, 5)),
+            thresholds: raw.ordinal.thresholds === 'asymmetric' ? 'asymmetric' : 'symmetric',
+          },
+        }
+      : {}),
     ...(isObj(raw.missing) && clampStrict(raw.missing.rate, 0, 0.5, 0) > 0
       ? {
           missing: {

@@ -21,7 +21,7 @@ import {
   type Population,
   type PopulationSpec,
 } from './population';
-import { mulberry32, zCrit } from './stats';
+import { mulberry32, qnorm, zCrit } from './stats';
 import {
   DEFAULT_OPTIONS,
   type Dataset,
@@ -55,6 +55,36 @@ export interface McDesign {
   mcDraws: number;
   /** Missing values put into every replication (none when omitted or the rate is 0). */
   missing?: McMissing;
+  /** Ordinal indicators: every indicator cut into categories (continuous when omitted). */
+  ordinal?: McOrdinal;
+}
+
+/**
+ * Ordinal (Likert-type) indicators: each standardised indicator cut into `categories` at fixed thresholds.
+ * Symmetric: thresholds at the normal quantiles of k/categories, equal shares. Asymmetric: at the quantiles of
+ * (k/categories)², so few cases fall in the low categories and many in the high ones. CB-WLSMV estimates them
+ * as ordinal (polychoric correlations); the other estimators take the category numbers as continuous.
+ */
+export interface McOrdinal {
+  categories: number;
+  thresholds: 'symmetric' | 'asymmetric';
+}
+
+/** The thresholds an ordinal design cuts at, on the standardised scale. */
+export function ordinalThresholds(o: McOrdinal): number[] {
+  return Array.from({ length: o.categories - 1 }, (_, i) => {
+    const p = (i + 1) / o.categories;
+    return qnorm(o.thresholds === 'asymmetric' ? p * p : p);
+  });
+}
+
+/** The data cut into categories 1 … k at the thresholds (missing values stay missing). */
+export function categorise(data: Dataset, o: McOrdinal): Dataset {
+  const t = ordinalThresholds(o);
+  const cols = data.cols.map((c) =>
+    Float64Array.from(c, (v) => (Number.isNaN(v) ? v : 1 + t.filter((x) => v > x).length)),
+  );
+  return { ...data, cols };
 }
 
 /**
@@ -231,7 +261,8 @@ export function runMcTask(
 
   for (let k = 0; k < count; k++) {
     const r = task.start + k;
-    const complete = generateData(pop, n, replicationSeed(design.seed, n, r));
+    const continuous = generateData(pop, n, replicationSeed(design.seed, n, r));
+    const complete = design.ordinal ? categorise(continuous, design.ordinal) : continuous;
     const miss = design.missing && design.missing.rate > 0 ? design.missing : null;
     const data = miss
       ? withMissing(complete, miss, replicationSeed(design.seed + 3, n, r))

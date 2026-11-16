@@ -4,7 +4,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { MC_FIT_INDICES, poorFitRule } from '../engine/mcFitIndices';
-import type { McDesign, McHistogram, McMissing, McParam, McSummaryRow } from '../engine/montecarlo';
+import type {
+  McDesign,
+  McHistogram,
+  McMissing,
+  McOrdinal,
+  McParam,
+  McSummaryRow,
+} from '../engine/montecarlo';
 import { buildPopulation, type PopulationSpec } from '../engine/population';
 import { fmt } from '../format';
 import {
@@ -394,6 +401,57 @@ function MisspecificationBlock({
   );
 }
 
+/** Ordinal (Likert-type) indicators: categories and thresholds. */
+function OrdinalFields({ design, set }: { design: McDesign; set: (p: Partial<McDesign>) => void }) {
+  const o = design.ordinal;
+  return (
+    <>
+      <div className="field">
+        <label>Indicator scale</label>
+        <div className="segmented">
+          <button className={!o ? 'on' : ''} onClick={() => set({ ordinal: undefined })}>
+            Continuous
+          </button>
+          <button
+            className={o ? 'on' : ''}
+            onClick={() => set({ ordinal: o ?? { categories: 5, thresholds: 'symmetric' } })}
+          >
+            Ordinal
+          </button>
+        </div>
+      </div>
+      {o && (
+        <div className="row2">
+          <div className="field">
+            <label>Categories</label>
+            <Num
+              value={o.categories}
+              step={1}
+              min={2}
+              max={10}
+              width={70}
+              onChange={(v) => set({ ordinal: { ...o, categories: Math.round(v) } })}
+            />
+          </div>
+          <div className="field">
+            <label>Thresholds</label>
+            <select
+              className="select"
+              value={o.thresholds}
+              onChange={(e) =>
+                set({ ordinal: { ...o, thresholds: e.target.value as McOrdinal['thresholds'] } })
+              }
+            >
+              <option value="symmetric">Symmetric (equal shares)</option>
+              <option value="asymmetric">Asymmetric (most cases high)</option>
+            </select>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 const NO_MISSING: McMissing = { rate: 0, mechanism: 'MCAR', pls: 'mean', cb: 'casewise' };
 
 /** Missing values in every replication, and how PLS and CB-SEM treat them. */
@@ -751,6 +809,7 @@ function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: Optio
           </div>
         </div>
       ) : null}
+      <OrdinalFields design={design} set={set} />
       <MissingFields design={design} set={set} />
       <div className="field">
         <label>Random seed</label>
@@ -1154,6 +1213,11 @@ export const mcAnalysis: AnalysisType<McDesign, McSummaryRow[]> = {
     if (!d.population.constructs.length)
       return 'Build a model first (Model tab), then press Reset to defaults: the population uses its constructs, indicators and paths.';
     if (!d.estimators.length) return 'Choose at least one estimator.';
+    const wlsmv = d.estimators.some((e) => e.method === 'cb' && e.estimator === 'WLSMV');
+    if (wlsmv && ctx.settings.engine !== 'r')
+      return 'WLSMV is estimated by lavaan: choose the R engine.';
+    if (wlsmv && d.ordinal && d.missing && d.missing.rate > 0 && d.missing.cb === 'fiml')
+      return 'lavaan has no FIML for ordinal indicators (WLSMV): choose casewise deletion for CB-SEM.';
     if (
       d.missing &&
       d.missing.rate > 0 &&

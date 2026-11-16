@@ -16,6 +16,8 @@ ps_mc_body <- function(req) {
     pls = c(mean = "mean", casewise = "casewise")[[nr$pls %||% "mean"]],
     cb = c(casewise = "listwise", fiml = "ml")[[nr$cb %||% "casewise"]]
   )
+  # Ordinal indicators: the thresholds to cut at (from the app), none: continuous.
+  cuts <- vapply(req$ordinal$thresholds %||% list(), function(t) ps_number(t, "threshold"), 0)
   n <- ps_names(spec$constructs)
   cv <- n$cv
   vars <- unname(n$iv[req$population$names])
@@ -71,9 +73,11 @@ ps_mc_body <- function(req) {
       )
     } else {
       sprintf(
-        "  res[[%d]] <- tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\", missing = cb_missing), mc_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
+        "  res[[%d]] <- tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\", missing = cb_missing%s), mc_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
         ei,
-        e$estimator
+        e$estimator,
+        # WLSMV on ordinal indicators: polychoric correlations (the other estimators take the categories as numbers)
+        if (length(cuts) && identical(e$estimator, "WLSMV")) ", ordered = vars" else ""
       )
     }
   }))
@@ -183,6 +187,7 @@ ps_mc_body <- function(req) {
       "miss_rate <- %s; miss_mar <- %s; pls_missing <- %s; cb_missing <- %s",
       format(miss$rate), if (miss$mar) "TRUE" else "FALSE", ps_q(miss$pls), ps_q(miss$cb)
     ),
+    sprintf("cuts <- %s", paste(deparse(unname(cuts)), collapse = "")),
     "# Missing values: MCAR, or MAR on the first indicator (kept complete): chance 2 * rate * rank / n.",
     "add_missing <- function(data, seed) {",
     "  set.seed(seed)",
@@ -194,6 +199,7 @@ ps_mc_body <- function(req) {
     "one_replication <- function(n, seed, boot_seed, mc_seed, miss_seed) {",
     "  set.seed(seed)",
     "  data <- simulateData(pop_model, sample.nobs = n, skewness = skew, kurtosis = kurt)[, vars]",
+    "  if (length(cuts)) data[] <- lapply(data, function(x) findInterval(x, cuts) + 1)  # categories 1..k",
     "  if (miss_rate > 0) data <- add_missing(data, miss_seed)",
     "  # PLS (cSEM) needs complete data: mean replacement or casewise deletion.",
     "  data_pls <- if (pls_missing == 'mean') as.data.frame(lapply(data, function(x) { x[is.na(x)] <- mean(x, na.rm = TRUE); x })) else stats::na.omit(data)",

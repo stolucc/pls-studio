@@ -7,6 +7,7 @@ import { buildPopulation, specFromPopulation } from '../engine/population';
 import {
   ciTruth,
   mcParameters,
+  ordinalThresholds,
   replicationSeed,
   type McDesign,
   type McPart,
@@ -60,6 +61,7 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
       miss: rSeed(replicationSeed(design.seed + 3, n, rep)),
     })),
     ...(design.missing && design.missing.rate > 0 ? { nonresponse: design.missing } : {}),
+    ...(design.ordinal ? { ordinal: { thresholds: ordinalThresholds(design.ordinal) } } : {}),
   };
 }
 

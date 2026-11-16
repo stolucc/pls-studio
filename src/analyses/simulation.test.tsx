@@ -167,4 +167,29 @@ describe('Monte Carlo card', () => {
     expect(out).toContain('MAR (on the first indicator)');
     expect(out).toContain('FIML (R engine)');
   });
+
+  it('WLSMV needs the R engine and has no FIML for ordinal data; the form offers ordinal indicators', () => {
+    const base = t.defaults(ctx());
+    const d = {
+      ...base,
+      estimators: [{ id: 'CB-WLSMV', method: 'cb' as const, estimator: 'WLSMV' as const }],
+      ordinal: { categories: 5, thresholds: 'symmetric' as const },
+    };
+    const r = ctx({ settings: { ...DEFAULT_SETTINGS, engine: 'r' } });
+    expect(t.blocked(d, ctx({ settings: { ...DEFAULT_SETTINGS, engine: 'builtin' } }))).toMatch(
+      /WLSMV is estimated by lavaan/,
+    );
+    expect(t.blocked(d, r)).toBeNull();
+    const fiml = {
+      ...d,
+      missing: { rate: 0.1, mechanism: 'MCAR' as const, pls: 'mean' as const, cb: 'fiml' as const },
+    };
+    expect(t.blocked(fiml, r)).toMatch(/no FIML for ordinal/);
+    const out = renderToStaticMarkup(
+      <t.Options options={d} set={() => {}} ctx={ctx()} disabled={false} />,
+    );
+    expect(out).toContain('Indicator scale');
+    expect(out).toContain('Asymmetric (most cases high)');
+    expect(out).toContain('CB-WLSMV');
+  });
 });

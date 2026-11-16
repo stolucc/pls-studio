@@ -132,6 +132,24 @@ it('missing values: MAR with mean replacement (PLS) and FIML (lavaan); FIML is m
   expect(await sd('fiml')).toBeLessThan(await sd('casewise'));
 }, 900_000);
 
+it('ordinal indicators: WLSMV (polychoric) recovers the latent path; ML on the categories does not', async () => {
+  const ord: McDesign = {
+    ...design,
+    estimators: [
+      { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+      { id: 'CB-WLSMV', method: 'cb', estimator: 'WLSMV' },
+    ],
+    replications: 20,
+    ordinal: { categories: 3, thresholds: 'asymmetric' },
+  };
+  const rows = summariseMc(ord, [await runMcChunkR(ord, 300, 0, 20)]);
+  const at = (id: string) =>
+    rows.find((r) => r.estimator === id && r.param.key === 'path:Trust:Loyalty')!;
+  expect(at('CB-WLSMV').failed).toBe(0);
+  expect(Math.abs(at('CB-WLSMV').mean - 0.5)).toBeLessThan(0.05);
+  expect(Math.abs(at('CB-WLSMV').mean - 0.5)).toBeLessThan(Math.abs(at('CB-ML').mean - 0.5));
+}, 900_000);
+
 it('counts inadmissible PLSc solutions by cSEM::verify; PLS composites never are', async () => {
   const weak = (name: string, p: string) => ({ ...f(name, p), loadings: [0.45, 0.4, 0.35] });
   const small: McDesign = {
