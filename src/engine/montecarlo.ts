@@ -9,8 +9,17 @@
 // sample size n always uses the same seed, so results do not depend on how
 // the work was split.
 
-import { mergeBootstrap, runRange, sampleSeed } from './bootstrap';
+import { runRange, sampleSeed } from './bootstrap';
 import { estimateCb, type CbEstimator, type CbFit } from './cbsem';
+import {
+  bootTests,
+  constructFlips,
+  correctedDraws,
+  DEFAULT_INFERENCE,
+  MC_TESTS,
+  type McInference,
+  type McTest,
+} from './mcInference';
 import { mcIndirect } from './mcci';
 import { regressionFit, tCrit } from './mcRegression';
 import { MC_FIT_INDICES, poorFit, type McFitIndex } from './mcFitIndices';
@@ -56,6 +65,8 @@ export interface McDesign {
   bootSamples: number;
   /** Monte Carlo draws per replication for CB indirect-effect CIs. */
   mcDraws: number;
+  /** Bootstrap inference: sign-change correction and the interval (percentile and none when omitted). */
+  inference?: McInference;
   /** Missing values put into every replication (none when omitted or the rate is 0). */
   missing?: McMissing;
   /** Ordinal indicators: every indicator cut into categories (continuous when omitted). */
@@ -153,6 +164,8 @@ export interface McPart {
   truthCI: number[][];
   sig: Float64Array[][];
   proper: Float64Array[];
+  /** Bootstrap estimators: the rejection (1 / 0, NaN: none) of every test, [estimator][param] per test. */
+  tests?: Partial<Record<McTest, Float64Array[][]>>;
 }
 
 export function mcParameters(pop: Population, withFit = false): McParam[] {
@@ -271,6 +284,15 @@ export function runMcTask(
     hi = arr(),
     sig = arr();
   const proper = Array.from({ length: E }, () => new Float64Array(count).fill(NaN));
+  const tests = Object.fromEntries(MC_TESTS.map((t) => [t, arr()])) as Record<
+    McTest,
+    Float64Array[][]
+  >;
+  const inference = design.inference ?? DEFAULT_INFERENCE;
+  const blocks = design.population.constructs.map((c) => ({
+    construct: c.name,
+    indicators: c.indicators,
+  }));
   const C = pop.constructs;
   const ci = (name: string) => C.indexOf(name);
   const truthCI = ciTruth(design, pop, params);
@@ -299,40 +321,53 @@ export function runMcTask(
           const prep = preparePls(data, spec, opts);
           const { m, st, core } = prep.estimate(prep.cols);
           if (!core.converged) throw new Error('not converged');
+          params.forEach((p, pi) => {
+            if (p.kind === 'fit') return;
+            const i = ci(p.from),
+              j = ci(p.to);
+            let value: number;
+            if (p.kind === 'path') value = st.pathCoef[i][j];
+            else if (p.kind === 'covariance') value = st.C[i][j];
+            else value = st.totalEffects[i][j] - st.pathCoef[i][j]; // (the indirect effect)
+            est[ei][pi][k] = value;
+          });
           if (design.bootSamples > 0) {
-            const boot = mergeBootstrap(
-              [
-                runRange({
-                  job: 'pls',
-                  data,
-                  spec,
-                  options: opts,
-                  seed: replicationSeed(design.seed + 1, n, r),
-                  start: 0,
-                  end: design.bootSamples,
-                }),
-              ],
-              1 - design.alpha,
-            );
-            params.forEach((p, pi) => {
-              if (p.kind === 'fit') return;
-              const s = boot.stats.find((x) => x.key === p.key);
-              if (!s) return;
-              est[ei][pi][k] = s.original;
-              lo[ei][pi][k] = s.ciLow;
-              hi[ei][pi][k] = s.ciHigh;
-              sig[ei][pi][k] = s.p < design.alpha ? 1 : 0;
+            const part = runRange({
+              job: 'pls',
+              data,
+              spec,
+              options: opts,
+              seed: replicationSeed(design.seed + 1, n, r),
+              start: 0,
+              end: design.bootSamples,
+              jackknife: inference.interval === 'bca',
             });
-          } else {
+            const keys = part.params.map((x) => x.key);
+            const flips =
+              inference.signChange === 'construct'
+                ? constructFlips(blocks, keys, part.originals, part.draws)
+                : null;
+            const cases = prep.cols[0].length;
             params.forEach((p, pi) => {
-              if (p.kind === 'fit') return;
-              const i = ci(p.from),
-                j = ci(p.to);
-              let value: number;
-              if (p.kind === 'path') value = st.pathCoef[i][j];
-              else if (p.kind === 'covariance') value = st.C[i][j];
-              else value = st.totalEffects[i][j] - st.pathCoef[i][j]; // (the indirect effect)
-              est[ei][pi][k] = value;
+              const bi = keys.indexOf(p.key);
+              if (p.kind === 'fit' || bi < 0) return;
+              // (draws that failed are NaN in every parameter: dropped)
+              const v = correctedDraws(
+                part.draws[bi],
+                part.originals[bi],
+                inference.signChange,
+                flips ? { from: flips.get(p.from)!, to: flips.get(p.to)! } : undefined,
+              );
+              const res = bootTests(
+                v,
+                part.originals[bi],
+                design.alpha,
+                cases,
+                part.jack ? Array.from(part.jack[bi]) : undefined,
+              );
+              [lo[ei][pi][k], hi[ei][pi][k]] = res.ci[inference.interval];
+              sig[ei][pi][k] = res.reject[inference.interval];
+              for (const t of MC_TESTS) tests[t][ei][pi][k] = res.reject[t];
             });
           }
           // PLSc: the rule the bootstrap drops draws by (ρA in (0, 1], correlations within ±1).
@@ -431,7 +466,7 @@ export function runMcTask(
     });
     onProgress?.(k + 1, count);
   }
-  return { n, start: task.start, est, lo, hi, truthCI, sig, proper };
+  return { n, start: task.start, est, lo, hi, truthCI, sig, proper, tests };
 }
 
 export interface McSummaryRow {
@@ -453,6 +488,8 @@ export interface McSummaryRow {
   rejection: number | null;
   /** The distribution of the estimates (one range per parameter, shared by all estimators and sample sizes). */
   hist?: McHistogram;
+  /** Bootstrap estimators: the rejection rate of every test computed. */
+  tests?: Partial<Record<McTest, number>>;
 }
 
 /** Counts of estimates in HIST_BINS equal bins over [lo, hi]; estimates outside the range counted apart. */
@@ -522,6 +559,7 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
           cover: number[] = [],
           widths: number[] = [],
           rej: number[] = [];
+        const byTest = new Map<McTest, number[]>();
         let failed = 0,
           improper = 0;
         for (const part of ps) {
@@ -543,6 +581,12 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
             }
             const sg = part.sig[ei][pi][k];
             if (Number.isFinite(sg)) rej.push(sg);
+            for (const t of MC_TESTS) {
+              const x = part.tests?.[t]?.[ei]?.[pi]?.[k];
+              if (x === undefined || !Number.isFinite(x)) continue;
+              if (!byTest.has(t)) byTest.set(t, []);
+              byTest.get(t)!.push(x);
+            }
           }
         }
         const R = ests.length;
@@ -572,6 +616,13 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
           width: widths.length ? widths.reduce((s, x) => s + x, 0) / widths.length : null,
           rejection: rej.length ? rej.reduce((s, x) => s + x, 0) / rej.length : null,
           hist: histogram(ests, ranges[pi]),
+          ...(byTest.size
+            ? {
+                tests: Object.fromEntries(
+                  [...byTest].map(([t, xs]) => [t, xs.reduce((a, b) => a + b, 0) / xs.length]),
+                ),
+              }
+            : {}),
         });
       });
     });

@@ -1,5 +1,5 @@
 import type { CbEstimator } from '../engine/cbsem';
-import { clampStrict, isObj } from '../parse';
+import { clampStrict, isObj, oneOf } from '../parse';
 import type { McDesign, McEstimator } from '../engine/montecarlo';
 import type { PopulationSpec } from '../engine/population';
 import type { CbResult } from '../engine/cbsem';
@@ -187,6 +187,22 @@ export function parseDesign(raw: unknown): McDesign | null {
           ordinal: {
             categories: Math.round(clampStrict(raw.ordinal.categories, 2, 10, 5)),
             thresholds: raw.ordinal.thresholds === 'asymmetric' ? 'asymmetric' : 'symmetric',
+          },
+        }
+      : {}),
+    ...(isObj(raw.inference)
+      ? {
+          inference: {
+            signChange: oneOf(
+              raw.inference.signChange,
+              ['none', 'individual', 'construct'] as const,
+              'none',
+            ),
+            interval: oneOf(
+              raw.inference.interval,
+              ['percentile', 'normal', 'basic', 'bca'] as const,
+              'percentile',
+            ),
           },
         }
       : {}),

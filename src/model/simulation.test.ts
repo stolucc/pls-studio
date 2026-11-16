@@ -91,6 +91,18 @@ describe('simulation design', () => {
     expect(parseDesign({ ...d, missing: { rate: 0 } })!.missing).toBeUndefined();
   });
 
+  it('keeps the bootstrap inference of a design; unknown values fall back', () => {
+    const d = defaultDesign(populationFromModel(model, null, null));
+    const inf = { signChange: 'construct' as const, interval: 'basic' as const };
+    expect(parseDesign(JSON.parse(JSON.stringify({ ...d, inference: inf })))!.inference).toEqual(
+      inf,
+    );
+    expect(
+      parseDesign({ ...d, inference: { signChange: '<x>', interval: 'bootstrap' } })!.inference,
+    ).toEqual({ signChange: 'none', interval: 'percentile' });
+    expect(parseDesign(d)!.inference).toBeUndefined();
+  });
+
   it('keeps ordinal indicators of a design, clamped', () => {
     const d = defaultDesign(populationFromModel(model, null, null));
     const o = { categories: 4, thresholds: 'asymmetric' as const };

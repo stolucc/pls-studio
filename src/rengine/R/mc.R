@@ -16,6 +16,12 @@ ps_mc_body <- function(req) {
     pls = c(mean = "mean", casewise = "casewise")[[nr$pls %||% "mean"]],
     cb = c(casewise = "listwise", fiml = "ml")[[nr$cb %||% "casewise"]]
   )
+  # Bootstrap inference (checked by ps_validate): cSEM's sign-change option and the interval reported.
+  # (individual is applied to the draws in pls_stats: cSEM 0.7.1's own fails on a model without indirect effects,
+  # sign() of its empty indirect-effect estimates)
+  sign_change <- c(none = "none", individual = "none", construct = "construct_reestimate")[[req$inference$signChange %||% "none"]]
+  individual <- identical(req$inference$signChange, "individual")
+  interval <- c(percentile = "percentile", normal = "normal", basic = "basic", bca = "bca")[[req$inference$interval %||% "percentile"]]
   # Ordinal indicators: the thresholds to cut at (from the app), none: continuous.
   cuts <- vapply(req$ordinal$thresholds %||% list(), function(t) ps_number(t, "threshold"), 0)
   n <- ps_names(spec$constructs)
@@ -53,14 +59,18 @@ ps_mc_body <- function(req) {
     e <- req$estimators[[ei]]
     if (e$method == "regression") {
       return(sprintf(
-        "  res[[%d]] <- tryCatch(reg_stats(data_pls, dr = %s), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
+        "  res[%d] <- list(tryCatch(reg_stats(data_pls, dr = %s), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL }))",
         ei,
         if (isTRUE(e$dr)) "TRUE" else "FALSE"
       ))
     }
     if (e$method == "pls") {
       boot <- if (req$bootSamples > 0) {
-        sprintf(", .resample_method = \"bootstrap\", .R = %d, .seed = boot_seed", as.integer(req$bootSamples))
+        sprintf(
+          ", .resample_method = \"bootstrap\", .R = %d, .seed = boot_seed, .sign_change_option = \"%s\"",
+          as.integer(req$bootSamples),
+          sign_change
+        )
       } else {
         ""
       }
@@ -71,7 +81,7 @@ ps_mc_body <- function(req) {
       schemes <- c(path = "path", factor = "factorial", centroid = "centroid")
       scheme <- schemes[[e$scheme %||% "path"]]
       sprintf(
-        "  res[[%d]] <- tryCatch(pls_stats(csem(data_pls, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"%s\"%s%s)), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
+        "  res[%d] <- list(tryCatch(pls_stats(csem(data_pls, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"%s\"%s%s)), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL }))",
         ei,
         if (isTRUE(e$consistent)) "TRUE" else "FALSE",
         scheme,
@@ -80,7 +90,7 @@ ps_mc_body <- function(req) {
       )
     } else {
       sprintf(
-        "  res[[%d]] <- tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\", missing = cb_missing%s), mc_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
+        "  res[%d] <- list(tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\", missing = cb_missing%s), mc_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL }))",
         ei,
         e$estimator,
         # WLSMV on ordinal indicators: polychoric correlations (the other estimators take the categories as numbers)
@@ -167,29 +177,50 @@ ps_mc_body <- function(req) {
     "}",
     "effects <- function(B) { Tm <- solve(diag(nrow(B)) - B) - diag(nrow(B)); dimnames(Tm) <- dimnames(B); list(direct = B, indirect = Tm - B) }",
     "# PLS: path and indirect estimates; with bootstrap draws, percentile CIs and a t test.",
+    "# Bootstrap tests of H0: theta = 0 from the draws (after cSEM's sign-change correction): t on n - 1 df,",
+    "# normal (bias-corrected), basic, percentile and BCa (cSEM's infer) intervals; an interval rejects when it excludes 0.",
+    "tests_names <- c('t', 'normal', 'basic', 'percentile', 'bca')",
+    "boot_tests <- function(x, v, n_cases, bca) {",
+    "  se <- stats::sd(x); q <- stats::quantile(x, c(alpha / 2, 1 - alpha / 2), names = FALSE)",
+    "  z <- stats::qnorm(1 - alpha / 2); b <- mean(x) - v",
+    "  ci <- list(normal = c(v - b - z * se, v - b + z * se), basic = c(2 * v - q[2], 2 * v - q[1]), percentile = q, bca = bca)",
+    "  ex0 <- function(i) if (length(i) == 2 && all(is.finite(i))) as.numeric(i[1] > 0 || i[2] < 0) else NA",
+    "  t <- if (se > 0) as.numeric(2 * stats::pt(-abs(v / se), n_cases - 1) < alpha) else NA",
+    "  list(ci = ci, reject = c(t = t, normal = ex0(ci$normal), basic = ex0(ci$basic), percentile = ex0(ci$percentile), bca = ex0(ci$bca)))",
+    "}",
+    "# PLS: path and indirect estimates; with bootstrap draws, the tests and the chosen interval.",
     "pls_stats <- function(fit) {",
     "  if (!isTRUE(fit$Information$Weight_info$Convergence_status)) stop('not converged')",
     "  P <- t(fit$Estimates$Path_estimates); E <- effects(P)",
     "  r <- fit$Estimates$Estimates_resample$Estimates1",
-    "  draw <- function(k) {",
-    "    if (is.null(r)) return(NULL)",
-    "    nm <- paste(params$to[k], '~', params$from[k])",
-    "    x <- if (params$kind[k] == 'path') r$Path_estimates$Resampled[, nm] else r$Indirect_effect$Resampled[, nm]",
-    "    x[is.finite(x)]",
+    "  # Individual sign-change correction: every draw takes the sign of the original estimate, |draw| * sign(estimate)",
+    "  if (!is.null(r) && individual) {",
+    "    for (q in c('Path_estimates', 'Indirect_effect')) {",
+    "      if (length(r[[q]]$Original)) r[[q]]$Resampled <- sweep(abs(r[[q]]$Resampled), 2, sign(r[[q]]$Original), `*`)",
+    "    }",
+    "    fit$Estimates$Estimates_resample$Estimates1 <- r",
     "  }",
-    "  out <- lapply(seq_len(nrow(params)), function(k) {",
-    "    if (params$kind[k] == 'fit') return(c(NA, NA, NA, NA))",
+    "  bca <- if (!is.null(r) && interval == 'bca') cSEM::infer(fit, .quantity = 'CI_bca', .alpha = alpha) else NULL",
+    "  n_cases <- nrow(fit$Information$Data)",
+    "  rows <- lapply(seq_len(nrow(params)), function(k) {",
+    "    none <- list(values = c(NA, NA, NA, NA), tests = rep(NA_real_, 5))",
+    "    if (params$kind[k] == 'fit') return(none)",
     "    # (a covariance: the correlation of the two exogenous constructs, disattenuated with PLSc; no resampled draws)",
-    "    if (params$kind[k] == 'covariance') return(c(fit$Estimates$Construct_VCV[params$from[k], params$to[k]], NA, NA, NA))",
-    "    v <- if (params$kind[k] == 'path') E$direct[params$from[k], params$to[k]] else E$indirect[params$from[k], params$to[k]]",
-    "    x <- draw(k)",
-    "    if (is.null(x) || length(x) < 2) return(c(v, NA, NA, NA))",
-    "    q <- stats::quantile(x, c(alpha / 2, 1 - alpha / 2)); t <- v / stats::sd(x)",
-    "    c(v, q[[1]], q[[2]], as.numeric(2 * stats::pt(-abs(t), length(x) - 1) < alpha))",
+    "    if (params$kind[k] == 'covariance') return(list(values = c(fit$Estimates$Construct_VCV[params$from[k], params$to[k]], NA, NA, NA), tests = none$tests))",
+    "    path <- params$kind[k] == 'path'",
+    "    v <- if (path) E$direct[params$from[k], params$to[k]] else E$indirect[params$from[k], params$to[k]]",
+    "    if (is.null(r)) return(list(values = c(v, NA, NA, NA), tests = none$tests))",
+    "    nm <- paste(params$to[k], '~', params$from[k])",
+    "    x <- if (path) r$Path_estimates$Resampled[, nm] else r$Indirect_effect$Resampled[, nm]",
+    "    x <- x[is.finite(x)]",
+    "    if (length(x) < 2) return(list(values = c(v, NA, NA, NA), tests = none$tests))",
+    "    b <- if (is.null(bca)) NULL else if (path) bca$Path_estimates$CI_bca[, nm] else bca$Indirect_effect$CI_bca[, nm]",
+    "    res <- boot_tests(x, v, n_cases, b)",
+    "    list(values = c(v, res$ci[[interval]], res$reject[[interval]]), tests = unname(res$reject))",
     "  })",
     "  # PLSc: admissible as cSEM's verify() defines it (loadings, reliabilities, construct correlations); composites always are.",
     "  ok <- !isTRUE(fit$Information$Arguments$.disattenuate) || sum(cSEM::verify(fit)) == 0",
-    "  list(values = do.call(rbind, out), proper = as.numeric(ok))",
+    "  list(values = do.call(rbind, lapply(rows, `[[`, 'values')), tests = do.call(rbind, lapply(rows, `[[`, 'tests')), proper = as.numeric(ok))",
     "}",
     "# CB-SEM: standardised estimates; Wald CIs (marker metric) for paths, Monte Carlo CIs for indirect effects.",
     "cb_stats <- function(fit, mc_seed) {",
@@ -242,6 +273,8 @@ ps_mc_body <- function(req) {
       format(miss$rate), if (miss$mar) "TRUE" else "FALSE", ps_q(miss$pls), ps_q(miss$cb)
     ),
     sprintf("cuts <- %s", paste(deparse(unname(cuts)), collapse = "")),
+    sprintf("interval <- %s", ps_q(interval)),
+    sprintf("individual <- %s", if (individual) "TRUE" else "FALSE"),
     "# Missing values: MCAR, or MAR on the first indicator (kept complete): chance 2 * rate * rank / n.",
     "add_missing <- function(data, seed) {",
     "  set.seed(seed)",
@@ -313,6 +346,13 @@ ps_mc <- function(req_json, export = FALSE) {
   }
   ps_json(list(
     est = pick(1), lo = pick(2), hi = pick(3), sig = pick(4),
+    tests = lapply(seq_len(5), function(ti) {
+      lapply(seq_len(E), function(e) {
+        lapply(seq_len(K), function(k) {
+          I(vapply(env$results, function(r) if (is.null(r[[e]]$tests)) NA_real_ else r[[e]]$tests[k, ti], 0))
+        })
+      })
+    }),
     proper = lapply(
       seq_len(E),
       function(e) I(vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$proper, 0))

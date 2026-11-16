@@ -217,8 +217,11 @@ function plsJob(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>): J
     params,
     originals: params.map((p) => p.get(first.st, first.core.w)),
     sample: (idx) => {
-      // Both stages are re-run per sample when the model has moderators.
-      const eb = prep.estimate(resample(prep.cols, idx), { w1: first.w1, w2: first.core.w });
+      // Both stages are re-run per sample when the model has moderators. Each sample starts from the
+      // default weights, as the estimate did (and cSEM does): starting from the original weights kept
+      // every draw in the original solution's sign, which made the bootstrap standard error of a weak or
+      // null path too small (a null PLS path then rejected four times too often at α = .05).
+      const eb = prep.estimate(resample(prep.cols, idx));
       if (!eb.core.converged) throw new Error('not converged');
       // An inadmissible PLSc draw is dropped, as cSEM does by default; it counts as failed.
       if (opts.consistent && plscProblems(eb.m, eb.st).problems.length)

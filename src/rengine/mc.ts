@@ -13,6 +13,7 @@ import {
   type McPart,
 } from '../engine/montecarlo';
 import { MC_FIT_INDICES } from '../engine/mcFitIndices';
+import { DEFAULT_INFERENCE, MC_TESTS } from '../engine/mcInference';
 import { rCallOn, rScript } from './bridge';
 import { rList } from './rjson';
 
@@ -60,6 +61,7 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
       mc: rSeed(replicationSeed(design.seed + 2, n, rep)),
       miss: rSeed(replicationSeed(design.seed + 3, n, rep)),
     })),
+    inference: design.inference ?? DEFAULT_INFERENCE,
     ...(design.missing && design.missing.rate > 0 ? { nonresponse: design.missing } : {}),
     ...(design.ordinal ? { ordinal: { thresholds: ordinalThresholds(design.ordinal) } } : {}),
   };
@@ -125,6 +127,14 @@ export function parseMcChunk(
     sig: arr(raw.sig),
     truthCI,
     proper: rList<unknown>(raw.proper).map(f64),
+    // (one entry per test, in MC_TESTS order; absent from an older helper's answer)
+    ...(raw.tests === undefined
+      ? {}
+      : {
+          tests: Object.fromEntries(
+            rList<unknown>(raw.tests).map((perTest, ti) => [MC_TESTS[ti], arr(perTest)]),
+          ),
+        }),
   };
 }
 

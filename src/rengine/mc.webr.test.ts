@@ -196,6 +196,61 @@ it('counts inadmissible PLSc solutions by cSEM::verify; PLS composites never are
   expect(at('PLSc').improper).toBeGreaterThan(0);
 }, 900_000);
 
+it('bootstrap tests (Rönkkö, McIntosh & Antonakis 2015): R and the built-in engine agree, BCa from cSEM', async () => {
+  // PLS mode A, a null path between two constructs, n = 100: the basic interval rejects far too often; the
+  // individual sign-change correction makes the percentile interval reject (nearly) always.
+  const paid = (
+    signChange: 'none' | 'individual' | 'construct',
+    interval: 'percentile' | 'bca',
+  ): McDesign => ({
+    population: {
+      constructs: [
+        { name: 'A', type: 'factor', indicators: ['a1', 'a2', 'a3'], loadings: [0.6, 0.7, 0.8] },
+        { name: 'B', type: 'factor', indicators: ['b1', 'b2', 'b3'], loadings: [0.6, 0.7, 0.8] },
+      ],
+      paths: [{ from: 'A', to: 'B', value: 0 }],
+      exoCor: [],
+    },
+    estimators: [{ id: 'PLS', method: 'pls', consistent: false }],
+    sampleSizes: [100],
+    replications: 40,
+    seed: 11,
+    alpha: 0.05,
+    bootSamples: 200,
+    mcDraws: 0,
+    inference: { signChange, interval },
+  });
+  const none = paid('none', 'bca');
+  const r = summariseMc(none, [await runMcChunkR(none, 100, 0, 40)])[0];
+  const b = summariseMc(none, [runMcTask({ design: none, n: 100, start: 0, end: 40 })])[0];
+  expect(r.tests).toBeDefined();
+  for (const t of ['t', 'normal', 'percentile', 'bca'] as const) {
+    expect(r.tests![t], `R ${t}`).toBeLessThan(0.2);
+    expect(Math.abs(r.tests![t]! - b.tests![t]!), `${t}: R vs built-in`).toBeLessThan(0.15);
+  }
+  expect(r.tests!.basic, 'basic interval: many false positives').toBeGreaterThan(0.2);
+  expect(b.tests!.basic).toBeGreaterThan(0.2);
+  // (coverage is of the chosen interval, BCa)
+  expect(r.coverage).toBeCloseTo(1 - r.tests!.bca!, 10);
+
+  const individual = paid('individual', 'percentile');
+  const ri = summariseMc(individual, [await runMcChunkR(individual, 100, 0, 40)])[0];
+  expect(ri.tests!.percentile, 'individual correction: percentile always rejects').toBeGreaterThan(
+    0.9,
+  );
+  expect(ri.tests!.bca).toBeUndefined();
+
+  // (construct level: cSEM's construct_reestimate; every replication runs)
+  const construct: McDesign = {
+    ...individual,
+    replications: 10,
+    inference: { signChange: 'construct', interval: 'percentile' },
+  };
+  const rc = summariseMc(construct, [await runMcChunkR(construct, 100, 0, 10)])[0];
+  expect(rc.failed).toBe(0);
+  expect(rc.tests!.t).toBeGreaterThanOrEqual(0);
+}, 900_000);
+
 it('exports the whole simulation as one script', async () => {
   const s = await mcScriptR({ ...design, replications: 3 });
   expect(s).toContain('simulateData(pop_model, sample.nobs = n');

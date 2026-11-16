@@ -151,6 +151,47 @@ describe('Monte Carlo card', () => {
     expect(out).toContain('Add cross-loading');
   });
 
+  it('PLS bootstrap: the form offers sign change and interval; the results show rejection by test', () => {
+    const d = {
+      ...t.defaults(ctx()),
+      inference: { signChange: 'individual' as const, interval: 'bca' as const },
+    };
+    const form = renderToStaticMarkup(
+      <t.Options options={d} set={() => {}} ctx={ctx()} disabled={false} />,
+    );
+    expect(form).toContain('Sign-change correction');
+    expect(form).toContain('Construct level');
+    expect(form).toContain('BCa');
+    const noBoot = renderToStaticMarkup(
+      <t.Options options={{ ...d, bootSamples: 0 }} set={() => {}} ctx={ctx()} disabled={false} />,
+    );
+    expect(noBoot).not.toContain('Sign-change correction');
+
+    const path = { key: 'path:A:B', kind: 'path' as const, from: 'A', to: 'B', value: 0 };
+    const row: McSummaryRow = {
+      estimator: d.estimators[0].id,
+      n: 100,
+      param: path,
+      reps: 500,
+      failed: 0,
+      improper: 0,
+      mean: 0,
+      bias: 0,
+      relBias: null,
+      sd: 0.2,
+      rmse: 0.2,
+      coverage: 0.95,
+      width: 0.7,
+      rejection: 0.05,
+      tests: { t: 0.073, normal: 0.061, basic: 0.444, percentile: 0.06 },
+    };
+    const out = renderToStaticMarkup(<t.View result={[row]} options={d} current />);
+    expect(out).toContain('Type I error by test');
+    expect(out).toContain('Basic CI');
+    expect(out).toContain('0.444');
+    expect(out).toContain('bootstrap BCa, individual sign-change correction');
+  });
+
   it('FIML needs the R engine; the form shows the missing-value fields', () => {
     const d = {
       ...t.defaults(ctx()),

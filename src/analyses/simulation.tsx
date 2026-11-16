@@ -4,6 +4,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { MC_FIT_INDICES, poorFitRule } from '../engine/mcFitIndices';
+import {
+  DEFAULT_INFERENCE,
+  MC_TEST_LABELS,
+  MC_TESTS,
+  type McInference,
+} from '../engine/mcInference';
 import type {
   McDesign,
   McHistogram,
@@ -452,6 +458,65 @@ function OrdinalFields({ design, set }: { design: McDesign; set: (p: Partial<McD
   );
 }
 
+const INTERVAL_LABELS: Record<McInference['interval'], string> = {
+  percentile: 'Percentile',
+  normal: 'Normal (bias-corrected)',
+  basic: 'Basic',
+  bca: 'BCa',
+};
+
+/** The PLS interval as the notes name it, e.g. "bootstrap BCa, individual sign-change correction". */
+function inferenceNote(inf: McInference): string {
+  const name = inf.interval === 'bca' ? 'BCa' : inf.interval;
+  const correction = inf.signChange === 'none' ? '' : `, ${inf.signChange} sign-change correction`;
+  return `bootstrap ${name}${correction}`;
+}
+
+/**
+ * PLS bootstrap inference: the sign-change correction of the draws and the interval coverage is reported for.
+ * Every test is computed from the same draws either way (the rejection-by-test table).
+ */
+function InferenceFields({
+  design,
+  set,
+}: {
+  design: McDesign;
+  set: (p: Partial<McDesign>) => void;
+}) {
+  const inf = design.inference ?? DEFAULT_INFERENCE;
+  const change = (patch: Partial<McInference>) => set({ inference: { ...inf, ...patch } });
+  return (
+    <div className="row2">
+      <div className="field">
+        <label>Sign-change correction</label>
+        <select
+          className="select"
+          value={inf.signChange}
+          onChange={(e) => change({ signChange: e.target.value as McInference['signChange'] })}
+        >
+          <option value="none">None</option>
+          <option value="individual">Individual</option>
+          <option value="construct">Construct level</option>
+        </select>
+      </div>
+      <div className="field">
+        <label>Interval (coverage)</label>
+        <select
+          className="select"
+          value={inf.interval}
+          onChange={(e) => change({ interval: e.target.value as McInference['interval'] })}
+        >
+          {(Object.keys(INTERVAL_LABELS) as McInference['interval'][]).map((k) => (
+            <option key={k} value={k}>
+              {INTERVAL_LABELS[k]}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 const NO_MISSING: McMissing = { rate: 0, mechanism: 'MCAR', pls: 'mean', cb: 'casewise' };
 
 /** Missing values in every replication, and how PLS and CB-SEM treat them. */
@@ -766,6 +831,9 @@ function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: Optio
           />
         </div>
       </div>
+      {design.bootSamples > 0 && design.estimators.some((e) => e.method === 'pls') && (
+        <InferenceFields design={design} set={set} />
+      )}
       <div className="field">
         <label>Indicator distribution</label>
         <div className="segmented">
@@ -1169,22 +1237,68 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                   <>
                     Bias and RMSE against the true standardised value. Coverage: share of{' '}
                     {Math.round((1 - design.alpha) * 100)}% intervals containing the true value
-                    (PLS: bootstrap percentile; CB: Wald for paths, Monte Carlo for indirect
-                    effects). Power: share of replications rejecting H₀ at α = {design.alpha}; 0.80
-                    is the usual target. CI width: mean width of the intervals, standardised
-                    (CB-SEM: the marker-metric width rescaled by the population loadings), for
-                    planning a sample size by precision. Inadmissible: share of solutions that are
-                    not possible ones (CB-SEM: negative variances or correlations beyond ±1; PLSc:
-                    reliabilities or correlations beyond 1); they stay in the summary. Failed
-                    replications (non-convergence) are excluded and counted.
+                    (PLS: {inferenceNote(design.inference ?? DEFAULT_INFERENCE)}; CB: Wald for
+                    paths, Monte Carlo for indirect effects). Power: share of replications rejecting
+                    H₀ at α = {design.alpha}; 0.80 is the usual target. CI width: mean width of the
+                    intervals, standardised (CB-SEM: the marker-metric width rescaled by the
+                    population loadings), for planning a sample size by precision. Inadmissible:
+                    share of solutions that are not possible ones (CB-SEM: negative variances or
+                    correlations beyond ±1; PLSc: reliabilities or correlations beyond 1); they stay
+                    in the summary. Failed replications (non-convergence) are excluded and counted.
                   </>
                 )
               }
             />
+            <TestsTable rows={rows} param={activeParam} alpha={design.alpha} />
           </>
         )
       )}
     </div>
+  );
+}
+
+/**
+ * Rejection rate of every bootstrap test from the same draws (PLS with bootstrap samples): the comparison
+ * of Rönkkö, McIntosh & Antonakis (2015, table 2) — at a true value of 0, the false-positive rate.
+ */
+function TestsTable({
+  rows,
+  param,
+  alpha,
+}: {
+  rows: McSummaryRow[];
+  param: McParam;
+  alpha: number;
+}) {
+  const shown = rows.filter((r) => r.param.key === param.key && r.tests);
+  if (!shown.length) return null;
+  const isNull = Math.abs(param.value) < 1e-12;
+  return (
+    <Table
+      title={isNull ? 'Type I error by test' : 'Power by test'}
+      file="simulation-tests"
+      columns={['Estimator', 'N', ...MC_TESTS.map((t) => MC_TEST_LABELS[t])]}
+      rows={shown.map(
+        (r): Row => [
+          c(r.estimator),
+          c(String(r.n)),
+          ...MC_TESTS.map((t) => {
+            const v = r.tests?.[t];
+            const off = isNull && v !== undefined && v > 2 * alpha;
+            return c(v ?? null, off ? 'bad' : '');
+          }),
+        ],
+      )}
+      note={
+        <>
+          Share of replications rejecting H₀: θ = 0 at α = {alpha}, every test from the same
+          bootstrap draws (after the sign-change correction). t: estimate / bootstrap SE on n − 1
+          df. Interval tests reject when the interval excludes 0.{' '}
+          {isNull ? 'The true value is 0, so these are false positives; above 2α is marked.' : ''}{' '}
+          BCa needs the jackknife: it is computed only when BCa is the chosen interval.
+        </>
+      }
+    />
   );
 }
 
