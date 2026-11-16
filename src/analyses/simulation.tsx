@@ -943,6 +943,8 @@ function DistributionChart({
   n: number;
   estimators: string[];
 }) {
+  // Density (a smooth kernel estimate, as published simulation figures draw it) or the histogram's bins.
+  const [shape, setShape] = useState<'density' | 'histogram'>('density');
   const W = 460;
   const H = 240;
   const pad = { l: 54, r: 12, t: 12, b: 36 };
@@ -959,12 +961,14 @@ function DistributionChart({
   if (!series.length) return null;
   const { lo, hi, counts } = series[0].row.hist;
   const bins = counts.length;
+  const smooth = shape === 'density' && series.every(({ row }) => row.hist.density);
   const share = (row: McSummaryRow & { hist: McHistogram }, b: number) =>
     row.reps ? row.hist.counts[b] / row.reps : 0;
-  const top = Math.max(
-    0.01,
-    ...series.flatMap(({ row }) => row.hist.counts.map((_, b) => share(row, b))),
-  );
+  const top = smooth
+    ? Math.max(1e-9, ...series.flatMap(({ row }) => row.hist.density!))
+    : Math.max(0.01, ...series.flatMap(({ row }) => row.hist.counts.map((_, b) => share(row, b))));
+  const points = series[0].row.hist.density?.length ?? 0;
+  const at = (i: number) => lo + ((hi - lo) * i) / Math.max(1, points - 1);
   const sx = (v: number) => pad.l + ((v - lo) / (hi - lo)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + (1 - v / top) * (H - pad.t - pad.b);
   const edge = (b: number) => lo + ((hi - lo) * b) / bins;
@@ -975,91 +979,136 @@ function DistributionChart({
     for (let b = 0; b < bins; b++) d += ` V ${sy(share(row, b))} H ${sx(edge(b + 1))}`;
     return `${d} V ${sy(0)}`;
   };
+  const curve = (row: McSummaryRow & { hist: McHistogram }) =>
+    row.hist.density!.map((y, i) => `${i ? 'L' : 'M'} ${sx(at(i))} ${sy(y)}`).join(' ');
   const outside = series.filter(({ row }) => row.hist.below + row.hist.above > 0);
   return (
-    <ChartFrame
-      id="mc:distribution"
-      name="simulation-distribution"
-      width={W}
-      height={H}
-      defaults={{ x: 'Estimate', y: 'Share of replications' }}
-    >
-      {(labels) => (
-        <svg
-          className="mc-chart"
-          width={W}
-          height={H}
-          role="img"
-          aria-label={`Distribution of the estimates at N = ${n}`}
-        >
-          {yTicks.map((v) => (
-            <g key={v}>
-              <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />
-              <text x={pad.l - 6} y={sy(v) + 4} textAnchor="end">
-                {v.toFixed(2)}
-              </text>
-            </g>
-          ))}
-          {xTicks.map((v) => (
-            <text key={v} x={sx(v)} y={H - pad.b + 16} textAnchor="middle">
-              {fmt(v)}
-            </text>
-          ))}
-          {param.kind !== 'fit' && (
-            <line
-              className="ref-line"
-              x1={sx(param.value)}
-              x2={sx(param.value)}
-              y1={pad.t}
-              y2={H - pad.b}
-            />
-          )}
-          <text
-            x={pad.l + (W - pad.l - pad.r) / 2}
-            y={H - 4}
-            textAnchor="middle"
-            className="axis-title"
-          >
-            {labels.x}
-          </text>
-          <text
-            transform={`translate(11 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`}
-            textAnchor="middle"
-            className="axis-title"
-          >
-            {labels.y}
-          </text>
-          {series.map(({ e, k, row }) => (
-            <path key={e} d={outline(row)} stroke={seriesColor(k)} strokeWidth={2} fill="none" />
-          ))}
-          {/* Hover: each bin's range and every estimator's share in it. */}
-          {counts.map((_, b) => (
-            <rect
-              key={b}
-              className="mc-hit"
-              x={sx(edge(b))}
-              y={pad.t}
-              width={sx(edge(b + 1)) - sx(edge(b))}
-              height={H - pad.t - pad.b}
+    <>
+      {series.every(({ row }) => row.hist.density) && (
+        <div className="segmented" role="radiogroup" aria-label="Shape of the distribution">
+          {(['density', 'histogram'] as const).map((k) => (
+            <button
+              key={k}
+              role="radio"
+              aria-checked={shape === k}
+              className={shape === k ? 'on' : ''}
+              onClick={() => setShape(k)}
             >
-              <title>
-                {`${fmt(edge(b))} to ${fmt(edge(b + 1))}\n` +
-                  series
-                    .map(({ e, row }) => `${e}: ${(share(row, b) * 100).toFixed(1)}%`)
-                    .join('\n')}
-              </title>
-            </rect>
+              {k === 'density' ? 'Density' : 'Histogram'}
+            </button>
           ))}
-          {outside.length > 0 && (
-            <text x={W - pad.r} y={pad.t + 10} textAnchor="end">
-              {`outside the range: ${outside
-                .map(({ e, row }) => `${e} ${row.hist.below + row.hist.above}`)
-                .join(', ')}`}
-            </text>
-          )}
-        </svg>
+        </div>
       )}
-    </ChartFrame>
+      <ChartFrame
+        id="mc:distribution"
+        name="simulation-distribution"
+        width={W}
+        height={H}
+        defaults={{ x: 'Estimate', y: smooth ? 'Density' : 'Share of replications' }}
+      >
+        {(labels) => (
+          <svg
+            className="mc-chart"
+            width={W}
+            height={H}
+            role="img"
+            aria-label={`Distribution of the estimates at N = ${n}`}
+          >
+            {yTicks.map((v) => (
+              <g key={v}>
+                <line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />
+                <text x={pad.l - 6} y={sy(v) + 4} textAnchor="end">
+                  {v.toFixed(2)}
+                </text>
+              </g>
+            ))}
+            {xTicks.map((v) => (
+              <text key={v} x={sx(v)} y={H - pad.b + 16} textAnchor="middle">
+                {fmt(v)}
+              </text>
+            ))}
+            {param.kind !== 'fit' && (
+              <line
+                className="ref-line"
+                x1={sx(param.value)}
+                x2={sx(param.value)}
+                y1={pad.t}
+                y2={H - pad.b}
+              />
+            )}
+            <text
+              x={pad.l + (W - pad.l - pad.r) / 2}
+              y={H - 4}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.x}
+            </text>
+            <text
+              transform={`translate(11 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.y}
+            </text>
+            {series.map(({ e, k, row }) => (
+              <path
+                key={e}
+                d={smooth ? curve(row) : outline(row)}
+                stroke={seriesColor(k)}
+                strokeWidth={2}
+                fill="none"
+              />
+            ))}
+            {/* Hover (density): every estimator's density at the nearest point. */}
+            {smooth &&
+              Array.from({ length: points }, (_, i) => (
+                <rect
+                  key={i}
+                  className="mc-hit"
+                  x={sx(at(Math.max(0, i - 0.5)))}
+                  y={pad.t}
+                  width={sx(at(Math.min(points - 1, i + 0.5))) - sx(at(Math.max(0, i - 0.5)))}
+                  height={H - pad.t - pad.b}
+                >
+                  <title>
+                    {`${fmt(at(i))}\n` +
+                      series
+                        .map(({ e, row }) => `${e}: density ${fmt(row.hist.density![i])}`)
+                        .join('\n')}
+                  </title>
+                </rect>
+              ))}
+            {/* Hover (histogram): each bin's range and every estimator's share in it. */}
+            {!smooth &&
+              counts.map((_, b) => (
+                <rect
+                  key={b}
+                  className="mc-hit"
+                  x={sx(edge(b))}
+                  y={pad.t}
+                  width={sx(edge(b + 1)) - sx(edge(b))}
+                  height={H - pad.t - pad.b}
+                >
+                  <title>
+                    {`${fmt(edge(b))} to ${fmt(edge(b + 1))}\n` +
+                      series
+                        .map(({ e, row }) => `${e}: ${(share(row, b) * 100).toFixed(1)}%`)
+                        .join('\n')}
+                  </title>
+                </rect>
+              ))}
+            {outside.length > 0 && (
+              <text x={W - pad.r} y={pad.t + 10} textAnchor="end">
+                {`outside the range: ${outside
+                  .map(({ e, row }) => `${e} ${row.hist.below + row.hist.above}`)
+                  .join(', ')}`}
+              </text>
+            )}
+          </svg>
+        )}
+      </ChartFrame>
+    </>
   );
 }
 

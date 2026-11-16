@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { estimateCb } from './cbsem';
 import {
+  bandwidthNrd0,
+  DENSITY_POINTS,
   designParameters,
+  kernelDensity,
   mcParameters,
   mcTasks,
   replicationSeed,
@@ -434,6 +437,44 @@ describe('the distribution of the estimates', () => {
     expect(row(rows, 'PLS', 'path:A:B', 50).sd).toBeGreaterThan(
       row(rows, 'Sum scores', 'path:A:B', 50).sd,
     );
+  });
+
+  it('carries a kernel density over the same range, most of its area inside it (the tails spill past)', () => {
+    for (const r of rows.filter((x) => x.param.key === 'path:A:B')) {
+      const h = r.hist!;
+      expect(h.density).toHaveLength(DENSITY_POINTS);
+      const step = (h.hi - h.lo) / (DENSITY_POINTS - 1);
+      const area =
+        h.density!.reduce((s, y, i) => s + (i && i < DENSITY_POINTS - 1 ? y : y / 2), 0) * step;
+      expect(area).toBeGreaterThan(0.8);
+      expect(area).toBeLessThan(1.01);
+    }
+  });
+});
+
+describe('the kernel density', () => {
+  // R: x <- c(-0.3, -0.12, 0.05, 0.1, 0.22, 0.4, 0.41, 0.9); bw.nrd0(x);
+  // sapply(seq(-1, 1.5, length.out = 6), function(t) mean(dnorm(t, x, bw.nrd0(x))))
+  const x = [-0.3, -0.12, 0.05, 0.1, 0.22, 0.4, 0.41, 0.9];
+
+  it("uses R's default bandwidth, bw.nrd0", () => {
+    expect(bandwidthNrd0(x)).toBeCloseTo(0.1750317397, 9);
+  });
+
+  it('matches the Gaussian kernel estimate R computes', () => {
+    const d = kernelDensity(x, -1, 1.5);
+    const at = (t: number) => d[Math.round((t + 1) / 0.025)];
+    expect(at(-1)).toBeCloseTo(0.000097, 6);
+    expect(at(-0.5)).toBeCloseTo(0.178211, 5);
+    expect(at(0)).toBeCloseTo(0.97491, 5);
+    expect(at(0.5)).toBeCloseTo(0.623732, 5);
+    expect(at(1)).toBeCloseTo(0.24379, 5);
+    expect(at(1.5)).toBeCloseTo(0.0008, 5);
+  });
+
+  it('falls back to the SD when the IQR is 0, as R does', () => {
+    const tied = [0, 0, 0, 0, 1];
+    expect(bandwidthNrd0(tied)).toBeCloseTo(0.9 * Math.sqrt(0.2) * 5 ** -0.2, 12);
   });
 });
 
