@@ -1,10 +1,18 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DENSITY_POINTS, type McSummaryRow } from '../engine/montecarlo';
 import { DEFAULT_SETTINGS, type ModelState } from '../model/project';
+import type { FigureSpec } from '../figure/ggplot';
+import * as format from '../format';
 import { mcAnalysis as t } from './simulation';
+
+const gg = vi.hoisted(() => ({
+  file: vi.fn(async (_spec: unknown) => new Blob(['%PDF-'])),
+  script: vi.fn(async () => ''),
+}));
+vi.mock('../figure/ggplot', () => ({ ggplotFile: gg.file, ggplotScript: gg.script }));
 
 // The distribution chart draws a kernel density by default (as published simulation figures do) and
 // switches to the histogram's bins; results saved before the density was added keep the histogram.
@@ -90,6 +98,25 @@ describe('the distribution chart', () => {
     const root = render(false);
     expect(host.querySelector('[aria-label="Shape of the distribution"]')).toBeNull();
     expect(hits()).toHaveLength(40);
+    act(() => root.unmount());
+  });
+
+  it('describes itself to ggplot2: each estimator’s density and the true value', async () => {
+    vi.spyOn(format, 'downloadBlob').mockImplementation(() => {});
+    const root = render(true);
+    const frame = chart().closest('figure')!;
+    act(() =>
+      (frame.querySelector('[title^="This chart drawn by ggplot2"]') as HTMLButtonElement).click(),
+    );
+    await act(async () => (frame.querySelector('[role="menuitem"]') as HTMLButtonElement).click());
+    const spec = gg.file.mock.calls.at(-1)![0] as FigureSpec;
+    expect(spec.title).toBe('Distribution of the estimates at N = 100');
+    expect(spec.x).toEqual({ title: 'Estimate', limits: [-0.4, 0.4] });
+    const lines = spec.layers.filter((l) => l.geom === 'line');
+    expect(lines.map((l) => l.series)).toEqual(d.estimators.map((e) => e.id));
+    expect(lines[0].x).toHaveLength(DENSITY_POINTS);
+    expect(lines[0].y![50]).toBe(1);
+    expect(spec.layers.at(-1)).toMatchObject({ geom: 'vline', series: 'True value', x: [0] });
     act(() => root.unmount());
   });
 });

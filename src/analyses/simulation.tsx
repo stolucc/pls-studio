@@ -166,6 +166,33 @@ function PowerChart({
       width={W}
       height={H}
       defaults={{ x: 'Sample size', y: yTitle }}
+      figure={(labels) => ({
+        title: `${yTitle} by sample size`,
+        x: { title: labels.x, log: ns.length > 1 },
+        y: { title: labels.y, limits: [lo, hi], percent: metric !== 'relBias' },
+        width: W,
+        height: H - legendH,
+        layers: [
+          ...estimators.flatMap((e, k) => {
+            const line = ns.map((n) => {
+              const r = sel.find((x) => x.n === n && x.estimator === e);
+              const v = r ? val(r) : null;
+              return v !== null && Number.isFinite(v) ? v : null;
+            });
+            return [
+              { geom: 'line' as const, series: e, color: seriesColor(k), x: ns, y: line },
+              { geom: 'point' as const, series: e, color: seriesColor(k), x: ns, y: line },
+            ];
+          }),
+          {
+            geom: 'hline' as const,
+            series: METRIC_AXIS[metric].refLabel,
+            color: OTHER_COLOR,
+            linetype: 'dashed' as const,
+            y: [ref],
+          },
+        ],
+      })}
     >
       {(labels) => (
         <svg
@@ -1030,6 +1057,46 @@ function DistributionChart({
         width={W}
         height={H}
         defaults={{ x: 'Estimate', y: smooth ? 'Density' : 'Share of replications' }}
+        figure={(labels) => ({
+          title: `Distribution of the estimates at N = ${n}`,
+          x: { title: labels.x, limits: [lo, hi] },
+          y: { title: labels.y, limits: [0, top], percent: !smooth },
+          width: W,
+          height: H - legendH,
+          layers: [
+            // (the density at its points, or each bin's share as a step outline like the chart's)
+            ...series.map(({ e, k, row }) =>
+              smooth
+                ? {
+                    geom: 'line' as const,
+                    series: e,
+                    color: seriesColor(k),
+                    x: row.hist.density!.map((_, i) => at(i)),
+                    y: row.hist.density!,
+                  }
+                : {
+                    geom: 'step' as const,
+                    series: e,
+                    color: seriesColor(k),
+                    x: Array.from({ length: bins + 1 }, (_, b) => edge(b)),
+                    y: Array.from({ length: bins + 1 }, (_, b) =>
+                      share(row, Math.min(b, bins - 1)),
+                    ),
+                  },
+            ),
+            ...(param.kind !== 'fit'
+              ? [
+                  {
+                    geom: 'vline' as const,
+                    series: 'True value',
+                    color: OTHER_COLOR,
+                    linetype: 'dashed' as const,
+                    x: [param.value],
+                  },
+                ]
+              : []),
+          ],
+        })}
       >
         {(labels) => (
           <svg

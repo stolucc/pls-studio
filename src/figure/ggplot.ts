@@ -42,7 +42,8 @@ export interface GgLayer {
 export interface FigureSpec {
   /** What the chart shows (the script's title). */
   title: string;
-  x: { title: string; limits?: [number, number] };
+  /** log: a log10 scale (sample sizes). */
+  x: { title: string; limits?: [number, number]; log?: boolean };
   y: { title: string; limits?: [number, number]; percent?: boolean };
   layers: GgLayer[];
   /** Size in pixels on screen (the figure keeps the aspect ratio, 6 inches wide). */

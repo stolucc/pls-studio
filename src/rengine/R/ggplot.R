@@ -13,13 +13,15 @@ GG_FONTS <- c(sans = "sans", serif = "serif", mono = "mono")
 GG_LINETYPES <- c("solid", "dashed", "dotted")
 # (geoms whose colour is a fill, and those drawn as lines, whose series also get a line type in the legend)
 GG_FILLED <- c("rect", "area", "ribbon")
-GG_LINES <- c("line", "step", "segment")
+GG_LINES <- c("line", "step", "segment", "hline", "vline")
 # The columns each geom reads, and the aesthetics they map to.
 GG_COLUMNS <- list(
   line = c("x", "y"), step = c("x", "y"), point = c("x", "y"), area = c("x", "y"),
   rect = c("xmin", "xmax", "ymin", "ymax"), ribbon = c("x", "ymin", "ymax"),
   hline = "y", vline = "x", segment = c("x", "y", "xend", "yend"), text = c("x", "y", "label")
 )
+# (a reference line's column is its intercept)
+GG_INTERCEPT <- c(hline = "yintercept", vline = "xintercept")
 GG_MAX_VALUES <- 500000
 
 #' One R string literal.
@@ -99,27 +101,25 @@ gg_geom_line <- function(l, i) {
   cols <- GG_COLUMNS[[l$geom]]
   named <- nzchar(l$series)
   colour_aes <- if (l$geom %in% GG_FILLED) "fill" else "colour"
+  coords <- cols[cols != "label"]
+  aesthetics <- if (l$geom %in% names(GG_INTERCEPT)) GG_INTERCEPT[[l$geom]] else coords
   aes <- paste(c(
-    sprintf("%s = %s", cols[cols != "label"], cols[cols != "label"]),
+    sprintf("%s = %s", aesthetics, coords),
     if ("label" %in% cols) "label = label",
     if (named) sprintf("%s = series", colour_aes),
     if (named && l$geom %in% GG_LINES) "linetype = series"
   ), collapse = ", ")
   fixed <- c(
     if (!named) sprintf("%s = \"%s\"", colour_aes, l$colour),
-    if (!named && l$geom %in% c(GG_LINES, "hline", "vline")) sprintf("linetype = \"%s\"", l$linetype),
-    if (l$geom %in% c(GG_LINES, "hline", "vline")) "linewidth = 0.7",
+    if (!named && l$geom %in% GG_LINES) sprintf("linetype = \"%s\"", l$linetype),
+    if (l$geom %in% GG_LINES) "linewidth = 0.7",
     if (l$geom == "point") sprintf("size = 2, shape = %d", if (l$open) 1L else 16L),
     if (l$geom %in% c("rect", "area", "ribbon")) sprintf("alpha = %s", format(l$alpha %||% if (l$geom == "ribbon") 0.25 else 0.8)),
     if (l$geom == "rect") "colour = NA",
     if (l$geom == "text") "size = 3"
   )
   geom <- switch(l$geom, rect = "geom_rect", hline = "geom_hline", vline = "geom_vline", paste0("geom_", l$geom))
-  aes_fn <- if (l$geom %in% c("hline", "vline")) {
-    sprintf("aes(%s)", sub("^y = y$", "yintercept = y", sub("^x = x$", "xintercept = x", aes)))
-  } else {
-    sprintf("aes(%s)", aes)
-  }
+  aes_fn <- sprintf("aes(%s)", aes)
   sprintf("  %s(data = layer_%d, %s%s) +", geom, i, aes_fn, if (length(fixed)) paste0(", ", paste(fixed, collapse = ", ")) else "")
 }
 
@@ -154,6 +154,7 @@ gg_body <- function(req, layers) {
     if (length(series) && stroked) manual("scale_colour_manual", colours),
     if (length(series) && filled) manual("scale_fill_manual", colours),
     if (length(series) && lined) manual("scale_linetype_manual", types),
+    if (isTRUE(x$log)) "  scale_x_log10() +",
     if (isTRUE(y$percent)) "  scale_y_continuous(labels = scales::label_percent()) +",
     if (!is.null(xlim) || !is.null(ylim)) {
       sprintf(

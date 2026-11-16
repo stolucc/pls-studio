@@ -104,4 +104,30 @@ describe('charts drawn by ggplot2', () => {
     ] as const)
       await expect(rCall('ps_ggplot', req(patch, layer), 'ggplot2')).rejects.toThrow(msg);
   }, 120_000);
+
+  it('names a reference line in the legend and puts sample sizes on a log scale', async () => {
+    const power: FigureSpec = {
+      title: 'Power by sample size',
+      x: { title: 'Sample size', log: true },
+      y: { title: 'Power', limits: [0, 1], percent: true },
+      width: 460,
+      height: 240,
+      layers: [
+        { geom: 'line', series: 'PLS', color: '#2a78d6', x: [50, 100, 200], y: [0.3, null, 0.9] },
+        { geom: 'point', series: 'PLS', color: '#2a78d6', x: [50, 100, 200], y: [0.3, null, 0.9] },
+        { geom: 'hline', series: 'Power .80', color: '#8a8f98', linetype: 'dashed', y: [0.8] },
+      ],
+    };
+    const script = await ggplotScript(power, style);
+    expect(script).toContain(
+      'geom_hline(data = layer_3, aes(yintercept = y, colour = series, linetype = series), linewidth = 0.7)',
+    );
+    expect(script).toContain('scale_x_log10() +');
+    expect(script).toContain('scale_y_continuous(labels = scales::label_percent()) +');
+    expect(script).toContain(
+      'scale_linetype_manual(values = c("PLS" = "solid", "Power .80" = "dashed")',
+    );
+    const pdf = await ggplotFile(power, style, 'pdf');
+    expect(new TextDecoder().decode(await head(pdf, 5))).toBe('%PDF-');
+  }, 120_000);
 });
