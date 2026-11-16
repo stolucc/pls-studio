@@ -41,5 +41,41 @@ describe('PLS measurement checks in a simulation', () => {
     expect(failsCutoff('htmt', 0.9)).toBe(1);
     expect(failsCutoff('htmt', 0.8)).toBe(0);
     expect(failsCutoff('cr', NaN)).toBeNaN();
+    expect(failsCutoff('htmt90', 0.88)).toBe(0);
+    expect(failsCutoff('htmt90', 0.91)).toBe(1);
+    expect(failsCutoff('htmtci', 1.02)).toBe(1);
+    expect(failsCutoff('xl', -0.02)).toBe(1);
+  });
+
+  it('cross-loadings margin: own correlation less the largest with another construct, per indicator', () => {
+    // A's indicators correlate λ with A and λ · .6 with B; the weakest (.6) sets the margin .6 − .36.
+    expect(v.get('xl:A')).toBeCloseTo(0.6 - 0.6 * 0.6, 12);
+    // (HTMT at .90 has the same value; its true inference value is the population HTMT)
+    expect(v.get('htmt90:A:B')).toBe(v.get('htmt:A:B'));
+    expect(v.get('htmtci:A:B')).toBe(v.get('htmt:A:B'));
+  });
+
+  it('HTMT inference: one factor split in two blocks is flagged, two distinct factors are not', async () => {
+    const { generateData } = await import('./population');
+    const { standardize } = await import('./stats');
+    const { htmtUpper } = await import('./mcValidity');
+    const two = (rho: number) =>
+      buildPopulation({
+        constructs: [
+          { name: 'A', type: 'factor', indicators: ['a1', 'a2', 'a3'], loadings: [0.7, 0.7, 0.7] },
+          { name: 'B', type: 'factor', indicators: ['b1', 'b2', 'b3'], loadings: [0.7, 0.7, 0.7] },
+        ],
+        paths: [],
+        exoCor: [{ a: 'A', b: 'B', value: rho }],
+      });
+    const upper = (rho: number, seed: number) => {
+      const cols = generateData(two(rho), 250, seed).cols.map((c) => standardize(c));
+      return htmtUpper(cols, [0, 1, 2], [3, 4, 5], 200, seed + 1);
+    };
+    // φ = 1: the upper bound reaches 1 in about 95% of samples (Henseler et al. 2015, Table 3: 95.7%)
+    const flagged = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].filter((s) => upper(1, s) >= 1).length;
+    expect(flagged).toBeGreaterThanOrEqual(8);
+    // φ = .5: never near 1
+    for (const s of [1, 2, 3]) expect(upper(0.5, s)).toBeLessThan(0.85);
   });
 });

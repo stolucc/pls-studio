@@ -8,7 +8,7 @@
 // Var ζ_t = 1 − R²_t so every construct has unit variance.
 
 import { cholesky, solve, zeros, type Mat } from './linalg';
-import { valeMaurelli, type ValeMaurelli } from './nonnormal';
+import { fleishman, valeMaurelli, type ValeMaurelli } from './nonnormal';
 import { mulberry32 } from './stats';
 import type { ConstructType, Dataset, ModelSpec } from './types';
 
@@ -36,6 +36,12 @@ export interface PopulationSpec {
   /** Indicator skewness and excess kurtosis (Vale–Maurelli); normal when both are 0 or omitted. */
   skew?: number;
   kurtosis?: number;
+  /**
+   * How non-normal indicators are generated: 'vale-maurelli' (the default) keeps the population correlations;
+   * 'fleishman' applies Fleishman's polynomial to each indicator of multivariate normal data without correcting
+   * the correlations, as Goodhue et al. (2012, Appendix D) did, which lowers them.
+   */
+  nonnormal?: 'vale-maurelli' | 'fleishman';
   /** Misspecification: a common-factor indicator also loading on another construct (standardised), not estimated. */
   crossLoadings?: { indicator: string; construct: string; value: number }[];
   /** Misspecification: correlations between the errors of two common-factor indicators, not estimated. */
@@ -245,8 +251,11 @@ export function buildPopulation(pop: PopulationSpec): Population {
   // Per-indicator distribution: construct overrides, else the population-wide values.
   const skew = ofC.map((j) => pop.constructs[j].skew ?? pop.skew ?? 0);
   const kurt = ofC.map((j) => pop.constructs[j].kurtosis ?? pop.kurtosis ?? 0);
-  const vm =
-    skew.some((v) => v !== 0) || kurt.some((v) => v !== 0) ? valeMaurelli(Sigma, skew, kurt) : null;
+  const nonnormal = skew.some((v) => v !== 0) || kurt.some((v) => v !== 0);
+  let vm: ValeMaurelli | null = null;
+  if (nonnormal && pop.nonnormal === 'fleishman')
+    vm = { coef: skew.map((v, i) => fleishman(v, kurt[i])), L: cholesky(Sigma)! };
+  else if (nonnormal) vm = valeMaurelli(Sigma, skew, kurt);
   return {
     names,
     Sigma,
@@ -381,5 +390,7 @@ export function populationValidityInputs(pop: Population) {
     C: pop.Phi,
     R: pop.Sigma,
     r2: pop.r2,
+    cross: pop.indicatorCov,
+    boot: 'population' as const,
   };
 }

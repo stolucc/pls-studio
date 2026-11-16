@@ -296,7 +296,7 @@ describe('Monte Carlo card', () => {
       rejection: 0.02,
     };
     const out = renderToStaticMarkup(<t.View result={[row]} options={d} current />);
-    expect(out).toContain('A – B: HTMT, fails if &gt; 0.85');
+    expect(out).toContain('A – B: HTMT (.85), fails if &gt; 0.85');
     expect(out).toContain('Fails cutoff');
     expect(out).toContain('Rönkkö &amp; Evermann (2013)');
   });

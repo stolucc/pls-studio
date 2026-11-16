@@ -48,6 +48,17 @@ describe('simulation design', () => {
     expect(parseDesign({ nope: 1 })).toBeNull();
   });
 
+  it('keeps how non-normal data are generated, and nothing but the two known methods', () => {
+    const d = defaultDesign(populationFromModel(model, null, null));
+    const skewed = {
+      ...d,
+      population: { ...d.population, skew: 1.75, kurtosis: 3.75, nonnormal: 'fleishman' as const },
+    };
+    expect(parseDesign(JSON.parse(JSON.stringify(skewed)))).toEqual(skewed);
+    const other = parseDesign({ ...skewed, population: { ...skewed.population, nonnormal: 'x' } })!;
+    expect(other.population.nonnormal).toBeUndefined();
+  });
+
   it('keeps a misspecified population (cross-loadings, error correlations, omitted paths), clamped', () => {
     const d = defaultDesign(populationFromModel(model, null, null));
     const wrong = {

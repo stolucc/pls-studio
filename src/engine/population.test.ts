@@ -82,6 +82,34 @@ describe('population model', () => {
     // Same seed, same data.
     expect(generateData(pop, 50, 3).cols[4]).toEqual(generateData(pop, 50, 3).cols[4]);
   });
+
+  it('skewed indicators: Vale–Maurelli keeps the correlations, Fleishman per indicator lowers them', () => {
+    // Goodhue et al.'s (2012) loadings and their extreme skew; Appendix D applies the polynomial per indicator.
+    const spec: PopulationSpec = {
+      constructs: [
+        { name: 'K', type: 'factor', indicators: ['x1', 'x2', 'x3'], loadings: [0.7, 0.8, 0.9] },
+      ],
+      paths: [],
+      exoCor: [],
+      skew: 1.75,
+      kurtosis: 3.75,
+    };
+    const skewOf = (x: Float64Array) => {
+      const z = standardize(x);
+      return z.reduce((s, v) => s + v ** 3, 0) / z.length;
+    };
+    const r12 = (p: PopulationSpec) => {
+      const d = generateData(buildPopulation(p), 40000, 7);
+      return { r: corStd(standardize(d.cols[0]), standardize(d.cols[1])), skew: skewOf(d.cols[0]) };
+    };
+    const vm = r12(spec);
+    const direct = r12({ ...spec, nonnormal: 'fleishman' });
+    expect(vm.r).toBeCloseTo(0.56, 1);
+    expect(vm.skew).toBeCloseTo(1.75, 0);
+    expect(direct.skew).toBeCloseTo(1.75, 0);
+    // (Fleishman's correlation for two such variables: ρ(b² + 6bd + 9d²) + 2ρ²c² + 6ρ³d², .43 at ρ = .56)
+    expect(direct.r).toBeCloseTo(0.43, 1);
+  });
 });
 
 describe('misspecified populations', () => {

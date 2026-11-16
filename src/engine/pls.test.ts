@@ -279,3 +279,33 @@ describe('estimatePls edge cases', () => {
     }
   });
 });
+
+describe('a model without paths', () => {
+  it('weights every construct by its correlations with the others (factorial), as one path between two would', async () => {
+    const { buildPopulation, generateData } = await import('./population');
+    const block = (name: string, p: string) => ({
+      name,
+      type: 'factor' as const,
+      indicators: [1, 2, 3].map((i) => `${p}${i}`),
+      loadings: [0.8, 0.7, 0.6],
+    });
+    const pop = buildPopulation({
+      constructs: [block('A', 'a'), block('B', 'b')],
+      paths: [],
+      exoCor: [{ a: 'A', b: 'B', value: 0.5 }],
+    });
+    const data = generateData(pop, 300, 11);
+    const constructs = [
+      { name: 'A', indicators: ['a1', 'a2', 'a3'], mode: 'A' as const },
+      { name: 'B', indicators: ['b1', 'b2', 'b3'], mode: 'A' as const },
+    ];
+    const free = estimatePls(data, { constructs, paths: [] }, DEFAULT_OPTIONS);
+    const onePath = estimatePls(
+      data,
+      { constructs, paths: [{ from: 'A', to: 'B' }] },
+      DEFAULT_OPTIONS,
+    );
+    for (let k = 0; k < 6; k++) expect(free.weights[k]).toBeCloseTo(onePath.weights[k], 10);
+    expect(free.constructCor[0][1]).toBeCloseTo(onePath.constructCor[0][1], 10);
+  });
+});

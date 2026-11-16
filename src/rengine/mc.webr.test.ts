@@ -81,7 +81,8 @@ it('R simulation agrees with the built-in simulation up to Monte Carlo error', a
   }
   // PLS measurement checks from cSEM's loadings, construct and indicator correlations (compared above).
   const checks = r.filter((x) => x.param.kind === 'validity');
-  expect(checks.length).toBe(3 * 3 + 3 + 1);
+  // (per construct ρc, AVE, Fornell–Larcker and cross-loadings; per pair HTMT at .85 and .90; GoF)
+  expect(checks.length).toBe(3 * 4 + 3 * 2 + 1);
   for (const x of checks) {
     expect(x.reps).toBe(40);
     expect(x.rejection).not.toBeNull();
@@ -190,6 +191,63 @@ it('regression on sum scores and DR agree with the built-in engine', async () =>
   const at = (id: string) =>
     r.find((x) => x.estimator === id && x.param.key === 'path:Trust:Loyalty')!;
   expect(Math.abs(at('DR').mean - 0.5)).toBeLessThan(Math.abs(at('Sum scores').mean - 0.5));
+}, 900_000);
+
+it('discriminant validity (Henseler et al. 2015): one factor split in two is flagged by HTMT inference in R and the built-in engine', async () => {
+  const half = (name: string, p: string) => ({
+    name,
+    type: 'factor' as const,
+    indicators: [1, 2, 3].map((i) => `${p}${i}`),
+    loadings: [0.7, 0.7, 0.7],
+  });
+  const split: McDesign = {
+    ...design,
+    population: {
+      constructs: [half('A', 'a'), half('B', 'b')],
+      paths: [],
+      exoCor: [{ a: 'A', b: 'B', value: 1 }],
+    },
+    estimators: [{ id: 'PLS', method: 'pls', consistent: false }],
+    sampleSizes: [250],
+    replications: 20,
+    bootSamples: 100,
+  };
+  const r = summariseMc(split, [await runMcChunkR(split, 250, 0, 20)]);
+  const b = summariseMc(split, [runMcTask({ design: split, n: 250, start: 0, end: 20 })]);
+  const at = (rows: typeof r, key: string) => rows.find((x) => x.param.key === key)!;
+  for (const rows of [r, b]) {
+    // (Table 3, loadings .7, N = 250: HTMT_inference 95.7%, HTMT.85 100%, Fornell–Larcker 0.3%, cross-loadings 0%)
+    expect(at(rows, 'validity:htmtci:A:B').rejection!).toBeGreaterThan(0.8);
+    expect(at(rows, 'validity:htmt:A:B').rejection!).toBeGreaterThan(0.9);
+    expect(at(rows, 'validity:fl:A').rejection!).toBeLessThan(0.2);
+    expect(at(rows, 'validity:xl:A').rejection!).toBeLessThan(0.2);
+  }
+  for (const key of ['validity:htmtci:A:B', 'validity:xl:A']) {
+    const x = at(r, key);
+    const y = at(b, key);
+    expect(Math.abs(x.mean - y.mean), key).toBeLessThan(
+      4 * Math.sqrt((x.sd ** 2 + y.sd ** 2) / 20) + 0.01,
+    );
+  }
+}, 900_000);
+
+it('skewed indicators: Fleishman per indicator lowers the paths, as in the built-in engine; Vale–Maurelli does not', async () => {
+  const skewed = (nonnormal?: 'fleishman'): McDesign => ({
+    ...design,
+    population: { ...design.population, skew: 1.75, kurtosis: 3.75, nonnormal },
+    estimators: [{ id: 'Sum scores', method: 'regression', dr: false }],
+    replications: 40,
+  });
+  const path = (rows: ReturnType<typeof summariseMc>) =>
+    rows.find((x) => x.param.key === 'path:Trust:Loyalty')!;
+  const vm = path(summariseMc(skewed(), [await runMcChunkR(skewed(), 300, 0, 40)]));
+  const fl = skewed('fleishman');
+  const r = path(summariseMc(fl, [await runMcChunkR(fl, 300, 0, 40)]));
+  const b = path(summariseMc(fl, [runMcTask({ design: fl, n: 300, start: 0, end: 40 })]));
+  expect(r.failed).toBe(0);
+  // (each indicator correlation shrinks by about a quarter, and the sum scores' path with them)
+  expect(r.mean).toBeLessThan(vm.mean - 0.05);
+  expect(Math.abs(r.mean - b.mean)).toBeLessThan(4 * Math.sqrt((r.sd ** 2 + b.sd ** 2) / 40));
 }, 900_000);
 
 it('counts inadmissible PLSc solutions by cSEM::verify; PLS composites never are', async () => {

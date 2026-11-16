@@ -28,6 +28,15 @@ ps_mc_body <- function(req) {
   cv <- n$cv
   vars <- unname(n$iv[req$population$names])
   S <- req$population$Sigma
+  # Fleishman's polynomial per indicator (a, b, c, d rows), applied to normal data: none for Vale-Maurelli.
+  fl <- req$population$fleishman
+  fleishman <- NULL
+  if (length(fl)) {
+    # (jsonlite reads the rows as a matrix; a list of rows is bound into one)
+    m <- if (is.matrix(fl)) fl else do.call(rbind, fl)
+    if (ncol(m) != 4) stop("Fleishman coefficients come in rows of four")
+    fleishman <- matrix(vapply(m, function(v) ps_number(v, "Fleishman coefficient"), 0), nrow(m))
+  }
   # Estimation models: PLS keeps factors (=~) and composites (<~); CB-SEM treats every construct as a common factor.
   ind <- function(j) unname(n$iv[n$inds[[j]]])
   ends <- unique(vapply(spec$paths, `[[`, "", "to"))
@@ -42,7 +51,9 @@ ps_mc_body <- function(req) {
       function(j) paste(cv[[j]], if (identical(spec$constructs[[j]]$type, "composite")) "<~" else "=~", paste(ind(j), collapse = " + ")),
       ""
     ),
-    reg
+    reg,
+    # (cSEM needs the construct correlations spelled out when there is no structural model)
+    if (!length(spec$paths) && length(cv) > 1) utils::combn(unname(unlist(cv)), 2, function(x) paste(x[1], "~~", x[2]))
   )
   cbm <- c(vapply(seq_along(spec$constructs), function(j) paste(cv[[j]], "=~", ps_marked(ind(j))), ""), reg)
   req$params <- lapply(req$params, function(p) {
@@ -55,7 +66,7 @@ ps_mc_body <- function(req) {
   })
   # A PLS measurement check: one of these (mcValidity.ts), '' for any other parameter.
   one_rule <- function(r) {
-    if (!r %in% c("", "cr", "ave", "fl", "htmt", "gof")) stop("Unknown measurement check.")
+    if (!r %in% c("", "cr", "ave", "fl", "xl", "htmt", "htmt90", "htmtci", "gof")) stop("Unknown measurement check.")
     r
   }
   # Composite reliabilities: per construct, its block's covariances with the construct (a) and covariance
@@ -99,12 +110,16 @@ ps_mc_body <- function(req) {
         ""
       }
       own_boot <- if (req$bootSamples > 0 && !cSEM_boot) sprintf(", boot = %d, seed = boot_seed", as.integer(req$bootSamples)) else ""
+      # (HTMT inference resamples the cases itself, whoever bootstraps the estimates)
+      if (cSEM_boot) own_boot <- sprintf(", htmt_boot = %d, seed = boot_seed", as.integer(req$bootSamples))
       # Every construct in one outer mode (unit: sum scores), else cSEM's default (=~ mode A, <~ mode B).
       modes <- c(A = "modeA", B = "modeB", unit = "unit")
       # (mode and scheme are checked by ps_validate; the lookups only ever give these fixed strings)
       mode <- if (is.null(e$mode)) "" else sprintf(", .PLS_modes = \"%s\"", modes[[e$mode]])
       schemes <- c(path = "path", factor = "factorial", centroid = "centroid")
       scheme <- schemes[[e$scheme %||% "path"]]
+      # (no structural model: cSEM cannot weight by paths; factorial is what a single path between two would give)
+      if (!length(spec$paths) && scheme == "path") scheme <- "factorial"
       sprintf(
         "  res[%d] <- list(tryCatch(pls_stats(csem(data_pls, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"%s\"%s%s)%s), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL }))",
         ei,
@@ -133,6 +148,7 @@ ps_mc_body <- function(req) {
       paste(deparse(as.numeric(req$population$skew)), collapse = ""),
       paste(deparse(as.numeric(req$population$kurtosis)), collapse = "")
     ),
+    sprintf("fleishman <- %s", paste(deparse(fleishman), collapse = "")),
     "pls_model <- '",
     paste0("  ", plsm),
     "'",
@@ -178,18 +194,35 @@ ps_mc_body <- function(req) {
     rel_lines,
     "true_rel <- function(f, w) { m <- rel_truth[[f]]; sum(w * m$a)^2 / drop(t(w) %*% m$S %*% w) }",
     "# PLS measurement checks (as mcValidity.ts): rho_c, AVE, Fornell-Larcker margin, HTMT, GoF; and failing the cutoff.",
-    "validity_value <- function(fit, R, k) {",
+    "htmt_of <- function(R, a, b) {",
+    "  mono <- function(x) { r <- abs(R[x, x]); mean(r[upper.tri(r)]) }",
+    "  mean(abs(R[a, b])) / sqrt(mono(a) * mono(b))",
+    "}",
+    "# HTMT inference (Henseler et al. 2015): the upper bound of boot's 90% normal interval, cases resampled.",
+    "htmt_upper <- function(D, a, b, B, seed) {",
+    "  set.seed(seed)",
+    "  t0 <- htmt_of(stats::cor(D), a, b)",
+    "  d <- replicate(B, { i <- sample.int(nrow(D), nrow(D), TRUE); suppressWarnings(htmt_of(stats::cor(D[i, c(a, b)]), a, b)) })",
+    "  d <- d[is.finite(d)]",
+    "  if (length(d) < 2) return(NA_real_)",
+    "  2 * t0 - mean(d) + stats::qnorm(0.95) * stats::sd(d)",
+    "}",
+    "validity_value <- function(fit, R, k, B = 0, seed = NULL) {",
     "  L <- fit$Estimates$Loading_estimates; C <- fit$Estimates$Construct_VCV",
     "  checked <- names(blocks)[factor_block & lengths(blocks) >= 2]",
     "  lam <- function(f) L[f, blocks[[f]]]",
     "  ave <- function(f) mean(lam(f)^2)",
-    "  mono <- function(b) { r <- abs(R[b, b]); mean(r[upper.tri(r)]) }",
     "  f <- params$from[k]; t <- params$to[k]",
     "  switch(params$rule[k],",
     "    cr = { l <- lam(f); sum(l)^2 / (sum(l)^2 + sum(1 - l^2)) },",
     "    ave = ave(f),",
     "    fl = sqrt(ave(f)) - max(abs(C[f, colnames(C) != f])),",
-    "    htmt = mean(abs(R[blocks[[f]], blocks[[t]]])) / sqrt(mono(blocks[[f]]) * mono(blocks[[t]])),",
+    "    htmt = , htmt90 = htmt_of(R, blocks[[f]], blocks[[t]]),",
+    "    htmtci = htmt_upper(fit$Information$Data, blocks[[f]], blocks[[t]], B, seed + 5L),",
+    "    xl = {",
+    "      X <- stats::cor(fit$Information$Data, fit$Estimates$Construct_scores)",
+    "      min(vapply(blocks[[f]], function(i) abs(X[i, f]) - max(abs(X[i, colnames(X) != f])), 0))",
+    "    },",
     "    gof = sqrt(mean(vapply(checked, ave, 0)) * mean(fit$Estimates$R2))",
     "  )",
     "}",
@@ -225,6 +258,13 @@ ps_mc_body <- function(req) {
     "    c(b, b - crit * s, b + crit * s, as.numeric(2 * stats::pt(-abs(b / s), df[t]) < alpha))",
     "  })",
     "  list(values = do.call(rbind, out), proper = as.numeric(ok))",
+    "}",
+    "# The path estimates; a model without paths (cSEM gives none): all zero.",
+    "path_matrix <- function(fit) {",
+    "  P <- fit$Estimates$Path_estimates",
+    "  if (is.matrix(P)) return(P)",
+    "  cn <- rownames(fit$Estimates$Construct_VCV)",
+    "  matrix(0, length(cn), length(cn), dimnames = list(cn, cn))",
     "}",
     "effects <- function(B) { Tm <- solve(diag(nrow(B)) - B) - diag(nrow(B)); dimnames(Tm) <- dimnames(B); list(direct = B, indirect = Tm - B) }",
     "# PLS: path and indirect estimates; with bootstrap draws, percentile CIs and a t test.",
@@ -267,15 +307,15 @@ ps_mc_body <- function(req) {
     "      est <- estimate(a)",
     "      if (is.null(est)) return(NULL)",
     "    }",
-    "    effects(t(est$Estimates$Path_estimates))",
+    "    effects(t(path_matrix(est)))",
     "  })",
     "  Filter(Negate(is.null), draws)",
     "}",
     "# PLS: path and indirect estimates; with bootstrap draws (pls_boot, or cSEM's own for BCa), the tests and the",
     "# chosen interval.",
-    "pls_stats <- function(fit, boot = 0, seed = NULL) {",
+    "pls_stats <- function(fit, boot = 0, seed = NULL, htmt_boot = boot) {",
     "  if (!isTRUE(fit$Information$Weight_info$Convergence_status)) stop('not converged')",
-    "  P <- t(fit$Estimates$Path_estimates); E <- effects(P)",
+    "  P <- t(path_matrix(fit)); E <- effects(P)",
     "  draws <- if (boot > 0) pls_boot(fit, boot, seed) else NULL",
     "  r <- fit$Estimates$Estimates_resample$Estimates1",
     "  # Individual sign-change correction: every draw takes the sign of the original estimate, |draw| * sign(estimate)",
@@ -292,7 +332,7 @@ ps_mc_body <- function(req) {
     "    none <- list(values = c(NA, NA, NA, NA), tests = rep(NA_real_, 5))",
     "    if (params$kind[k] == 'fit') return(none)",
     "    if (params$kind[k] == 'validity') {",
-    "      v <- validity_value(fit, R_ind, k)",
+    "      v <- validity_value(fit, R_ind, k, htmt_boot, seed)",
     "      return(list(values = c(v, NA, NA, fails_cutoff(v, k)), tests = none$tests))",
     "    }",
     "    if (params$kind[k] == 'reliability') {",
@@ -366,7 +406,15 @@ ps_mc_body <- function(req) {
     "  })",
     "  list(values = do.call(rbind, out), proper = as.numeric(isTRUE(suppressWarnings(lavInspect(fit, 'post.check')))))",
     "}",
-    "if (all(c(skew, kurt) == 0)) skew <- kurt <- NULL  # multivariate normal",
+    "if (all(c(skew, kurt) == 0) || !is.null(fleishman)) skew <- kurt <- NULL  # multivariate normal",
+    "# Goodhue et al. (2012): Fleishman's polynomial applied to each normal indicator, correlations not corrected.",
+    "to_fleishman <- function(data) {",
+    "  for (j in seq_along(data)) {",
+    "    f <- fleishman[j, ]; x <- data[[j]]",
+    "    data[[j]] <- f[1] + f[2] * x + f[3] * x^2 + f[4] * x^3",
+    "  }",
+    "  data",
+    "}",
     sprintf(
       "miss_rate <- %s; miss_mar <- %s; pls_missing <- %s; cb_missing <- %s",
       format(miss$rate), if (miss$mar) "TRUE" else "FALSE", ps_q(miss$pls), ps_q(miss$cb)
@@ -386,6 +434,7 @@ ps_mc_body <- function(req) {
     "one_replication <- function(n, seed, boot_seed, mc_seed, miss_seed) {",
     "  set.seed(seed)",
     "  data <- simulateData(pop_model, sample.nobs = n, skewness = skew, kurtosis = kurt)[, vars]",
+    "  if (!is.null(fleishman)) data <- to_fleishman(data)",
     "  if (length(cuts)) data[] <- lapply(data, function(x) findInterval(x, cuts) + 1)  # categories 1..k",
     "  if (miss_rate > 0) data <- add_missing(data, miss_seed)",
     "  # PLS (cSEM) needs complete data: mean replacement or casewise deletion.",

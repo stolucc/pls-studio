@@ -143,6 +143,7 @@ export function parseDesign(raw: unknown): McDesign | null {
       : [],
     skew: clampStrict(p.skew, -5, 5, 0),
     kurtosis: clampStrict(p.kurtosis, -1.2, 60, 0),
+    ...(p.nonnormal === 'fleishman' ? { nonnormal: 'fleishman' as const } : {}),
     ...(Array.isArray(p.crossLoadings) && p.crossLoadings.length
       ? {
           crossLoadings: p.crossLoadings

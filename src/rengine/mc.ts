@@ -32,6 +32,11 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
       Sigma: pop.Sigma,
       skew: perIndicator((c) => c.skew ?? design.population.skew ?? 0),
       kurtosis: perIndicator((c) => c.kurtosis ?? design.population.kurtosis ?? 0),
+      // Fleishman's polynomial per indicator, applied to normal data (population.ts nonnormal): its a, b, c, d
+      fleishman:
+        design.population.nonnormal === 'fleishman' && pop.vm
+          ? pop.vm.coef.map((f) => [f.a, f.b, f.c, f.d])
+          : [],
     },
     estimators: design.estimators,
     params: params.map((p) => {

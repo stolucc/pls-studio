@@ -180,6 +180,7 @@ export function plsCore(
     });
 
   let Y = computeScores();
+  const measurementOnly = J > 1 && m.preds.every((p) => p.length === 0);
   let iterations = 0;
   let converged = false;
 
@@ -190,7 +191,12 @@ export function plsCore(
     // Inner weights E[i][j]: contribution of construct i to the inner proxy of j.
     const E = zeros(J, J);
     for (let j = 0; j < J; j++) {
-      if (opts.scheme === 'path') {
+      if (measurementOnly) {
+        // No structural model: every construct is adjacent to every other, and path weighting (which needs
+        // directions) becomes factorial weighting, as cSEM requires (its "~~" correlations).
+        for (let i = 0; i < J; i++)
+          if (i !== j) E[i][j] = opts.scheme === 'centroid' ? Math.sign(C[i][j]) : C[i][j];
+      } else if (opts.scheme === 'path') {
         for (const s of m.succs[j]) E[s][j] = C[s][j];
         const P = m.preds[j];
         if (P.length > 0) {

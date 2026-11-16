@@ -188,6 +188,7 @@ export const designParameters = (design: McDesign, pop: Population) =>
     design.estimators.some((e) => e.method === 'cb'),
     design.estimators.some((e) => e.method !== 'cb'),
     design.estimators.some((e) => e.method === 'pls'),
+    design.bootSamples > 0,
   );
 
 export function mcParameters(
@@ -195,6 +196,7 @@ export function mcParameters(
   withFit = false,
   withReliability = false,
   withValidity = false,
+  bootstrap = false,
 ): McParam[] {
   const C = pop.constructs;
   const out: McParam[] = [];
@@ -246,6 +248,8 @@ export function mcParameters(
   if (withValidity)
     for (const [key, value] of validityValues(populationValidityInputs(pop))) {
       const [rule, a, b] = key.split(':') as [McValidityRule, string?, string?];
+      // (HTMT inference needs the bootstrap)
+      if (rule === 'htmtci' && !bootstrap) continue;
       out.push({
         key: `validity:${key}`,
         kind: 'validity',
@@ -380,6 +384,16 @@ export function runMcTask(
                 C: st.C,
                 R: X.map((a) => X.map((b) => corStd(a, b))),
                 r2: st.rSquared,
+                cross: X.map((x) => core.scores.map((y) => corStd(x, y))),
+                ...(design.bootSamples > 0
+                  ? {
+                      boot: {
+                        cols: X,
+                        samples: design.bootSamples,
+                        seed: replicationSeed(design.seed + 5, n, r),
+                      },
+                    }
+                  : {}),
               })
             : null;
           params.forEach((p, pi) => {

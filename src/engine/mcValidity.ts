@@ -5,13 +5,19 @@
 // - ρc (composite reliability) from the loadings, ≥ 0.70;
 // - AVE, the mean squared loading, ≥ 0.50;
 // - the Fornell–Larcker margin √AVE − max |r| with the other constructs, > 0;
-// per pair of them HTMT (from the indicator correlations), < 0.85; and for the
-// model GoF = √(mean AVE · mean R²) (Tenenhaus et al. 2005), ≥ 0.36.
+// per pair of them HTMT (from the indicator correlations), < 0.85 and < 0.90, and HTMT inference: the upper
+// bound of its 90% normal bootstrap interval (Henseler et al. 2015), < 1 (with bootstrap samples only); per
+// construct the cross-loadings margin, the smallest own-construct correlation of its indicators less their
+// largest correlation with another construct's scores, > 0; and for the model GoF = √(mean AVE · mean R²)
+// (Tenenhaus et al. 2005), ≥ 0.36.
 // The true values are the same checks of the population: loadings are the
 // indicator–construct correlations, the construct and indicator correlations
-// the population's. R/mc.R computes the same (validity_values).
+// the population's; HTMT inference's true value is the population HTMT. R/mc.R computes the same
+// (validity_value).
 
-export type McValidityRule = 'cr' | 'ave' | 'fl' | 'htmt' | 'gof';
+import { corStd, mulberry32, qnorm, standardize } from './stats';
+
+export type McValidityRule = 'cr' | 'ave' | 'fl' | 'xl' | 'htmt' | 'htmt90' | 'htmtci' | 'gof';
 
 export const MC_VALIDITY_RULES: Record<
   McValidityRule,
@@ -20,7 +26,10 @@ export const MC_VALIDITY_RULES: Record<
   cr: { label: 'ρc', cutoff: 0.7, poorBelow: true },
   ave: { label: 'AVE', cutoff: 0.5, poorBelow: true },
   fl: { label: 'Fornell–Larcker margin', cutoff: 0, poorBelow: true },
-  htmt: { label: 'HTMT', cutoff: 0.85, poorBelow: false },
+  xl: { label: 'Cross-loadings margin', cutoff: 0, poorBelow: true },
+  htmt: { label: 'HTMT (.85)', cutoff: 0.85, poorBelow: false },
+  htmt90: { label: 'HTMT (.90)', cutoff: 0.9, poorBelow: false },
+  htmtci: { label: 'HTMT inference (upper 90% bound)', cutoff: 1, poorBelow: false },
   gof: { label: 'GoF', cutoff: 0.36, poorBelow: true },
 };
 
@@ -38,6 +47,84 @@ export interface ValidityInputs {
   R: number[][];
   /** R² of each construct (null: exogenous). */
   r2: (number | null)[];
+  /** Correlations of each indicator with each construct('s scores) [indicator][construct]: the cross-loadings. */
+  cross?: number[][];
+  /**
+   * HTMT inference: the indicator columns, bootstrap samples and seed; 'population': its true value, the
+   * population HTMT (none: not computed).
+   */
+  boot?: { cols: Float64Array[]; samples: number; seed: number } | 'population';
+}
+
+/** HTMT of two blocks from an indicator correlation matrix. */
+function htmtOf(R: ArrayLike<ArrayLike<number>>, a: number[], b: number[]): number {
+  const mono = (x: number[]) => {
+    let s = 0;
+    let count = 0;
+    for (let i = 0; i < x.length; i++)
+      for (let j = i + 1; j < x.length; j++) {
+        s += Math.abs(R[x[i]][x[j]]);
+        count++;
+      }
+    return s / count;
+  };
+  let s = 0;
+  for (const i of a) for (const j of b) s += Math.abs(R[i][j]);
+  return s / (a.length * b.length) / Math.sqrt(mono(a) * mono(b));
+}
+
+/**
+ * The upper bound of HTMT's 90% normal bootstrap interval (boot's "normal" interval: bias-corrected estimate
+ * plus 1.645 bootstrap standard errors), resampling the cases; Henseler et al. (2015) flag a pair when it
+ * reaches 1.
+ */
+export function htmtUpper(
+  cols: Float64Array[],
+  a: number[],
+  b: number[],
+  samples: number,
+  seed: number,
+): number {
+  const n = cols[0].length;
+  const vars = [...a, ...b];
+  const u = mulberry32(seed);
+  const at = new Map(vars.map((v, k) => [v, k]));
+  const draws: number[] = [];
+  const x = vars.map(() => new Float64Array(n));
+  for (let s = 0; s < samples; s++) {
+    for (let r = 0; r < n; r++) {
+      const row = Math.floor(u() * n);
+      vars.forEach((v, k) => (x[k][r] = cols[v][row]));
+    }
+    const z = x.map((c) => standardizeOrNull(c));
+    if (z.some((c) => c === null)) continue;
+    const R = vars.map((_, i) => vars.map((__, j) => corStd(z[i]!, z[j]!)));
+    const d = htmtOf(
+      R,
+      a.map((v) => at.get(v)!),
+      b.map((v) => at.get(v)!),
+    );
+    if (Number.isFinite(d)) draws.push(d);
+  }
+  if (draws.length < 2) return NaN;
+  const R0 = vars.map((i) => vars.map((j) => corStd(standardize(cols[i]), standardize(cols[j]))));
+  const t0 = htmtOf(
+    R0,
+    a.map((v) => at.get(v)!),
+    b.map((v) => at.get(v)!),
+  );
+  const mean = draws.reduce((s, v) => s + v, 0) / draws.length;
+  const sd = Math.sqrt(draws.reduce((s, v) => s + (v - mean) ** 2, 0) / (draws.length - 1));
+  return t0 - (mean - t0) + qnorm(0.95) * sd;
+}
+
+/** A column standardised, or null when it is constant (a bootstrap sample can repeat one case). */
+function standardizeOrNull(x: Float64Array): Float64Array | null {
+  try {
+    return standardize(x);
+  } catch {
+    return null;
+  }
 }
 
 /** The constructs the checks apply to. */
@@ -64,27 +151,32 @@ export function validityValues(v: ValidityInputs): Map<string, number> {
     });
     out.set(`fl:${name}`, Math.sqrt(a) - largest);
   }
-  const mono = (b: number[]) => {
-    let s = 0;
-    let count = 0;
-    for (let x = 0; x < b.length; x++)
-      for (let y = x + 1; y < b.length; y++) {
-        s += Math.abs(v.R[b[x]][b[y]]);
-        count++;
-      }
-    return s / count;
-  };
   checked.forEach((i, x) =>
     checked.slice(x + 1).forEach((j) => {
-      let s = 0;
-      for (const a of v.blocks[i]) for (const b of v.blocks[j]) s += Math.abs(v.R[a][b]);
-      const hetero = s / (v.blocks[i].length * v.blocks[j].length);
-      out.set(
-        `htmt:${v.constructs[i]}:${v.constructs[j]}`,
-        hetero / Math.sqrt(mono(v.blocks[i]) * mono(v.blocks[j])),
-      );
+      const pair = `${v.constructs[i]}:${v.constructs[j]}`;
+      const h = htmtOf(v.R, v.blocks[i], v.blocks[j]);
+      out.set(`htmt:${pair}`, h);
+      out.set(`htmt90:${pair}`, h);
+      if (v.boot === 'population') out.set(`htmtci:${pair}`, h);
+      else if (v.boot)
+        out.set(
+          `htmtci:${pair}`,
+          htmtUpper(v.boot.cols, v.blocks[i], v.blocks[j], v.boot.samples, v.boot.seed),
+        );
     }),
   );
+  if (v.cross)
+    for (const j of checked) {
+      let margin = Infinity;
+      for (const i of v.blocks[j]) {
+        let other = -Infinity;
+        v.constructs.forEach((_, k) => {
+          if (k !== j) other = Math.max(other, Math.abs(v.cross![i][k]));
+        });
+        margin = Math.min(margin, Math.abs(v.cross[i][j]) - other);
+      }
+      out.set(`xl:${v.constructs[j]}`, margin);
+    }
   const r2 = v.r2.filter((x): x is number => x !== null);
   if (ave.size && r2.length) {
     const meanAve = [...ave.values()].reduce((s, x) => s + x, 0) / ave.size;
