@@ -7,9 +7,14 @@
 //   node scripts/validation/evidence.mjs <dir> [--desktop]
 //
 // The desktop run's checks (runtime "desktop") are kept by a later webR run, and replaced by the next desktop run.
+// Checks of tests on private data (PRIVATE_DATA) are kept by a run without the data, and replaced by one with them.
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+
+// Features whose tests run on data that are not in the repository (src/validation/features.ts keys), each with the
+// variable that points at the data: rengine/barcomb.webr.test.ts runs only with BARCOMB_DATA=<csv>.
+const PRIVATE_DATA = { 'rengine/barcomb': 'BARCOMB_DATA' };
 
 const dir = process.argv[2] ?? '.validation';
 const desktop = process.argv.includes('--desktop');
@@ -50,6 +55,21 @@ for (const c of previous?.checks ?? []) {
   const key = `${c.subject}:${c.id}`;
   if ((c.runtime === 'desktop') !== desktop && !byKey.has(key)) byKey.set(key, c);
 }
+// A private-data feature this run recorded nothing for (the data were not here): its checks from before.
+const privateFeature = (c) =>
+  c.subject === 'feature'
+    ? Object.keys(PRIVATE_DATA).find((k) => c.id.startsWith(`${k}::`))
+    : undefined;
+const recorded = new Set([...byKey.values()].map(privateFeature).filter(Boolean));
+for (const c of previous?.checks ?? []) {
+  const k = privateFeature(c);
+  if (k && !recorded.has(k)) byKey.set(`${c.subject}:${c.id}`, c);
+}
+const kept = Object.keys(PRIVATE_DATA).filter((k) => !recorded.has(k));
+if (kept.length)
+  console.log(
+    `Kept from before (private data not set: ${kept.map((k) => PRIVATE_DATA[k]).join(', ')}): ${kept.join(', ')}`,
+  );
 const checks = [...byKey.values()].sort(
   (a, b) =>
     a.method.localeCompare(b.method) ||
