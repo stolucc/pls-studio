@@ -1226,7 +1226,7 @@ export const mcAnalysis: AnalysisType<McDesign, McSummaryRow[]> = {
       d.estimators.some((e) => e.method === 'cb')
     )
       return 'FIML is estimated by lavaan: choose the R engine, or casewise deletion for CB-SEM.';
-    if (!d.population.paths.length && d.estimators.some((e) => e.method === 'pls'))
+    if (!d.population.paths.length && d.estimators.some((e) => e.method !== 'cb'))
       return 'PLS-SEM needs at least one path between constructs; for a measurement model only (correlated factors), use the CB-SEM estimators.';
     return populationError(d);
   },

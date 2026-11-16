@@ -55,7 +55,7 @@ ps_validate <- function(req) {
   one_of(get(req, "nonresponse", "pls"), c("mean", "casewise"), "missing-value treatment")
   one_of(get(req, "nonresponse", "cb"), c("casewise", "fiml"), "missing-value treatment")
   for (e in get(req, "estimators")) {
-    one_of(get(e, "method"), c("pls", "cb"), "estimator")
+    one_of(get(e, "method"), c("pls", "cb", "regression"), "estimator")
     one_of(get(e, "estimator"), cb_est, "estimator")
     one_of(get(e, "mode"), c("A", "B", "unit"), "construct mode")
     one_of(get(e, "scheme"), c("path", "centroid", "factor"), "weighting scheme")

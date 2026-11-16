@@ -150,6 +150,30 @@ it('ordinal indicators: WLSMV (polychoric) recovers the latent path; ML on the c
   expect(Math.abs(at('CB-WLSMV').mean - 0.5)).toBeLessThan(Math.abs(at('CB-ML').mean - 0.5));
 }, 900_000);
 
+it('regression on sum scores and DR agree with the built-in engine', async () => {
+  const reg: McDesign = {
+    ...design,
+    estimators: [
+      { id: 'Sum scores', method: 'regression', dr: false },
+      { id: 'DR', method: 'regression', dr: true },
+    ],
+    replications: 40,
+  };
+  const r = summariseMc(reg, [await runMcChunkR(reg, 300, 0, 40)]);
+  const b = summariseMc(reg, [runMcTask({ design: reg, n: 300, start: 0, end: 40 })]);
+  for (const row of r.filter((x) => x.param.kind !== 'fit')) {
+    const ref = b.find((x) => x.estimator === row.estimator && x.param.key === row.param.key)!;
+    expect(row.failed).toBe(0);
+    const se = Math.sqrt((row.sd ** 2 + ref.sd ** 2) / 40);
+    expect(Math.abs(row.mean - ref.mean), `${row.estimator} ${row.param.key}`).toBeLessThan(4 * se);
+    if (row.width !== null) expect(row.width / ref.width!).toBeCloseTo(1, 1);
+  }
+  // DR corrects the attenuation of the sum scores (Trust → Loyalty is .5 between the factors).
+  const at = (id: string) =>
+    r.find((x) => x.estimator === id && x.param.key === 'path:Trust:Loyalty')!;
+  expect(Math.abs(at('DR').mean - 0.5)).toBeLessThan(Math.abs(at('Sum scores').mean - 0.5));
+}, 900_000);
+
 it('counts inadmissible PLSc solutions by cSEM::verify; PLS composites never are', async () => {
   const weak = (name: string, p: string) => ({ ...f(name, p), loadings: [0.45, 0.4, 0.35] });
   const small: McDesign = {

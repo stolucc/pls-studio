@@ -191,5 +191,7 @@ describe('Monte Carlo card', () => {
     expect(out).toContain('Indicator scale');
     expect(out).toContain('Asymmetric (most cases high)');
     expect(out).toContain('CB-WLSMV');
+    for (const id of ['PLS mode A', 'PLS mode B', 'PLS centroid', 'Sum scores', 'DR'])
+      expect(out, id).toContain(`>${id}<`);
   });
 });

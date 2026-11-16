@@ -12,6 +12,7 @@
 import { mergeBootstrap, runRange, sampleSeed } from './bootstrap';
 import { estimateCb, type CbEstimator, type CbFit } from './cbsem';
 import { mcIndirect } from './mcci';
+import { regressionFit, tCrit } from './mcRegression';
 import { MC_FIT_INDICES, poorFit, type McFitIndex } from './mcFitIndices';
 import { plscProblems, preparePls } from './pls';
 import {
@@ -21,7 +22,7 @@ import {
   type Population,
   type PopulationSpec,
 } from './population';
-import { mulberry32, qnorm, zCrit } from './stats';
+import { mulberry32, qnorm, tTestP, zCrit } from './stats';
 import {
   DEFAULT_OPTIONS,
   type Dataset,
@@ -40,7 +41,9 @@ export type McEstimator =
       /** Inner weighting scheme; omitted: path. */
       scheme?: WeightingScheme;
     }
-  | { id: string; method: 'cb'; estimator: CbEstimator };
+  | { id: string; method: 'cb'; estimator: CbEstimator }
+  /** Regression on unit-weighted composites (dr: disattenuated), OLS t tests (mcRegression.ts). */
+  | { id: string; method: 'regression'; dr: boolean };
 
 export interface McDesign {
   population: PopulationSpec;
@@ -216,6 +219,22 @@ export function ciTruth(design: McDesign, pop: Population, params: McParam[]): n
   return scale.map((perParam) => perParam.map((f, pi) => params[pi].value * f));
 }
 
+/** Indirect effects (total − direct) of a path matrix [from][to]. */
+function indirectOf(B: number[][]): number[][] {
+  const J = B.length;
+  const total = B.map((r) => r.slice());
+  let power = B.map((r) => r.slice());
+  for (let step = 1; step < J; step++) {
+    const next = power.map((r) => r.map(() => 0));
+    for (let i = 0; i < J; i++)
+      for (let k = 0; k < J; k++)
+        if (power[i][k]) for (let j = 0; j < J; j++) next[i][j] += power[i][k] * B[k][j];
+    power = next;
+    for (let i = 0; i < J; i++) for (let j = 0; j < J; j++) total[i][j] += power[i][j];
+  }
+  return total.map((r, i) => r.map((v, j) => v - B[i][j]));
+}
+
 /** The PLS model with every construct in one outer mode (undefined: as specified). */
 function withMode(spec: ModelSpec, mode: Mode | undefined): ModelSpec {
   if (!mode) return spec;
@@ -319,6 +338,29 @@ export function runMcTask(
           // PLSc: the rule the bootstrap drops draws by (ρA in (0, 1], correlations within ±1).
           // PLS composites are always admissible.
           proper[ei][k] = e.consistent && plscProblems(m, st).problems.length ? 0 : 1;
+        } else if (e.method === 'regression') {
+          const fit = regressionFit(data, plsSpec, miss?.pls ?? 'mean', e.dr);
+          const indirect = indirectOf(fit.paths);
+          params.forEach((p, pi) => {
+            if (p.kind === 'fit') return;
+            const i = fit.constructs.indexOf(p.from),
+              j = fit.constructs.indexOf(p.to);
+            if (p.kind === 'covariance') {
+              est[ei][pi][k] = fit.C[i][j];
+            } else if (p.kind === 'indirect') {
+              est[ei][pi][k] = indirect[i][j];
+            } else {
+              const b = fit.paths[i][j],
+                s = fit.se[i][j],
+                df = fit.df[j];
+              const crit = tCrit(design.alpha, df);
+              est[ei][pi][k] = b;
+              lo[ei][pi][k] = b - crit * s;
+              hi[ei][pi][k] = b + crit * s;
+              sig[ei][pi][k] = tTestP(b / s, df) < design.alpha ? 1 : 0;
+            }
+          });
+          proper[ei][k] = fit.admissible ? 1 : 0;
         } else {
           const cb = estimateCb(data, cbSpec, miss?.cb ?? 'casewise', e.estimator);
           if (!cb.converged) throw new Error('not converged');

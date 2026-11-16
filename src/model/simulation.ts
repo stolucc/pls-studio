@@ -7,8 +7,17 @@ import type { PlsResult } from '../engine/types';
 import type { ModelState } from './project';
 
 export const ESTIMATOR_CHOICES: McEstimator[] = [
+  // PLS with each construct in its model mode (factors mode A, composites mode B), path weighting.
   { id: 'PLS', method: 'pls', consistent: false },
   { id: 'PLSc', method: 'pls', consistent: true },
+  // The variants simulation studies of PLS compare (Rönkkö & Evermann 2013; Evermann & Tate 2016).
+  { id: 'PLS mode A', method: 'pls', consistent: false, mode: 'A' },
+  { id: 'PLS mode B', method: 'pls', consistent: false, mode: 'B' },
+  { id: 'PLS centroid', method: 'pls', consistent: false, scheme: 'centroid' },
+  { id: 'PLS factorial', method: 'pls', consistent: false, scheme: 'factor' },
+  // Regression on summed scales, plain and disattenuated (Goodhue et al. 2012; Aguirre-Urreta et al. 2024).
+  { id: 'Sum scores', method: 'regression', dr: false },
+  { id: 'DR', method: 'regression', dr: true },
   ...(['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', 'WLSMV'] as CbEstimator[]).map(
     (e): McEstimator => ({ id: `CB-${e}`, method: 'cb', estimator: e }),
   ),

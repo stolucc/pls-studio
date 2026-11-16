@@ -92,6 +92,8 @@ describe('R code generation quotes hostile strings', () => {
     expect(await check({ estimators: [{ method: 'pls', scheme: 'factorial' }] })).toMatch(
       /Invalid weighting scheme/,
     );
+    expect(await check({ estimators: [{ method: 'regression', dr: true }] })).toBe('ok');
+    expect(await check({ estimators: [{ method: 'ols' }] })).toMatch(/Invalid estimator/);
     // A simulation's missing values.
     expect(
       await check({ nonresponse: { rate: 0.1, mechanism: 'MAR', pls: 'mean', cb: 'fiml' } }),
