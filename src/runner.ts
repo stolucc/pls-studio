@@ -592,15 +592,19 @@ let simJob: RJob | null = null;
  * cancelling), one R call per chunk; summarised like the built-in engine.
  */
 async function simulateR(design: McDesign, progress: SimProgress): Promise<McSummaryRow[]> {
-  const [{ summariseMc }, { mcChunkRequest, parseMcChunk }, { parallelism, rCallParallel }] =
-    await Promise.all([
-      import('./engine/montecarlo'),
-      import('./rengine/mc'),
-      import('./rengine/bridge'),
-    ]);
+  const [
+    { summariseMc },
+    { mcChunkRequest, mcChunkSize, parseMcChunk },
+    { parallelism, rCallParallel },
+  ] = await Promise.all([
+    import('./engine/montecarlo'),
+    import('./rengine/mc'),
+    import('./rengine/bridge'),
+  ]);
   const total = design.replications * design.sampleSizes.length;
   const token = ++rSimToken;
-  const CHUNK = 10;
+  const sessions = (await parallelism()).sessions;
+  const CHUNK = mcChunkSize(design, sessions);
   const tasks = design.sampleSizes.flatMap((n) =>
     Array.from({ length: Math.ceil(design.replications / CHUNK) }, (_, k) => ({
       n,
@@ -610,7 +614,7 @@ async function simulateR(design: McDesign, progress: SimProgress): Promise<McSum
   );
   // Several R sessions at once (desktop R: all the helper's processes; the browser: the Parallel
   // setting). Each replication has its own seeds, so the results do not depend on how they are spread.
-  const workers = Math.min((await parallelism()).sessions, tasks.length);
+  const workers = Math.min(sessions, tasks.length);
   progress(0, total, workers);
   const raws = await rCallParallel<Record<string, unknown>>(
     'ps_mc',

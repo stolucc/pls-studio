@@ -74,6 +74,26 @@ const f64 = (v: unknown) =>
   Float64Array.from(rList<unknown>(v).map((x) => (typeof x === 'number' ? x : NaN)));
 
 /** The request for replications start..end-1 at sample size n. */
+/**
+ * Replications per R call, 1 to 10 (small enough for prompt progress and cancelling): the size whose last
+ * round leaves the fewest sessions idle, i.e. the fewest replications on the busiest session, the largest such
+ * size. A fixed 10 left the last of five rounds of a 500-replication run on 11 sessions half empty.
+ */
+export function mcChunkSize(design: McDesign, sessions: number): number {
+  const k = Math.max(1, sessions);
+  let best = 10;
+  let bestSpan = Infinity;
+  for (let size = 10; size >= 1; size--) {
+    const calls = design.sampleSizes.length * Math.ceil(design.replications / size);
+    const span = Math.ceil(calls / k) * size;
+    if (span < bestSpan) {
+      best = size;
+      bestSpan = span;
+    }
+  }
+  return best;
+}
+
 export const mcChunkRequest = (design: McDesign, n: number, start: number, end: number) =>
   mcRequest(
     design,
