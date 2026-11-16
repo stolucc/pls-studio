@@ -323,6 +323,34 @@ describe('PLS variants', () => {
     expect(row(rows, 'ML', 'reliability:X')).toBeUndefined();
   });
 
+  it('PLS measurement checks: loadings overstate AVE; only PLS estimators get the rows', () => {
+    const design: McDesign = {
+      population: twoConstructs,
+      estimators: [
+        { id: 'PLS', method: 'pls', consistent: false },
+        { id: 'Sum scores', method: 'regression', dr: false },
+      ],
+      sampleSizes: [200],
+      replications: 20,
+      seed: 4,
+      alpha: 0.05,
+      bootSamples: 0,
+      mcDraws: 0,
+    };
+    const rows = summariseMc(design, [runMcTask({ design, n: 200, start: 0, end: 20 })]);
+    const ave = row(rows, 'PLS', 'validity:ave:X');
+    // (loadings .9, .6, .4: population AVE .443 fails the .50 cutoff; PLS's loadings pass it more often)
+    expect(ave.param.value).toBeCloseTo((0.81 + 0.36 + 0.16) / 3, 12);
+    expect(ave.mean).toBeGreaterThan(ave.param.value);
+    expect(ave.rejection).not.toBeNull();
+    const htmt = row(rows, 'PLS', 'validity:htmt:X:Y');
+    expect(Math.abs(htmt.mean - htmt.param.value)).toBeLessThan(0.1);
+    expect(row(rows, 'PLS', 'validity:gof')).toBeDefined();
+    expect(rows.some((r) => r.estimator === 'Sum scores' && r.param.kind === 'validity')).toBe(
+      false,
+    );
+  });
+
   it('unit weights: the correlation of the two sum scores (regression on summed scales)', () => {
     const [estimate] = once([{ id: 'Sum', method: 'pls', consistent: false, mode: 'unit' }]);
     const data = generateData(buildPopulation(twoConstructs), 150, replicationSeed(7, 150, 0));

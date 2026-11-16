@@ -13,6 +13,7 @@ import {
   type McPart,
 } from '../engine/montecarlo';
 import { MC_FIT_INDICES } from '../engine/mcFitIndices';
+import { MC_VALIDITY_RULES } from '../engine/mcValidity';
 import { DEFAULT_INFERENCE, MC_TESTS } from '../engine/mcInference';
 import { rCallOn, rScript } from './bridge';
 import { rList } from './rjson';
@@ -42,8 +43,10 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
         to: p.to,
         value: p.value,
         index: index?.id ?? '',
-        cutoff: index?.cutoff ?? null,
-        poorBelow: index?.poorBelow ?? false,
+        // (a PLS measurement check: its rule and cutoff, applied the same way)
+        rule: p.rule ?? '',
+        cutoff: index?.cutoff ?? (p.rule ? MC_VALIDITY_RULES[p.rule].cutoff : null),
+        poorBelow: index?.poorBelow ?? (p.rule ? MC_VALIDITY_RULES[p.rule].poorBelow : false),
         // A composite reliability: its block's population moments (population.ts compositeReliability)
         ...(p.kind === 'reliability' ? blockMoments(pop, pop.constructs.indexOf(p.from)) : {}),
       };

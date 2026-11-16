@@ -23,18 +23,20 @@ import {
 import { mcIndirect } from './mcci';
 import { regressionFit, tCrit } from './mcRegression';
 import { MC_FIT_INDICES, poorFit, type McFitIndex } from './mcFitIndices';
+import { failsCutoff, validityValues, type McValidityRule } from './mcValidity';
 import { plscProblems, preparePls } from './pls';
 import {
   buildPopulation,
   compositeReliability,
   generateData,
   idealReliability,
+  populationValidityInputs,
   specFromPopulation,
   unitReliability,
   type Population,
   type PopulationSpec,
 } from './population';
-import { mulberry32, qnorm, tTestP, zCrit } from './stats';
+import { corStd, mulberry32, qnorm, tTestP, zCrit } from './stats';
 import {
   DEFAULT_OPTIONS,
   type Dataset,
@@ -142,14 +144,18 @@ export interface McParam {
    * 'covariance': the correlation of two exogenous constructs.
    * 'reliability': the squared correlation of a construct's composite with the construct (from and to: the
    * construct; value: with ideal weights, the most any weights give; population.ts compositeReliability).
+   * 'validity': a measurement check of PLS (mcValidity.ts; rule), from and to its construct(s), 'model' for
+   * GoF; value: the population's; the rejection rate is the share failing the rule's cutoff.
    */
-  kind: 'path' | 'indirect' | 'covariance' | 'fit' | 'reliability';
+  kind: 'path' | 'indirect' | 'covariance' | 'fit' | 'reliability' | 'validity';
   from: string;
   to: string;
   /** True standardised value. */
   value: number;
   /** 'reliability': the sum score's (unit weights). */
   unit?: number;
+  /** 'validity': the check. */
+  rule?: McValidityRule;
 }
 
 export interface McTask {
@@ -181,9 +187,15 @@ export const designParameters = (design: McDesign, pop: Population) =>
     pop,
     design.estimators.some((e) => e.method === 'cb'),
     design.estimators.some((e) => e.method !== 'cb'),
+    design.estimators.some((e) => e.method === 'pls'),
   );
 
-export function mcParameters(pop: Population, withFit = false, withReliability = false): McParam[] {
+export function mcParameters(
+  pop: Population,
+  withFit = false,
+  withReliability = false,
+  withValidity = false,
+): McParam[] {
   const C = pop.constructs;
   const out: McParam[] = [];
   if (withFit) {
@@ -231,6 +243,18 @@ export function mcParameters(pop: Population, withFit = false, withReliability =
         unit: unitReliability(pop, j),
       });
     });
+  if (withValidity)
+    for (const [key, value] of validityValues(populationValidityInputs(pop))) {
+      const [rule, a, b] = key.split(':') as [McValidityRule, string?, string?];
+      out.push({
+        key: `validity:${key}`,
+        kind: 'validity',
+        from: a ?? 'model',
+        to: b ?? a ?? 'model',
+        value,
+        rule,
+      });
+    }
   return out;
 }
 
@@ -244,7 +268,7 @@ export function ciScale(design: McDesign, pop: Population, params: McParam[]): n
   return design.estimators.map((e) =>
     params.map((p) => {
       if (p.kind === 'fit') return NaN;
-      if (e.method !== 'cb' || p.kind === 'reliability') return 1;
+      if (e.method !== 'cb' || p.kind === 'reliability' || p.kind === 'validity') return 1;
       const fromLoading = pop.markerLoading[ci(p.from)];
       const toLoading = pop.markerLoading[ci(p.to)];
       if (p.kind === 'covariance') return fromLoading * toLoading;
@@ -343,12 +367,31 @@ export function runMcTask(
           };
           const spec = withMode(plsSpec, e.mode);
           const prep = preparePls(data, spec, opts);
-          const { m, st, core } = prep.estimate(prep.cols);
+          const { m, st, core, X } = prep.estimate(prep.cols);
           if (!core.converged) throw new Error('not converged');
+          const validity = params.some((p) => p.kind === 'validity')
+            ? validityValues({
+                constructs: m.constructs,
+                blocks: m.blocks,
+                factor: m.constructs.map(
+                  (name) => pop.factor[pop.constructs.indexOf(name)] ?? false,
+                ),
+                loadings: st.loadings,
+                C: st.C,
+                R: X.map((a) => X.map((b) => corStd(a, b))),
+                r2: st.rSquared,
+              })
+            : null;
           params.forEach((p, pi) => {
             if (p.kind === 'fit') return;
             const i = ci(p.from),
               j = ci(p.to);
+            if (p.kind === 'validity') {
+              const v = validity?.get(p.key.slice('validity:'.length)) ?? NaN;
+              est[ei][pi][k] = v;
+              sig[ei][pi][k] = failsCutoff(p.rule!, v);
+              return;
+            }
             if (p.kind === 'reliability') {
               // (the estimated weights of the construct's indicators, in the population's order)
               const w = pop.blocks[i].map((x) => core.w[m.indicatorNames.indexOf(pop.names[x])]);
@@ -410,6 +453,7 @@ export function runMcTask(
             if (p.kind === 'fit') return;
             const i = fit.constructs.indexOf(p.from),
               j = fit.constructs.indexOf(p.to);
+            if (p.kind === 'validity') return;
             if (p.kind === 'reliability') {
               est[ei][pi][k] = unitReliability(pop, i);
             } else if (p.kind === 'covariance') {
@@ -441,8 +485,8 @@ export function runMcTask(
                 )
               : [];
           params.forEach((p, pi) => {
-            // (CB-SEM estimates no composites)
-            if (p.kind === 'reliability') return;
+            // (CB-SEM estimates no composites; the PLS checks are PLS's)
+            if (p.kind === 'reliability' || p.kind === 'validity') return;
             if (p.kind === 'fit') {
               const index = MC_FIT_INDICES.find((f) => `fit:${f.id}` === p.key);
               if (index) {
@@ -623,6 +667,7 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
         const R = ests.length;
         if (param.kind === 'fit' && e.method !== 'cb') return;
         if (param.kind === 'reliability' && e.method === 'cb') return;
+        if (param.kind === 'validity' && e.method !== 'pls') return;
         const mean = R ? ests.reduce((s, x) => s + x, 0) / R : NaN;
         const sd = R > 1 ? Math.sqrt(ests.reduce((s, x) => s + (x - mean) ** 2, 0) / (R - 1)) : NaN;
         let rmse = NaN;

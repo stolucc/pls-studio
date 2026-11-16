@@ -65,6 +65,8 @@ export interface Population {
   misspecified: boolean;
   /** Indicator indices (into names) of each construct's block. */
   blocks: number[][];
+  /** Common-factor constructs (false: composites). */
+  factor: boolean[];
   /** Covariances of the indicators with the constructs, ΛΦ [indicator][construct] (constructs have variance 1). */
   indicatorCov: Mat;
 }
@@ -256,6 +258,7 @@ export function buildPopulation(pop: PopulationSpec): Population {
     r2,
     markerLoading: blocks.map((b) => load[b[0]]),
     blocks,
+    factor: pop.constructs.map((c) => c.type === 'factor'),
     indicatorCov: names.map((_, i) =>
       C.map((__, j) => Lambda[i].reduce((s, l, a) => s + l * Phi[a][j], 0)),
     ),
@@ -365,3 +368,18 @@ export const unitReliability = (pop: Population, j: number) =>
     j,
     pop.blocks[j].map(() => 1),
   );
+
+/** The population's inputs to the measurement checks (mcValidity.ts): loadings are indicator–construct correlations. */
+export function populationValidityInputs(pop: Population) {
+  const own = new Array<number>(pop.names.length).fill(NaN);
+  pop.blocks.forEach((b, j) => b.forEach((i) => (own[i] = pop.indicatorCov[i][j])));
+  return {
+    constructs: pop.constructs,
+    blocks: pop.blocks,
+    factor: pop.factor,
+    loadings: own,
+    C: pop.Phi,
+    R: pop.Sigma,
+    r2: pop.r2,
+  };
+}

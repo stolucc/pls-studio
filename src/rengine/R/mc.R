@@ -46,12 +46,18 @@ ps_mc_body <- function(req) {
   )
   cbm <- c(vapply(seq_along(spec$constructs), function(j) paste(cv[[j]], "=~", ps_marked(ind(j))), ""), reg)
   req$params <- lapply(req$params, function(p) {
-    if (p$kind != "fit") {
+    # (fit tests and GoF are of the model, named 'model', not a construct)
+    if (p$kind != "fit" && p$from != "model") {
       p$from <- cv[[p$from]]
       p$to <- cv[[p$to]]
     }
     p
   })
+  # A PLS measurement check: one of these (mcValidity.ts), '' for any other parameter.
+  one_rule <- function(r) {
+    if (!r %in% c("", "cr", "ave", "fl", "htmt", "gof")) stop("Unknown measurement check.")
+    r
+  }
   # Composite reliabilities: per construct, its block's covariances with the construct (a) and covariance
   # matrix (S) in the population, in the order of the block's indicators (the app's blockMoments).
   rel_lines <- unlist(lapply(Filter(function(p) p$kind == "reliability", req$params), function(p) {
@@ -139,6 +145,8 @@ ps_mc_body <- function(req) {
     ps_q(vapply(req$params, `[[`, "", "to")),
     ", index = ",
     ps_q(vapply(req$params, function(p) p$index %||% "", "")),
+    ", rule = ",
+    ps_q(vapply(req$params, function(p) one_rule(p$rule %||% ""), "")),
     ", cutoff = ",
     paste(deparse(vapply(req$params, function(p) if (is.null(p$cutoff)) NA_real_ else ps_number(p$cutoff, "cutoff"), 0)), collapse = ""),
     ", poor_below = ",
@@ -164,6 +172,23 @@ ps_mc_body <- function(req) {
     "rel_truth <- list()",
     rel_lines,
     "true_rel <- function(f, w) { m <- rel_truth[[f]]; sum(w * m$a)^2 / drop(t(w) %*% m$S %*% w) }",
+    "# PLS measurement checks (as mcValidity.ts): rho_c, AVE, Fornell-Larcker margin, HTMT, GoF; and failing the cutoff.",
+    "validity_value <- function(fit, R, k) {",
+    "  L <- fit$Estimates$Loading_estimates; C <- fit$Estimates$Construct_VCV",
+    "  checked <- names(blocks)[factor_block & lengths(blocks) >= 2]",
+    "  lam <- function(f) L[f, blocks[[f]]]",
+    "  ave <- function(f) mean(lam(f)^2)",
+    "  mono <- function(b) { r <- abs(R[b, b]); mean(r[upper.tri(r)]) }",
+    "  f <- params$from[k]; t <- params$to[k]",
+    "  switch(params$rule[k],",
+    "    cr = { l <- lam(f); sum(l)^2 / (sum(l)^2 + sum(1 - l^2)) },",
+    "    ave = ave(f),",
+    "    fl = sqrt(ave(f)) - max(abs(C[f, colnames(C) != f])),",
+    "    htmt = mean(abs(R[blocks[[f]], blocks[[t]]])) / sqrt(mono(blocks[[f]]) * mono(blocks[[t]])),",
+    "    gof = sqrt(mean(vapply(checked, ave, 0)) * mean(fit$Estimates$R2))",
+    "  )",
+    "}",
+    "fails_cutoff <- function(v, k) if (!is.finite(v)) NA else as.numeric(if (params$poor_below[k]) v < params$cutoff[k] else v > params$cutoff[k])",
     "reg_stats <- function(data, dr) {",
     "  z <- scale(data)",
     "  comp <- sapply(blocks, function(b) rowSums(z[, b, drop = FALSE]))",
@@ -187,6 +212,7 @@ ps_mc_body <- function(req) {
     "  out <- lapply(seq_len(nrow(params)), function(k) {",
     "    f <- params$from[k]; t <- params$to[k]",
     "    if (params$kind[k] == 'fit') return(c(NA, NA, NA, NA))",
+    "    if (params$kind[k] == 'validity') return(c(NA, NA, NA, NA))",
     "    if (params$kind[k] == 'reliability') return(c(true_rel(f, rep(1, length(blocks[[f]]))), NA, NA, NA))",
     "    if (params$kind[k] == 'covariance') return(c(C[f, t], NA, NA, NA))",
     "    if (params$kind[k] == 'indirect') return(c(E$indirect[f, t], NA, NA, NA))",
@@ -222,9 +248,14 @@ ps_mc_body <- function(req) {
     "  }",
     "  bca <- if (!is.null(r) && interval == 'bca') cSEM::infer(fit, .quantity = 'CI_bca', .alpha = alpha) else NULL",
     "  n_cases <- nrow(fit$Information$Data)",
+    "  R_ind <- if (any(params$kind == 'validity')) stats::cor(fit$Information$Data) else NULL",
     "  rows <- lapply(seq_len(nrow(params)), function(k) {",
     "    none <- list(values = c(NA, NA, NA, NA), tests = rep(NA_real_, 5))",
     "    if (params$kind[k] == 'fit') return(none)",
+    "    if (params$kind[k] == 'validity') {",
+    "      v <- validity_value(fit, R_ind, k)",
+    "      return(list(values = c(v, NA, NA, fails_cutoff(v, k)), tests = none$tests))",
+    "    }",
     "    if (params$kind[k] == 'reliability') {",
     "      w <- fit$Estimates$Weight_estimates[params$from[k], blocks[[params$from[k]]]]",
     "      return(list(values = c(true_rel(params$from[k], w), NA, NA, NA), tests = none$tests))",
@@ -270,7 +301,7 @@ ps_mc_body <- function(req) {
     "      poor <- if (params$poor_below[k]) v < params$cutoff[k] else v > params$cutoff[k]",
     "      return(c(v, NA, NA, if (is.finite(v)) as.numeric(poor) else NA))",
     "    }",
-    "    if (params$kind[k] == 'reliability') return(c(NA, NA, NA, NA))  # (CB-SEM estimates no composites)",
+    "    if (params$kind[k] %in% c('reliability', 'validity')) return(c(NA, NA, NA, NA))  # (PLS composites and checks)",
     "    if (params$kind[k] == 'fit') {",
     "      pv <- if (scaled) fm[['pvalue.scaled']] else fm[['pvalue']]",
     "      return(c(if (scaled) fm[['chisq.scaled']] else fm[['chisq']], NA, NA, if (is.finite(pv)) as.numeric(pv < alpha) else NA))",

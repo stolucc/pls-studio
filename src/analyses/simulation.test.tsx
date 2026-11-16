@@ -224,6 +224,38 @@ describe('Monte Carlo card', () => {
     expect(out).toContain('unit weights (sum scores) give 0.780');
   });
 
+  it('a PLS measurement check row: its rule, cutoff and the share failing it', () => {
+    const d = t.defaults(ctx());
+    const param = {
+      key: 'validity:htmt:A:B',
+      kind: 'validity' as const,
+      from: 'A',
+      to: 'B',
+      value: 0.62,
+      rule: 'htmt' as const,
+    };
+    const row: McSummaryRow = {
+      estimator: d.estimators[0].id,
+      n: 100,
+      param,
+      reps: 50,
+      failed: 0,
+      improper: 0,
+      mean: 0.63,
+      bias: 0.01,
+      relBias: 0.016,
+      sd: 0.05,
+      rmse: 0.05,
+      coverage: null,
+      width: null,
+      rejection: 0.02,
+    };
+    const out = renderToStaticMarkup(<t.View result={[row]} options={d} current />);
+    expect(out).toContain('A – B: HTMT, fails if &gt; 0.85');
+    expect(out).toContain('Fails cutoff');
+    expect(out).toContain('Rönkkö &amp; Evermann (2013)');
+  });
+
   it('FIML needs the R engine; the form shows the missing-value fields', () => {
     const d = {
       ...t.defaults(ctx()),

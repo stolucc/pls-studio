@@ -79,6 +79,13 @@ it('R simulation agrees with the built-in simulation up to Monte Carlo error', a
     expect(x.reps).toBe(40);
     expect(x.mean).toBeLessThan(x.param.value);
   }
+  // PLS measurement checks from cSEM's loadings, construct and indicator correlations (compared above).
+  const checks = r.filter((x) => x.param.kind === 'validity');
+  expect(checks.length).toBe(3 * 3 + 3 + 1);
+  for (const x of checks) {
+    expect(x.reps).toBe(40);
+    expect(x.rejection).not.toBeNull();
+  }
 }, 900_000);
 
 it('PLS variants (unit weights, mode B with centroid weighting) agree with the built-in engine', async () => {

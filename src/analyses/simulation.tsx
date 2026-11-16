@@ -4,6 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { MC_FIT_INDICES, poorFitRule } from '../engine/mcFitIndices';
+import { MC_VALIDITY_RULES } from '../engine/mcValidity';
 import {
   DEFAULT_INFERENCE,
   MC_TEST_LABELS,
@@ -94,6 +95,7 @@ function paramOption(p: McParam): string {
     return `${paramTitle(p)} (CB-SEM, ${p.value ? 'misspecified' : 'correct'} model)`;
   if (p.kind === 'covariance') return `${p.from} ↔ ${p.to} (correlation, true ${fmt(p.value)})`;
   if (p.kind === 'reliability') return `${p.from}: composite reliability (ideal ${fmt(p.value)})`;
+  if (p.kind === 'validity') return `${paramTitle(p)} (PLS check, population ${fmt(p.value)})`;
   const indirect = p.kind === 'indirect' ? 'indirect ' : '';
   return `${indirect}${p.from} → ${p.to} (true ${fmt(p.value)})`;
 }
@@ -106,6 +108,11 @@ function paramTitle(p: McParam): string {
   }
   if (p.kind === 'covariance') return `${p.from} ↔ ${p.to} (correlation)`;
   if (p.kind === 'reliability') return `${p.from}: reliability of the composite`;
+  if (p.kind === 'validity') {
+    const rule = MC_VALIDITY_RULES[p.rule!];
+    const where = p.from === 'model' ? 'model' : p.from === p.to ? p.from : `${p.from} – ${p.to}`;
+    return `${where}: ${rule.label}, fails if ${rule.poorBelow ? '<' : '>'} ${rule.cutoff}`;
+  }
   return `${p.from} → ${p.to}${p.kind === 'indirect' ? ' (indirect)' : ''}`;
 }
 
@@ -1165,7 +1172,11 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                 'RMSE',
                 'Coverage',
                 'CI width',
-                Math.abs(activeParam.value) < 1e-12 ? 'Type I' : 'Power',
+                activeParam.kind === 'validity'
+                  ? 'Fails cutoff'
+                  : Math.abs(activeParam.value) < 1e-12
+                    ? 'Type I'
+                    : 'Power',
                 'Inadmissible',
               ]}
               rows={rows
@@ -1203,7 +1214,20 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                   ],
                 )}
               note={
-                activeParam.kind === 'reliability' ? (
+                activeParam.kind === 'validity' ? (
+                  <>
+                    A measurement check of PLS reports in every replication, against the same check
+                    of the population ({fmt(activeParam.value)}): ρc and AVE from the loadings, the
+                    Fornell–Larcker margin √AVE − the largest correlation with another construct,
+                    HTMT from the indicator correlations, GoF = √(mean AVE · mean R²). Fails cutoff:
+                    share of replications failing {MC_VALIDITY_RULES[activeParam.rule!].label}{' '}
+                    {MC_VALIDITY_RULES[activeParam.rule!].poorBelow ? '<' : '>'}{' '}
+                    {MC_VALIDITY_RULES[activeParam.rule!].cutoff}. With a misspecified population it
+                    is the share of replications in which the check would notice; Rönkkö &amp;
+                    Evermann (2013) found these checks rarely do. PLS loadings overstate factor
+                    loadings, so ρc and AVE run above the population&apos;s.
+                  </>
+                ) : activeParam.kind === 'reliability' ? (
                   <>
                     Reliability of the composite: the squared correlation of the weighted sum of the
                     indicators with the construct, from each replication&apos;s weights and the
