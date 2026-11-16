@@ -250,6 +250,7 @@ const AUTHORS_BY_ID: Record<string, string[]> = {
   'henseler2015-close': ['Henseler', 'Ringle', 'Sarstedt'],
   'ronkko-cho-one': ['Rönkkö', 'Cho'],
   'ronkko-cho-nine': ['Rönkkö', 'Cho'],
+  'ronkko-cho-nine-items': ['Rönkkö', 'Cho'],
   'ronkko-cho-unequal': ['Rönkkö', 'Cho'],
   'franke-sarstedt-cutoff': ['Franke', 'Sarstedt'],
   'franke-sarstedt-unequal': ['Franke', 'Sarstedt'],

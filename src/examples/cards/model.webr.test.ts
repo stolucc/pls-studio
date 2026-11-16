@@ -1165,3 +1165,25 @@ slowIt(
   },
   3_600_000,
 );
+
+slowIt(
+  'ronkko-cho-nine-items: nine items per factor make the tests against 1 precise; Fornell–Larcker still flags',
+  async () => {
+    const run = await mcCardRun('ronkko-cho-nine-items', true);
+    against({
+      ...RONKKO_CHO,
+      label:
+        'Rönkkö & Cho (2022), Table 8, φ = .9, loadings .8: CI_CFA(1) .293 / .106 and χ²(1) .199 / .081 at N = 50 / 100, averaged over 3, 6 and 9 items (nine items: the most precise); AVE/SV_CFA .968 / .993',
+    });
+    const fail = (key: string, n: number) => run.row('CB-ML', `validity:${key}`, n).rejection!;
+    expect(fail('cicfa:F1:F2', 50)).toBeLessThan(0.06);
+    expect(fail('chi1:F1:F2', 50)).toBeLessThan(0.03);
+    for (const n of [100, 250, 1000]) expect(fail('cicfa:F1:F2', n)).toBe(0);
+    for (const n of [50, 1000]) {
+      near(`CI_CFA(.90) at N = ${n}`, fail('cicfa90:F1:F2', n), 0.985, 0.02);
+      expect(fail('fl:F1', n), `Fornell–Larcker at N = ${n}`).toBeGreaterThan(0.98);
+    }
+    near('correlation at N = 50', run.row('CB-ML', 'cov:F1:F2', 50).mean, 0.9, 0.01);
+  },
+  3_600_000,
+);

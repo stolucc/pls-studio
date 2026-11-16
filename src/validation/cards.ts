@@ -895,6 +895,7 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
       'henseler2015-close',
       'ronkko-cho-one',
       'ronkko-cho-nine',
+      'ronkko-cho-nine-items',
       'ronkko-cho-unequal',
       'franke-sarstedt-cutoff',
       'franke-sarstedt-unequal',

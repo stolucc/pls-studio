@@ -411,12 +411,13 @@ const henseler2015Card = (file: string, loadings: number[], phi: number) => ({
  * indicators each and the same loadings, factor variances 1; discriminant validity is assessed between F1 and F2,
  * correlated φ, and F3 correlates .5 with both.
  */
-export const ronkkoChoPopulation = (phi: number, loadings: number[]) => ({
+export const ronkkoChoPopulation = (phi: number, loadings: number[], perFactor = 3) => ({
   constructs: ['F1', 'F2', 'F3'].map((name, k) => ({
     name,
     type: 'factor',
-    indicators: items('x', 3, 3 * k + 1),
-    loadings,
+    indicators: items('x', perFactor, perFactor * k + 1),
+    // (6 or 9 items repeat the three-loading pattern, as in the paper)
+    loadings: Array.from({ length: perFactor }, (_, i) => loadings[i % loadings.length]),
   })),
   paths: [],
   exoCor: [
@@ -435,7 +436,7 @@ const RONKKO_CHO_DIFFERS =
 const RONKKO_CHO_RUN =
   'The card simulates 1,000 samples at N = 50, 100, 250 and 1,000, each fitted by ML (lavaan) with every measurement check of CB-SEM and 500 bootstrap samples for HTMT inference.';
 
-const ronkkoChoCard = (file: string, phi: number, loadings: number[]) => ({
+const ronkkoChoCard = (file: string, phi: number, loadings: number[], perFactor = 3) => ({
   package: 'lavaan' as const,
   source:
     'Rönkkö & Cho (2022), An updated guideline for assessing discriminant validity: the Monte Carlo simulation',
@@ -446,7 +447,9 @@ const ronkkoChoCard = (file: string, phi: number, loadings: number[]) => ({
     name: `Rönkkö & Cho (2022), a sample of 250 (φ = ${phi})`,
     file: `examples/montecarlo/${file}.csv`,
   },
-  constructs: [f('F1', items('x', 3)), f('F2', items('x', 3, 4)), f('F3', items('x', 3, 7))],
+  constructs: ['F1', 'F2', 'F3'].map((name, k) =>
+    f(name, items('x', perFactor, perFactor * k + 1)),
+  ),
   paths: [] as [string, string][],
   correlations: [
     ['F1', 'F2', 'construct'],
@@ -455,7 +458,7 @@ const ronkkoChoCard = (file: string, phi: number, loadings: number[]) => ({
   ] as [string, string, 'construct'][],
   panel: {
     kind: 'mc' as const,
-    population: ronkkoChoPopulation(phi, loadings),
+    population: ronkkoChoPopulation(phi, loadings, perFactor),
     estimators: [{ id: 'CB-ML', method: 'cb', estimator: 'ML' }],
     sampleSizes: [50, 100, 250, 1000],
     replications: 1000,
@@ -1097,6 +1100,20 @@ export const CARD_MODEL: PackageExample[] = [
     shows:
       'Tables 8 and 9 of the paper, φ = .9 at N = 50 / 100 / 250 / 1,000: CI_CFA(1) fails about 69%, 32%, 1% and 0% of samples, χ²(1) about 53%, 23%, 1% and 0% (paper, averaged over 3, 6 and 9 items: .293, .106, .005, .000 and .199, .081, .004, .000; three items are the least precise); CI_CFA(.90) about 99%, 99%, 99% and 98% (Table 9: .982, .987, .985, .980); HTMT (.90) about 55%, 54%, 53% and 51% (r_DPR(.90): .576 to .622); Fornell–Larcker about 90%, 97%, 100% and 100% (AVE/SV_CFA: .968, .993, 1.000, 1.000).',
     ...ronkkoChoCard('ronkko2022-nine', 0.9, [0.8, 0.8, 0.8]),
+  },
+  {
+    id: 'ronkko-cho-nine-items',
+    title: 'Monte Carlo: a factor correlation of .9 with nine items per factor (Rönkkö & Cho 2022)',
+    description:
+      'The card ronkko-cho-nine with nine indicators per factor instead of three (loadings .8, φ = .9), the paper’s largest item count: the factor correlation is now estimated precisely enough that the tests against 1 almost never call the factors the same, even at N = 50, where three items flag about two thirds of the samples. The tests against .90 and HTMT against .90 still sit at their cutoff, and Fornell–Larcker still flags nearly every sample: more items do not raise AVE (.64), so it stays below φ² (.81) at any N. ' +
+      RONKKO_CHO_RUN +
+      ' The diagram is fitted to one sample of 250 from that population (lavaan::simulateData, seed 2022). ' +
+      RONKKO_CHO_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'With nine items at N = 50 / 100 / 250 / 1,000: CI_CFA(1) fails about 3%, 0, 0 and 0 of samples and χ²(1) about 1% and 0 (three items: 69% and 53% at N = 50; Table 8’s average over 3, 6 and 9 items, .293 and .199, lies between); CI_CFA(.90) about 99%; HTMT (.90) about 50% to 56%; Fornell–Larcker 99% to 100% (AVE/SV_CFA .968 to 1.000).',
+    ...ronkkoChoCard('ronkko2022-nine-items', 0.9, [0.8, 0.8, 0.8], 9),
   },
   {
     id: 'ronkko-cho-unequal',
