@@ -5,12 +5,28 @@
 
 export type ChartFont = 'sans' | 'serif' | 'mono';
 
+/**
+ * The look of the plot area: the app's own, or one of ggplot2's complete themes (theme_grey, theme_bw,
+ * theme_minimal, theme_classic), so a figure drawn here matches one exported with ggplot2.
+ */
+export type ChartTheme = 'app' | 'grey' | 'bw' | 'minimal' | 'classic';
+
+export const CHART_THEMES: Record<ChartTheme, { label: string; ggplot: string }> = {
+  app: { label: 'PLS Studio', ggplot: 'theme_minimal' },
+  grey: { label: 'ggplot2 grey (theme_grey)', ggplot: 'theme_grey' },
+  bw: { label: 'ggplot2 black and white (theme_bw)', ggplot: 'theme_bw' },
+  minimal: { label: 'ggplot2 minimal (theme_minimal)', ggplot: 'theme_minimal' },
+  classic: { label: 'ggplot2 classic (theme_classic)', ggplot: 'theme_classic' },
+};
+
 export interface ChartStyle {
   font: ChartFont;
   /** Font size in px (axis titles one px larger). */
   size: number;
   /** Text colour, #rrggbb. */
   color: string;
+  /** The plot area's look (absent in projects saved before it: the app's). */
+  theme: ChartTheme;
   /** Axis titles chosen by the user, by chart id; absent or empty = the chart's default. */
   labels: Record<string, { x?: string; y?: string }>;
 }
@@ -19,6 +35,7 @@ export const DEFAULT_CHART_STYLE: ChartStyle = {
   font: 'sans',
   size: 11,
   color: '#4b5563',
+  theme: 'app',
   labels: {},
 };
 
@@ -46,6 +63,10 @@ export function parseChartStyle(raw: unknown): ChartStyle {
     typeof r.color === 'string' && /^#[0-9a-f]{6}$/i.test(r.color)
       ? r.color
       : DEFAULT_CHART_STYLE.color;
+  const theme =
+    typeof r.theme === 'string' && Object.hasOwn(CHART_THEMES, r.theme)
+      ? (r.theme as ChartTheme)
+      : DEFAULT_CHART_STYLE.theme;
   const labels: ChartStyle['labels'] = {};
   const raw2 =
     typeof r.labels === 'object' && r.labels !== null && !Array.isArray(r.labels)
@@ -60,7 +81,7 @@ export function parseChartStyle(raw: unknown): ChartStyle {
     const y = pick(o.y);
     if (x || y) labels[id] = { ...(x ? { x } : {}), ...(y ? { y } : {}) };
   }
-  return { font, size, color, labels };
+  return { font, size, color, theme, labels };
 }
 
 /** CSS variables for a chart container. */

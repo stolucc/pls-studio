@@ -899,6 +899,22 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .chart-frame { margin: 0; position: relative; display: inline-block; max-width: 100%; }
 .chart-frame svg text { font-family: var(--chart-font); font-size: var(--chart-size); fill: var(--chart-color); }
 .chart-frame svg text.axis-title { font-size: calc(var(--chart-size) + 1px); }
+/* Chart themes (chartStyle.ts CHART_THEMES): the plot panel (figure/panel.tsx), grid lines and axis lines as
+   ggplot2's complete themes draw them. The app's own theme leaves the charts as they are. */
+.chart-frame .plot-panel { fill: none; stroke: none; }
+.chart-frame .plot-axes { fill: none; stroke: none; }
+.chart-frame .chart-legend text { font-size: var(--chart-size); }
+.chart-frame[data-chart-theme=grey] .plot-panel { fill: #ebebeb; }
+.chart-frame[data-chart-theme=grey] .grid-line { stroke: #ffffff; }
+.chart-frame[data-chart-theme=bw] .plot-panel { fill: #ffffff; stroke: #333333; stroke-width: 1; }
+.chart-frame[data-chart-theme=bw] .grid-line,
+.chart-frame[data-chart-theme=minimal] .grid-line { stroke: #ebebeb; }
+.chart-frame[data-chart-theme=grey] .axis,
+.chart-frame[data-chart-theme=bw] .axis,
+.chart-frame[data-chart-theme=minimal] .axis { stroke: none; }
+.chart-frame[data-chart-theme=classic] .grid-line { stroke: none; }
+.chart-frame[data-chart-theme=classic] .plot-axes { stroke: #000000; stroke-width: 1; }
+.chart-frame[data-chart-theme=classic] .axis { stroke: none; }
 .chart-tools { display: flex; gap: 4px; margin-top: 2px; }
 .chart-style {
   position: absolute; z-index: 20; left: 0; top: 100%; width: 280px; display: grid; gap: 8px; padding: 12px;

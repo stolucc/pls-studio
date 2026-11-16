@@ -2,9 +2,11 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import {
   CHART_FONTS,
   CHART_SIZE,
+  CHART_THEMES,
   chartVars,
   type ChartFont,
   type ChartStyle,
+  type ChartTheme,
 } from '../figure/chartStyle';
 import { exportFigure, type FigureFormat } from '../figure/export';
 import { standaloneSvg } from '../figure/standalone';
@@ -96,7 +98,12 @@ export function ChartFrame({
   }, [open]);
 
   return (
-    <figure className="chart-frame" ref={box} style={chartVars(style) as CSSProperties}>
+    <figure
+      className="chart-frame"
+      ref={box}
+      style={chartVars(style) as CSSProperties}
+      data-chart-theme={style.theme}
+    >
       {children(labels)}
       <div className="chart-tools">
         {!readOnly && (
@@ -104,7 +111,7 @@ export function ChartFrame({
             className={`btn sm ghost${open ? ' on' : ''}`}
             onClick={() => setOpen(!open)}
             aria-expanded={open}
-            title="Font, size, colour and axis titles"
+            title="Theme, font, size, colour and axis titles"
           >
             Style
           </button>
@@ -139,6 +146,20 @@ export function ChartFrame({
               {(Object.keys(CHART_FONTS) as ChartFont[]).map((f) => (
                 <option key={f} value={f}>
                   {CHART_FONTS[f].label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Theme
+            <select
+              className="select"
+              value={style.theme}
+              onChange={(e) => set({ theme: e.target.value as ChartTheme })}
+            >
+              {(Object.keys(CHART_THEMES) as ChartTheme[]).map((t) => (
+                <option key={t} value={t}>
+                  {CHART_THEMES[t].label}
                 </option>
               ))}
             </select>
@@ -191,7 +212,7 @@ export function ChartFrame({
             </>
           )}
           <div className="hint">
-            Font, size and colour apply to every chart in this project
+            Theme, font, size and colour apply to every chart in this project
             {axes ? '; axis titles to this chart' : ''}.
           </div>
           {(own.x || own.y) && (
