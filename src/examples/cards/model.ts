@@ -673,6 +673,248 @@ const huBentlerCard = (file: string, complex: boolean) => ({
 });
 
 /**
+ * The bootstrap SE of PLS at small samples (PLS Studio's own check): A and B (uncorrelated) → C (.2, .3), three
+ * indicators each loading .7, .8 and .9.
+ */
+const BOOT_SE_POPULATION = {
+  constructs: ['A', 'B', 'C'].map((name) => ({
+    name,
+    type: 'factor',
+    indicators: items(name.toLowerCase(), 3),
+    loadings: [0.7, 0.8, 0.9],
+  })),
+  paths: [
+    { from: 'A', to: 'C', value: 0.2 },
+    { from: 'B', to: 'C', value: 0.3 },
+  ],
+  exoCor: [{ a: 'A', b: 'B', value: 0 }],
+  skew: 0,
+  kurtosis: 0,
+} as const;
+
+/**
+ * Aguirre-Urreta & Rönkkö (2018), the simple model: K1, K2, K3 → E1 (γ each) and K4 → E1 (0), three indicators
+ * per construct loading .7, .8 and .9 (their mixed condition). With the exogenous factors correlated .3 the
+ * paths are rescaled by one factor (.48 → .3795, the paper's rounding) so that R² stays 3 · .48² = .6912;
+ * other correlations r rescale them to √(.6912 / (3 + 6r)).
+ */
+export const aguirre2018Population = (exogCor: number) => {
+  const gamma = exogCor === 0.3 ? 0.3795 : Math.sqrt((3 * 0.48 ** 2) / (3 + 6 * exogCor));
+  const exogenous = ['K1', 'K2', 'K3', 'K4'];
+  return {
+    constructs: [...exogenous, 'E1'].map((name) => ({
+      name,
+      type: 'factor',
+      indicators: items(`${name.toLowerCase()}_`, 3),
+      loadings: [0.7, 0.8, 0.9],
+    })),
+    paths: exogenous.map((from, i) => ({ from, to: 'E1', value: i < 3 ? gamma : 0 })),
+    exoCor: exogenous.flatMap((a, i) =>
+      exogenous.slice(i + 1).map((b) => ({ a, b, value: exogCor })),
+    ),
+    skew: 0,
+    kurtosis: 0,
+  };
+};
+
+/** What the Aguirre-Urreta & Rönkkö cards take from the paper, and what is the app's. */
+const AGUIRRE2018_DIFFERS =
+  'As in the paper: the simple model with strong paths (.48, or .3795 with correlated predictors) and a zero path, normal data, PLS and PLSc (mode A, path weighting, consistent loadings) estimated on the same weights, no sign-change correction, and 95% bootstrap intervals checked against the population value. The app’s choices: cSEM where the paper used matrixpls; three indicators loading .7, .8 and .9 (one of the paper’s 12 measurement conditions, over which its appendix figures pool); N = 50, 250 and 1,000 of its five; 500 replications where it used 1,000; 1,000 bootstrap samples where it used 10,000; the plain bias-corrected interval (BC) and the non-normal condition are not run. Each card checks one interval, for PLS and PLSc. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+
+const aguirre2018Card = (
+  exogCor: number,
+  interval: 'percentile' | 'bca' | 'normal',
+  sampleSizes = [50, 250, 1000],
+) => ({
+  package: 'cSEM' as const,
+  source:
+    'Aguirre-Urreta & Rönkkö (2018), Statistical inference with PLSc using bootstrap confidence intervals: the simple model',
+  links: [
+    { label: 'Aguirre-Urreta & Rönkkö (2018)', url: 'https://doi.org/10.25300/MISQ/2018/13587' },
+  ],
+  tags: FACTOR_DEBATE_TAGS,
+  data: {
+    package: 'cSEM' as const,
+    name: `Aguirre-Urreta & Rönkkö (2018), a sample of 250 (${exogCor ? 'predictors correlated .3' : 'uncorrelated predictors'})`,
+    file: `examples/montecarlo/aguirre2018-${exogCor ? 'correlated' : 'uncorrelated'}.csv`,
+  },
+  constructs: ['K1', 'K2', 'K3', 'K4', 'E1'].map((name) =>
+    f(name, items(`${name.toLowerCase()}_`, 3)),
+  ),
+  paths: ['K1', 'K2', 'K3', 'K4'].map((from): [string, string] => [from, 'E1']),
+  ...(exogCor
+    ? {
+        correlations: ['K1', 'K2', 'K3', 'K4'].flatMap((a, i, all) =>
+          all.slice(i + 1).map((b): [string, string, 'construct'] => [a, b, 'construct']),
+        ),
+      }
+    : {}),
+  panel: {
+    kind: 'mc' as const,
+    population: aguirre2018Population(exogCor),
+    estimators: [
+      { id: 'PLS', method: 'pls', consistent: false },
+      { id: 'PLSc', method: 'pls', consistent: true },
+    ],
+    sampleSizes,
+    replications: 500,
+    seed: 2018,
+    alpha: 0.05,
+    bootSamples: 1000,
+    mcDraws: 0,
+    inference: { signChange: 'none', interval },
+  },
+  settings: {
+    method: 'pls' as const,
+    plsPackage: 'cSEM' as const,
+    consistent: true,
+    scheme: 'path' as const,
+    missing: 'casewise' as const,
+    seed: 2018,
+  },
+});
+
+/**
+ * Chin, Marcolin & Newsted (2003): Y = .3 X + .5 Z + .3 X·Z + ζ, X and Z uncorrelated common factors (the paper
+ * gives no correlation), k indicators per construct with loadings .7, or `xz` on X and Z (Table 10's patterns).
+ */
+export const chinPopulation = (k: number, xz: number[] = Array.from({ length: k }, () => 0.7)) => ({
+  constructs: [
+    { name: 'X', type: 'factor', indicators: items('x', k), loadings: xz },
+    { name: 'Z', type: 'factor', indicators: items('z', k), loadings: xz },
+    {
+      name: 'Y',
+      type: 'factor',
+      indicators: items('y', k),
+      loadings: Array.from({ length: k }, () => 0.7),
+    },
+  ],
+  paths: [
+    { from: 'X', to: 'Y', value: 0.3 },
+    { from: 'Z', to: 'Y', value: 0.5 },
+  ],
+  exoCor: [],
+  interactions: [{ a: 'X', b: 'Z', to: 'Y', value: 0.3 }],
+  skew: 0,
+  kurtosis: 0,
+});
+
+/** What the Chin et al. cards take from the paper, and what is the app's. */
+const CHIN_DIFFERS =
+  'As in the paper: the population (Figure 2: standardised paths .3, .5 and .3 for the interaction, normal data, scores drawn first and indicators from them), loadings .7, 500 replications, PLS with every product of a standardised indicator of X with one of Z as the indicators of X·Z, and regression on the product of the summed scores (Table 9). The app’s choices: cSEM with path weighting where the paper used PLS-Graph 3.0 (its weighting scheme is not stated); X and Z uncorrelated (the paper does not say); sum scores standardised before their product. The paper calls a cell significant when the mean of its 500 estimates divided by their SD passes the one-tailed t (1.66 or 2.36 on 499 df), not by testing each sample; the card runs no bootstrap, so its PLS rows have no power, and the regression rows’ power is the OLS t test in each sample. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+
+const chinCard = (file: string, k: number, sizes: number[], xz?: number[]) => ({
+  package: 'seminr' as const,
+  source:
+    'Chin, Marcolin & Newsted (2003), A partial least squares latent variable modeling approach for measuring interaction effects: the Monte Carlo study',
+  links: [{ label: 'Chin et al. (2003)', url: 'https://doi.org/10.1287/isre.14.2.189.16018' }],
+  tags: FACTOR_DEBATE_TAGS,
+  data: {
+    package: 'seminr' as const,
+    name: `Chin et al. (2003), a sample of 100 (${k} indicators per construct)`,
+    file: `examples/montecarlo/${file}.csv`,
+  },
+  constructs: [f('X', items('x', k)), f('Z', items('z', k)), f('Y', items('y', k))],
+  paths: [
+    ['X', 'Y'],
+    ['Z', 'Y'],
+  ] as [string, string][],
+  moderations: [['X', 'Z', 'Y', 'product_indicator']] as [
+    string,
+    string,
+    string,
+    'product_indicator',
+  ][],
+  panel: {
+    kind: 'mc' as const,
+    population: chinPopulation(k, xz),
+    estimators: [
+      { id: 'PLS', method: 'pls', consistent: false },
+      { id: 'Sum scores', method: 'regression', dr: false },
+    ],
+    sampleSizes: sizes,
+    replications: 500,
+    seed: 2003,
+    alpha: 0.05,
+    bootSamples: 0,
+    mcDraws: 0,
+  },
+  settings: SEMINR(),
+});
+
+/** Qureshi & Compeau (2009), Figure 1: the baseline group's paths A → C, B → C, A → D, C → D. */
+const QURESHI_BASELINE = [0.05, 0.2, 0.35, 0.6];
+
+/**
+ * Qureshi & Compeau's population: A and B (correlated r) predict C, A and C predict D, k indicators per construct
+ * loading .7, .8, .9 (repeated); `paths` the group's four path values.
+ */
+export const qureshiPopulation = (r: number, k: number, paths = QURESHI_BASELINE) => ({
+  constructs: ['A', 'B', 'C', 'D'].map((name) => ({
+    name,
+    type: 'factor',
+    indicators: items(name.toLowerCase(), k),
+    loadings: Array.from({ length: k }, (_, i) => [0.7, 0.8, 0.9][i % 3]),
+  })),
+  paths: [
+    ['A', 'C'],
+    ['B', 'C'],
+    ['A', 'D'],
+    ['C', 'D'],
+  ].map(([from, to], i) => ({ from, to, value: paths[i] })),
+  exoCor: [{ a: 'A', b: 'B', value: r }],
+  skew: 0,
+  kurtosis: 0,
+});
+
+/** What the Qureshi & Compeau cards take from the paper, and what is the app's. */
+const QURESHI_DIFFERS =
+  'As in the paper: the population (Figure 1) with its baseline and comparison paths, invariant measurement (loadings .7, .8, .9), normal data, equal groups of n = 100 and 500, 500 replications, PLS per group with the pooled-SE t test of each path’s difference (Chin 2000), and ML multigroup SEM with a 1-df χ² difference test per path. The app’s choices: cSEM and lavaan where the paper used PLS-Graph 3.0 and AMOS 7.0; 200 bootstrap samples for the PLS standard errors (the paper does not say how many); the CB-SEM model holds the loadings equal across groups (the paper does not say whether AMOS did); each group drawn on its own instead of the paper’s Mplus samples screened for invariance; the non-normal mixtures are not run. The paper pools its detection rate over the four paths; the card gives each path. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+
+const qureshiCard = (file: string, r: number, k: number, comparison: number[]) => ({
+  package: 'lavaan' as const,
+  source:
+    'Qureshi & Compeau (2009), Assessing between-group differences in information systems research: a comparison of covariance- and component-based SEM',
+  links: [{ label: 'Qureshi & Compeau (2009)', url: 'https://doi.org/10.2307/20650285' }],
+  tags: FACTOR_DEBATE_TAGS,
+  data: {
+    package: 'lavaan' as const,
+    name: `Qureshi & Compeau (2009), two groups of 250 (${k} indicators, r = ${r})`,
+    file: `examples/montecarlo/${file}.csv`,
+  },
+  constructs: ['A', 'B', 'C', 'D'].map((name) => f(name, items(name.toLowerCase(), k))),
+  paths: [
+    ['A', 'C'],
+    ['B', 'C'],
+    ['A', 'D'],
+    ['C', 'D'],
+  ] as [string, string][],
+  multigroup: { column: 'group', invariance: 'metric' as const, free: [] },
+  panel: {
+    kind: 'mc' as const,
+    population: qureshiPopulation(r, k),
+    groups: {
+      paths: qureshiPopulation(r, k, comparison).paths.map(({ from, to, value }) => ({
+        from,
+        to,
+        value,
+      })),
+    },
+    estimators: [
+      { id: 'PLS', method: 'pls', consistent: false },
+      { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+    ],
+    sampleSizes: [100, 500],
+    replications: 500,
+    seed: 2009,
+    alpha: 0.05,
+    bootSamples: 200,
+    mcDraws: 0,
+  },
+  settings: CB('ML'),
+});
+
+/**
  * Henseler, Ringle & Sarstedt (2015), the main simulation: two common factors with three indicators each, the
  * same loadings in both, correlated φ (1: one factor split in two, which every check should flag), no path.
  */
@@ -2305,6 +2547,193 @@ export const CARD_MODEL: PackageExample[] = [
     shows:
       'At N = 150 / 250 / 500 / 1,000: SRMR about .073, .065, .062, .059, above .08 in 22%, 3.5%, 0% and 0% of samples (the paper, N ≤ 250 / 500 / ≥ 1,000: 36.5%, 10.6%, 0.9%); RMSEA about .07, above .06 in 80%, 81.5%, 95.5%, 100% (91.6%, 97.7%, 99.8%); CFI about .94, below .95 in 61% to 82%; χ² test rejecting 99.5% to 100%.',
     ...huBentlerCard('hu1999-complex', true),
+  },
+  {
+    id: 'aguirre-ronkko-percentile',
+    title:
+      'Monte Carlo: percentile bootstrap intervals for PLS and PLSc (Aguirre-Urreta & Rönkkö 2018)',
+    description:
+      'Aguirre-Urreta & Rönkkö asked whether bootstrap confidence intervals of PLSc paths cover the population value as often as they claim. Their simple model: four common factors K1 to K4 affect E1 with .48, .48, .48 and 0 (R² .69), three indicators each loading .7, .8 and .9. The paper finds the percentile interval too wide at small samples (coverage .99 to 1.00 at N = 50) and PLS’s intervals further off the larger the sample, its estimates being attenuated. Here the PLSc percentile interval covers about .95 at every N: the paper’s over-coverage comes from inadmissible bootstrap draws. K4, related to nothing, has no determined weights at any N, so 57% to 89% of the PLSc solutions are inadmissible (a reliability or loading above 1). matrixpls, which the paper used, keeps such bootstrap draws by default (dropInadmissible = FALSE); their SDs reach 100, and intervals built from them cover almost always (matrixpls at N = 50: .99 percentile, .995 normal; with the draws dropped .94). The app drops them (ρA in (0, 1], correlations within ±1). The card simulates 500 samples at N = 50, 250 and 1,000, each estimated by PLS and PLSc (cSEM) with 1,000 bootstrap samples and percentile intervals. The diagram is fitted to one sample of 250 from that population (seed 2018). ' +
+      AGUIRRE2018_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'γ1 (.48): PLSc mean .47, .48, .48 with coverage .94, .96, .96 at N = 50, 250, 1,000 (paper .99, .96, .96, read off Figure C1); PLS mean about .41 at every N, coverage .88, .64, .10. The paper’s PLS figures (.91 down to .44) pool its 12 measurement conditions; the PLS limits of those conditions (.355 to .464) imply about .46 pooled the same way. γ4 (0): Type I error PLSc .07, .05, .05; PLS .03, .01, .05. Inadmissible PLSc solutions: 89%, 68% and 57%.',
+    ...aguirre2018Card(0, 'percentile'),
+  },
+  {
+    id: 'aguirre-ronkko-bca',
+    title: 'Monte Carlo: BCa bootstrap intervals for PLSc (Aguirre-Urreta & Rönkkö 2018)',
+    description:
+      'Aguirre-Urreta & Rönkkö asked whether bootstrap confidence intervals of PLSc paths cover the population value as often as they claim. Their simple model: four common factors K1 to K4 affect E1 with .48, .48, .48 and 0 (R² .69), three indicators each loading .7, .8 and .9. This card checks the bias-corrected and accelerated (BCa) interval, which shifts the percentile limits by the bootstrap’s median bias and by an acceleration taken from a jackknife (one refit per case). The paper recommends the percentile interval over BCa. Here BCa covers less than the percentile interval at N = 50 (.82 against .94 for γ1) and about as well at 250. K4, related to nothing, has no determined weights, so most PLSc solutions are inadmissible (a reliability or loading above 1); the app drops inadmissible bootstrap draws (ρA in (0, 1], correlations within ±1) and keeps the jackknife estimates that are finite. The card simulates 500 samples at N = 50 and 250 (not 1,000: the jackknife refits the model N times per sample), each estimated by PLS and PLSc (cSEM) with 1,000 bootstrap samples and BCa intervals. The diagram is fitted to one sample of 250 from that population (seed 2018). ' +
+      AGUIRRE2018_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'γ1 (.48): PLSc mean .47, .48 with BCa coverage .82, .93 at N = 50, 250 (percentile card .94, .96); PLS mean .41, coverage .86, .64. γ4 (0): Type I error PLSc .12, .06; PLS .05, .02. Inadmissible PLSc solutions: 89% and 68%.',
+    ...aguirre2018Card(0, 'bca', [50, 250]),
+  },
+  {
+    id: 'aguirre-ronkko-normal',
+    title:
+      'Monte Carlo: normal bootstrap intervals for PLS and PLSc (Aguirre-Urreta & Rönkkö 2018)',
+    description:
+      'Aguirre-Urreta & Rönkkö asked whether bootstrap confidence intervals of PLSc paths cover the population value as often as they claim. Their simple model: four common factors K1 to K4 affect E1 with .48, .48, .48 and 0 (R² .69), three indicators each loading .7, .8 and .9. This card checks the normal interval, the estimate ± 1.96 bootstrap SE. The paper’s PLSc normal interval covers about .998 at every N and never settles, which it puts down to heavy-tailed bootstrap distributions. K4, related to nothing, has no determined weights at any N, so 57% to 89% of the PLSc solutions are inadmissible (a reliability or loading above 1). matrixpls, which the paper used, keeps such bootstrap draws by default (dropInadmissible = FALSE); their SDs reach 100, and intervals built from them cover almost always (matrixpls at N = 50: .99 percentile, .995 normal; with the draws dropped .94). The app drops them (ρA in (0, 1], correlations within ±1). With those draws dropped the interval comes close to .95. The card simulates 500 samples at N = 50, 250 and 1,000, each estimated by PLS and PLSc (cSEM) with 1,000 bootstrap samples and normal intervals. The diagram is fitted to one sample of 250 from that population (seed 2018). ' +
+      AGUIRRE2018_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'γ1 (.48): PLSc coverage .92, .94, .96 at N = 50, 250, 1,000 (paper about .998 throughout); PLS .92, .65, .11 (paper, strong paths, .91, .75, .44). γ4 (0): Type I error PLSc .07, .03, .01 (conservative at 1,000: K4’s admissible draws are the more spread ones); PLS .07, .04, .06.',
+    ...aguirre2018Card(0, 'normal'),
+  },
+  {
+    id: 'aguirre-ronkko-correlated',
+    title:
+      'Monte Carlo: BCa intervals for PLSc with correlated predictors (Aguirre-Urreta & Rönkkö 2018)',
+    description:
+      'Aguirre-Urreta & Rönkkö’s correlated condition: the four common factors K1 to K4 correlated .3 and the paths rescaled to .3795, .3795, .3795 and 0 so that R² stays .69, three indicators each loading .7, .8 and .9, BCa intervals. K4 is now related to E1 through the other factors, so its weights are better determined: inadmissible PLSc solutions are 71% at N = 50 and 19% at 250, against 89% and 68% with uncorrelated factors; the paper finds this condition better behaved throughout. PLS attenuates the paths of K1 to K3 and moves part of their effect onto K4: its estimate of the zero path is biased upward, and its Type I error grows with N (the paper: PLS intervals for γ4 miss at the lower limit). The card simulates 500 samples at N = 50 and 250 (not 1,000: the BCa jackknife refits the model N times per sample), each estimated by PLS and PLSc (cSEM) with 1,000 bootstrap samples and BCa intervals. The diagram is fitted to one sample of 250 from that population (seed 2018). ' +
+      AGUIRRE2018_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'γ1 (.3795): PLSc mean .38, .38 with BCa coverage .89, .94 at N = 50, 250 (paper about .94 to .96); PLS mean .33, .34, coverage .90, .86. γ4 (0): PLSc Type I error .07, .08 (paper about .05 to .07); PLS mean .04, .03 and Type I error .07, .12. Inadmissible PLSc solutions: 71% and 19%.',
+    ...aguirre2018Card(0.3, 'bca', [50, 250]),
+  },
+  {
+    id: 'chin-interaction-2',
+    title: 'Monte Carlo: a latent interaction with two indicators per construct (Chin et al. 2003)',
+    description:
+      'Chin, Marcolin & Newsted’s Monte Carlo: two uncorrelated common factors X and Z and their product predict Y (.3, .5, and .3 for X·Z), and PLS estimates the interaction with product indicators, every product of a standardised indicator of X with one of Z. With two indicators per construct (loadings .7) the four product indicators are unreliable (loadings .49), and PLS puts X·Z at about .17 for .3 at every N, X at .20 and Z at .33: attenuated, as single scale scores would be. Regression on the product of sum scores gives about .15. A larger sample only narrows the estimates around the wrong value: at N = 500 their SD is .04, so the estimate is clearly non-zero but still about 45% too small. ' +
+      'The card simulates 500 samples at N = 20, 50, 100, 150, 200 and 500, each estimated by PLS (cSEM, product indicators) and by regression on sum scores. The diagram is fitted with seminr’s product-indicator interaction to one sample of 100 from that population (seed 2003). ' +
+      CHIN_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'X·Z (true .30), mean of 500 estimates at N = 20 / 100 / 500: PLS about .16, .18, .17 (the paper’s Table 7, two indicators, N = 500: .165), sum scores .14, .15, .16, OLS power .08, .38, .97; X → Y (.30) about .19 to .22 (Table 7 at 500: .198), Z → Y (.50) about .33 (.328). Mean / SD at N = 100: .18 / .11 = 1.6, short of the paper’s 1.66. PLS without convergence in 2 of 500 samples at N = 20 and 50.',
+    ...chinCard('chin2003-2', 2, [20, 50, 100, 150, 200, 500]),
+  },
+  {
+    id: 'chin-interaction-8',
+    title:
+      'Monte Carlo: a latent interaction with eight indicators per construct (Chin et al. 2003)',
+    description:
+      'The same population with eight indicators per construct, so 64 product indicators for X·Z. Now PLS recovers the interaction: about .31 at N = 100 (the paper .304) and within 10% of .3 from N = 50 to 200, while regression on sum scores stays near .25 at every N. The main effects stay attenuated (X about .27, Z about .43), since more indicators raise the composites’ reliability but not to 1. At small N, PLS’s X·Z estimate is lifted by chance correlations in the weights (about .33 at N = 50, SD .21); at N = 500 it settles at .26, the dip the paper put down to a simulation artifact (its .262). The card finds it too, with other software and random numbers, which suggests the attenuation is real and the smaller samples hide it. ' +
+      'The card simulates 500 samples at N = 20, 50, 100, 150, 200 and 500, each estimated by PLS (cSEM, product indicators) and by regression on sum scores. The diagram is fitted with seminr’s product-indicator interaction to one sample of 100 from that population (seed 2004). ' +
+      CHIN_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'X·Z (true .30) at N = 20 / 50 / 100 / 200 / 500: PLS about .27, .33, .31, .28, .26 (Table 7, eight indicators: .304 at 100, .300 at 200, .262 at 500), SD .39, .21, .10, .06, .04; sum scores .22 to .25 (Table 9 at 100: .249), OLS power .82 at N = 100. X → Y about .27 and Z → Y .40 to .44 (Table 7 at 100: .274, .431). Mean / SD at N = 100: 3.1, significant by the paper’s rule (2.36).',
+    ...chinCard('chin2003-8', 8, [20, 50, 100, 150, 200, 500]),
+  },
+  {
+    id: 'chin-interaction-unequal',
+    title:
+      'Monte Carlo: a latent interaction with unequal loadings, PLS against sum scores (Chin et al. 2003)',
+    description:
+      'Chin et al.’s Table 10: six indicators per construct, but those of X and Z unequally reliable (pattern A7, loadings .7, .7, .6, .6, .3, .3; Y’s .7), at N = 100. PLS weights the indicators, so the weak ones count less, and its X·Z estimate stays near .3 (about .31); regression on the product of sum scores weights them all equally and falls to about .20. Both attenuate the main effects (X about .24 to .25, Z .38 to .39). ' +
+      'The card simulates 500 samples at N = 100, each estimated by PLS (cSEM, product indicators) and by regression on sum scores. The diagram is fitted with seminr’s product-indicator interaction to one sample of 100 from that population (seed 2005). ' +
+      CHIN_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'X·Z (true .30) at N = 100: PLS about .31, SD .15 (Table 10, pattern A7: .304), sum scores .20, SD .09 (.189), OLS power .59; X → Y about .25 (PLS) and .24 (sum scores), Z → Y .38 and .39.',
+    ...chinCard('chin2003-a7', 6, [100], [0.7, 0.7, 0.6, 0.6, 0.3, 0.3]),
+  },
+  {
+    id: 'qureshi-small',
+    title: 'Monte Carlo: small group differences, PLS and CB-SEM (Qureshi & Compeau 2009)',
+    description:
+      'Qureshi & Compeau’s question: when two groups differ in their paths, which finds it, PLS with a t test on the two groups’ bootstrap standard errors, or a multigroup CB-SEM model with a χ² difference test? A and B (uncorrelated) predict C, A and C predict D, each construct measured by three indicators (.7, .8, .9); the baseline group’s paths are .05, .20, .35 and .60, the comparison group’s each differ by .15 (.20, .35, .50, .45). With 100 cases per group either method finds such a difference in about one test in five, with 500 in about two in three, and they hardly differ. PLS estimates the differences smaller (about .12 to .13 for .15) because it attenuates both groups’ paths; ML is unbiased with larger SDs, and improper in 2% of samples at n = 100. The paper found no detection at all at n = 100 and CB-SEM well ahead at 500 (76% against 40%); the card does not reproduce that gap. ' +
+      'The card simulates 500 samples of two groups of n = 100 and of n = 500, each group estimated by PLS (cSEM, mode A, 200 bootstrap samples) and both by ML multigroup SEM (lavaan). The diagram is that multigroup model (equal loadings) fitted to two groups of 250 from the populations (lavaan::simulateData, seeds 2009 and 2010). ' +
+      QURESHI_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Detection of each path’s difference (true ±.15) at n = 100 / 500 per group: PLS A → C .16 / .56, B → C .08 / .59, A → D .22 / .79, C → D .25 / .75 (mean .18 / .67); ML .17 / .58, .13 / .58, .18 / .73, .23 / .72 (mean .18 / .65). The paper’s Table 2 (normal data, r = 0, three indicators, d = .15): PLS 0% / 40%, CB-SEM 0% / 76%. Mean estimated differences at n = 500: PLS about .12 to .13, ML .15.',
+    ...qureshiCard('qureshi2009-small', 0, 3, [0.2, 0.35, 0.5, 0.45]),
+  },
+  {
+    id: 'qureshi-uncorrelated',
+    title:
+      'Monte Carlo: group differences found by PLS and CB-SEM, uncorrelated predictors, three indicators (Qureshi & Compeau 2009)',
+    description:
+      'The same population with a larger difference: the comparison group’s paths are .40, .55, .70 and .25, each .35 from the baseline’s. With 100 cases per group both methods find a difference in about 70% of the tests, with 500 in all of them. The paper found CB-SEM far ahead at n = 100 (68% against 31% for PLS); here they are level, PLS a little lower on the paths into C and higher on A → D. PLS again shrinks the differences (about .27 to .30 for .35); ML recovers them. ' +
+      'The card simulates 500 samples of two groups of n = 100 and of n = 500, each group estimated by PLS (cSEM, mode A, 200 bootstrap samples) and both by ML multigroup SEM (lavaan). The diagram is that multigroup model (equal loadings) fitted to two groups of 250 from the populations (lavaan::simulateData, seeds 2009 and 2010). ' +
+      QURESHI_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Detection at n = 100: PLS A → C .64, B → C .52, A → D .83, C → D .77 (mean .69); ML .68, .58, .74, .78 (mean .70); at n = 500 both 1.00. The paper’s Table 2 (r = 0, three indicators, d = .35): PLS 31% / 100%, CB-SEM 68% / 100%. Mean differences at n = 500: PLS .27 to .30, ML .35.',
+    ...qureshiCard('qureshi2009-uncorrelated', 0, 3, [0.4, 0.55, 0.7, 0.25]),
+  },
+  {
+    id: 'qureshi-correlated',
+    title:
+      'Monte Carlo: group differences found by PLS and CB-SEM, correlated predictors, six indicators (Qureshi & Compeau 2009)',
+    description:
+      'The paper’s most striking cell: predictors correlated .4, six indicators per construct, and a difference of .25 on every path (comparison paths .30, .45, .60, .35). With 100 cases per group the paper found the differences in 96% of PLS’s tests and 4% of CB-SEM’s, and recommended PLS for such designs. The card finds no such reversal: both detect about half of them (PLS .50, ML .49), and at n = 500 nearly all (.99 and .98). The one systematic gap is in the estimates: PLS’s differences come out about .22 for .25, ML’s .25. Whatever gave the paper its 4%, it is not the χ² difference test as lavaan runs it here. Nor can any test give 96% here: from the SD of the difference estimates (about .10 to .15 at n = 100), the most powerful valid test at α = .05 finds them in about 52% of samples, the rate both methods reach. Checked outside the card: with no difference both tests reject 2% to 7% (they keep the 5% level), and PLS’s detection is the same with 1,000 bootstrap samples or the construct-level sign-change correction. ' +
+      'The card simulates 500 samples of two groups of n = 100 and of n = 500, each group estimated by PLS (cSEM, mode A, 200 bootstrap samples) and both by ML multigroup SEM (lavaan). The diagram is that multigroup model (equal loadings) fitted to two groups of 250 from the populations (lavaan::simulateData, seeds 2009 and 2010). ' +
+      QURESHI_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Detection at n = 100: PLS A → C .38, B → C .33, A → D .66, C → D .64 (mean .50); ML .36, .40, .58, .63 (mean .49); at n = 500 PLS .97 to 1.00, ML .95 to 1.00. The paper’s Table 2 (r = .4, six indicators, d = .25): PLS 96% / 100%, CB-SEM 4% / 100%. Mean differences: PLS about .22, ML .25.',
+    ...qureshiCard('qureshi2009-correlated', 0.4, 6, [0.3, 0.45, 0.6, 0.35]),
+  },
+  {
+    id: 'pls-bootstrap-se',
+    package: 'cSEM',
+    title: 'Monte Carlo: how well the bootstrap estimates the SE of a PLS path',
+    source:
+      'PLS Studio: the bootstrap SE of PLS against the SD of the estimates, checked in cSEM, seminr, matrixpls and plspm',
+    links: [
+      { label: 'cSEM', url: 'https://cran.r-project.org/package=cSEM' },
+      { label: 'seminr', url: 'https://cran.r-project.org/package=seminr' },
+      { label: 'plspm', url: 'https://cran.r-project.org/package=plspm' },
+      {
+        label: 'matrixpls (archived)',
+        url: 'https://cran.r-project.org/src/contrib/Archive/matrixpls/',
+      },
+    ],
+    tags: FACTOR_DEBATE_TAGS,
+    description:
+      'Is the bootstrap a fair judge of a PLS estimate’s precision? Two uncorrelated common factors A and B affect C (.2 and .3), three indicators each loading .7, .8 and .9. The card simulates 500 samples at N = 50, 100, 250 and 500, each estimated by PLS (cSEM, mode A, path weighting) with 300 bootstrap samples, and the Boot SE / SD column sets each path’s mean bootstrap SE against the SD of its estimates across the samples, the precision the bootstrap is meant to estimate. ' +
+      'Checked outside the card at N = 100 (200 samples, A → C): the ratio is the same in every R package that estimates PLS, cSEM 1.15, seminr 1.14, matrixpls 1.14 and plspm 1.24, and the same with 100, 500 or 2,000 bootstrap samples (1.15 each), so neither the software nor the number of draws causes it. Regression on sum scores, bootstrapped on the same samples, gives 1.02, and PLS with its weights held at the sample’s gives 0.93: the excess comes from re-estimating the weights in every bootstrap sample, where repeated cases make them vary more than they do between samples. It sits in the samples whose estimate came out small (the bootstrap SE correlates −.44 with the size of the estimate), where a construct’s weights are least determined. The diagram is fitted to one sample of 100 from that population (seed 2026). ' +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Boot SE / SD above 1 at small samples, more so for the weaker path: A → C (.2) 1.16 at N = 50, 1.20 at 100, 1.09 at 250 and 1.05 at 500; B → C (.3) 1.08, 1.10, 0.95 and 1.03. The intervals are too wide where the samples are small, which here offsets PLS’s downward bias (mean .19 for .2, .28 for .3), so coverage stays near .95 up to N = 100; at N = 500 the width is right but the bias remains and coverage falls to .92 and .87.',
+    data: {
+      package: 'cSEM',
+      name: 'Bootstrap SE check, a sample of 100',
+      file: 'examples/montecarlo/pls-bootstrap-se.csv',
+    },
+    constructs: ['A', 'B', 'C'].map((name) => f(name, items(name.toLowerCase(), 3))),
+    paths: [
+      ['A', 'C'],
+      ['B', 'C'],
+    ],
+    panel: {
+      kind: 'mc',
+      population: BOOT_SE_POPULATION,
+      estimators: [{ id: 'PLS', method: 'pls', consistent: false }],
+      sampleSizes: [50, 100, 250, 500],
+      replications: 500,
+      seed: 2026,
+      alpha: 0.05,
+      bootSamples: 300,
+      mcDraws: 0,
+      inference: { signChange: 'none', interval: 'percentile' },
+    },
+    settings: {
+      method: 'pls',
+      plsPackage: 'cSEM',
+      consistent: false,
+      scheme: 'path',
+      missing: 'casewise',
+      seed: 2026,
+    },
   },
   {
     id: 'sarstedt-factor-weak',

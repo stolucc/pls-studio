@@ -1774,3 +1774,127 @@ slowIt(
   },
   7_200_000,
 );
+
+slowIt(
+  'chin cards: product indicators recover the interaction with many indicators, sum scores underestimate it (Tables 7, 9, 10)',
+  async () => {
+    const source = {
+      label:
+        'Chin et al. (2003), Table 7: X·Z (true .30) estimated by PLS at .165 with two indicators (N = 500), .304 / .300 / .262 with eight (N = 100 / 200 / 500); Table 9: sum scores .249 (8 indicators, N = 100); Table 10, pattern A7: PLS .304, averaged scores .189',
+      level: 'published',
+      url: 'https://doi.org/10.1287/isre.14.2.189.16018',
+    } as const;
+    const xz = 'path:X × Z:Y';
+    const two = await mcCardRun('chin-interaction-2');
+    against(source);
+    near('2 indicators: PLS X·Z at N = 500', two.row('PLS', xz, 500).mean, 0.165, 0.015);
+    near('2 indicators: PLS X → Y at N = 500', two.row('PLS', 'path:X:Y', 500).mean, 0.198, 0.015);
+    near('2 indicators: PLS Z → Y at N = 500', two.row('PLS', 'path:Z:Y', 500).mean, 0.328, 0.015);
+    const eight = await mcCardRun('chin-interaction-8');
+    against(source);
+    near('8 indicators: PLS X·Z at N = 100', eight.row('PLS', xz, 100).mean, 0.304, 0.02);
+    near('8 indicators: PLS X·Z at N = 200', eight.row('PLS', xz, 200).mean, 0.3, 0.025);
+    near('8 indicators: PLS X·Z at N = 500', eight.row('PLS', xz, 500).mean, 0.262, 0.015);
+    near(
+      '8 indicators: sum scores X·Z at N = 100',
+      eight.row('Sum scores', xz, 100).mean,
+      0.249,
+      0.015,
+    );
+    const significance = eight.row('PLS', xz, 100).mean / eight.row('PLS', xz, 100).sd;
+    expect(significance, 'mean / SD past the paper’s 2.36').toBeGreaterThan(2.36);
+    const unequal = await mcCardRun('chin-interaction-unequal');
+    against(source);
+    near('A7: PLS X·Z', unequal.row('PLS', xz, 100).mean, 0.304, 0.025);
+    near('A7: sum scores X·Z', unequal.row('Sum scores', xz, 100).mean, 0.189, 0.025);
+  },
+  3_600_000,
+);
+
+slowIt(
+  'qureshi cards: PLS and CB-SEM find group differences about equally often; the paper’s reversal does not reproduce (Table 2)',
+  async () => {
+    const source = {
+      label:
+        'Qureshi & Compeau (2009), Table 2, normal data, % of path differences detected (PLS / CB-SEM) at n = 100 and 500 per group: r = 0, 3 indicators, d = .15: 0 / 0 and 40 / 76; d = .35: 31 / 68 and 100 / 100; r = .4, 6 indicators, d = .25: 96 / 4 and 100 / 100',
+      level: 'recovery',
+      url: 'https://doi.org/10.2307/20650285',
+    } as const;
+    const keys = ['diff:A:C', 'diff:B:C', 'diff:A:D', 'diff:C:D'];
+    type Run = Awaited<ReturnType<typeof mcCardRun>>;
+    const detected = (run: Run, e: string, n: number) =>
+      keys.reduce((s, k) => s + run.row(e, k, n).rejection!, 0) / keys.length;
+    const small = await mcCardRun('qureshi-small', true);
+    against(source);
+    near('d .15, n 100: PLS', detected(small, 'PLS', 100), 0.18, 0.05);
+    near('d .15, n 500: PLS', detected(small, 'PLS', 500), 0.67, 0.06);
+    near('d .15, n 500: CB-ML', detected(small, 'CB-ML', 500), 0.65, 0.06);
+    near('ML unbiased', small.row('CB-ML', 'diff:A:D', 500).mean, 0.15, 0.015);
+    expect(small.row('PLS', 'diff:A:D', 500).mean, 'PLS shrinks the difference').toBeLessThan(0.14);
+    const big = await mcCardRun('qureshi-uncorrelated', true);
+    against(source);
+    near('d .35, n 100: PLS', detected(big, 'PLS', 100), 0.69, 0.06);
+    near('d .35, n 100: CB-ML', detected(big, 'CB-ML', 100), 0.7, 0.06);
+    const correlated = await mcCardRun('qureshi-correlated', true);
+    against(source);
+    near('r .4, d .25, n 100: PLS', detected(correlated, 'PLS', 100), 0.5, 0.06);
+    near('r .4, d .25, n 100: CB-ML', detected(correlated, 'CB-ML', 100), 0.49, 0.06);
+    expect(detected(correlated, 'CB-ML', 500), 'n 500: CB-ML').toBeGreaterThan(0.95);
+  },
+  14_400_000,
+);
+
+slowIt(
+  'aguirre-ronkko cards: PLSc intervals near .95 with inadmissible draws dropped; PLS attenuated, its null path biased with correlated predictors',
+  async () => {
+    const source = {
+      label:
+        'Aguirre-Urreta & Rönkkö (2018), Figures C1, C4, C17–C20 (read off): γ1 strong, N = 50: PLSc percentile .99, normal ≈ .998, PLS normal .91; correlated: PLSc BCa ≈ .94–.96',
+      level: 'recovery',
+      url: 'https://doi.org/10.25300/MISQ/2018/13587',
+    } as const;
+    const g1 = 'path:K1:E1',
+      g4 = 'path:K4:E1';
+    const percentile = await mcCardRun('aguirre-ronkko-percentile', true, [50]);
+    against(source);
+    near('PLSc percentile γ1, N 50', percentile.row('PLSc', g1, 50).coverage!, 0.94, 0.03);
+    near('PLS γ1 attenuated', percentile.row('PLS', g1, 50).mean, 0.405, 0.03);
+    const inadmissible = (r: { improper: number; reps: number }) => r.improper / r.reps;
+    near('inadmissible PLSc, N 50 (K4)', inadmissible(percentile.row('PLSc', g1, 50)), 0.89, 0.04);
+    const normal = await mcCardRun('aguirre-ronkko-normal', true, [50]);
+    against(source);
+    near('PLSc normal γ1, N 50', normal.row('PLSc', g1, 50).coverage!, 0.92, 0.03);
+    const correlated = await mcCardRun('aguirre-ronkko-correlated', true, [50]);
+    against(source);
+    near('PLSc BCa γ1, N 50', correlated.row('PLSc', g1, 50).coverage!, 0.89, 0.03);
+    expect(correlated.row('PLS', g4, 50).mean, 'PLS null path biased upward').toBeGreaterThan(
+      0.015,
+    );
+    near('inadmissible PLSc, N 50', inadmissible(correlated.row('PLSc', g1, 50)), 0.71, 0.04);
+    expect(correlated.row('PLSc', g1, 50).failed, 'no replication lost to BCa').toBe(0);
+    const bca = await mcCardRun('aguirre-ronkko-bca', true, [50]);
+    against(source);
+    near('PLSc BCa γ1, N 50 (below percentile)', bca.row('PLSc', g1, 50).coverage!, 0.82, 0.04);
+    expect(bca.row('PLSc', g1, 50).failed, 'no replication lost to BCa').toBe(0);
+  },
+  14_400_000,
+);
+
+slowIt(
+  'pls-bootstrap-se: the bootstrap overstates the SE of a PLS path at small samples, less as N grows',
+  async () => {
+    const source = {
+      label:
+        'The Monte Carlo SD of the estimates (the precision the bootstrap estimates); outside the card at N = 100: cSEM 1.15, seminr 1.14, matrixpls 1.14, plspm 1.24, sum scores 1.02',
+      level: 'recovery',
+    } as const;
+    const run = await mcCardRun('pls-bootstrap-se', true, [100, 500]);
+    against(source);
+    const ratio = (key: string, n: number) => run.row('PLS', key, n).seRatio!;
+    near('A → C at N = 100', ratio('path:A:C', 100), 1.2, 0.08);
+    expect(ratio('path:A:C', 500), 'smaller at N = 500').toBeLessThan(ratio('path:A:C', 100));
+    expect(ratio('path:A:C', 100), 'the weaker path more').toBeGreaterThan(ratio('path:B:C', 100));
+    near('coverage of A → C at N = 100', run.row('PLS', 'path:A:C', 100).coverage!, 0.94, 0.03);
+  },
+  3_600_000,
+);
