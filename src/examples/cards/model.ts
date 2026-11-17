@@ -339,6 +339,340 @@ const goodhueCard = (
 });
 
 /**
+ * Goodhue, Lewis & Thompson (2012), Study 4 (Figure 5): three exogenous common factors, three mediators and one
+ * outcome in a no-mediation, a partial-mediation and a full-mediation block, two of the nine paths zero; three
+ * indicators per factor with loadings .7, .8, .9.
+ */
+const GOODHUE_COMPLEX_PATHS: [string, string, number][] = [
+  ['Ksi1', 'Eta1', 0.328],
+  ['Ksi1', 'Eta4', 0.274],
+  ['Eta1', 'Eta4', 0],
+  ['Ksi2', 'Eta2', 0.363],
+  ['Ksi2', 'Eta4', 0.308],
+  ['Eta2', 'Eta4', 0.308],
+  ['Ksi3', 'Eta3', 0.393],
+  ['Eta3', 'Eta4', 0.336],
+  ['Ksi3', 'Eta4', 0],
+];
+const GOODHUE_COMPLEX_CONSTRUCTS = ['Ksi1', 'Ksi2', 'Ksi3', 'Eta1', 'Eta2', 'Eta3', 'Eta4'];
+
+export const GOODHUE_COMPLEX_POPULATION = {
+  constructs: GOODHUE_COMPLEX_CONSTRUCTS.map((name) => ({
+    name,
+    type: 'factor',
+    indicators: items(`${name.toLowerCase()}_`, 3),
+    loadings: [0.7, 0.8, 0.9],
+  })),
+  paths: GOODHUE_COMPLEX_PATHS.map(([from, to, value]) => ({ from, to, value })),
+  exoCor: [],
+  skew: 0,
+  kurtosis: 0,
+};
+
+/**
+ * Kock & Hadaya (2018), Experiment 2: the MBLC model (Majchrzak et al.) of six common factors with its path
+ * estimates lowered by .25, the weakest .147; loadings .8 (not given in the paper).
+ */
+const KOCK_BLOCKS: [string, number][] = [
+  ['CI', 2],
+  ['CE', 6],
+  ['CL', 3],
+  ['CQ', 7],
+  ['LO', 4],
+  ['SO', 4],
+];
+const KOCK_PATHS: [string, string, number][] = [
+  ['CI', 'CL', 0.256],
+  ['CE', 'CL', 0.286],
+  ['CL', 'LO', 0.147],
+  ['CQ', 'LO', 0.275],
+  ['CL', 'SO', 0.185],
+  ['CQ', 'SO', 0.248],
+];
+
+export const KOCK_POPULATION = {
+  constructs: KOCK_BLOCKS.map(([name, k]) => ({
+    name,
+    type: 'factor',
+    indicators: items(`${name.toLowerCase()}`, k),
+    loadings: Array.from({ length: k }, () => 0.8),
+  })),
+  paths: KOCK_PATHS.map(([from, to, value]) => ({ from, to, value })),
+  exoCor: [],
+  skew: 0,
+  kurtosis: 0,
+};
+
+/**
+ * Aguirre-Urreta, Marakas & Ellis (2013), Figure 4: X and Z (correlated .25) predict Y (.48, .28); X's loadings
+ * equal, Z's spread around the same mean (thirds at ± .15), Y's .7; three indicators each.
+ */
+export const aguirre2013Population = (x: number) => ({
+  constructs: [
+    { name: 'X', type: 'factor', indicators: items('x', 3), loadings: [x, x, x] },
+    { name: 'Z', type: 'factor', indicators: items('z', 3), loadings: [x - 0.15, x, x + 0.15] },
+    { name: 'Y', type: 'factor', indicators: items('y', 3), loadings: [0.7, 0.7, 0.7] },
+  ],
+  paths: [
+    { from: 'X', to: 'Y', value: 0.48 },
+    { from: 'Z', to: 'Y', value: 0.28 },
+  ],
+  exoCor: [{ a: 'X', b: 'Z', value: 0.25 }],
+  skew: 0,
+  kurtosis: 0,
+});
+
+const aguirre2013Card = (file: string, x: number) => ({
+  package: 'cSEM' as const,
+  source:
+    'Aguirre-Urreta, Marakas & Ellis (2013), Measurement of composite reliability in research using partial least squares: the simulation',
+  links: [
+    { label: 'Aguirre-Urreta et al. (2013)', url: 'https://doi.org/10.1145/2544415.2544417' },
+  ],
+  tags: FACTOR_DEBATE_TAGS,
+  data: {
+    package: 'cSEM' as const,
+    name: `Aguirre-Urreta et al. (2013), a sample of 300 (loadings around ${x})`,
+    file: `examples/montecarlo/${file}.csv`,
+  },
+  constructs: [f('X', items('x', 3)), f('Z', items('z', 3)), f('Y', items('y', 3))],
+  paths: [
+    ['X', 'Y'],
+    ['Z', 'Y'],
+  ] as [string, string][],
+  correlations: [['X', 'Z', 'construct']] as [string, string, 'construct'][],
+  panel: {
+    kind: 'mc' as const,
+    population: aguirre2013Population(x),
+    estimators: [{ id: 'PLS', method: 'pls', consistent: false }],
+    sampleSizes: [100, 300, 500],
+    replications: 1000,
+    seed: 2013,
+    alpha: 0.05,
+    bootSamples: 0,
+    mcDraws: 0,
+  },
+  settings: {
+    method: 'pls' as const,
+    plsPackage: 'cSEM' as const,
+    consistent: false,
+    scheme: 'path' as const,
+    missing: 'casewise' as const,
+    seed: 2013,
+  },
+});
+
+/** What the Aguirre-Urreta et al. cards take from the paper, and what is the app's. */
+const AGUIRRE2013_DIFFERS =
+  'As in the paper: the population (Figure 4) with three indicators per construct, N = 100, 300 and 500, 1,000 replications, PLS mode A, its composite reliability ρc from the PLS loadings, and the true reliability of each sample’s PLS-weighted composite (the paper’s Calc. CR; the card’s reliability row, (w′λ)² / w′Σw in the population). The app’s choices: cSEM with path weighting where the paper used PLS-Graph; the paper’s remedy, Raykov’s CFA-based reliability with the PLS weights (its ML CR), is not computed; its 6, 9 and 12 indicators are not part of the cards. The ρc row’s failing share is the share below .70; the paper’s decision error is the share of samples where ρc passes .70 while the true reliability does not. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+
+/** Wolf et al. (2013): three standardized populations of their sample-size study (equal loadings, normal data). */
+export const WOLF_CFA_POPULATION = {
+  constructs: ['F1', 'F2'].map((name, j) => ({
+    name,
+    type: 'factor',
+    indicators: items('x', 3, 3 * j + 1),
+    loadings: [0.5, 0.5, 0.5],
+  })),
+  paths: [],
+  exoCor: [{ a: 'F1', b: 'F2', value: 0.3 }],
+  skew: 0,
+  kurtosis: 0,
+};
+
+/** The latent mediation model: F1 → F2 → F3 and F1 → F3, all paths `beta`, three indicators of loading .65. */
+export const wolfMediationPopulation = (beta: number, perFactor = 3, loading = 0.65) => ({
+  constructs: ['F1', 'F2', 'F3'].map((name, j) => ({
+    name,
+    type: 'factor',
+    indicators: items('x', perFactor, perFactor * j + 1),
+    loadings: Array.from({ length: perFactor }, () => loading),
+  })),
+  paths: [
+    { from: 'F1', to: 'F2', value: beta },
+    { from: 'F2', to: 'F3', value: beta },
+    { from: 'F1', to: 'F3', value: beta },
+  ],
+  exoCor: [],
+  skew: 0,
+  kurtosis: 0,
+});
+
+const WOLF_DIFFERS =
+  'As in the paper: the population, normal data, ML estimation and its Wald tests (Mplus’s), and the criteria power ≥ .80 for the weakest parameter of interest, bias ≤ 5% and no estimation errors. The app’s choices: lavaan where the paper used Mplus 5.2; 1,000 replications per N where the paper used 10,000, so the power rows carry a Monte Carlo SE of about .013; the card runs a few N around the paper’s minimum instead of searching for it. Random numbers differ from the paper’s.';
+
+const wolfCard = (
+  file: string,
+  population: object,
+  constructs: ReturnType<typeof f>[],
+  paths: [string, string][],
+  sampleSizes: number[],
+  mcDraws = 0,
+) => ({
+  package: 'lavaan' as const,
+  source:
+    'Wolf, Harrington, Clark & Miller (2013), Sample size requirements for structural equation models',
+  links: [
+    { label: 'Wolf et al. (2013)', url: 'https://doi.org/10.1177/0013164413495237' },
+    { label: 'Author manuscript (PMC)', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC4334479/' },
+  ],
+  data: {
+    package: 'lavaan' as const,
+    name: 'Wolf et al. (2013), a sample of 200',
+    file: `examples/montecarlo/${file}.csv`,
+  },
+  constructs,
+  paths,
+  panel: {
+    kind: 'mc' as const,
+    population,
+    estimators: [{ id: 'CB-ML', method: 'cb', estimator: 'ML' }],
+    sampleSizes,
+    replications: 1000,
+    seed: 53487,
+    alpha: 0.05,
+    bootSamples: 0,
+    mcDraws,
+  },
+  settings: CB('ML'),
+});
+
+/**
+ * Curran, West & Finch (1996): three factors (correlated .3) of three indicators with loadings .7; `cross`: the
+ * two cross-loadings of .35 (x6 on F3, x7 on F2) the estimated model leaves out (their population B), whose
+ * indicators keep uniqueness .51 and so have variance 1.27: standardised, .621 and .311.
+ */
+const CURRAN_B = [0.6213, 0.3106];
+
+export const curranPopulation = (skew: number, kurtosis: number, cross = false) => ({
+  constructs: ['F1', 'F2', 'F3'].map((name, j) => ({
+    name,
+    type: 'factor',
+    indicators: items('x', 3, 3 * j + 1),
+    loadings:
+      !cross || j === 0
+        ? [0.7, 0.7, 0.7]
+        : j === 1
+          ? [0.7, 0.7, CURRAN_B[0]]
+          : [CURRAN_B[0], 0.7, 0.7],
+  })),
+  paths: [],
+  exoCor: [
+    { a: 'F1', b: 'F2', value: 0.3 },
+    { a: 'F1', b: 'F3', value: 0.3 },
+    { a: 'F2', b: 'F3', value: 0.3 },
+  ],
+  ...(cross
+    ? {
+        crossLoadings: [
+          { indicator: 'x6', construct: 'F3', value: CURRAN_B[1] },
+          { indicator: 'x7', construct: 'F2', value: CURRAN_B[1] },
+        ],
+      }
+    : {}),
+  skew,
+  kurtosis,
+});
+
+const CURRAN_DIFFERS =
+  'As in the paper: the population (Figure 1), N = 100, 200, 500 and 1,000, 200 replications, ML’s χ² test and the Satorra–Bentler scaled χ² (lavaan’s MLM), non-normal indicators by Fleishman’s polynomials with Vale & Maurelli’s intermediate correlations, as in EQS. The app’s choices: lavaan where the paper used EQS 3.0; population B standardised (the paper’s x6 and x7 keep uniqueness .51 and have variance 1.27; scaled to 1 their loadings are .621 and .311, the same correlations, so the same ML fit); the ADF χ² is not computed; improper solutions are kept where the paper dropped them. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+
+const curranCard = (file: string, skew: number, kurtosis: number, cross = false) => ({
+  package: 'lavaan' as const,
+  source:
+    'Curran, West & Finch (1996), The robustness of test statistics to nonnormality and specification error in confirmatory factor analysis',
+  links: [{ label: 'Curran et al. (1996)', url: 'https://doi.org/10.1037/1082-989X.1.1.16' }],
+  data: {
+    package: 'lavaan' as const,
+    name: `Curran et al. (1996), a sample of 200${skew ? ` (skew ${skew}, kurtosis ${kurtosis})` : ''}`,
+    file: `examples/montecarlo/${file}.csv`,
+  },
+  constructs: ['F1', 'F2', 'F3'].map((name, j) => f(name, items('x', 3, 3 * j + 1))),
+  paths: [] as [string, string][],
+  correlations: [
+    ['F1', 'F2', 'construct'],
+    ['F1', 'F3', 'construct'],
+    ['F2', 'F3', 'construct'],
+  ] as [string, string, 'construct'][],
+  panel: {
+    kind: 'mc' as const,
+    population: curranPopulation(skew, kurtosis, cross),
+    estimators: [
+      { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+      { id: 'CB-MLM', method: 'cb', estimator: 'MLM' },
+    ],
+    sampleSizes: [100, 200, 500, 1000],
+    replications: 200,
+    seed: 1996,
+    alpha: 0.05,
+    bootSamples: 0,
+    mcDraws: 0,
+  },
+  settings: CB('ML'),
+});
+
+/**
+ * Hu & Bentler (1999): three factors of five indicators (loadings .7, .7, .75, .8, .8), correlated .5, .4, .3;
+ * `complex`: x1 also loads .7 on F3, which the estimated model leaves out (their Complex Misspecified I). x1
+ * keeps uniqueness .51 and so has variance 1.88: standardised, both its loadings are .51.
+ */
+const HU_BENTLER_X1 = 0.5103;
+
+export const huBentlerPopulation = (complex: boolean) => ({
+  constructs: ['F1', 'F2', 'F3'].map((name, j) => ({
+    name,
+    type: 'factor',
+    indicators: items('x', 5, 5 * j + 1),
+    loadings: [complex && j === 0 ? HU_BENTLER_X1 : 0.7, 0.7, 0.75, 0.8, 0.8],
+  })),
+  paths: [],
+  exoCor: [
+    { a: 'F1', b: 'F2', value: 0.5 },
+    { a: 'F1', b: 'F3', value: 0.4 },
+    { a: 'F2', b: 'F3', value: 0.3 },
+  ],
+  ...(complex
+    ? { crossLoadings: [{ indicator: 'x1', construct: 'F3', value: HU_BENTLER_X1 }] }
+    : {}),
+  skew: 0,
+  kurtosis: 0,
+});
+
+const HU_BENTLER_DIFFERS =
+  'As in the paper: the population, N = 150, 250, 500 and 1,000, 200 replications, ML, and the cutoffs SRMR .08, RMSEA .06, CFI and TLI .95 (Hu & Bentler’s recommendations). The app’s choices: lavaan where the paper used EQS; normal data only (the paper pools seven distributions, which matters little for SRMR and most for the χ²-based indices); x1 standardised (in the paper it keeps uniqueness .51 and has variance 1.88; scaled to 1 both its loadings are .51, the same correlations, so the same ML fit); its estimated complex model frees the other two cross-loadings, which here are not in the population; its N = 2,500 and 5,000 are not run. The paper pools its rows over N ≤ 250, 500 and N ≥ 1,000; the card gives each N. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+
+const huBentlerCard = (file: string, complex: boolean) => ({
+  package: 'lavaan' as const,
+  source:
+    'Hu & Bentler (1999), Cutoff criteria for fit indexes in covariance structure analysis: conventional criteria versus new alternatives',
+  links: [{ label: 'Hu & Bentler (1999)', url: 'https://doi.org/10.1080/10705519909540118' }],
+  data: {
+    package: 'lavaan' as const,
+    name: `Hu & Bentler (1999), a sample of 250${complex ? ' (one cross-loading)' : ''}`,
+    file: `examples/montecarlo/${file}.csv`,
+  },
+  constructs: ['F1', 'F2', 'F3'].map((name, j) => f(name, items('x', 5, 5 * j + 1))),
+  paths: [] as [string, string][],
+  correlations: [
+    ['F1', 'F2', 'construct'],
+    ['F1', 'F3', 'construct'],
+    ['F2', 'F3', 'construct'],
+  ] as [string, string, 'construct'][],
+  panel: {
+    kind: 'mc' as const,
+    population: huBentlerPopulation(complex),
+    estimators: [{ id: 'CB-ML', method: 'cb', estimator: 'ML' }],
+    sampleSizes: [150, 250, 500, 1000],
+    replications: 200,
+    seed: 1999,
+    alpha: 0.05,
+    bootSamples: 0,
+    mcDraws: 0,
+  },
+  settings: CB('ML'),
+});
+
+/**
  * Henseler, Ringle & Sarstedt (2015), the main simulation: two common factors with three indicators each, the
  * same loadings in both, correlated φ (1: one factor split in two, which every check should flag), no path.
  */
@@ -1730,6 +2064,247 @@ export const CARD_MODEL: PackageExample[] = [
     shows:
       'At N = 100 / 250 / 500: GoF about .316, .310, .307 (Table 1, Model 3: .304), below .36 in about 81%, 93% and 98% of samples; ML’s χ² test rejecting 7.3%, 5.9% and 4.9%, as for the right model; X1 → X3 (true 0) about .35 to .36 in ML (significant in 74%, 99% and 100%) and .28 to .29 in PLS (Table 1: .457 and .273).',
     ...henseler2013Card('henseler2013', ['X2:X3']),
+  },
+  {
+    id: 'goodhue-complex',
+    package: 'cSEM',
+    title:
+      'Monte Carlo: PLS, regression and CB-SEM in a complex model at small samples (Goodhue et al. 2012)',
+    source:
+      'Goodhue, Lewis & Thompson (2012), Does PLS have advantages for small sample size or non-normal data?: Study 4, the complex model',
+    links: [{ label: 'Goodhue et al. (2012)', url: 'https://doi.org/10.2307/41703490' }],
+    tags: FACTOR_DEBATE_TAGS,
+    description:
+      'Goodhue, Lewis & Thompson’s Study 4: whether PLS’s supposed advantages show in a complex model, seven common factors (loadings .7, .8, .9) in a no-mediation, a partial-mediation and a full-mediation block, with paths of .27 to .39 and two zero paths, at N = 20, 40, 90 and 150. None of the three methods has adequate power below N = 90: on average over the seven true paths PLS finds about 46% at N = 40, regression on sum scores 43%, ML SEM 45%, and they are about equal from N = 90 on. PLS and regression underestimate the paths (by about 10% to 20%, more for paths between endogenous constructs); ML SEM is unbiased but at N = 20 it rarely converges and at N = 40 more than half its solutions are improper. The paper’s answer to its title: no advantage for PLS in a complex model either. ' +
+      'The card simulates 500 samples at N = 20, 40, 90 and 150, each estimated by PLS (cSEM) with 100 bootstrap samples, regression on sum scores and ML SEM (lavaan). The diagram is fitted to one sample of 150 from that population (lavaan::simulateData, seed 2012). ' +
+      'As in the paper: the population (Figure 5; the paper does not give the correlations of the three exogenous factors, here 0), N, 500 replications and the three methods, PLS tested by its bootstrap standard error from 100 resamples. The app’s choices: cSEM with path weighting and lavaan where the paper used PLS-Graph and LISREL; the paper counts a replication without a solution as not significant, the card leaves it out of the power (its failed column), and lavaan fails far more often at N = 20 (about 440 of 500, LISREL 99). At N = 20 PLS’s bootstrap test also rejects the zero paths more often than the paper’s (about 10% against 1.5%). The non-normal run (online Table A12) is not part of the card. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.' +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Ksi3 → Eta3 (.393) at N = 40: power PLS about .61, ML .55, regression .56 (the paper: 59% and 53%); at N = 150 mean estimates PLS .34, regression .33, ML .39 (relative bias −.13, −.16, 0; Figure 6: −.12, −.15, 0). Average power over the seven true paths at N = 40: PLS .46, regression .43, ML .45 (the paper: 43.0%, 41.2%, 43.0%). Zero paths at N = 90: rejected in about 6% to 8% by each method.',
+    data: {
+      package: 'cSEM',
+      name: 'Goodhue et al. (2012), Study 4, a sample of 150',
+      file: 'examples/montecarlo/goodhue2012-complex.csv',
+    },
+    constructs: GOODHUE_COMPLEX_CONSTRUCTS.map((name) =>
+      f(name, items(`${name.toLowerCase()}_`, 3)),
+    ),
+    paths: GOODHUE_COMPLEX_PATHS.map(([from, to]): [string, string] => [from, to]),
+    panel: {
+      kind: 'mc',
+      population: GOODHUE_COMPLEX_POPULATION,
+      estimators: [
+        { id: 'PLS', method: 'pls', consistent: false },
+        { id: 'Sum scores', method: 'regression', dr: false },
+        { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+      ],
+      sampleSizes: [20, 40, 90, 150],
+      replications: 500,
+      seed: 2012,
+      alpha: 0.05,
+      bootSamples: 100,
+      mcDraws: 0,
+      inference: { signChange: 'none', interval: 'normal' },
+    },
+    settings: {
+      method: 'pls',
+      plsPackage: 'cSEM',
+      consistent: false,
+      missing: 'casewise',
+      seed: 2012,
+    },
+  },
+  {
+    id: 'kock-hadaya-sample-size',
+    package: 'cSEM',
+    title: 'Monte Carlo: the minimum sample size for the weakest path (Kock & Hadaya 2018)',
+    source:
+      'Kock & Hadaya (2018), Minimum sample size estimation in PLS-SEM: the inverse square root and gamma-exponential methods, Experiment 2',
+    links: [{ label: 'Kock & Hadaya (2018)', url: 'https://doi.org/10.1111/isj.12131' }],
+    tags: FACTOR_DEBATE_TAGS,
+    description:
+      'Kock & Hadaya’s Experiment 2: the MBLC model of six common factors (2 to 7 indicators) with paths of .15 to .29, where power depends on the weakest path, CL → LO (.147). The inverse square root method puts the minimum N at (2.486 / .147)² = 287 for power .80 (one-tailed 5%), the gamma-exponential method at 273, the paper’s Monte Carlo at 265; the 10-times rule says 20 and the minimum-R² table 110. With loadings .8 the card needs about 400: PLS estimates the path at about .13, attenuated by the composites’ measurement error, and the rules take β as given. PLSc estimates .147 without bias but with a larger SD, so its power is the same. At N = 100, the minimum-R² answer, power is about .37. ' +
+      'The card simulates 1,000 samples at N = 100, 200, 300 and 400, each estimated by PLS and PLSc (cSEM) with 500 bootstrap samples, a path significant when its bootstrap t (normal interval, α = .10 two-tailed) says so, the paper’s one-tailed 5% for a positive path. The diagram is fitted to one sample of 300 from that population (lavaan::simulateData, seed 2018). ' +
+      'As in the paper: the model, the Experiment 2 paths, uncorrelated exogenous factors, 1,000 replications, PLS mode A and the bootstrap t test from 500 resamples. The app’s choices: cSEM with path weighting where the paper used its own MATLAB code; loadings .8, which the paper does not give (higher loadings attenuate less and lower the N needed, toward the paper’s 265); PLSc added. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.' +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'CL → LO (true .147), power at N = 100 / 200 / 300 / 400: PLS about .37, .57, .72, .79 and PLSc .40, .57, .71, .79, so .80 near N = 400 (the paper’s Monte Carlo: 265; inverse square root 287, gamma-exponential 273, 10-times rule 20). Mean estimates: PLS about .13, PLSc .15. The stronger paths reach .90 by N = 200.',
+    data: {
+      package: 'cSEM',
+      name: 'Kock & Hadaya (2018), a sample of 300',
+      file: 'examples/montecarlo/kock2018.csv',
+    },
+    constructs: KOCK_BLOCKS.map(([name, k]) => f(name, items(`${name.toLowerCase()}`, k))),
+    paths: KOCK_PATHS.map(([from, to]): [string, string] => [from, to]),
+    panel: {
+      kind: 'mc',
+      population: KOCK_POPULATION,
+      estimators: [
+        { id: 'PLS', method: 'pls', consistent: false },
+        { id: 'PLSc', method: 'pls', consistent: true },
+      ],
+      sampleSizes: [100, 200, 300, 400],
+      replications: 1000,
+      seed: 2018,
+      alpha: 0.1,
+      bootSamples: 500,
+      mcDraws: 0,
+      inference: { signChange: 'none', interval: 'normal' },
+    },
+    settings: {
+      method: 'pls',
+      plsPackage: 'cSEM',
+      consistent: false,
+      scheme: 'path',
+      missing: 'casewise',
+      seed: 2018,
+    },
+  },
+  {
+    id: 'aguirre-reliability-medium',
+    title:
+      'Monte Carlo: PLS composite reliability overstated, three indicators around .6 (Aguirre-Urreta et al. 2013)',
+    description:
+      'Aguirre-Urreta, Marakas & Ellis’s question: does PLS’s composite reliability ρc, computed from PLS’s loadings, tell how reliable the composite PLS actually uses is? Two common factors X and Z (correlated .25) predict Y (.48 and .28); X’s three indicators load .6, Z’s .45, .6 and .75, Y’s .7. The PLS composites of X and Z have a true reliability of about .61 to .66, yet ρc reports about .77 to .80: PLS’s loadings are inflated because each indicator is part of the composite it is correlated with, so ρc overstates by about .15 and passes .70 in nearly every sample where the composite itself does not. For Y, with loadings .7, ρc reports .85 for a true .74. The paths are attenuated as well (X → Y about .34 for .48). ' +
+      'The card simulates 1,000 samples at N = 100, 300 and 500, each estimated by PLS (mode A, cSEM). The diagram is fitted to one sample of 300 from that population (lavaan::simulateData, seed 2013). ' +
+      AGUIRRE2013_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'At N = 100 / 500: ρc of X about .79 / .80, Z .77 / .79, Y .85 / .85; the true reliability of the same composites .61 / .63, .63 / .66, .74 / .74 (the paper’s Table 3, three indicators, N = 100: PLS CR .792, .771, .850 against Calc. CR .617, .631, .737). ρc below .70 in about 1.5% (X) and 6% (Z) of samples at N = 100, almost none at 500. X → Y (true .48) about .34, Z → Y (.28) about .23 to .25.',
+    ...aguirre2013Card('aguirre2013-medium', 0.6),
+  },
+  {
+    id: 'aguirre-reliability-low',
+    title:
+      'Monte Carlo: PLS composite reliability with weak indicators (Aguirre-Urreta et al. 2013)',
+    description:
+      'The same population with weak indicators: X’s three load .4, Z’s .25, .4 and .55, so the true reliability of their PLS composites is only about .32 to .39. PLS’s ρc reports about .60 to .70, roughly double, and passes .70 in about a third of the samples for X and a fifth for Z, the paper’s decision error: a researcher following the .70 rule keeps a scale whose composite is less than 40% true score. For Y (loadings .7) ρc is .85 for a true .74. The weaker the indicators, the larger the overstatement, and a larger sample does not shrink it. ' +
+      'The card simulates 1,000 samples at N = 100, 300 and 500, each estimated by PLS (mode A, cSEM). The diagram is fitted to one sample of 300 from that population (lavaan::simulateData, seed 2013). ' +
+      AGUIRRE2013_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'At N = 100 / 500: ρc of X about .66 / .70, Z .60 / .67, Y .85 / .85; the true reliability .32 / .36, .33 / .39, .73 / .74 (Table 3, N = 100: PLS CR .669, .634, .850 against Calc. CR .323, .325, .737). ρc below .70 for X in 67% / 54% and for Z in 81% / 82% of samples, so it passes .70 in about a third and a fifth. X → Y (true .48) about .29 / .27.',
+    ...aguirre2013Card('aguirre2013-low', 0.4),
+  },
+  {
+    id: 'wolf-cfa-weak',
+    title:
+      'Monte Carlo: the sample size a two-factor CFA with weak loadings needs (Wolf et al. 2013)',
+    description:
+      'Wolf, Harrington, Clark & Miller’s sample-size study: instead of a rule of thumb (N ≥ 200, or 10 cases per parameter), simulate the model you plan and find the N where every criterion holds. Here two common factors, correlated .3, each measured by three indicators of loading .5; the paper’s minimum is N = 460, against 120 with loadings .8. The weakest parameter is the factor correlation: ML estimates it without bias at every N, and its Wald test reaches power .80 between N = 340 and 400 (about .88 at 460). At N = 260 and 300 a few samples still end without a proper solution. ' +
+      'The card simulates 1,000 samples at N = 260, 300, 340, 400 and 460, each estimated by ML SEM (lavaan). The diagram is fitted to one sample of 200 from that population (lavaan::simulateData, seed 53487, the paper’s). ' +
+      WOLF_DIFFERS +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Factor correlation (true .30), power at N = 260 / 300 / 340 / 400 / 460: about .55, .64, .75, .82, .88, mean estimate .30 at every N (the paper’s minimum N: 460). Failed or improper solutions in 1, 3, 0, 0 and 0 of 1,000 samples. The χ² test rejects about 3% to 6%, its Type I error; CFI about .98 to .99.',
+    ...wolfCard(
+      'wolf2013-cfa',
+      WOLF_CFA_POPULATION,
+      [f('F1', items('x', 3)), f('F2', items('x', 3, 4))],
+      [],
+      [260, 300, 340, 400, 460],
+    ),
+    correlations: [['F1', 'F2', 'construct']],
+  },
+  {
+    id: 'wolf-mediation',
+    title: 'Monte Carlo: the sample size a latent mediation model needs (Wolf et al. 2013)',
+    description:
+      'Wolf et al.’s latent mediation model: F1 → F2 → F3 with a direct path F1 → F3, all .40, each factor measured by three indicators of loading .65. The weakest parameter of interest is the indirect effect (.16), which needs more cases than any single path: the paths reach power .80 by about N = 100 to 140, the indirect effect between 140 and 180. The paper’s minimum is 180, and 440 when the paths are .25. Estimates are unbiased from N = 140 on. ' +
+      'The card simulates 1,000 samples at N = 100, 140, 180 and 220, each estimated by ML SEM (lavaan), the indirect effect tested by a Monte Carlo interval from 1,000 draws. The diagram is fitted to one sample of 200 from that population (lavaan::simulateData, seed 53487, the paper’s). ' +
+      WOLF_DIFFERS +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Power at N = 100 / 140 / 180 / 220: F1 → F2 about .75, .91, .95, .98; the direct path F1 → F3 .68, .84, .92, .96; the indirect effect (true .16) .43, .74, .87, .95 (the paper at 140 / 180: direct .83 / .91, indirect .61 / .83). Estimates within 3% of the truth; the χ² test rejecting about 6% to 8%.',
+    ...wolfCard(
+      'wolf2013-mediation',
+      wolfMediationPopulation(0.4),
+      [f('F1', items('x', 3)), f('F2', items('x', 3, 4)), f('F3', items('x', 3, 7))],
+      [
+        ['F1', 'F2'],
+        ['F2', 'F3'],
+        ['F1', 'F3'],
+      ],
+      [100, 140, 180, 220],
+      1000,
+    ),
+  },
+  {
+    id: 'wolf-single-indicator',
+    title: 'Monte Carlo: a path model that ignores measurement error (Wolf et al. 2013)',
+    description:
+      'The same mediation population, but each factor measured by a single indicator of loading .65 (reliability .42), as when a path model is fitted to scale scores and their measurement error ignored. The model is just identified, so it fits exactly (χ² 0 with 0 df) and no fit statistic warns. The estimates are attenuated, about .17 for F1 → F2 and .20 for the other two paths, all .40 in the population, and the indirect effect about .03 for .16. Power falls with them: at N = 180 about .64 for F1 → F2 and .47 for the indirect effect, where the three-indicator model has .95 and .87. A larger sample buys power for an effect of the wrong size. ' +
+      'The card simulates 1,000 samples at N = 50, 100 and 180, each estimated by ML (lavaan), the indirect effect tested by a Monte Carlo interval from 1,000 draws. The diagram is fitted to one sample of 200 from that population (lavaan::simulateData, seed 53487, the paper’s). ' +
+      WOLF_DIFFERS +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'At N = 50 / 100 / 180: F1 → F2 (true .40) about .16, .16, .17, power .24, .36, .64 (the paper at 180: .17 and .68); F1 → F3 and F2 → F3 about .20, power .35 to .81; the indirect effect (true .16) about .03, power .06, .18, .47.',
+    ...wolfCard(
+      'wolf2013-single',
+      wolfMediationPopulation(0.4, 1, 0.65),
+      [f('F1', ['x1']), f('F2', ['x2']), f('F3', ['x3'])],
+      [
+        ['F1', 'F2'],
+        ['F2', 'F3'],
+        ['F1', 'F3'],
+      ],
+      [50, 100, 180],
+      1000,
+    ),
+  },
+  {
+    id: 'curran-nonnormal',
+    title:
+      'Monte Carlo: the χ² test of a correct CFA under severe non-normality (Curran et al. 1996)',
+    description:
+      'Curran, West & Finch’s question: what non-normal data do to the χ² test of a correct CFA. Three factors (correlated .3), three indicators of loading .7 each, the model right, and every indicator skewed 3 with kurtosis 21, their most severe condition. ML’s χ² test, which assumes normal data, rejects the correct model in about 38% to 49% of samples, and more at larger N, not less; the Satorra–Bentler scaled χ² brings that down to about 13% at N = 100 and 4% to 8% from 200 on. CFI and TLI also come out lower under ML, below .95 in about 40% to 50% of samples at N = 100. ML gives improper solutions in about 5% of samples at N = 100. ' +
+      'The card simulates 200 samples at N = 100, 200, 500 and 1,000, each estimated by ML with its χ² test and by ML with the Satorra–Bentler correction (lavaan’s MLM). The diagram is fitted to one sample of 200 from that population (lavaan::simulateData, seed 1996). ' +
+      CURRAN_DIFFERS +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'χ² test rejecting the correct model at N = 100 / 200 / 500 / 1,000: ML about 38%, 38%, 40%, 49% (the paper’s Model 1, severe non-normality: 30%, 36%, 40%, 48%), Satorra–Bentler 13%, 8%, 6.5%, 4% (13%, 6.5%, 8.5%, 7%). Mean χ² (24 df): ML about 34 to 37, Satorra–Bentler 25 to 28. Improper ML solutions in 11, 3, 0 and 0 of 200 samples.',
+    ...curranCard('curran1996-severe', 3, 21),
+  },
+  {
+    id: 'curran-misspecified',
+    title:
+      'Monte Carlo: the power of the χ² test against omitted cross-loadings (Curran et al. 1996)',
+    description:
+      'Curran et al.’s population B: the same three factors, but two indicators also load on a second factor (x6 on F3 and x7 on F2, .35 in the paper’s metric), cross-loadings the estimated model leaves out. With normal data the χ² test is what finds them: it rejects the model in about half the samples at N = 100, 85% at 200 and all from 500 on, and the Satorra–Bentler test, not needed here, has the same power. The fit indices are less sure: RMSEA stays near .07, above .06 in about two thirds to 94% of samples, CFI near .95, failing it in about half, and SRMR is below .08 in nearly every sample from N = 200 on. ' +
+      'The card simulates 200 samples at N = 100, 200, 500 and 1,000, each estimated by ML with its χ² test and by ML with the Satorra–Bentler correction (lavaan’s MLM). The diagram is fitted to one sample of 200 from that population (lavaan::simulateData, seed 1996). ' +
+      CURRAN_DIFFERS +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'χ² test rejecting the wrong model at N = 100 / 200 / 500 / 1,000: ML about 52%, 85%, 100%, 100% (the paper’s Model 3, normal data: 54.3%, 88.1%, 100%, 100%), Satorra–Bentler 51%, 85%, 100%, 100% (57.9%, 89.9%, 100%, 100%). RMSEA about .07, above .06 in 65%, 68%, 86% and 94% of samples; SRMR from .067 to .045, above .08 in 16% at N = 100 and none after; CFI about .95, below .95 in 39% to 53%.',
+    ...curranCard('curran1996-cross', 0, 0, true),
+  },
+  {
+    id: 'hu-bentler-true',
+    title: 'Monte Carlo: fit index cutoffs for a correct CFA (Hu & Bentler 1999)',
+    description:
+      'Hu & Bentler’s simple model: three correlated factors (.5, .4, .3) with five indicators each (loadings .7 to .8), estimated as the population has it. Their cutoffs, SRMR ≤ .08, RMSEA ≤ .06 and CFI and TLI ≥ .95, were chosen to keep such a model while rejecting misspecified ones. With normal data the right model passes all four in every sample from N = 150 on: SRMR about .048 at N = 150 and .018 at 1,000, RMSEA .018 to .005, CFI .99 or more. The χ² test rejects about 4% to 6%, 10% at N = 150. The paper’s higher rejection rates for the true model come from its non-normal conditions. ' +
+      'The card simulates 200 samples at N = 150, 250, 500 and 1,000, each estimated by ML SEM (lavaan) with its χ² test and fit indices. The diagram is fitted to one sample of 250 from that population (lavaan::simulateData, seed 1999). ' +
+      HU_BENTLER_DIFFERS +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'At N = 150 / 250 / 500 / 1,000: SRMR about .048, .036, .026, .018 and RMSEA .018, .011, .008, .005, above the cutoffs in no sample (the paper, pooled over seven distributions, N ≤ 250 / 500 / ≥ 1,000: SRMR 6.8%, 0.3%, 0%; RMSEA 28.0%, 5.4%, 0.1%); CFI .99 to 1.00; χ² test rejecting 10%, 5%, 4%, 5.5%.',
+    ...huBentlerCard('hu1999-simple', false),
+  },
+  {
+    id: 'hu-bentler-cross',
+    title: 'Monte Carlo: fit index cutoffs against an omitted cross-loading (Hu & Bentler 1999)',
+    description:
+      'Hu & Bentler’s complex model with one cross-loading left out: x1 loads on F1 and also on F3 (.7 in the paper’s metric), but the estimated model has it on F1 only (their Complex Misspecified I). The χ² test rejects it in nearly every sample from N = 150 on. RMSEA, about .07, rejects it in 80% of samples at N = 150 and all at 1,000, and TLI, about .93, in 84% to 99%. SRMR does not: about .06 to .07, it passes .08 in most samples at N = 150 and every one from 500 on, the pattern behind the paper’s two-index rule (SRMR with RMSEA or CFI). ' +
+      'The card simulates 200 samples at N = 150, 250, 500 and 1,000, each estimated by ML SEM (lavaan) with its χ² test and fit indices. The diagram is fitted to one sample of 250 from that population (lavaan::simulateData, seed 1999). ' +
+      HU_BENTLER_DIFFERS +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'At N = 150 / 250 / 500 / 1,000: SRMR about .073, .065, .062, .059, above .08 in 22%, 3.5%, 0% and 0% of samples (the paper, N ≤ 250 / 500 / ≥ 1,000: 36.5%, 10.6%, 0.9%); RMSEA about .07, above .06 in 80%, 81.5%, 95.5%, 100% (91.6%, 97.7%, 99.8%); CFI about .94, below .95 in 61% to 82%; χ² test rejecting 99.5% to 100%.',
+    ...huBentlerCard('hu1999-complex', true),
   },
   {
     id: 'sarstedt-factor-weak',

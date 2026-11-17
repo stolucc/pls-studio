@@ -1559,3 +1559,218 @@ slowIt(
   },
   3_600_000,
 );
+
+slowIt(
+  'goodhue-complex: no advantage for PLS in a complex model; ML unbiased, the composites attenuated (Study 4)',
+  async () => {
+    const run = await mcCardRun('goodhue-complex', true);
+    const truePaths = run.card.population.paths.filter((p) => p.value !== 0);
+    const power = (e: string, n: number) =>
+      truePaths
+        .map((p) => run.row(e, `path:${p.from}:${p.to}`, n).rejection!)
+        .reduce((t, v) => t + v / truePaths.length, 0);
+    const relBias = (e: string, key: string, n: number) => {
+      const r = run.row(e, key, n);
+      return (r.mean - r.param.value) / r.param.value;
+    };
+    against({
+      label:
+        'Goodhue et al. (2012), Study 4: Ksi3 → Eta3 power at N = 40 PLS 59%, LISREL 53%; average power over the seven true paths at N = 40 regression 41.2%, PLS and LISREL 43.0%; Figure 6, relative bias of Ksi3 → Eta3 at N = 150 regression −.15, PLS −.12, LISREL 0',
+      level: 'published',
+      url: 'https://doi.org/10.2307/41703490',
+    });
+    near(
+      'PLS Ksi3 → Eta3 power at N = 40',
+      run.row('PLS', 'path:Ksi3:Eta3', 40).rejection!,
+      0.59,
+      0.07,
+    );
+    near(
+      'ML Ksi3 → Eta3 power at N = 40',
+      run.row('CB-ML', 'path:Ksi3:Eta3', 40).rejection!,
+      0.53,
+      0.08,
+    );
+    for (const [e, p] of [
+      ['PLS', 0.43],
+      ['Sum scores', 0.412],
+      ['CB-ML', 0.43],
+    ] as const)
+      near(`${e} average power at N = 40`, power(e, 40), p, 0.06);
+    near(
+      'regression relative bias at N = 150',
+      relBias('Sum scores', 'path:Ksi3:Eta3', 150),
+      -0.15,
+      0.03,
+    );
+    near('PLS relative bias at N = 150', relBias('PLS', 'path:Ksi3:Eta3', 150), -0.12, 0.03);
+    near('ML relative bias at N = 150', relBias('CB-ML', 'path:Ksi3:Eta3', 150), 0, 0.02);
+    // (lavaan converges in few samples of 20 for 21 indicators; LISREL failed in 99 of 500)
+    expect(run.row('CB-ML', 'path:Ksi3:Eta3', 20).failed).toBeGreaterThan(99);
+    for (const e of ['PLS', 'Sum scores', 'CB-ML'])
+      expect(
+        run.row(e, 'path:Ksi3:Eta4', 150).rejection!,
+        `${e} false positives at N = 150`,
+      ).toBeLessThan(0.1);
+  },
+  3_600_000,
+);
+
+slowIt(
+  'kock-hadaya-sample-size: the weakest path decides the sample size; PLS attenuation pushes it above the inverse square root rule',
+  async () => {
+    const run = await mcCardRun('kock-hadaya-sample-size', true);
+    const weakest = (e: string, n: number) => run.row(e, 'path:CL:LO', n);
+    against({
+      label:
+        'Kock & Hadaya (2018), Table 4: for the weakest path .147 the inverse square root method gives N = 287 for power .80 (one-tailed 5%); with loadings .8 PLS attenuates the path (about .13), so power .80 needs more (here about 400)',
+      level: 'recovery',
+      url: 'https://doi.org/10.1111/isj.12131',
+    });
+    near('PLS power at N = 300', weakest('PLS', 300).rejection!, 0.72, 0.05);
+    near('PLS power at N = 400', weakest('PLS', 400).rejection!, 0.79, 0.05);
+    expect(weakest('PLS', 300).rejection!, 'below .80 at the rule’s 287').toBeLessThan(0.8);
+    near('PLS power at N = 100', weakest('PLS', 100).rejection!, 0.37, 0.05);
+    near('PLS estimate', weakest('PLS', 400).mean, 0.127, 0.012);
+    near('PLSc estimate', weakest('PLSc', 400).mean, 0.147, 0.012);
+  },
+  3_600_000,
+);
+
+slowIt(
+  'aguirre cards: PLS composite reliability overstates the reliability of its own composites (Table 3)',
+  async () => {
+    const source = {
+      label:
+        'Aguirre-Urreta et al. (2013), Table 3, three indicators, N = 100: PLS CR .792 / .771 / .850 against the composites’ true reliability .617 / .631 / .737 (loadings around .6), .669 / .634 against .323 / .325 (around .4)',
+      level: 'published',
+      url: 'https://doi.org/10.1145/2544415.2544417',
+    } as const;
+    const medium = await mcCardRun('aguirre-reliability-medium');
+    against(source);
+    const m = (key: string) => medium.row('PLS', key, 100).mean;
+    near('medium: ρc of X', m('validity:cr:X'), 0.792, 0.02);
+    near('medium: ρc of Z', m('validity:cr:Z'), 0.771, 0.02);
+    near('medium: ρc of Y', m('validity:cr:Y'), 0.85, 0.02);
+    near('medium: true reliability of X', m('reliability:X'), 0.617, 0.02);
+    near('medium: true reliability of Z', m('reliability:Z'), 0.631, 0.02);
+    near('medium: true reliability of Y', m('reliability:Y'), 0.737, 0.02);
+    const low = await mcCardRun('aguirre-reliability-low');
+    against(source);
+    const l = (key: string) => low.row('PLS', key, 100).mean;
+    near('low: ρc of X', l('validity:cr:X'), 0.669, 0.02);
+    near('low: ρc of Z', l('validity:cr:Z'), 0.634, 0.04);
+    near('low: true reliability of X', l('reliability:X'), 0.323, 0.02);
+    near('low: true reliability of Z', l('reliability:Z'), 0.325, 0.02);
+    // ρc passes .70 in about a third of samples for X while the composite is about .35 reliable
+    near(
+      'low: X failing ρc .70 at N = 500',
+      low.row('PLS', 'validity:cr:X', 500).rejection!,
+      0.54,
+      0.06,
+    );
+  },
+  7_200_000,
+);
+
+slowIt(
+  'wolf cards: weak loadings need N near 400, the indirect effect near 180, single indicators attenuate',
+  async () => {
+    const source = {
+      label:
+        'Wolf et al. (2013): minimum N 460 for two factors with three indicators of loading .5; 180 for the mediation model with paths .40 (power for the indirect effect .61 / .83 at N = 140 / 180); single indicators of reliability .42: estimate .17, power .68 at N = 180',
+      level: 'recovery',
+      url: 'https://doi.org/10.1177/0013164413495237',
+    } as const;
+    const cfa = await mcCardRun('wolf-cfa-weak');
+    against(source);
+    const phi = (n: number) => cfa.row('CB-ML', 'cov:F1:F2', n);
+    near('CFA: correlation estimate', phi(460).mean, 0.3, 0.01);
+    expect(phi(340).rejection!, 'below .80 at 340').toBeLessThan(0.8);
+    expect(phi(460).rejection!, 'above .80 at 460').toBeGreaterThan(0.8);
+    near('CFA: χ² Type I error', cfa.row('CB-ML', 'fit:chisq', 400).rejection!, 0.05, 0.025);
+    const mediation = await mcCardRun('wolf-mediation');
+    against(source);
+    const indirect = (n: number) => mediation.row('CB-ML', 'indirect:F1:F3', n);
+    near('mediation: indirect effect', indirect(180).mean, 0.16, 0.008);
+    expect(indirect(140).rejection!, 'indirect below .80 at 140').toBeLessThan(0.8);
+    expect(indirect(180).rejection!, 'indirect above .80 at 180').toBeGreaterThan(0.8);
+    near(
+      'mediation: direct path power at 180',
+      mediation.row('CB-ML', 'path:F1:F3', 180).rejection!,
+      0.91,
+      0.04,
+    );
+    const single = await mcCardRun('wolf-single-indicator');
+    against(source);
+    near('single: F1 → F2 estimate', single.row('CB-ML', 'path:F1:F2', 180).mean, 0.17, 0.015);
+    near(
+      'single: F1 → F2 power at 180',
+      single.row('CB-ML', 'path:F1:F2', 180).rejection!,
+      0.68,
+      0.06,
+    );
+    near('single: indirect effect', single.row('CB-ML', 'indirect:F1:F3', 180).mean, 0.034, 0.01);
+  },
+  7_200_000,
+);
+
+slowIt(
+  'curran cards: ML χ² rejects a correct model under severe non-normality, Satorra–Bentler does not; power against cross-loadings (Tables 3 and 4)',
+  async () => {
+    const source = {
+      label:
+        'Curran et al. (1996): Model 1, severe non-normality, N = 100 / 1,000: ML rejects 30% / 48%, Satorra–Bentler 13% / 7%; Model 3 (omitted cross-loadings), normal data, N = 100 / 200: ML 54.3% / 88.1%, SB 57.9% / 89.9%',
+      level: 'published',
+      url: 'https://doi.org/10.1037/1082-989X.1.1.16',
+    } as const;
+    const severe = await mcCardRun('curran-nonnormal');
+    against(source);
+    const chi = (e: string, n: number) => severe.row(e, 'fit:chisq', n).rejection!;
+    near('ML rejects at N = 1,000', chi('CB-ML', 1000), 0.48, 0.07);
+    near('ML rejects at N = 100', chi('CB-ML', 100), 0.3, 0.1);
+    near('SB rejects at N = 100', chi('CB-MLM', 100), 0.13, 0.05);
+    near('SB rejects at N = 1,000', chi('CB-MLM', 1000), 0.07, 0.04);
+    const cross = await mcCardRun('curran-misspecified');
+    against(source);
+    const power = (e: string, n: number) => cross.row(e, 'fit:chisq', n).rejection!;
+    near('ML power at N = 100', power('CB-ML', 100), 0.543, 0.07);
+    near('ML power at N = 200', power('CB-ML', 200), 0.881, 0.06);
+    near('SB power at N = 200', power('CB-MLM', 200), 0.899, 0.07);
+    same('ML power at N = 500', power('CB-ML', 500), 1);
+  },
+  7_200_000,
+);
+
+slowIt(
+  'hu-bentler cards: the cutoffs keep the true model; RMSEA and χ² catch the omitted cross-loading, SRMR rarely (Table 2)',
+  async () => {
+    const source = {
+      label:
+        'Hu & Bentler (1999), simple true model: rejection by SRMR > .08 6.8% / 0.3% / 0% at N ≤ 250 / 500 / ≥ 1,000 (pooled over seven distributions; under normality about 0); Complex Misspecified I: SRMR 36.5% / 10.6% / 0.9%, RMSEA > .06 91.6% / 97.7% / 99.8%',
+      level: 'recovery',
+      url: 'https://doi.org/10.1080/10705519909540118',
+    } as const;
+    const right = await mcCardRun('hu-bentler-true');
+    against(source);
+    for (const n of [150, 1000]) {
+      same(`true: SRMR rejects at N = ${n}`, right.row('CB-ML', 'fit:srmr', n).rejection!, 0);
+      same(`true: RMSEA rejects at N = ${n}`, right.row('CB-ML', 'fit:rmsea', n).rejection!, 0);
+    }
+    near(
+      'true: χ² Type I error at N = 500',
+      right.row('CB-ML', 'fit:chisq', 500).rejection!,
+      0.05,
+      0.035,
+    );
+    const wrong = await mcCardRun('hu-bentler-cross');
+    against(source);
+    const rejects = (key: string, n: number) => wrong.row('CB-ML', key, n).rejection!;
+    near('cross: SRMR rejects at N = 150', rejects('fit:srmr', 150), 0.3, 0.12);
+    same('cross: SRMR rejects at N = 1,000', rejects('fit:srmr', 1000), 0);
+    expect(rejects('fit:rmsea', 150), 'RMSEA catches it at 150').toBeGreaterThan(0.7);
+    expect(rejects('fit:rmsea', 1000), 'RMSEA catches it at 1,000').toBeGreaterThan(0.95);
+    expect(rejects('fit:chisq', 150), 'χ² catches it').toBeGreaterThan(0.95);
+  },
+  7_200_000,
+);
