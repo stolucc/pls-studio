@@ -481,6 +481,37 @@ it('two groups (Qureshi & Compeau 2009): PLS and CB-SEM estimate and test each p
   }
 }, 900_000);
 
+it('PLSc with BCa: a replication whose bootstrap has too few admissible draws keeps its estimate', async () => {
+  const factor = (name: string, p: string) => ({
+    name,
+    type: 'factor' as const,
+    indicators: [1, 2, 3].map((i) => `${p}${i}`),
+    loadings: [0.7, 0.8, 0.9],
+  });
+  // (K4 affects nothing and correlates with nothing: its weights are undetermined, most PLSc solutions and
+  // bootstrap draws inadmissible; with 20 draws cSEM's resampling often keeps fewer than two)
+  const d: McDesign = {
+    ...design,
+    population: {
+      constructs: [factor('K1', 'k'), factor('K4', 'q'), factor('E1', 'e')],
+      paths: [
+        { from: 'K1', to: 'E1', value: 0.5 },
+        { from: 'K4', to: 'E1', value: 0 },
+      ],
+      exoCor: [],
+    },
+    estimators: [{ id: 'PLSc', method: 'pls', consistent: true }],
+    inference: { signChange: 'none', interval: 'bca' },
+    sampleSizes: [50],
+    replications: 8,
+    bootSamples: 20,
+  };
+  const rows = summariseMc(d, [await runMcChunkR(d, 50, 0, 8)]);
+  const k1 = rows.find((r) => r.param.key === 'path:K1:E1')!;
+  expect(k1.failed).toBe(0);
+  expect(k1.reps).toBe(8);
+}, 900_000);
+
 it('PLS with bootstrap: each replication’s bootstrap SE, set against the SD of the estimates', async () => {
   const factor = (name: string, p: string) => ({
     name,
@@ -592,7 +623,7 @@ it('counts inadmissible PLSc solutions by cSEM::verify; PLS composites never are
   expect(at('PLSc').improper).toBeGreaterThan(0);
 }, 900_000);
 
-it('bootstrap tests (Rönkkö, McIntosh & Antonakis 2015): R and the built-in engine agree, BCa from cSEM', async () => {
+it('bootstrap tests (Rönkkö, McIntosh & Antonakis 2015): R and the built-in engine agree, BCa from the jackknife', async () => {
   // PLS mode A, a null path between two constructs, n = 100: the basic interval rejects far too often; the
   // individual sign-change correction makes the percentile interval reject (nearly) always.
   const paid = (
@@ -629,14 +660,12 @@ it('bootstrap tests (Rönkkö, McIntosh & Antonakis 2015): R and the built-in en
   // (coverage is of the chosen interval, BCa)
   expect(r.coverage).toBeCloseTo(1 - r.tests!.bca!, 10);
 
-  // The app's bootstrap loop (pls_boot: cSEM's estimation per draw, without its per-draw summaries) against
-  // cSEM's own resampling (which BCa keeps) on the same 40 samples: the same tests up to bootstrap error.
+  // BCa adds the jackknife to the same bootstrap draws (pls_boot): every other test is the same whichever
+  // interval is chosen.
   const own = paid('none', 'percentile');
   const ro = summariseMc(own, [await runMcChunkR(own, 100, 0, 40)])[0];
   for (const t of ['t', 'normal', 'basic', 'percentile'] as const)
-    expect(Math.abs(ro.tests![t]! - r.tests![t]!), `${t}: own loop vs cSEM's`).toBeLessThanOrEqual(
-      0.1,
-    );
+    expect(ro.tests![t], `${t}: the same draws`).toBeCloseTo(r.tests![t]!, 12);
   expect(ro.mean).toBeCloseTo(r.mean, 12);
 
   const individual = paid('individual', 'percentile');

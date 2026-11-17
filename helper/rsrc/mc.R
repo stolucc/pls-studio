@@ -247,21 +247,8 @@ ps_mc_body <- function(req) {
       ))
     }
     if (e$method == "pls") {
-      # BCa: cSEM's own resampling (its acceleration needs cSEM's resample structure); otherwise pls_boot
-      # resamples (the same estimation per draw, without cSEM's per-draw summaries).
-      cSEM_boot <- req$bootSamples > 0 && interval == "bca"
-      boot <- if (cSEM_boot) {
-        sprintf(
-          ", .resample_method = \"bootstrap\", .R = %d, .seed = boot_seed, .sign_change_option = \"%s\"",
-          as.integer(req$bootSamples),
-          sign_change
-        )
-      } else {
-        ""
-      }
-      own_boot <- if (req$bootSamples > 0 && !cSEM_boot) sprintf(", boot = %d, seed = boot_seed", as.integer(req$bootSamples)) else ""
-      # (HTMT inference resamples the cases itself, whoever bootstraps the estimates)
-      if (cSEM_boot) own_boot <- sprintf(", htmt_boot = %d, seed = boot_seed", as.integer(req$bootSamples))
+      # Bootstrap draws (pls_boot) for every interval; BCa adds the jackknife (pls_jack) in pls_stats.
+      own_boot <- if (req$bootSamples > 0) sprintf(", boot = %d, seed = boot_seed", as.integer(req$bootSamples)) else ""
       # Every construct in one outer mode (unit: sum scores), else cSEM's default (=~ mode A, <~ mode B).
       modes <- c(A = "modeA", B = "modeB", unit = "unit")
       # (mode and scheme are checked by ps_validate; the lookups only ever give these fixed strings)
@@ -286,13 +273,12 @@ ps_mc_body <- function(req) {
         ))
       }
       sprintf(
-        "  res[%d] <- list(tryCatch(pls_stats(csem(data_pls, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"%s\"%s%s%s)%s), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL }))",
+        "  res[%d] <- list(tryCatch(pls_stats(csem(data_pls, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"%s\"%s%s)%s), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL }))",
         ei,
         if (isTRUE(e$consistent)) "TRUE" else "FALSE",
         scheme,
         approach,
         mode,
-        boot,
         own_boot
       )
     } else if (mg) {
@@ -464,7 +450,7 @@ ps_mc_body <- function(req) {
     "boot_tests <- function(x, v, n_cases, bca) {",
     "  se <- stats::sd(x); q <- stats::quantile(x, c(alpha / 2, 1 - alpha / 2), names = FALSE)",
     "  z <- stats::qnorm(1 - alpha / 2); b <- mean(x) - v",
-    "  ci <- list(normal = c(v - b - z * se, v - b + z * se), basic = c(2 * v - q[2], 2 * v - q[1]), percentile = q, bca = bca)",
+    "  ci <- list(normal = c(v - b - z * se, v - b + z * se), basic = c(2 * v - q[2], 2 * v - q[1]), percentile = q, bca = if (is.null(bca)) c(NA, NA) else bca)",
     "  ex0 <- function(i) if (length(i) == 2 && all(is.finite(i))) as.numeric(i[1] > 0 || i[2] < 0) else NA",
     "  t <- if (se > 0) as.numeric(2 * stats::pt(-abs(v / se), n_cases - 1) < alpha) else NA",
     "  list(ci = ci, reject = c(t = t, normal = ex0(ci$normal), basic = ex0(ci$basic), percentile = ex0(ci$percentile), bca = ex0(ci$bca)))",
@@ -501,6 +487,33 @@ ps_mc_body <- function(req) {
     "  })",
     "  Filter(Negate(is.null), draws)",
     "}",
+    "# The jackknife of a PLS fit for BCa: each case left out once, every finite estimate kept (as boot's BCa with",
+    "# jackknife influence values, Aguirre-Urreta & Ronkko 2018, and the built-in engine), not only admissible ones:",
+    "# a borderline sample leaves almost every case-deleted fit inadmissible, and the acceleration needs them all.",
+    "pls_jack <- function(fit) {",
+    "  args <- fit$Information$Arguments",
+    "  args <- args[intersect(names(args), names(formals(cSEM:::foreman)))]",
+    "  X <- args$.data",
+    "  jack <- lapply(seq_len(nrow(X)), function(i) {",
+    "    a <- args",
+    "    a$.data <- X[-i, , drop = FALSE]",
+    "    est <- tryCatch(do.call(cSEM:::foreman, a), error = function(e) NULL)",
+    "    if (is.null(est)) NULL else effects(t(path_matrix(est)))",
+    "  })",
+    "  Filter(Negate(is.null), jack)",
+    "}",
+    "# BCa: percentile levels shifted by the bias z0 (share of draws below the estimate) and the acceleration a",
+    "# (skewness of the jackknife estimates), as bootstrap.ts summarise.",
+    "bca_interval <- function(x, v, jx) {",
+    "  jx <- jx[is.finite(jx)]",
+    "  if (length(jx) < 2) return(c(NA, NA))",
+    "  B <- length(x)",
+    "  z0 <- stats::qnorm(min(B / (B + 1), max(1 / (B + 1), mean(x < v))))",
+    "  d <- mean(jx) - jx",
+    "  acc <- if (sum(d^2) > 0) sum(d^3) / (6 * sum(d^2)^1.5) else 0",
+    "  adj <- function(z) stats::pnorm(z0 + (z0 + z) / (1 - acc * (z0 + z)))",
+    "  stats::quantile(x, c(adj(stats::qnorm(alpha / 2)), adj(stats::qnorm(1 - alpha / 2))), names = FALSE)",
+    "}",
     "# PLS: path and indirect estimates; with bootstrap draws (pls_boot, or cSEM's own for BCa), the tests and the",
     "# chosen interval.",
     "pls_stats <- function(fit, boot = 0, seed = NULL, htmt_boot = boot) {",
@@ -508,15 +521,7 @@ ps_mc_body <- function(req) {
     "  P <- t(path_matrix(fit)); E <- effects(P)",
     "  # (no path or indirect effect to test, as in a model without paths: no bootstrap of the estimates)",
     "  draws <- if (boot > 0 && any(params$kind %in% c('path', 'indirect'))) pls_boot(fit, boot, seed) else NULL",
-    "  r <- fit$Estimates$Estimates_resample$Estimates1",
-    "  # Individual sign-change correction: every draw takes the sign of the original estimate, |draw| * sign(estimate)",
-    "  if (!is.null(r) && individual) {",
-    "    for (q in c('Path_estimates', 'Indirect_effect')) {",
-    "      if (length(r[[q]]$Original)) r[[q]]$Resampled <- sweep(abs(r[[q]]$Resampled), 2, sign(r[[q]]$Original), `*`)",
-    "    }",
-    "    fit$Estimates$Estimates_resample$Estimates1 <- r",
-    "  }",
-    "  bca <- if (!is.null(r) && interval == 'bca') cSEM::infer(fit, .quantity = 'CI_bca', .alpha = alpha) else NULL",
+    "  jack <- if (!is.null(draws) && interval == 'bca') pls_jack(fit) else NULL",
     "  n_cases <- nrow(fit$Information$Data)",
     "  R_ind <- if (any(params$kind == 'validity')) stats::cor(fit$Information$Data) else NULL",
     "  rows <- lapply(seq_len(nrow(params)), function(k) {",
@@ -534,16 +539,13 @@ ps_mc_body <- function(req) {
     "    if (params$kind[k] == 'covariance') return(list(values = c(fit$Estimates$Construct_VCV[params$from[k], params$to[k]], NA, NA, NA), tests = none$tests))",
     "    path <- params$kind[k] == 'path'",
     "    v <- if (path) E$direct[params$from[k], params$to[k]] else E$indirect[params$from[k], params$to[k]]",
-    "    if (is.null(r) && is.null(draws)) return(list(values = c(v, NA, NA, NA), tests = none$tests))",
-    "    nm <- paste(params$to[k], '~', params$from[k])",
-    "    x <- if (!is.null(draws)) {",
-    "      effect <- if (path) 'direct' else 'indirect'",
-    "      x <- vapply(draws, function(D) D[[effect]][params$from[k], params$to[k]], 0)",
-    "      if (individual) abs(x) * sign(v) else x",
-    "    } else if (path) r$Path_estimates$Resampled[, nm] else r$Indirect_effect$Resampled[, nm]",
+    "    if (is.null(draws)) return(list(values = c(v, NA, NA, NA), tests = none$tests))",
+    "    effect <- if (path) 'direct' else 'indirect'",
+    "    x <- vapply(draws, function(D) D[[effect]][params$from[k], params$to[k]], 0)",
+    "    if (individual) x <- abs(x) * sign(v)",
     "    x <- x[is.finite(x)]",
     "    if (length(x) < 2) return(list(values = c(v, NA, NA, NA), tests = none$tests))",
-    "    b <- if (is.null(bca)) NULL else if (path) bca$Path_estimates$CI_bca[, nm] else bca$Indirect_effect$CI_bca[, nm]",
+    "    b <- if (is.null(jack)) NULL else bca_interval(x, v, vapply(jack, function(D) D[[effect]][params$from[k], params$to[k]], 0))",
     "    res <- boot_tests(x, v, n_cases, b)",
     "    # (se: the bootstrap SE, set against the Monte Carlo SD of the estimates in the summary)",
     "    list(values = c(v, res$ci[[interval]], res$reject[[interval]]), tests = unname(res$reject), se = stats::sd(x))",
