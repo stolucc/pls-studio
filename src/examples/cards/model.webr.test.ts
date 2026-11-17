@@ -605,11 +605,18 @@ slowIt(
   1_800_000,
 );
 
-/** A Monte Carlo card's design run in R, all its replications, without the bootstrap unless `boot`. */
-async function mcCardRun(id: string, boot = false) {
+/**
+ * A Monte Carlo card's design run in R, all its replications, without the bootstrap unless `boot`, at the
+ * card's sample sizes or `sizes`.
+ */
+async function mcCardRun(id: string, boot = false, sizes?: number[]) {
   const { options } = await open(id, 'Simulation', ['cSEM', 'lavaan']);
   const card = options as McDesign;
-  const design: McDesign = boot ? card : { ...card, bootSamples: 0 };
+  const design: McDesign = {
+    ...card,
+    bootSamples: boot ? card.bootSamples : 0,
+    sampleSizes: sizes ?? card.sampleSizes,
+  };
   // (all chunks at once: the native R pool runs them on its workers, in order of the request)
   const chunks = design.sampleSizes.flatMap((n) =>
     Array.from({ length: Math.ceil(design.replications / 100) }, (_, c) => ({ n, s: 100 * c })),
@@ -1352,4 +1359,112 @@ slowIt(
     expect(run.row('CB-GLS', 'path:X1:Y4', 100).failed).toBeLessThan(60);
   },
   3_600_000,
+);
+
+slowIt(
+  'hair-mirror cards: PLS and GSCA consistent on composites, sum scores only with equal weights (Figures 3 and 4)',
+  async () => {
+    const level = { level: 'published' as const, url: 'https://doi.org/10.1007/s11747-017-0517-x' };
+    const unequal = await mcCardRun('hair-mirror-unequal');
+    against({
+      ...level,
+      label:
+        'Hair et al. (2017), Figure 4, unequal weights, 4 indicators: MAE of the paths at N = 100 / 10,000, PLS .077 / .007, GSCA .078 / .007, sum scores .089 / .053',
+    });
+    for (const e of ['PLS', 'GSCA']) {
+      near(`${e} at N = 100`, pathMae(unequal, e, 100), 0.072, 0.012);
+      near(`${e} at N = 10,000`, pathMae(unequal, e, 10000), 0.007, 0.003);
+    }
+    near('sum scores at N = 100', pathMae(unequal, 'Sum scores', 100), 0.088, 0.012);
+    near('sum scores at N = 10,000', pathMae(unequal, 'Sum scores', 10000), 0.053, 0.006);
+
+    const equal = await mcCardRun('hair-mirror-equal');
+    against({
+      ...level,
+      label:
+        'Hair et al. (2017), Figure 4, equal weights, 8 indicators: at N = 100 sum scores the most accurate (.066 against PLS .086, GSCA .093); all three .007 at N = 10,000',
+    });
+    expect(pathMae(equal, 'Sum scores', 100)).toBeLessThan(pathMae(equal, 'PLS', 100) - 0.01);
+    expect(pathMae(equal, 'PLS', 100)).toBeLessThan(pathMae(equal, 'GSCA', 100) + 0.005);
+    for (const e of ['PLS', 'GSCA', 'Sum scores'])
+      near(`${e} at N = 10,000`, pathMae(equal, e, 10000), 0.007, 0.003);
+
+    // Power for the weak (.15) paths at N = 100, with the card's bootstrap: GSCA the least
+    const boot = await mcCardRun('hair-mirror-unequal', true, [100]);
+    const low = (e: string) =>
+      ['path:Y1:Y3', 'path:Y1:Y4', 'path:Y7:Y6']
+        .map((k) => boot.row(e, k, 100).rejection!)
+        .reduce((t, v) => t + v / 3, 0);
+    against({
+      ...level,
+      label:
+        'Hair et al. (2017), Table A2, unequal weights, 4 indicators, N = 100: power for the .15 paths PLS .70, sum scores .63, GSCA .41 (here: GSCA the least; the paper’s levels pool its non-normal data and its test is not stated)',
+    });
+    expect(low('GSCA')).toBeLessThan(low('PLS') - 0.08);
+    expect(low('GSCA')).toBeLessThan(low('Sum scores') - 0.08);
+  },
+  14_400_000,
+);
+
+slowIt(
+  'hwang-gsca-misspecified: left-out cross-loadings bias ML SEM more than PLS and GSCA (Figure 4)',
+  async () => {
+    const run = await mcCardRun('hwang-gsca-misspecified');
+    against({
+      label:
+        'Hwang et al. (2010), Figure 4, misspecified model: ML (CSA) overestimates the paths (about +9.5% on average), PLS and GSCA underestimate them slightly (about −5%); parameter MAD GSCA .13, PLS .14, CSA .18',
+      level: 'published',
+      url: 'https://doi.org/10.1509/jmkr.47.4.699',
+    });
+    for (const n of [100, 500]) {
+      near(`ML E1 → E2 at N = ${n}`, run.row('CB-ML', 'path:E1:E2', n).mean, 0.66, 0.025);
+      expect(run.row('CB-ML', 'path:E2:E3', n).mean).toBeGreaterThan(0.8);
+      for (const e of ['PLS', 'GSCA']) {
+        near(`${e} E1 → E2 at N = ${n}`, run.row(e, 'path:E1:E2', n).mean, 0.52, 0.02);
+        near(`${e} E1 → E3 at N = ${n}`, run.row(e, 'path:E1:E3', n).mean, 0, 0.025);
+        expect(pathMae(run, e, n), `${e} more accurate than ML`).toBeLessThan(
+          pathMae(run, 'CB-ML', n),
+        );
+      }
+    }
+    expect(run.row('CB-ML', 'path:E1:E3', 500).rejection!).toBeGreaterThan(0.4);
+  },
+  3_600_000,
+);
+
+slowIt(
+  'cho cards: ML SEM best on factors, PLS and GSCA on components, ML improper on components (Figures 2 and 3, Table 1)',
+  async () => {
+    const level = { level: 'published' as const, url: 'https://doi.org/10.1111/bmsp.12255' };
+    const components = await mcCardRun('cho-components');
+    against({
+      ...level,
+      label:
+        'Cho, Sarstedt & Hwang (2022), Table S5, component population, simple model, 3 indicators: MAE of the paths at N = 100 / 200, GSCA .07 / .05, PLS mode A .08 / .05, MLF .26 / .25; Table 1: MLF has convergence problems (improper solutions) in most component samples with 3 indicators',
+    });
+    for (const e of ['PLS mode A', 'PLS mode B', 'GSCA']) {
+      near(`${e} at N = 100`, pathMae(components, e, 100), 0.075, 0.015);
+      near(`${e} at N = 200`, pathMae(components, e, 200), 0.05, 0.01);
+      same(`${e} improper at N = 100`, components.row(e, 'path:E1:E3', 100).improper, 0);
+    }
+    for (const n of [100, 1000]) {
+      expect(pathMae(components, 'CB-ML', n)).toBeGreaterThan(0.25);
+      const r = components.row('CB-ML', 'path:E1:E3', n);
+      expect((r.improper + r.failed) / r.reps, `ML problems at N = ${n}`).toBeGreaterThan(0.3);
+    }
+
+    const factors = await mcCardRun('cho-factors');
+    against({
+      ...level,
+      label:
+        'Cho, Sarstedt & Hwang (2022), Figure 3, factor population by N = 100 / 200 / 500 / 1,000: MAE of the paths MLF .095 / .065 / .04 / .03; GSCA and PLS .095 / .08 / .07 / .068',
+    });
+    near('ML at N = 1,000', pathMae(factors, 'CB-ML', 1000), 0.03, 0.008);
+    near('ML at N = 200', pathMae(factors, 'CB-ML', 200), 0.068, 0.012);
+    for (const e of ['PLS mode A', 'GSCA']) {
+      near(`${e} at N = 1,000`, pathMae(factors, e, 1000), 0.066, 0.01);
+      expect(pathMae(factors, e, 1000)).toBeGreaterThan(2 * pathMae(factors, 'CB-ML', 1000));
+    }
+  },
+  7_200_000,
 );

@@ -69,6 +69,8 @@ export type McEstimator =
       mode?: Mode;
       /** Inner weighting scheme; omitted: path. */
       scheme?: WeightingScheme;
+      /** GSCA: generalized structured component analysis (Hwang & Takane 2004), cSEM only; omitted: PLS. */
+      approach?: 'GSCA';
     }
   | { id: string; method: 'cb'; estimator: CbEstimator }
   /** Regression on unit-weighted composites (dr: disattenuated), OLS t tests (mcRegression.ts). */
@@ -463,6 +465,8 @@ export function runMcTask(
     design.estimators.forEach((e, ei) => {
       try {
         if (e.method === 'pls') {
+          // (the card asks for the R engine first; simulation.tsx blocked)
+          if (e.approach === 'GSCA') throw new Error('GSCA is estimated by cSEM (R engine).');
           const opts = {
             ...DEFAULT_OPTIONS,
             consistent: e.consistent,

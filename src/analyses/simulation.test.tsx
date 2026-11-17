@@ -85,6 +85,24 @@ describe('Monte Carlo card', () => {
     expect(form(mixed)).toContain('Estimate every construct as a common factor');
   });
 
+  it('runs GSCA in R only (cSEM), and offers no switch to the built-in engine for it', async () => {
+    const { needsR } = await import('./simulation');
+    const d = t.defaults(ctx());
+    const gsca = {
+      ...d,
+      estimators: [
+        { id: 'GSCA', method: 'pls' as const, consistent: false, approach: 'GSCA' as const },
+      ],
+    };
+    expect(needsR(d)).toBe(false);
+    expect(needsR(gsca)).toBe(true);
+    const builtin = { ...DEFAULT_SETTINGS, engine: 'builtin' as const };
+    expect(t.blocked(gsca, ctx({ settings: builtin }))).toBe(
+      'GSCA is estimated by cSEM: choose the R engine.',
+    );
+    expect(t.blocked(gsca, ctx({ settings: { ...DEFAULT_SETTINGS, engine: 'r' } }))).toBeNull();
+  });
+
   it('lets a construct correlation reach 1 (one factor split in two)', () => {
     const d = t.defaults(ctx({ model: { ...model, paths: [] } }));
     const form = renderToStaticMarkup(

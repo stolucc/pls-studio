@@ -121,11 +121,15 @@ ps_mc_body <- function(req) {
       scheme <- schemes[[e$scheme %||% "path"]]
       # (no structural model: cSEM cannot weight by paths; factorial is what a single path between two would give)
       if (!length(spec$paths) && scheme == "path") scheme <- "factorial"
+      # (GSCA: cSEM's alternating least squares; the only other approach is none, PLS)
+      if (!is.null(e$approach) && !identical(e$approach, "GSCA")) stop("Invalid weighting approach in the request.")
+      approach <- if (identical(e$approach, "GSCA")) ", .approach_weights = \"GSCA\"" else ""
       sprintf(
-        "  res[%d] <- list(tryCatch(pls_stats(csem(data_pls, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"%s\"%s%s)%s), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL }))",
+        "  res[%d] <- list(tryCatch(pls_stats(csem(data_pls, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"%s\"%s%s%s)%s), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL }))",
         ei,
         if (isTRUE(e$consistent)) "TRUE" else "FALSE",
         scheme,
+        approach,
         mode,
         boot,
         own_boot

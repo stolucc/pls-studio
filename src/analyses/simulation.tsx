@@ -761,7 +761,12 @@ function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: Optio
                 />
               </label>
             ))}
-            {k.type === 'composite' && (
+            {k.type === 'composite' && k.withinMatrix && (
+              <span className="muted" title="The card's own correlation matrix of the indicators">
+                indicator r: a matrix
+              </span>
+            )}
+            {k.type === 'composite' && !k.withinMatrix && (
               <label>
                 <span>indicator r</span>
                 <Num
@@ -1096,6 +1101,14 @@ export function roughDuration(seconds: number): string {
   return `${h} h ${Math.round((seconds - h * 3600) / 60)} min`;
 }
 
+/** Whether the design has an estimator only the R engine runs (lavaan's WLSMV, cSEM's GSCA). */
+export const needsR = (d: McDesign) =>
+  d.estimators.some(
+    (e) =>
+      (e.method === 'cb' && e.estimator === 'WLSMV') ||
+      (e.method === 'pls' && e.approach === 'GSCA'),
+  );
+
 /**
  * Where R runs and how long it takes, and when the built-in engine would be much quicker (a long R run with
  * the bootstrap), the offer to switch: the same estimators, validated against the R packages.
@@ -1117,7 +1130,8 @@ export function McDuration({ design, engine }: { design: McDesign; engine: 'r' |
   const desktop = backend === 'helper' && state === 'ready' && info !== null;
   const sessions = desktop ? info.workers : browserSessions;
   const r = mcSeconds(design, desktop ? 'desktop' : 'browser', sessions);
-  const offer = r > 60 && builtin * 5 < r;
+  // (not for estimators only R has)
+  const offer = r > 60 && builtin * 5 < r && !needsR(design);
   return (
     <>
       {' '}
@@ -1699,6 +1713,8 @@ export const mcAnalysis: AnalysisType<McDesign, McSummaryRow[]> = {
     const wlsmv = d.estimators.some((e) => e.method === 'cb' && e.estimator === 'WLSMV');
     if (wlsmv && ctx.settings.engine !== 'r')
       return 'WLSMV is estimated by lavaan: choose the R engine.';
+    if (needsR(d) && ctx.settings.engine !== 'r')
+      return 'GSCA is estimated by cSEM: choose the R engine.';
     if (wlsmv && d.ordinal && d.missing && d.missing.rate > 0 && d.missing.cb === 'fiml')
       return 'lavaan has no FIML for ordinal indicators (WLSMV): choose casewise deletion for CB-SEM.';
     if (

@@ -257,3 +257,47 @@ describe('the reliability of a composite', () => {
     expect(population.indicatorCov[population.names.indexOf('y1')][0]).toBeCloseTo(0.7 * 0.5, 12);
   });
 });
+
+describe('a composite with its own indicator correlation matrix (Cho, Sarstedt & Hwang 2022)', () => {
+  // (Table S10: the block of three whose first principal component has loadings .6, .7, .8)
+  const S10 = [
+    [1, 0.1225, 0.2603],
+    [0.1225, 1, 0.3369],
+    [0.2603, 0.3369, 1],
+  ];
+  const spec = (within: number[][]): PopulationSpec => ({
+    constructs: [
+      {
+        name: 'A',
+        type: 'composite',
+        indicators: ['a1', 'a2', 'a3'],
+        weights: [0.4027, 0.4698, 0.5369],
+        withinMatrix: within,
+      },
+      { name: 'B', type: 'factor', indicators: ['b1', 'b2', 'b3'], loadings: [0.7, 0.7, 0.7] },
+    ],
+    paths: [{ from: 'A', to: 'B', value: 0.4 }],
+    exoCor: [],
+  });
+
+  it('takes the block as given, and the composite loadings Σw come out .6, .7, .8', () => {
+    const pop = buildPopulation(spec(S10));
+    for (let a = 0; a < 3; a++)
+      for (let d = 0; d < 3; d++) expect(pop.Sigma[a][d]).toBeCloseTo(S10[a][d], 12);
+    // cov(a_i, b_1) = λ_i · .4 · .7
+    [0.6, 0.7, 0.8].forEach((l, i) => expect(pop.Sigma[i][3]).toBeCloseTo(l * 0.4 * 0.7, 3));
+  });
+
+  it('refuses a matrix of the wrong size or without 1 on the diagonal', () => {
+    expect(() =>
+      buildPopulation(
+        spec([
+          [1, 0.2],
+          [0.2, 1],
+        ]),
+      ),
+    ).toThrow('3 × 3');
+    const half = S10.map((row, a) => row.map((v, d) => (a === d ? 0.5 : v)));
+    expect(() => buildPopulation(spec(half))).toThrow('1 on the diagonal');
+  });
+});

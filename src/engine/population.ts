@@ -22,6 +22,8 @@ export interface PopConstruct {
   weights?: number[];
   /** Composites: equal correlation among the block's indicators. */
   withinCor?: number;
+  /** Composites: the full correlation matrix of the block's indicators, in place of withinCor. */
+  withinMatrix?: number[][];
   /** Overrides of the population-wide indicator skewness / excess kurtosis. */
   skew?: number;
   kurtosis?: number;
@@ -159,7 +161,8 @@ export function buildPopulation(pop: PopulationSpec): Population {
       return null;
     }
     const r = c.withinCor ?? 0.5;
-    const R = b.map((_, a) => b.map((__, d) => (a === d ? 1 : r)));
+    const R = c.withinMatrix ?? b.map((_, a) => b.map((__, d) => (a === d ? 1 : r)));
+    if (c.withinMatrix) checkWithinMatrix(c.name, c.withinMatrix, b.length);
     const w0 = c.weights ?? b.map(() => 1);
     if (w0.length !== b.length) throw new Error(`"${c.name}" needs one weight per indicator.`);
     let v = 0;
@@ -353,6 +356,20 @@ export function blockMoments(pop: Population, j: number): { a: number[]; S: Mat 
     a: b.map((i) => pop.indicatorCov[i][j]),
     S: b.map((i) => b.map((k) => pop.Sigma[i][k])),
   };
+}
+
+/** A composite's indicator correlation matrix: square, one row per indicator, symmetric, 1 on the diagonal. */
+function checkWithinMatrix(name: string, R: number[][], k: number) {
+  const square = R.length === k && R.every((row) => row.length === k);
+  if (!square) throw new Error(`"${name}" needs a ${k} × ${k} indicator correlation matrix.`);
+  for (let a = 0; a < k; a++)
+    for (let d = 0; d < k; d++) {
+      const ok = a === d ? R[a][d] === 1 : Math.abs(R[a][d]) < 1 && R[a][d] === R[d][a];
+      if (!ok)
+        throw new Error(
+          `The indicator correlation matrix of "${name}" must be symmetric with 1 on the diagonal.`,
+        );
+    }
 }
 
 /** Reliability of construct j's composite with weights w (in the order of its block). */

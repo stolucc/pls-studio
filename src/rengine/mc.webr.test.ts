@@ -308,6 +308,44 @@ it('a composite population estimated as common factors: PLSc corrects the compos
   );
 }, 900_000);
 
+it('GSCA (cSEM) estimates the paths of a composite population as PLS mode B does', async () => {
+  const block = (name: string, p: string) => ({
+    name,
+    type: 'composite' as const,
+    indicators: [1, 2, 3, 4].map((i) => `${p}${i}`),
+    weights: [0.1, 0.3, 0.5, 0.7],
+    withinCor: 0.3,
+  });
+  const d: McDesign = {
+    ...design,
+    population: {
+      constructs: [block('A', 'a'), block('B', 'b'), block('C', 'c')],
+      paths: [
+        { from: 'A', to: 'B', value: 0.5 },
+        { from: 'B', to: 'C', value: 0.3 },
+      ],
+      exoCor: [],
+    },
+    estimators: [
+      { id: 'PLS', method: 'pls', consistent: false },
+      { id: 'GSCA', method: 'pls', consistent: false, approach: 'GSCA' },
+    ],
+    sampleSizes: [500],
+    replications: 40,
+    bootSamples: 0,
+  };
+  const rows = summariseMc(d, [await runMcChunkR(d, 500, 0, 40)]);
+  const at = (e: string, key: string) =>
+    rows.find((x) => x.estimator === e && x.param.key === key)!;
+  for (const key of ['path:A:B', 'path:B:C']) {
+    const gsca = at('GSCA', key);
+    expect(gsca.failed, key).toBe(0);
+    // (consistent on composites: the mean within Monte Carlo error of the true value, and of PLS mode B's)
+    expect(Math.abs(gsca.mean - gsca.param.value), key).toBeLessThan(0.03);
+    expect(Math.abs(gsca.mean - at('PLS', key).mean), key).toBeLessThan(0.03);
+  }
+}, 900_000);
+
 it('skewed indicators: Fleishman per indicator lowers the paths, as in the built-in engine; Vale–Maurelli does not', async () => {
   const skewed = (nonnormal?: 'fleishman'): McDesign => ({
     ...design,

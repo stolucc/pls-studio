@@ -793,3 +793,28 @@ describe('a composite population estimated as common factors (Sarstedt et al. 20
     near(row(run(design(), 1), 'PLSc', 'path:A:B').mean, 0.5, 0.03);
   });
 });
+
+it('leaves GSCA to the R engine: built in, every replication fails', () => {
+  const block = (name: string, p: string) => ({
+    name,
+    type: 'composite' as const,
+    indicators: [1, 2, 3].map((i) => `${p}${i}`),
+    weights: [1, 1, 1],
+    withinCor: 0.4,
+  });
+  const design: McDesign = {
+    population: {
+      constructs: [block('A', 'a'), block('B', 'b')],
+      paths: [{ from: 'A', to: 'B', value: 0.4 }],
+      exoCor: [],
+    },
+    estimators: [{ id: 'GSCA', method: 'pls', consistent: false, approach: 'GSCA' }],
+    sampleSizes: [100],
+    replications: 5,
+    seed: 1,
+    alpha: 0.05,
+    bootSamples: 0,
+    mcDraws: 0,
+  };
+  expect(row(run(design, 1), 'GSCA', 'path:A:B').failed).toBe(5);
+});

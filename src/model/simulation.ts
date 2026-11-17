@@ -18,6 +18,8 @@ export const ESTIMATOR_CHOICES: McEstimator[] = [
   // plspm's defaults, as Rönkkö & Evermann (2013) estimated PLS: centroid weighting with mode A or mode B.
   { id: 'PLS mode A, centroid', method: 'pls', consistent: false, mode: 'A', scheme: 'centroid' },
   { id: 'PLS mode B, centroid', method: 'pls', consistent: false, mode: 'B', scheme: 'centroid' },
+  // Generalized structured component analysis (Hwang & Takane 2004; Hair et al. 2017), by cSEM.
+  { id: 'GSCA', method: 'pls', consistent: false, approach: 'GSCA' },
   // Regression on summed scales, plain and disattenuated (Goodhue et al. 2012; Aguirre-Urreta et al. 2024).
   { id: 'Sum scores', method: 'regression', dr: false },
   { id: 'DR', method: 'regression', dr: true },
@@ -107,6 +109,21 @@ export const defaultDesign = (population: PopulationSpec): McDesign => ({
 
 const str = (v: unknown) => (typeof v === 'string' ? v.slice(0, 200) : '');
 
+/**
+ * A composite's indicator correlation matrix from a project file: kept when it is square with a row per
+ * indicator, symmetrised from its lower triangle, 1 on the diagonal; population.ts checks the rest.
+ */
+function withinMatrixOf(c: Record<string, unknown>): { withinMatrix?: number[][] } {
+  const m = c.withinMatrix;
+  const k = Array.isArray(c.indicators) ? c.indicators.length : 0;
+  if (!Array.isArray(m) || m.length !== k || k > 100) return {};
+  if (!m.every((row) => Array.isArray(row) && row.length === k)) return {};
+  const lower = (a: number, d: number) =>
+    clampStrict((m[Math.max(a, d)] as unknown[])[Math.min(a, d)], -0.99, 0.99, 0);
+  const withinMatrix = m.map((_, a) => m.map((__, d) => (a === d ? 1 : lower(a, d))));
+  return { withinMatrix };
+}
+
 /** Validate an untrusted design from a project file; null if unusable. */
 export function parseDesign(raw: unknown): McDesign | null {
   if (!isObj(raw) || !isObj(raw.population)) return null;
@@ -123,6 +140,7 @@ export function parseDesign(raw: unknown): McDesign | null {
       loadings: nums(c.loadings, -0.999, 0.999),
       weights: nums(c.weights, -100, 100),
       withinCor: c.withinCor === undefined ? undefined : clampStrict(c.withinCor, -0.99, 0.99, 0.5),
+      ...withinMatrixOf(c),
       ...(c.skew !== undefined ? { skew: clampStrict(c.skew, -5, 5, 0) } : {}),
       ...(c.kurtosis !== undefined ? { kurtosis: clampStrict(c.kurtosis, -1.2, 60, 0) } : {}),
     })),

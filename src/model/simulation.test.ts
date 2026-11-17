@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildPopulation } from '../engine/population';
-import { defaultDesign, parseDesign, populationFromModel } from './simulation';
+import { defaultDesign, ESTIMATOR_CHOICES, parseDesign, populationFromModel } from './simulation';
 import type { ModelState } from './project';
 
 const C = (
@@ -64,6 +64,38 @@ describe('simulation design', () => {
     expect(parseDesign(JSON.parse(JSON.stringify({ ...d, cbChecks: true })))!.cbChecks).toBe(true);
     expect(parseDesign({ ...d, cbChecks: 'yes' })!.cbChecks).toBeUndefined();
     expect(parseDesign(d)!.cbChecks).toBeUndefined();
+  });
+
+  it('keeps a composite’s indicator correlation matrix when it fits its block, symmetrised from the lower triangle', () => {
+    const d = defaultDesign(populationFromModel(model, null, null));
+    const block = {
+      name: 'A',
+      type: 'composite',
+      indicators: ['a1', 'a2', 'a3'],
+      weights: [1, 1, 1],
+      withinMatrix: [
+        [7, 0, 0],
+        [0.2, 1, 9],
+        [0.3, 0.4, 1],
+      ],
+    };
+    const keep = parseDesign({ ...d, population: { ...d.population, constructs: [block] } })!;
+    expect(keep.population.constructs[0].withinMatrix).toEqual([
+      [1, 0.2, 0.3],
+      [0.2, 1, 0.4],
+      [0.3, 0.4, 1],
+    ]);
+    const short = { ...block, withinMatrix: [[1]] };
+    const drop = parseDesign({ ...d, population: { ...d.population, constructs: [short] } })!;
+    expect(drop.population.constructs[0].withinMatrix).toBeUndefined();
+  });
+
+  it('offers GSCA among the estimators and keeps it through a project file', () => {
+    const d = defaultDesign(populationFromModel(model, null, null));
+    const gsca = ESTIMATOR_CHOICES.find((e) => e.id === 'GSCA')!;
+    expect(gsca).toEqual({ id: 'GSCA', method: 'pls', consistent: false, approach: 'GSCA' });
+    const parsed = parseDesign(JSON.parse(JSON.stringify({ ...d, estimators: [gsca] })))!;
+    expect(parsed.estimators).toEqual([gsca]);
   });
 
   it('keeps the common-factor estimation of a composite population only as a literal true', () => {

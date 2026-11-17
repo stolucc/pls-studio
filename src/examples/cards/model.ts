@@ -617,6 +617,168 @@ const sarstedtCard = (file: string, values: number[], withinCor?: number) => {
   };
 };
 
+/** What the Hair et al. (2017) cards take from the paper, and what is the app's. */
+const HAIR_MIRROR_DIFFERS =
+  'As in the paper: the population (Figure 2, the composite population of Sarstedt et al. 2016, whose weights Table A1 of the online appendix gives), normal data, N = 100, 250, 500, 1,000 and 10,000, 300 replications, and the three methods. The app’s choices: cSEM for PLS and GSCA where the paper used semPLS and ASGSCA; the paper names neither PLS’s mode nor its scheme (here mode B, which estimates a composite’s weights, with path weighting) nor its test (here 200 bootstrap samples, percentile intervals, α = .05); the correlations within a block are equal, at the value that gives the weights unit variance (the paper defers to Schuberth et al. 2016). The paper pools its normal and two non-normal distributions; the card is normal only. It reports the mean absolute error of the weights and of the paths; the card gives each path’s bias, RMSE and power, not the weights. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+
+const HAIR_MIRROR_RUN =
+  'The card simulates 300 samples at N = 100, 250, 500, 1,000 and 10,000, each estimated by PLS (mode B, cSEM), GSCA (cSEM) and regression on sum scores, with 200 bootstrap samples for the tests of PLS and GSCA.';
+
+const hairMirrorCard = (file: string, weights: number[], withinCor: number) => {
+  const block = (name: string) => items(`${name.toLowerCase()}_`, weights.length);
+  return {
+    package: 'cSEM' as const,
+    source:
+      'Hair, Hult, Ringle, Sarstedt & Thiele (2017), Mirror, mirror on the wall: a comparative evaluation of composite-based structural equation modeling methods, the simulation',
+    links: [{ label: 'Hair et al. (2017)', url: 'https://doi.org/10.1007/s11747-017-0517-x' }],
+    tags: COMPOSITE_DEBATE_TAGS,
+    data: {
+      package: 'cSEM' as const,
+      name: 'Hair et al. (2017), a sample of 250 (composites)',
+      file: `examples/montecarlo/${file}.csv`,
+    },
+    constructs: SARSTEDT_CONSTRUCTS.map((name) => c(name, block(name))),
+    paths: SARSTEDT_PATHS.map(([from, to]): [string, string] => [from, to]),
+    panel: {
+      kind: 'mc' as const,
+      population: sarstedtPopulation(weights, withinCor),
+      estimators: [
+        { id: 'PLS', method: 'pls', consistent: false },
+        { id: 'GSCA', method: 'pls', consistent: false, approach: 'GSCA' },
+        { id: 'Sum scores', method: 'regression', dr: false },
+      ],
+      sampleSizes: [100, 250, 500, 1000, 10000],
+      replications: 300,
+      seed: 2017,
+      alpha: 0.05,
+      bootSamples: 200,
+      mcDraws: 0,
+    },
+    settings: {
+      method: 'pls' as const,
+      plsPackage: 'cSEM' as const,
+      consistent: false,
+      scheme: 'path' as const,
+      missing: 'casewise' as const,
+      seed: 2017,
+    },
+  };
+};
+
+/**
+ * Hwang et al. (2010), Figure 1: a chain of three common factors (.6, .6) with three indicators each (loadings
+ * .7) and one cross-loading per factor (.21), which the estimated model leaves out; it adds the path η1 → η3,
+ * zero in the population.
+ */
+export const HWANG_POPULATION = {
+  constructs: [
+    { name: 'E1', type: 'factor', indicators: ['z1', 'z2', 'z3'], loadings: [0.7, 0.7, 0.7] },
+    { name: 'E2', type: 'factor', indicators: ['z4', 'z5', 'z6'], loadings: [0.7, 0.7, 0.7] },
+    { name: 'E3', type: 'factor', indicators: ['z7', 'z8', 'z9'], loadings: [0.7, 0.7, 0.7] },
+  ],
+  paths: [
+    { from: 'E1', to: 'E2', value: 0.6 },
+    { from: 'E2', to: 'E3', value: 0.6 },
+    { from: 'E1', to: 'E3', value: 0 },
+  ],
+  exoCor: [],
+  crossLoadings: [
+    { indicator: 'z4', construct: 'E1', value: 0.21 },
+    { indicator: 'z7', construct: 'E2', value: 0.21 },
+    { indicator: 'z6', construct: 'E3', value: 0.21 },
+  ],
+  skew: 0,
+  kurtosis: 0,
+};
+
+/**
+ * Cho, Sarstedt & Hwang (2022): the simple structural model (Cole & Preacher's Figure 3), four constructs of
+ * three indicators with loadings .6, .7, .8, as components (Cho & Choi's nomological components: Table S10's
+ * block, weights from its first principal component) or as common factors. The paper draws the paths at random
+ * for each sample; the cards fix one draw.
+ */
+const CHO_BLOCK = [
+  [1, 0.1225, 0.2603],
+  [0.1225, 1, 0.3369],
+  [0.2603, 0.3369, 1],
+];
+
+export const choPopulation = (component: boolean) => ({
+  constructs: ['E1', 'E2', 'E3', 'E4'].map((name) => ({
+    name,
+    type: component ? 'composite' : 'factor',
+    indicators: items(`${name.toLowerCase()}_`, 3),
+    ...(component
+      ? { weights: [0.4027, 0.4698, 0.5369], withinMatrix: CHO_BLOCK }
+      : { loadings: [0.6, 0.7, 0.8] }),
+  })),
+  paths: [
+    { from: 'E1', to: 'E3', value: 0.4 },
+    { from: 'E2', to: 'E3', value: 0.3 },
+    { from: 'E1', to: 'E4', value: 0.2 },
+    { from: 'E3', to: 'E4', value: 0.4 },
+  ],
+  exoCor: [{ a: 'E1', b: 'E2', value: 0.2 }],
+  skew: 0,
+  kurtosis: 0,
+});
+
+/** What the Cho et al. cards take from the paper, and what is the app's. */
+const CHO_DIFFERS =
+  'As in the paper: the simple structural model, three indicators per construct with loadings .6, .7 and .8, the component population’s block of indicator correlations (Table S10 of the supporting information), an exogenous correlation of .2, normal data, N = 100, 200, 500 and 1,000, and PLS (path weighting, mode A and mode B), GSCA and ML SEM, every construct estimated as the method has it. The app’s choices: cSEM and lavaan where the paper used its own MATLAB code and lavaan 0.5-16; the paper draws the paths at random from ±.1 to ±.6 for every sample (1,000 draws per cell) and averages over them, the card fixes one draw (.4, .3, .2, .4) and replicates it 1,000 times; factor score regression (FSR) and the MAE of the loadings are not computed. The paper counts improper solutions as convergence problems; the card counts replications without convergence as failed and reports improper ones in the inadmissible column. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+
+const CHO_RUN =
+  'The card simulates 1,000 samples at N = 100, 200, 500 and 1,000, each estimated by PLS mode A and mode B (path weighting) and GSCA (cSEM), and by ML SEM (lavaan).';
+
+const choCard = (file: string, component: boolean) => ({
+  package: 'cSEM' as const,
+  source:
+    'Cho, Sarstedt & Hwang (2022), A comparative evaluation of factor- and component-based structural equation modelling approaches under (in)correct construct representations, the simulation',
+  links: [{ label: 'Cho, Sarstedt & Hwang (2022)', url: 'https://doi.org/10.1111/bmsp.12255' }],
+  tags: component ? COMPOSITE_DEBATE_TAGS : FACTOR_DEBATE_TAGS,
+  data: {
+    package: 'cSEM' as const,
+    name: `Cho et al. (2022), a sample of 500 (${component ? 'components' : 'common factors'})`,
+    file: `examples/montecarlo/${file}.csv`,
+  },
+  constructs: ['E1', 'E2', 'E3', 'E4'].map((name) =>
+    component
+      ? c(name, items(`${name.toLowerCase()}_`, 3), 'A')
+      : f(name, items(`${name.toLowerCase()}_`, 3)),
+  ),
+  paths: [
+    ['E1', 'E3'],
+    ['E2', 'E3'],
+    ['E1', 'E4'],
+    ['E3', 'E4'],
+  ] as [string, string][],
+  correlations: [['E1', 'E2', 'construct']] as [string, string, 'construct'][],
+  panel: {
+    kind: 'mc' as const,
+    population: choPopulation(component),
+    estimators: [
+      { id: 'PLS mode A', method: 'pls', consistent: false, mode: 'A' },
+      { id: 'PLS mode B', method: 'pls', consistent: false, mode: 'B' },
+      { id: 'GSCA', method: 'pls', consistent: false, approach: 'GSCA' },
+      { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+    ],
+    sampleSizes: [100, 200, 500, 1000],
+    replications: 1000,
+    seed: 2022,
+    alpha: 0.05,
+    bootSamples: 0,
+    mcDraws: 0,
+  },
+  settings: {
+    method: 'pls' as const,
+    plsPackage: 'cSEM' as const,
+    consistent: false,
+    scheme: 'path' as const,
+    missing: 'casewise' as const,
+    seed: 2022,
+  },
+});
+
 /**
  * Dijkstra & Henseler (2015), Figure 4: five common factors with 2 to 6 indicators of differing loadings, two
  * correlated exogenous factors (.7) and paths that are zero, small, medium and strong, some multicollinear.
@@ -1419,6 +1581,112 @@ export const CARD_MODEL: PackageExample[] = [
     shows:
       'At N = 100 / 1,000 / 10,000, Y1 → Y2 (true .50): PLS about .49, .50, .49 (SD .08 to .01); PLSc about 2.0 (SD over 4), 1.22, 1.21; ML SEM about 1.4, 1.3, 1.3, not converging in about 64%, 86% and 99% of samples. Table 3 of the paper (2 indicators, unequal weights): MAE .07 to .01 for PLS, 2.3 to 5 for PLSc, .5 to .7 for CB-SEM.',
     ...sarstedtCard('sarstedt2016-composite-unequal', [0.3, 0.9], 0.185),
+  },
+  {
+    id: 'hair-mirror-unequal',
+    title:
+      'Monte Carlo: PLS, GSCA and sum scores on composites with unequal weights (Hair et al. 2017)',
+    description:
+      'Hair et al.’s comparison of the composite-based methods on Sarstedt et al.’s composite population: seven composites, each of four indicators with unequal weights .1, .3, .5 and .7. PLS (mode B) and GSCA estimate the composites’ weights and recover the paths ever more closely, their mean absolute error falling from about .07 at N = 100 to .006 at 10,000. Regression on sum scores weights the indicators equally, which is not the composite, so it underestimates the strong paths (Y1 → Y2 about .41 for .50) at every N: its error levels off near .05, about eight times theirs at N = 10,000. GSCA tests have the least power; on the weak paths (.15) at N = 100 PLS finds about 40%, as sum scores do, GSCA about 24%. ' +
+      HAIR_MIRROR_RUN +
+      ' The diagram is fitted to one sample of 250 from that population (MASS::mvrnorm, seed 2017). ' +
+      HAIR_MIRROR_DIFFERS +
+      COMPOSITE_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Mean absolute error of the paths at N = 100 / 250 / 1,000 / 10,000: PLS about .067, .040, .020, .006 and GSCA about .069, .041, .020, .006 (paper’s Figure 4, unequal weights, 4 indicators: .077/.078, .048/.047, .024/.024, .007/.007); sum scores .086, .068, .058, .052 (.089, .071, .058, .053). Power for the .15 paths at N = 100: PLS about .40, sum scores .43, GSCA .24 (Table A2: .70, .63, .41).',
+    ...hairMirrorCard('hair2017-unequal', [0.1, 0.3, 0.5, 0.7], 0.093),
+  },
+  {
+    id: 'hair-mirror-equal',
+    title:
+      'Monte Carlo: PLS, GSCA and sum scores on composites of eight equal weights (Hair et al. 2017)',
+    description:
+      'Hair et al.’s composite population with eight equally weighted indicators per composite (weights .25), the case that favours sum scores: their equal weights are the population’s, and they need no estimating. At N = 100 regression on sum scores is the most accurate of the three (mean absolute error about .06 against about .08 to .09 for PLS mode B and GSCA, which estimate eight weights per composite from 100 cases and overstate the paths); from N = 500 on the three are practically the same. GSCA’s tests have little power at N = 100 and PLS mode B’s have a raised Type I error (about 8%). ' +
+      HAIR_MIRROR_RUN +
+      ' The diagram is fitted to one sample of 250 from that population (MASS::mvrnorm, seed 2017). ' +
+      HAIR_MIRROR_DIFFERS +
+      COMPOSITE_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Mean absolute error of the paths at N = 100 / 250 / 1,000 / 10,000: sum scores about .063, .039, .019, .006; PLS .082, .043, .020, .006; GSCA .088, .045, .020, .006 (paper’s Figure 4, equal weights, 8 indicators: sum scores .066 at N = 100 against PLS .086, GSCA .093). Power for the .15 paths at N = 100: sum scores about .38, PLS .25, GSCA .04 (Table A2: .60, .84, .36); null paths rejected by PLS in about 8%.',
+    ...hairMirrorCard('hair2017-equal', [0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25], 1 / 7),
+  },
+  {
+    id: 'hwang-gsca-misspecified',
+    package: 'cSEM',
+    title: 'Monte Carlo: GSCA, PLS and CB-SEM when cross-loadings are left out (Hwang et al. 2010)',
+    source:
+      'Hwang, Malhotra, Kim, Tomiuk & Hong (2010), A comparative study on parameter recovery of three approaches to structural equation modeling: the misspecified model',
+    links: [{ label: 'Hwang et al. (2010)', url: 'https://doi.org/10.1509/jmkr.47.4.699' }],
+    tags: FACTOR_DEBATE_TAGS,
+    description:
+      'Hwang et al.’s misspecified model: three common factors in a chain (.6, .6), each measured by three indicators (loadings .7), with one cross-loading per factor (.21) that the estimated model leaves out, and an extra path E1 → E3 that is zero in the population. ML SEM, the method of the correct model, suffers most: the omitted cross-loadings link the blocks, and it puts their covariance into the paths, E1 → E2 about +10% and E2 → E3, which two of them feed, about +42%; the zero path comes out negative (about −.15) and significant in about half the samples at N = 400 and 500. PLS and GSCA, whose composites absorb the cross-loadings, stay close to their usual targets: about −13% on E1 → E2, 0 on E2 → E3, about 0 on the zero path. The paper’s conclusion: with misspecification the component methods recover the parameters better. ' +
+      'The card simulates 500 samples at N = 100, 200, 300, 400 and 500, each estimated by PLS and GSCA (cSEM) and ML SEM (lavaan). The diagram is fitted to one sample of 300 from that population (lavaan::simulateData, seed 2010). ' +
+      'As in the paper: the population (Figure 1, standardised), the misspecified model, normal data, N and 500 replications. The app’s choices: cSEM and lavaan where the paper used GeSCA and unnamed software for PLS (mode and scheme not given: here mode A, path weighting); the paper’s correctly specified model, which estimates the cross-loadings, is not possible in PLS without duplicating indicators (the paper does not say how it did) and is not part of the card, nor are its non-normal condition, its loadings and its bootstrap standard errors. The paper reports the relative bias averaged over the parameters (ML about +9.5% for the paths); the card gives each path’s. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.' +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'At N = 100 / 500: E1 → E2 (true .6) PLS and GSCA about .52, ML about .65 / .66; E2 → E3 (true .6) PLS and GSCA about .61 / .60, ML about .87 / .85; E1 → E3 (true 0) PLS and GSCA about 0, ML about −.17 / −.15, significant in about 14% / 55% of samples. No failed replications. The paper’s Figure 4: ML paths about +9.5%, PLS −5%, GSCA −6% on average.',
+    data: {
+      package: 'cSEM',
+      name: 'Hwang et al. (2010), a sample of 300',
+      file: 'examples/montecarlo/hwang2010.csv',
+    },
+    constructs: HWANG_POPULATION.constructs.map((x) => f(x.name, x.indicators)),
+    paths: HWANG_POPULATION.paths.map((x): [string, string] => [x.from, x.to]),
+    panel: {
+      kind: 'mc',
+      population: HWANG_POPULATION,
+      estimators: [
+        { id: 'PLS', method: 'pls', consistent: false },
+        { id: 'GSCA', method: 'pls', consistent: false, approach: 'GSCA' },
+        { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+      ],
+      sampleSizes: [100, 200, 300, 400, 500],
+      replications: 500,
+      seed: 2010,
+      alpha: 0.05,
+      bootSamples: 0,
+      mcDraws: 0,
+    },
+    settings: {
+      method: 'pls',
+      plsPackage: 'cSEM',
+      plsApproach: 'GSCA',
+      consistent: false,
+      scheme: 'path',
+      missing: 'casewise',
+      seed: 2010,
+    },
+  },
+  {
+    id: 'cho-components',
+    title: 'Monte Carlo: ML SEM, PLS and GSCA on a component population (Cho et al. 2022)',
+    description:
+      'Cho, Sarstedt & Hwang’s component population: four constructs in the simple model, each the first principal component of its three indicators (loadings .6, .7, .8), the block correlations of the paper’s Table S10. PLS (mode A or B) and GSCA estimate the components’ paths without bias, their mean absolute error falling from about .07 at N = 100 to .02 at 1,000. ML SEM treats each block as a common factor, which it is not, and gives an improper solution (a negative variance or a standardized loading beyond 1) in about 40% to 60% of the samples at every N, and badly biased paths where it gives one (E1 → E3 about .75 for .40, E1 → E4 about .55 for .20); its error stays above .3 as N grows. ' +
+      CHO_RUN +
+      ' The diagram is fitted to one sample of 500 from that population (MASS::mvrnorm, seed 2022). ' +
+      CHO_DIFFERS +
+      COMPOSITE_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Mean absolute error of the paths at N = 100 / 200 / 500 / 1,000: PLS mode A about .071, .049, .031, .021, mode B and GSCA about the same; ML about .59, .46, .34, .33 with 58%, 47%, 40% and 40% of solutions improper and a few not converging. Table S5 (component population, simple model, 3 indicators, r = 0) gives MLF .26 / .25 at N = 100 / 200 after dropping the improper ones, GSCA .07 / .05, PLS mode A .08 / .05; Table S1, 812 of 1,000 MLF solutions with problems at N = 100.',
+    ...choCard('cho2022-components', true),
+  },
+  {
+    id: 'cho-factors',
+    title: 'Monte Carlo: ML SEM, PLS and GSCA on a factor population (Cho et al. 2022)',
+    description:
+      'Cho, Sarstedt & Hwang’s factor population: the same simple model with four common factors of three indicators (loadings .6, .7, .8). Now ML SEM is the consistent method: its mean absolute error falls from about .11 at N = 100 to .03 at 1,000, with a few improper solutions only at N = 100. PLS (mode A or B) and GSCA estimate composites of the factors, which underestimate the paths (E1 → E3 about .31 to .32 for .40) at every N, so their error levels off near .065; at N = 100 they are about as accurate as ML, whose variance is larger. With the component population the verdict reverses, which is the paper’s point: each method is right for its own construct representation. ' +
+      CHO_RUN +
+      ' The diagram is fitted to one sample of 500 from that population (MASS::mvrnorm, seed 2022). ' +
+      CHO_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Mean absolute error of the paths at N = 100 / 200 / 500 / 1,000: ML about .106, .073, .045, .031; PLS mode A about .088, .075, .068, .065; GSCA about .093, .078, .070, .066 (paper’s Figure 3, factor population by N: MLF .095, .065, .04, .03; GSCA and PLS .095, .08, .07, .068). E1 → E3 (true .40): ML about .39 to .40, PLS and GSCA about .31 to .32.',
+    ...choCard('cho2022-factors', false),
   },
   {
     id: 'rhemtulla-composite-factor',
