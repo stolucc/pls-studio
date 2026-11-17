@@ -905,6 +905,8 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
       'sarstedt-composite-equal',
       'sarstedt-composite-unequal',
       'rhemtulla-composite-factor',
+      'reinartz-power',
+      'reinartz-weak',
       'hair-mirror-unequal',
       'hair-mirror-equal',
       'hwang-gsca-misspecified',

@@ -260,6 +260,8 @@ const AUTHORS_BY_ID: Record<string, string[]> = {
   'sarstedt-composite-equal': ['Sarstedt', 'Hair', 'Ringle', 'Thiele', 'Gudergan'],
   'sarstedt-composite-unequal': ['Sarstedt', 'Hair', 'Ringle', 'Thiele', 'Gudergan'],
   'rhemtulla-composite-factor': ['Rhemtulla', 'van Bork', 'Borsboom'],
+  'reinartz-power': ['Reinartz', 'Haenlein', 'Henseler'],
+  'reinartz-weak': ['Reinartz', 'Haenlein', 'Henseler'],
   'hair-mirror-unequal': ['Hair', 'Hult', 'Ringle', 'Sarstedt', 'Thiele'],
   'hair-mirror-equal': ['Hair', 'Hult', 'Ringle', 'Sarstedt', 'Thiele'],
   'hwang-gsca-misspecified': ['Hwang', 'Malhotra', 'Kim', 'Tomiuk', 'Hong'],

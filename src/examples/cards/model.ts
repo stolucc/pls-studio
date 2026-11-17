@@ -780,6 +780,80 @@ const choCard = (file: string, component: boolean) => ({
 });
 
 /**
+ * Reinartz, Haenlein & Henseler (2009), Figure 1: a satisfaction-index-like chain of six common factors, one
+ * exogenous (X), with strong (.5), medium (.3) and weak (.15) paths; `k` indicators per factor at `loading`.
+ */
+const REINARTZ_PATHS: [string, string, number][] = [
+  ['X', 'E1', 0.5],
+  ['X', 'E2', 0.15],
+  ['X', 'E3', 0.15],
+  ['E1', 'E2', 0.5],
+  ['E1', 'E3', 0.5],
+  ['E2', 'E3', 0.3],
+  ['E3', 'E4', 0.5],
+  ['E3', 'E5', 0.5],
+  ['E4', 'E5', 0.15],
+];
+const REINARTZ_CONSTRUCTS = ['X', 'E1', 'E2', 'E3', 'E4', 'E5'];
+
+export const reinartzPopulation = (k: number, loading: number) => ({
+  constructs: REINARTZ_CONSTRUCTS.map((name) => ({
+    name,
+    type: 'factor',
+    indicators: items(`${name.toLowerCase()}_`, k),
+    loadings: Array.from({ length: k }, () => loading),
+  })),
+  paths: REINARTZ_PATHS.map(([from, to, value]) => ({ from, to, value })),
+  exoCor: [],
+  skew: 0,
+  kurtosis: 0,
+});
+
+/** What the Reinartz et al. cards take from the paper, and what is the app's. */
+const REINARTZ_DIFFERS =
+  'As in the paper: the population (Figure 1), N = 100, 250, 500 and 1,000, ML SEM with its z tests and PLS mode A tested by the bootstrap standard error from 200 resamples (here the normal interval, the same test), α = .05 two-tailed. The app’s choices: cSEM and lavaan where the paper used its own PLS code and sem; path weighting (the paper does not name its scheme); 200 replications per cell, as the paper, but only normal data, which the paper found made no difference (its skewed latent variables are not part of the cards), and not its N = 10,000. The paper counts power over proper solutions only; the card counts replications without convergence as failed and keeps improper solutions, reporting them in the inadmissible column. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+
+const reinartzCard = (file: string, k: number, loading: number) => ({
+  package: 'cSEM' as const,
+  source:
+    'Reinartz, Haenlein & Henseler (2009), An empirical comparison of the efficacy of covariance-based and variance-based SEM, the Monte Carlo study',
+  links: [
+    { label: 'Reinartz et al. (2009)', url: 'https://doi.org/10.1016/j.ijresmar.2009.08.001' },
+  ],
+  tags: FACTOR_DEBATE_TAGS,
+  data: {
+    package: 'cSEM' as const,
+    name: `Reinartz et al. (2009), a sample of 250 (${k} indicators, loadings ${loading})`,
+    file: `examples/montecarlo/${file}.csv`,
+  },
+  constructs: REINARTZ_CONSTRUCTS.map((name) => f(name, items(`${name.toLowerCase()}_`, k))),
+  paths: REINARTZ_PATHS.map(([from, to]): [string, string] => [from, to]),
+  panel: {
+    kind: 'mc' as const,
+    population: reinartzPopulation(k, loading),
+    estimators: [
+      { id: 'PLS', method: 'pls', consistent: false },
+      { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+    ],
+    sampleSizes: [100, 250, 500, 1000],
+    replications: 200,
+    seed: 2009,
+    alpha: 0.05,
+    bootSamples: 200,
+    mcDraws: 0,
+    inference: { signChange: 'none', interval: 'normal' },
+  },
+  settings: {
+    method: 'pls' as const,
+    plsPackage: 'cSEM' as const,
+    consistent: false,
+    scheme: 'path' as const,
+    missing: 'casewise' as const,
+    seed: 2009,
+  },
+});
+
+/**
  * Dijkstra & Henseler (2015), Figure 4: five common factors with 2 to 6 indicators of differing loadings, two
  * correlated exogenous factors (.7) and paths that are zero, small, medium and strong, some multicollinear.
  */
@@ -1521,6 +1595,35 @@ export const CARD_MODEL: PackageExample[] = [
       missing: 'casewise',
       seed: 2015,
     },
+  },
+  {
+    id: 'reinartz-power',
+    title:
+      'Monte Carlo: power of PLS and CB-SEM, four indicators with loadings .7 (Reinartz et al. 2009)',
+    description:
+      'Reinartz, Haenlein & Henseler’s comparison in a typical cell: six common factors in a satisfaction-index-like chain with strong (.5), medium (.3) and weak (.15) paths, each factor measured by four indicators with loadings .7. PLS finds the effects with fewer cases: at N = 100 it detects a weak path in about 46% of samples where ML SEM detects about 23%, and a medium one in 84% against 55%; ML needs about N = 500 to 1,000 for the power PLS has at 250. But PLS’s estimates are off: the strong paths come out near .40 for .50 at every N, and its power on the weak paths is helped by overestimating them (about .16 to .17 for .15). ML is unbiased at every N, with a larger SD. ' +
+      'The card simulates 200 samples at N = 100, 250, 500 and 1,000, each estimated by PLS (mode A, cSEM) with 200 bootstrap samples and by ML SEM (lavaan).' +
+      ' The diagram is fitted to one sample of 250 from that population (lavaan::simulateData, seed 2009). ' +
+      REINARTZ_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Power by effect size at N = 100 / 250 / 1,000, weak (.15), medium (.3) and strong (.5) paths: PLS about .46, .84, .99 / .79, 1.00, 1.00 / 1.00; ML about .23, .55, .97 / .46, .94, 1.00 / .96, 1.00 (the paper’s Table 7, 4 indicators, loadings .7: CB-SEM .18, .51, .96 and PLS .44, .85, .99 at N = 100; .45 and .81 for weak paths at 250; .95 and 1.00 at 1,000). Strong paths: PLS about .40, ML .50.',
+    ...reinartzCard('reinartz2009-power', 4, 0.7),
+  },
+  {
+    id: 'reinartz-weak',
+    title: 'Monte Carlo: PLS and CB-SEM with two indicators of loading .5 (Reinartz et al. 2009)',
+    description:
+      'Reinartz et al.’s hardest cell: the same six factors measured by two indicators each with loadings .5 (reliability .40). ML SEM does not converge or gives an improper solution in most samples at N = 100 (the paper found about half improper), still in about a fifth at 250, and its estimates there are wild (SDs of several units); from N = 500 on it is unbiased, with modest power for the weak and medium paths. PLS always gives a solution and has more power, but it estimates attenuated composites: the strong paths come out near .21 for .50 and the medium one near .19 for .30, at every N. The power of PLS here is the power to find an effect of the wrong size. ' +
+      'The card simulates 200 samples at N = 100, 250, 500 and 1,000, each estimated by PLS (mode A, cSEM) with 200 bootstrap samples and by ML SEM (lavaan).' +
+      ' The diagram is fitted to one sample of 250 from that population (lavaan::simulateData, seed 2009). ' +
+      REINARTZ_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'At N = 100: ML without convergence in 66 of 200 samples and improper in 97 more; PLS strong paths about .21 to .24, power for weak / medium / strong about .19, .46, .47. At N = 500 / 1,000: ML weak, medium and strong power about .14, .36, .85 / .27, .65, .99 (the paper’s Table 7, 2 indicators, loadings .5: .13, .31, .86 / .29, .67, .98); PLS weak power about .77 / .97 (.78 / .95); PLS strong paths still about .20.',
+    ...reinartzCard('reinartz2009-weak', 2, 0.5),
   },
   {
     id: 'sarstedt-factor-weak',

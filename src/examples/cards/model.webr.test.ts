@@ -1468,3 +1468,62 @@ slowIt(
   },
   7_200_000,
 );
+
+slowIt(
+  'reinartz cards: PLS has more power, ML SEM the right estimates; ML fails with two weak indicators (Table 7)',
+  async () => {
+    const level = {
+      level: 'published' as const,
+      url: 'https://doi.org/10.1016/j.ijresmar.2009.08.001',
+    };
+    const groups = {
+      weak: ['path:X:E2', 'path:X:E3', 'path:E4:E5'],
+      medium: ['path:E2:E3'],
+      strong: ['path:X:E1', 'path:E1:E2', 'path:E1:E3', 'path:E3:E4', 'path:E3:E5'],
+    };
+    const power = (
+      run: Awaited<ReturnType<typeof mcCardRun>>,
+      e: string,
+      g: keyof typeof groups,
+      n: number,
+    ) =>
+      groups[g]
+        .map((k) => run.row(e, k, n).rejection!)
+        .reduce((t, v) => t + v / groups[g].length, 0);
+
+    const typical = await mcCardRun('reinartz-power', true);
+    against({
+      ...level,
+      label:
+        'Reinartz et al. (2009), Table 7, 4 indicators, loadings .7: power for weak / medium / strong paths at N = 100, CB-SEM .18 / .51 / .96, PLS .44 / .85 / .99; weak paths at N = 250 .45 / .81; PLS strong paths about .40 (Table 5)',
+    });
+    near('ML weak at N = 100', power(typical, 'CB-ML', 'weak', 100), 0.18, 0.08);
+    near('PLS weak at N = 100', power(typical, 'PLS', 'weak', 100), 0.44, 0.08);
+    near('ML medium at N = 100', power(typical, 'CB-ML', 'medium', 100), 0.51, 0.1);
+    near('PLS medium at N = 100', power(typical, 'PLS', 'medium', 100), 0.85, 0.08);
+    near('ML weak at N = 250', power(typical, 'CB-ML', 'weak', 250), 0.45, 0.08);
+    near('PLS weak at N = 250', power(typical, 'PLS', 'weak', 250), 0.81, 0.08);
+    near('PLS X → E1 at N = 1,000', typical.row('PLS', 'path:X:E1', 1000).mean, 0.4, 0.02);
+    near('ML X → E1 at N = 1,000', typical.row('CB-ML', 'path:X:E1', 1000).mean, 0.5, 0.01);
+
+    const weak = await mcCardRun('reinartz-weak', true);
+    against({
+      ...level,
+      label:
+        'Reinartz et al. (2009), Tables 3, 4 and 7, 2 indicators, loadings .5: many improper CB-SEM solutions at N = 100 (about half), N = 500 needed for 97.5% proper; power at N = 500 / 1,000, CB-SEM weak .13 / .29, medium .31 / .67, strong .86 / .98; PLS weak .78 / .95',
+    });
+    const at100 = weak.row('CB-ML', 'path:X:E1', 100);
+    expect((at100.failed + at100.improper) / at100.reps).toBeGreaterThan(0.4);
+    for (const [n, w, m, st] of [
+      [500, 0.13, 0.31, 0.86],
+      [1000, 0.29, 0.67, 0.98],
+    ]) {
+      near(`ML weak at N = ${n}`, power(weak, 'CB-ML', 'weak', n), w, 0.07);
+      near(`ML medium at N = ${n}`, power(weak, 'CB-ML', 'medium', n), m, 0.1);
+      near(`ML strong at N = ${n}`, power(weak, 'CB-ML', 'strong', n), st, 0.06);
+    }
+    near('PLS weak at N = 500', power(weak, 'PLS', 'weak', 500), 0.78, 0.07);
+    near('PLS X → E1 at N = 1,000', weak.row('PLS', 'path:X:E1', 1000).mean, 0.2, 0.02);
+  },
+  3_600_000,
+);
