@@ -7,8 +7,10 @@
 // Constructs: exogenous correlations as given; η_t = Σ β η_f + ζ_t with
 // Var ζ_t = 1 − R²_t so every construct has unit variance.
 // Latent interactions (Chin et al. 2003): η_t also gains v (η_a η_b − φ_ab) for two exogenous common factors a
-// and b. With normal factors the centred product is uncorrelated with every construct, so Σ is unchanged; it adds
-// v² Var(η_a η_b) to R²_t, and the data are drawn from the constructs' scores (generateLatent in mc.R).
+// and b. With normal factors the centred product is uncorrelated with every exogenous construct; it adds
+// v² Var(η_a η_b) to R²_t and is passed on to the constructs η_t affects (cov(η, product) is tracked so that
+// chains and shared products keep unit variances), and the data are drawn from the constructs' scores
+// (generateLatent in mc.R).
 
 import { cholesky, solve, zeros, type Mat } from './linalg';
 import { fleishman, valeMaurelli, type ValeMaurelli } from './nonnormal';
@@ -163,11 +165,35 @@ export function buildPopulation(pop: PopulationSpec): Population {
     });
     const term = interactionTerm(x);
     if (!exo[a] || !exo[b])
-      throw new Error(`Interaction ${term}: both constructs must be exogenous (no paths into them).`);
-    if (exo[to]) throw new Error(`Interaction ${term}: "${x.to}" needs a path from another construct.`);
-    if (to === a || to === b) throw new Error(`Interaction ${term} cannot act on its own construct.`);
+      throw new Error(
+        `Interaction ${term}: both constructs must be exogenous (no paths into them).`,
+      );
+    if (exo[to])
+      throw new Error(`Interaction ${term}: "${x.to}" needs a path from another construct.`);
+    if (to === a || to === b)
+      throw new Error(`Interaction ${term} cannot act on its own construct.`);
     if (!Number.isFinite(x.value)) throw new Error(`Interaction ${term} needs a value.`);
     return { a, b, to, value: x.value };
+  });
+  // (A × B and B × A are the same product.)
+  interactions.forEach((x, i) => {
+    const twice = interactions
+      .slice(0, i)
+      .some(
+        (y) =>
+          y.to === x.to &&
+          Math.min(y.a, y.b) === Math.min(x.a, x.b) &&
+          Math.max(y.a, y.b) === Math.max(x.a, x.b),
+      );
+    if (twice)
+      throw new Error(`Interaction ${C[x.a]} × ${C[x.b]} on "${C[x.to]}" is listed twice.`);
+    // Main effects (the estimation models need every construct in the structural model; a product without its
+    // constructs' own effects also confounds them with the interaction).
+    for (const j of [x.a, x.b])
+      if (!inPopulation[j][x.to])
+        throw new Error(
+          `Interaction ${C[x.a]} × ${C[x.b]} on "${C[x.to]}" needs the path ${C[j]} → ${C[x.to]} (it may be 0).`,
+        );
   });
   if (interactions.length) {
     if (pop.constructs.some((c) => c.type !== 'factor'))
@@ -180,19 +206,30 @@ export function buildPopulation(pop: PopulationSpec): Population {
   // cov(η_a η_b, η_c η_d) of centred products of normal factors: φ_ac φ_bd + φ_ad φ_bc.
   const productCov = (x: { a: number; b: number }, y: { a: number; b: number }) =>
     Phi[x.a][y.a] * Phi[x.b][y.b] + Phi[x.a][y.b] * Phi[x.b][y.a];
+  // Q[k][i] = cov(η_k, P_i), P_i the centred product of interaction i: zero for exogenous constructs; an
+  // endogenous construct carrying a product passes it on to everything it affects.
+  const Q = C.map(() => interactions.map(() => 0));
   const r2: (number | null)[] = new Array(J).fill(null);
   const done: number[] = [];
   for (const t of order) {
     if (!exo[t]) {
-      // cov(η_t, η_k) = Σ_f β_tf cov(η_f, η_k) for constructs already placed.
+      const own = interactions.flatMap((x, i) => (x.to === t ? [i] : []));
+      // ζ_t is uncorrelated with the constructs already placed and with every product, so
+      // cov(η_t, ·) = Σ_f β_tf cov(η_f, ·) + Σ_i v_i cov(P_i, ·).
       for (const k of done) {
-        const v = preds[t].reduce((s, f) => s + B[t][f] * Phi[f][k], 0);
+        const v =
+          preds[t].reduce((s, f) => s + B[t][f] * Phi[f][k], 0) +
+          own.reduce((s, i) => s + interactions[i].value * Q[k][i], 0);
         Phi[t][k] = Phi[k][t] = v;
       }
-      const own = interactions.filter((x) => x.to === t);
+      interactions.forEach((y, j) => {
+        Q[t][j] =
+          preds[t].reduce((s, f) => s + B[t][f] * Q[f][j], 0) +
+          own.reduce((s, i) => s + interactions[i].value * productCov(interactions[i], y), 0);
+      });
       const R2 =
         preds[t].reduce((s, f) => s + B[t][f] * Phi[f][t], 0) +
-        own.reduce((s, x) => s + own.reduce((u, y) => u + x.value * y.value * productCov(x, y), 0), 0);
+        own.reduce((s, i) => s + interactions[i].value * Q[t][i], 0);
       if (!(R2 < 1)) throw new Error(`Population paths imply R² ≥ 1 for "${C[t]}".`);
       r2[t] = R2;
     }

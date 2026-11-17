@@ -264,8 +264,15 @@ function nextNumber(input: HTMLInputElement): string {
 /** The paths of the leaves in which two option objects differ. */
 function changed(a: unknown, b: unknown, path: string[] = []): string[][] {
   if (Object.is(a, b)) return [];
-  // (a field can create its group of options, such as a simulation's missing values: its leaves changed)
-  if (a === undefined && b && typeof b === 'object') a = {};
+  // (a field can create or remove its group of options, such as a simulation's missing values: its leaves
+  // changed; a group without leaves, such as a second group listing no path yet, changed as a whole)
+  if (
+    (a === undefined && b && typeof b === 'object') ||
+    (b === undefined && a && typeof a === 'object')
+  ) {
+    const inner = a === undefined ? changed({}, b, path) : changed(a, {}, path);
+    return inner.length ? inner : [path];
+  }
   if (a && b && typeof a === 'object' && typeof b === 'object') {
     const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
     return [...keys].flatMap((k) =>

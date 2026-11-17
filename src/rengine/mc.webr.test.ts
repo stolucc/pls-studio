@@ -387,6 +387,56 @@ it('a latent interaction (Chin et al. 2003): PLS product indicators and regressi
   }
 }, 900_000);
 
+it('a square term and a product shared by two constructs: one product construct each, mode B runs', async () => {
+  const factor = (name: string, p: string) => ({
+    name,
+    type: 'factor' as const,
+    indicators: [1, 2, 3, 4].map((i) => `${p}${i}`),
+    loadings: [0.95, 0.95, 0.95, 0.95],
+  });
+  const d: McDesign = {
+    ...design,
+    population: {
+      constructs: [factor('X', 'x'), factor('Z', 'z'), factor('Y', 'y'), factor('W', 'w')],
+      paths: [
+        { from: 'X', to: 'Y', value: 0.3 },
+        { from: 'Z', to: 'Y', value: 0.2 },
+        { from: 'X', to: 'W', value: 0 },
+        { from: 'Z', to: 'W', value: 0.2 },
+        { from: 'Y', to: 'W', value: 0.3 },
+      ],
+      exoCor: [{ a: 'X', b: 'Z', value: 0.3 }],
+      interactions: [
+        { a: 'X', b: 'X', to: 'Y', value: 0.2 },
+        { a: 'X', b: 'Z', to: 'Y', value: 0.2 },
+        { a: 'X', b: 'Z', to: 'W', value: 0.2 },
+      ],
+    },
+    estimators: [
+      { id: 'PLS', method: 'pls', consistent: false },
+      { id: 'PLS mode B', method: 'pls', consistent: false, mode: 'B' },
+      { id: 'Sum scores', method: 'regression', dr: false },
+    ],
+    sampleSizes: [500],
+    replications: 30,
+    bootSamples: 0,
+  };
+  const rows = summariseMc(d, [await runMcChunkR(d, 500, 0, 30)]);
+  const at = (e: string, key: string) =>
+    rows.find((x) => x.estimator === e && x.param.key === key)!;
+  // (Var X² = 2: the standardised coefficient of the square is .2 · √2)
+  expect(at('PLS', 'path:X × X:Y').param.value).toBeCloseTo(0.2 * Math.sqrt(2), 10);
+  const keys = ['path:X:Y', 'path:Y:W', 'path:X × X:Y', 'path:X × Z:Y', 'path:X × Z:W'];
+  for (const key of keys) expect(at('PLS mode B', key).failed, `mode B ${key}`).toBe(0);
+  for (const e of ['PLS', 'Sum scores']) {
+    for (const key of keys) {
+      const r = at(e, key);
+      expect(r.failed, `${e} ${key}`).toBe(0);
+      expect(Math.abs(r.mean - r.param.value), `${e} ${key}`).toBeLessThan(0.04);
+    }
+  }
+}, 900_000);
+
 it('two groups (Qureshi & Compeau 2009): PLS and CB-SEM estimate and test each path’s difference', async () => {
   const factor = (name: string, p: string) => ({
     name,
@@ -428,6 +478,34 @@ it('two groups (Qureshi & Compeau 2009): PLS and CB-SEM estimate and test each p
     expect(Math.abs(same.mean), e).toBeLessThan(0.05);
     expect(same.rejection, e).toBeLessThan(0.2);
   }
+}, 900_000);
+
+it('two groups, PLS: the individual sign change applies to each group’s bootstrap draws', async () => {
+  const factor = (name: string, p: string) => ({
+    name,
+    type: 'factor' as const,
+    indicators: [1, 2, 3].map((i) => `${p}${i}`),
+    loadings: [0.7, 0.8, 0.9],
+  });
+  const d = (signChange: 'none' | 'individual'): McDesign => ({
+    ...design,
+    population: {
+      constructs: [factor('A', 'a'), factor('C', 'c')],
+      paths: [{ from: 'A', to: 'C', value: 0 }],
+      exoCor: [],
+    },
+    groups: { paths: [] },
+    estimators: [{ id: 'PLS', method: 'pls', consistent: false }],
+    inference: { signChange, interval: 'percentile' },
+    sampleSizes: [100],
+    replications: 30,
+    bootSamples: 100,
+  });
+  const run = async (s: 'none' | 'individual') =>
+    summariseMc(d(s), [await runMcChunkR(d(s), 100, 0, 30)])[0];
+  const [none, individual] = [await run('none'), await run('individual')];
+  // (a null path's draws folded onto one side have a smaller SD: narrower intervals, more rejections)
+  expect(individual.width!).toBeLessThan(0.8 * none.width!);
 }, 900_000);
 
 it('skewed indicators: Fleishman per indicator lowers the paths, as in the built-in engine; Vale–Maurelli does not', async () => {

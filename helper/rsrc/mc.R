@@ -46,6 +46,7 @@ ps_mc_body <- function(req) {
     matrix(vapply(m, function(v) ps_number(v, what), 0), nrow(m))
   }
   terms <- list()
+  pair_terms <- list()
   if (!is.null(lat)) {
     lat_names <- as.character(unlist(lat$constructs))
     if (!identical(lat_names, n$cname)) stop("The latent constructs do not match the model.")
@@ -77,18 +78,39 @@ ps_mc_body <- function(req) {
       if (length(j) != 1 || is.na(j)) stop("An interaction names an unknown construct.")
       j
     }
-    terms <- lapply(lat$interactions, function(x) {
+    # One product construct per pair of constructs, shared by every construct the pair acts on (X x Z -> Y and
+    # X x Z -> W); a square (X x X) keeps each distinct product of two indicators once.
+    terms <- list()
+    pairs <- list()
+    taken <- c(cv, n$iv)
+    for (x in lat$interactions) {
       a <- construct_at(x$a); b <- construct_at(x$b); to <- construct_at(x$to)
-      term <- paste0(cv[[a]], "_x_", cv[[b]])
-      while (term %in% c(cv, n$iv)) term <- paste0(term, "_")
-      prods <- outer(unname(n$iv[n$inds[[a]]]), unname(n$iv[n$inds[[b]]]), paste, sep = "_x_")
-      prods <- as.vector(prods)
-      for (i in seq_along(prods)) while (prods[i] %in% c(n$iv, cv, prods[-i])) prods[i] <- paste0(prods[i], "_")
-      list(
-        a = a, b = b, to = to, term = term, prods = prods,
-        value = ps_number(x$value, "interaction"), mean = ps_number(x$mean, "interaction mean")
+      key <- paste(sort(c(a, b)), collapse = ":")
+      if (is.null(pairs[[key]])) {
+        term <- paste0(cv[[a]], "_x_", cv[[b]])
+        while (term %in% taken) term <- paste0(term, "_")
+        ka <- length(n$inds[[a]]); kb <- length(n$inds[[b]])
+        pa <- rep(seq_len(ka), times = kb); pb <- rep(seq_len(kb), each = ka)
+        if (a == b) {
+          keep <- pa <= pb
+          pa <- pa[keep]
+          pb <- pb[keep]
+        }
+        prods <- paste(unname(n$iv[n$inds[[a]]])[pa], unname(n$iv[n$inds[[b]]])[pb], sep = "_x_")
+        for (i in seq_along(prods)) while (prods[i] %in% c(taken, term, prods[-i])) prods[i] <- paste0(prods[i], "_")
+        taken <- c(taken, term, prods)
+        pairs[[key]] <- list(a = a, b = b, term = term, prods = prods, pa = pa, pb = pb)
+      }
+      if (any(vapply(terms, function(y) y$term == pairs[[key]]$term && y$to == to, TRUE))) {
+        stop("An interaction is listed twice.")
+      }
+      terms[[length(terms) + 1]] <- c(
+        list(to = to, value = ps_number(x$value, "interaction"), mean = ps_number(x$mean, "interaction mean")),
+        pairs[[key]]
       )
-    })
+    }
+    # (each product construct once: its indicators, its regression score)
+    pair_terms <- unname(pairs)
     lat_code <- c(
       lat_code,
       sprintf(
@@ -113,11 +135,11 @@ ps_mc_body <- function(req) {
       "}",
       # Product indicators: the indicators of a and b standardised, every pair multiplied.
       "add_products <- function(data) {",
-      unlist(lapply(terms, function(x) {
+      unlist(lapply(pair_terms, function(x) {
         ia <- unname(n$iv[n$inds[[x$a]]]); ib <- unname(n$iv[n$inds[[x$b]]])
         sprintf(
-          "  za <- scale(data[%s]); zb <- scale(data[%s]); data[%s] <- as.data.frame(za[, rep(seq_len(%d), times = %d), drop = FALSE] * zb[, rep(seq_len(%d), each = %d), drop = FALSE])",
-          ps_q(ia), ps_q(ib), ps_q(x$prods), length(ia), length(ib), length(ib), length(ia)
+          "  za <- scale(data[%s]); zb <- scale(data[%s]); data[%s] <- as.data.frame(za[, %s, drop = FALSE] * zb[, %s, drop = FALSE])",
+          ps_q(ia), ps_q(ib), ps_q(x$prods), dep(x$pa), dep(x$pb)
         )
       })),
       "  data",
@@ -143,7 +165,7 @@ ps_mc_body <- function(req) {
       function(j) paste(cv[[j]], if (identical(spec$constructs[[j]]$type, "composite") && !isTRUE(req$factorModel)) "<~" else "=~", paste(ind(j), collapse = " + ")),
       ""
     ),
-    vapply(terms, function(x) paste(x$term, "=~", paste(x$prods, collapse = " + ")), ""),
+    vapply(pair_terms, function(x) paste(x$term, "=~", paste(x$prods, collapse = " + ")), ""),
     reg,
     # (cSEM needs the construct correlations spelled out when there is no structural model)
     if (!length(spec$paths) && length(cv) > 1) utils::combn(unname(unlist(cv)), 2, function(x) paste(x[1], "~~", x[2]))
@@ -153,7 +175,7 @@ ps_mc_body <- function(req) {
     # (fit tests and GoF are of the model, named 'model', not a construct)
     if (!is.null(p$interaction)) {
       ab <- match(as.character(unlist(p$interaction)), n$cname)
-      hit <- Filter(function(x) identical(c(x$a, x$b), ab) && n$cname[x$to] == p$to, terms)
+      hit <- Filter(function(x) identical(sort(c(x$a, x$b)), sort(ab)) && n$cname[x$to] == p$to, terms)
       if (length(hit) != 1) stop("A parameter names an unknown interaction.")
       p$from <- hit[[1]]$term
       p$to <- cv[[p$to]]
@@ -316,7 +338,7 @@ ps_mc_body <- function(req) {
     ),
     sprintf(
       "reg_terms <- list(%s)",
-      paste(vapply(terms, function(x) sprintf("%s = %s", x$term, ps_q(c(cv[[x$a]], cv[[x$b]]))), ""), collapse = ", ")
+      paste(vapply(pair_terms, function(x) sprintf("%s = %s", x$term, ps_q(c(cv[[x$a]], cv[[x$b]]))), ""), collapse = ", ")
     ),
     if (!is.null(lat)) lat_code,
     "# Parameters to evaluate: standardised paths, indirect effects and correlations of exogenous constructs.",
@@ -539,7 +561,12 @@ ps_mc_body <- function(req) {
     "  crit <- stats::qt(1 - alpha / 2, df)",
     "  rows <- lapply(seq_len(nrow(params)), function(k) {",
     "    f <- params$from[k]; t <- params$to[k]",
-    "    se <- vapply(1:2, function(g) { x <- vapply(draws[[g]], function(D) D$direct[f, t], 0); stats::sd(x[is.finite(x)]) }, 0)",
+    "    # (individual sign change as in pls_stats: each draw takes the sign of its group's estimate)",
+    "    se <- vapply(1:2, function(g) {",
+    "      x <- vapply(draws[[g]], function(D) D$direct[f, t], 0)",
+    "      if (individual) x <- abs(x) * sign(P[[g]][f, t])",
+    "      stats::sd(x[is.finite(x)])",
+    "    }, 0)",
     "    d <- P[[2]][f, t] - P[[1]][f, t]",
     "    s <- sqrt(sum((n - 1)^2 / df * se^2)) * sqrt(sum(1 / n))",
     "    if (!is.finite(s) || s <= 0) return(c(d, NA, NA, NA))",
@@ -563,6 +590,8 @@ ps_mc_body <- function(req) {
     "    b <- vapply(1:2, function(g) std$est.std[std$label == paste0(lab, '_', g)][1], 0)",
     "    ci <- unlist(pe[pe$label == paste0('d_', lab), c('ci.lower', 'ci.upper')])",
     "    held <- tryCatch(fit_mg(sprintf('%s_1 == %s_2', lab, lab)), error = function(e) NULL)",
+    "    # (a constrained fit that did not converge gives no test)",
+    "    if (!is.null(held) && !isTRUE(lavInspect(held, 'converged'))) held <- NULL",
     "    p <- if (is.null(held)) NA else suppressWarnings(lavTestLRT(free, held))[['Pr(>Chisq)']][2]",
     "    c(b[2] - b[1], ci, as.numeric(p < alpha))",
     "  })",

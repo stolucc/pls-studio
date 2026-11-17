@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { rotateToImplied } from './bootstrap';
 import { estimateCb } from './cbsem';
+import { cholesky } from './linalg';
 import { estimatePls } from './pls';
 import {
   buildPopulation,
   compositeReliability,
   generateData,
   idealReliability,
+  normalRng,
   specFromPopulation,
   unitReliability,
   type PopulationSpec,
@@ -351,5 +353,90 @@ describe('latent interactions (Chin et al. 2003)', () => {
     expect(() => buildPopulation(spec(0, big))).toThrow('R² ≥ 1');
     const unknown = { interactions: [{ a: 'X', b: 'Q', to: 'Y', value: 0.3 }] };
     expect(() => buildPopulation(spec(0, unknown))).toThrow('unknown construct "Q"');
+    const twice = {
+      interactions: [
+        { a: 'X', b: 'Z', to: 'Y', value: 0.3 },
+        { a: 'Z', b: 'X', to: 'Y', value: 0.1 },
+      ],
+    };
+    expect(() => buildPopulation(spec(0, twice))).toThrow('Z × X on "Y" is listed twice');
+    const noMain = { paths: [{ from: 'X', to: 'Y', value: 0.3 }] };
+    expect(() => buildPopulation(spec(0, noMain))).toThrow('needs the path Z → Y (it may be 0)');
+  });
+
+  // The constructs' scores drawn as mc.R's generateLatent does: exogenous factors, then each endogenous one from
+  // its predictors, its centred products and a residual of variance ψ.
+  const drawLatent = (pop: ReturnType<typeof buildPopulation>, n: number) => {
+    const { B, psi, order, exogenous } = pop.latent!;
+    const J = pop.constructs.length;
+    const L = cholesky(
+      pop.Phi.map((r, i) => r.map((v, j) => (exogenous[i] && exogenous[j] ? v : +(i === j)))),
+    )!;
+    const rng = normalRng(7);
+    return Array.from({ length: n }, () => {
+      const z = Array.from({ length: J }, () => rng());
+      const eta = L.map((row) => row.reduce((s, v, k) => s + v * z[k], 0));
+      for (const t of order) {
+        if (exogenous[t]) continue;
+        eta[t] =
+          B[t].reduce((s, v, f) => s + v * eta[f], 0) +
+          pop.interactions
+            .filter((x) => x.to === t)
+            .reduce((s, x) => s + x.value * (eta[x.a] * eta[x.b] - pop.Phi[x.a][x.b]), 0) +
+          Math.sqrt(psi[t]) * rng();
+      }
+      return eta;
+    });
+  };
+  const covOf = (rows: number[][], i: number, j: number) =>
+    rows.reduce((s, r) => s + r[i] * r[j], 0) / rows.length;
+
+  it('keeps unit variances and the right Φ when a product reaches a construct twice', () => {
+    const four = [factor('X'), factor('Z'), factor('Y'), factor('W')];
+    // A chain (X×Z → Y → W and X×Z → W) and siblings (X×Z → Y and → W, both → U).
+    const chain = buildPopulation({
+      constructs: four,
+      paths: [
+        { from: 'X', to: 'Y', value: 0.2 },
+        { from: 'Z', to: 'Y', value: 0 },
+        { from: 'X', to: 'W', value: 0 },
+        { from: 'Z', to: 'W', value: 0 },
+        { from: 'Y', to: 'W', value: 0.4 },
+      ],
+      exoCor: [{ a: 'X', b: 'Z', value: 0.3 }],
+      interactions: [
+        { a: 'X', b: 'Z', to: 'Y', value: 0.4 },
+        { a: 'X', b: 'Z', to: 'W', value: 0.4 },
+      ],
+    });
+    const siblings = buildPopulation({
+      constructs: [...four, factor('U')],
+      paths: [
+        { from: 'X', to: 'Y', value: 0.2 },
+        { from: 'Z', to: 'Y', value: 0 },
+        { from: 'X', to: 'W', value: 0 },
+        { from: 'Z', to: 'W', value: 0.2 },
+        { from: 'Y', to: 'U', value: 0.4 },
+        { from: 'W', to: 'U', value: 0.4 },
+      ],
+      exoCor: [{ a: 'X', b: 'Z', value: 0.3 }],
+      interactions: [
+        { a: 'X', b: 'Z', to: 'Y', value: 0.4 },
+        { a: 'X', b: 'Z', to: 'W', value: 0.4 },
+      ],
+    });
+    // Y and W share v² Var(XZ) = .16 · 1.09 beyond their linear parts.
+    expect(chain.Phi[2][3]).toBeCloseTo(0.4 + 0.4 * 0.4 * 1.09, 12);
+    for (const pop of [chain, siblings]) {
+      const rows = drawLatent(pop, 200_000);
+      pop.constructs.forEach((name, i) => {
+        expect(covOf(rows, i, i), `Var ${name}`).toBeCloseTo(1, 1);
+        for (let j = 0; j < i; j++)
+          expect(
+            Math.abs(covOf(rows, i, j) - pop.Phi[i][j]),
+            `${name}, ${pop.constructs[j]}`,
+          ).toBeLessThan(0.02);
+      });
+    }
   });
 });

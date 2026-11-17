@@ -318,7 +318,8 @@ function GroupsBlock({ design, set }: { design: McDesign; set: (d: McDesign) => 
       on
         ? {
             ...rest,
-            groups: { paths: pop.paths.map(({ from, to, value }) => ({ from, to, value })) },
+            // (a path not listed is the same in both groups and follows the first group's value)
+            groups: { paths: [] },
           }
         : rest,
     );
@@ -348,11 +349,13 @@ function GroupsBlock({ design, set }: { design: McDesign; set: (d: McDesign) => 
                   set({
                     ...design,
                     groups: {
-                      paths: pop.paths.map((y) => ({
-                        from: y.from,
-                        to: y.to,
-                        value: y.from === x.from && y.to === x.to ? v : valueOf(y),
-                      })),
+                      paths: pop.paths
+                        .map((y) => ({
+                          from: y.from,
+                          to: y.to,
+                          value: y.from === x.from && y.to === x.to ? v : valueOf(y),
+                        }))
+                        .filter((y, i) => y.value !== pop.paths[i].value),
                     },
                   })
                 }
