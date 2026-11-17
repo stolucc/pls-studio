@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { estimateCb } from './cbsem';
 import {
   DENSITY_POINTS,
+  ciTruth,
   designParameters,
   kernelDensity,
   mcParameters,
@@ -849,5 +850,40 @@ it('gives a latent interaction its standardised path, and leaves it to the R eng
   )!;
   expect(param).toMatchObject({ kind: 'path', from: 'X × Z', to: 'Y', interaction: ['X', 'Z'] });
   expect(param.value).toBeCloseTo(0.3 * Math.sqrt(1.09), 12);
+  expect(() => runMcTask({ design, n: 100, start: 0, end: 2 })).toThrow('R engine');
+});
+
+it('with two groups, tests each path’s difference only, and leaves it to the R engine', () => {
+  const factor = (name: string) => ({
+    name,
+    type: 'factor' as const,
+    indicators: [1, 2].map((i) => `${name.toLowerCase()}${i}`),
+    loadings: [0.8, 0.8],
+  });
+  const design: McDesign = {
+    population: {
+      constructs: [factor('A'), factor('B'), factor('C')],
+      paths: [
+        { from: 'A', to: 'C', value: 0.05 },
+        { from: 'B', to: 'C', value: 0.2 },
+      ],
+      exoCor: [],
+    },
+    groups: { paths: [{ from: 'A', to: 'C', value: 0.4 }] },
+    estimators: [{ id: 'CB-ML', method: 'cb', estimator: 'ML' }],
+    sampleSizes: [100],
+    replications: 2,
+    seed: 1,
+    alpha: 0.05,
+    bootSamples: 0,
+    mcDraws: 0,
+  };
+  const params = designParameters(design, buildPopulation(design.population));
+  expect(params.map((p) => [p.key, p.kind, p.value])).toEqual([
+    ['diff:A:C', 'difference', expect.closeTo(0.35, 12)],
+    ['diff:B:C', 'difference', 0],
+  ]);
+  // (CB-SEM's interval is for the unstandardised difference: × λ_marker(C) / λ_marker(A), here 1)
+  expect(ciTruth(design, buildPopulation(design.population), params)[0][0]).toBeCloseTo(0.35, 12);
   expect(() => runMcTask({ design, n: 100, start: 0, end: 2 })).toThrow('R engine');
 });

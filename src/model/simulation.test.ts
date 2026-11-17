@@ -112,6 +112,15 @@ describe('simulation design', () => {
     expect(parseDesign(d)!.population.interactions).toBeUndefined();
   });
 
+  it('keeps a second group’s path values through a project file, clamped', () => {
+    const d = defaultDesign(populationFromModel(model, null, null));
+    const groups = { paths: [{ from: 'A', to: 'B', value: 0.6 }] };
+    expect(parseDesign(JSON.parse(JSON.stringify({ ...d, groups })))!.groups).toEqual(groups);
+    const wild = { paths: [{ from: 'A', to: 'B', value: 3 }] };
+    expect(parseDesign({ ...d, groups: wild })!.groups!.paths[0].value).toBe(0.999);
+    expect(parseDesign({ ...d, groups: 'x' })!.groups).toBeUndefined();
+  });
+
   it('keeps the common-factor estimation of a composite population only as a literal true', () => {
     const d = defaultDesign(populationFromModel(model, null, null));
     const on = parseDesign(JSON.parse(JSON.stringify({ ...d, factorModel: true })))!;

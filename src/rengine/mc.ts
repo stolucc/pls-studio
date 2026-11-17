@@ -7,6 +7,7 @@ import { blockMoments, buildPopulation, specFromPopulation } from '../engine/pop
 import {
   ciTruth,
   designParameters,
+  groupPopulation,
   hasCbChecks,
   ordinalThresholds,
   replicationSeed,
@@ -57,6 +58,8 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
           }
         : {}),
     },
+    // Two groups: the second group's indicator covariance matrix (its own path values)
+    ...(design.groups ? { groups: { Sigma: buildPopulation(groupPopulation(design)).Sigma } } : {}),
     estimators: design.estimators,
     params: params.map((p) => {
       // A fit index: its cutoff, so R applies the same rule (cutoff NA: not an index).

@@ -359,6 +359,18 @@ export function buildPopulation(pop: PopulationSpec): Population {
   };
 }
 
+/** The population with other values for some paths (a second group's, McDesign.groups). */
+export function withPathValues(
+  pop: PopulationSpec,
+  values: { from: string; to: string; value: number }[],
+): PopulationSpec {
+  const value = new Map(values.map((x) => [`${x.from}→${x.to}`, x.value]));
+  return {
+    ...pop,
+    paths: pop.paths.map((x) => ({ ...x, value: value.get(`${x.from}→${x.to}`) ?? x.value })),
+  };
+}
+
 /** Model specification matching a population (for estimating simulated data). */
 export function specFromPopulation(pop: PopulationSpec, as?: ConstructType): ModelSpec {
   return {

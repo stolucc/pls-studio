@@ -134,6 +134,36 @@ describe('Monte Carlo card', () => {
     expect(form).toContain('Add interaction');
   });
 
+  it('compares two groups in R only, by PLS with bootstrap SEs and CB-SEM, and edits the second group', async () => {
+    const { needsR } = await import('./simulation');
+    const d = t.defaults(ctx());
+    const two = {
+      ...d,
+      groups: { paths: [{ from: 'A', to: 'B', value: 0.6 }] },
+      estimators: [
+        { id: 'PLS', method: 'pls' as const, consistent: false },
+        { id: 'CB-ML', method: 'cb' as const, estimator: 'ML' as const },
+      ],
+      bootSamples: 200,
+    };
+    expect(needsR(two)).toBe(true);
+    const r = ctx({ settings: { ...DEFAULT_SETTINGS, engine: 'r' } });
+    expect(t.blocked(two, r)).toBeNull();
+    expect(t.blocked(two, ctx({ settings: { ...DEFAULT_SETTINGS, engine: 'builtin' } }))).toBe(
+      'Two groups are compared by cSEM and lavaan: choose the R engine.',
+    );
+    expect(t.blocked({ ...two, bootSamples: 0 }, r)).toContain('bootstrap standard errors');
+    const regression = {
+      ...two,
+      estimators: [{ id: 'Sum scores', method: 'regression' as const, dr: false }],
+    };
+    expect(t.blocked(regression, r)).toContain('remove the regression estimators');
+    const form = (o: typeof d) =>
+      renderToStaticMarkup(<t.Options options={o} set={() => {}} ctx={ctx()} disabled={false} />);
+    expect(form(d)).toContain('Compare two groups');
+    expect(form(two)).toContain('first group');
+  });
+
   it('lets a construct correlation reach 1 (one factor split in two)', () => {
     const d = t.defaults(ctx({ model: { ...model, paths: [] } }));
     const form = renderToStaticMarkup(

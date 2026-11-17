@@ -387,6 +387,49 @@ it('a latent interaction (Chin et al. 2003): PLS product indicators and regressi
   }
 }, 900_000);
 
+it('two groups (Qureshi & Compeau 2009): PLS and CB-SEM estimate and test each path’s difference', async () => {
+  const factor = (name: string, p: string) => ({
+    name,
+    type: 'factor' as const,
+    indicators: [1, 2, 3].map((i) => `${p}${i}`),
+    loadings: [0.7, 0.8, 0.9],
+  });
+  const d: McDesign = {
+    ...design,
+    population: {
+      constructs: [factor('A', 'a'), factor('B', 'b'), factor('C', 'c')],
+      paths: [
+        { from: 'A', to: 'C', value: 0.2 },
+        { from: 'B', to: 'C', value: 0.3 },
+      ],
+      exoCor: [],
+    },
+    groups: { paths: [{ from: 'A', to: 'C', value: 0.6 }] },
+    estimators: [
+      { id: 'PLS', method: 'pls', consistent: false },
+      { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+    ],
+    sampleSizes: [300],
+    replications: 30,
+    bootSamples: 100,
+  };
+  const rows = summariseMc(d, [await runMcChunkR(d, 300, 0, 30)]);
+  const at = (e: string, key: string) =>
+    rows.find((x) => x.estimator === e && x.param.key === key)!;
+  expect(rows.map((r) => r.param.key)).toEqual(['diff:A:C', 'diff:B:C', 'diff:A:C', 'diff:B:C']);
+  for (const e of ['PLS', 'CB-ML']) {
+    const differs = at(e, 'diff:A:C');
+    expect(differs.failed, e).toBe(0);
+    expect(differs.param.value).toBeCloseTo(0.4, 12);
+    // (ML on factors is consistent; PLS attenuates both groups' paths, so their difference too)
+    expect(differs.mean, e).toBeGreaterThan(e === 'PLS' ? 0.28 : 0.34);
+    expect(differs.rejection, e).toBeGreaterThan(0.9);
+    const same = at(e, 'diff:B:C');
+    expect(Math.abs(same.mean), e).toBeLessThan(0.05);
+    expect(same.rejection, e).toBeLessThan(0.2);
+  }
+}, 900_000);
+
 it('skewed indicators: Fleishman per indicator lowers the paths, as in the built-in engine; Vale–Maurelli does not', async () => {
   const skewed = (nonnormal?: 'fleishman'): McDesign => ({
     ...design,

@@ -40,6 +40,7 @@ import {
   populationValidityInputs,
   specFromPopulation,
   unitReliability,
+  withPathValues,
   type Population,
   type PopulationSpec,
 } from './population';
@@ -104,7 +105,23 @@ export interface McDesign {
    * population's; CB-SEM always does. As Sarstedt et al. (2016) estimated their composite population (off when omitted).
    */
   factorModel?: boolean;
+  /**
+   * Two groups (Qureshi & Compeau 2009): each replication draws n cases from the population and n from a second
+   * group with these path values (the same constructs, indicators and loadings), and every estimator tests the
+   * difference of each path between the groups: PLS by the pooled-SE t test on its bootstrap SEs (Chin 2000),
+   * CB-SEM by a 1-df χ² difference test of a lavaan multigroup model (R engine only).
+   */
+  groups?: McGroups;
 }
+
+export interface McGroups {
+  /** The second group's value of each population path (missing: the same as the first group's). */
+  paths: { from: string; to: string; value: number }[];
+}
+
+/** The second group's population: the first's with the group's path values. */
+export const groupPopulation = (design: McDesign): PopulationSpec =>
+  withPathValues(design.population, design.groups?.paths ?? []);
 
 /**
  * Ordinal (Likert-type) indicators: each standardised indicator cut into `categories` at fixed thresholds.
@@ -174,8 +191,10 @@ export interface McParam {
    * construct; value: with ideal weights, the most any weights give; population.ts compositeReliability).
    * 'validity': a measurement check of PLS (mcValidity.ts; rule), from and to its construct(s), 'model' for
    * GoF; value: the population's; the rejection rate is the share failing the rule's cutoff.
+   * 'difference': with two groups, a path's value in the second group minus the first's; the rejection rate is
+   * the share of samples in which the test finds the groups differ.
    */
-  kind: 'path' | 'indirect' | 'covariance' | 'fit' | 'reliability' | 'validity';
+  kind: 'path' | 'indirect' | 'covariance' | 'fit' | 'reliability' | 'validity' | 'difference';
   from: string;
   to: string;
   /** True standardised value. */
@@ -211,9 +230,12 @@ export interface McPart {
   tests?: Partial<Record<McTest, Float64Array[][]>>;
 }
 
-/** The parameters of a design: fit tests with a CB-SEM estimator, composite reliabilities with a PLS or regression one. */
-export const designParameters = (design: McDesign, pop: Population) =>
-  mcParameters(
+/**
+ * The parameters of a design: fit tests with a CB-SEM estimator, composite reliabilities with a PLS or regression
+ * one; with two groups, the difference of each estimated path only.
+ */
+export const designParameters = (design: McDesign, pop: Population): McParam[] =>
+  design.groups ? groupDifferences(pop, buildPopulation(groupPopulation(design))) : mcParameters(
     pop,
     design.estimators.some((e) => e.method === 'cb'),
     design.estimators.some((e) => e.method !== 'cb'),
@@ -221,6 +243,25 @@ export const designParameters = (design: McDesign, pop: Population) =>
     design.bootSamples > 0,
     hasCbChecks(design),
   );
+
+/** Each estimated path's difference between the groups (second minus first). */
+function groupDifferences(first: Population, second: Population): McParam[] {
+  const C = first.constructs;
+  const out: McParam[] = [];
+  C.forEach((f, i) =>
+    C.forEach((t, j) => {
+      if (first.specified[i][j])
+        out.push({
+          key: `diff:${f}:${t}`,
+          kind: 'difference',
+          from: f,
+          to: t,
+          value: second.paths[i][j] - first.paths[i][j],
+        });
+    }),
+  );
+  return out;
+}
 
 /** Whether the design's CB-SEM estimators report the measurement checks. */
 export const hasCbChecks = (design: McDesign) =>
@@ -446,6 +487,7 @@ export function runMcTask(
   // (the card asks for the R engine first; simulation.tsx blocked)
   if (pop.interactions.length)
     throw new Error('Latent interactions are estimated by the R engine (cSEM product indicators).');
+  if (design.groups) throw new Error('Two groups are compared by the R engine.');
   const params = designParameters(design, pop);
   const E = design.estimators.length,
     count = Math.max(0, task.end - task.start);

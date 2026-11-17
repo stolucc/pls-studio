@@ -19,7 +19,7 @@ import type {
   McParam,
   McSummaryRow,
 } from '../engine/montecarlo';
-import { buildPopulation, type PopulationSpec } from '../engine/population';
+import { buildPopulation, withPathValues, type PopulationSpec } from '../engine/population';
 import { fmt } from '../format';
 import {
   defaultDesign,
@@ -299,6 +299,69 @@ function PowerChart({
         </svg>
       )}
     </ChartFrame>
+  );
+}
+
+/**
+ * Two groups (Qureshi & Compeau 2009): a second group with its own path values and the same measurement; every
+ * estimator tests each path's difference between the groups (R engine).
+ */
+function GroupsBlock({ design, set }: { design: McDesign; set: (d: McDesign) => void }) {
+  const pop = design.population;
+  if (!pop.paths.length) return null;
+  const groups = design.groups;
+  const valueOf = (x: { from: string; to: string; value: number }) =>
+    groups?.paths.find((y) => y.from === x.from && y.to === x.to)?.value ?? x.value;
+  const toggle = (on: boolean) => {
+    const { groups: _, ...rest } = design;
+    set(
+      on
+        ? {
+            ...rest,
+            groups: { paths: pop.paths.map(({ from, to, value }) => ({ from, to, value })) },
+          }
+        : rest,
+    );
+  };
+  return (
+    <div className="pop-block mc-misspec">
+      <label className="check">
+        <input type="checkbox" checked={!!groups} onChange={(e) => toggle(e.target.checked)} />
+        <b>Compare two groups</b>{' '}
+        <span className="muted">
+          n cases from each; the second group’s paths below, the same measurement; R engine
+        </span>
+      </label>
+      {groups && (
+        <div className="mc-misspec-group">
+          {pop.paths.map((x) => (
+            <div className="mc-misspec-row" key={`${x.from}-${x.to}`}>
+              <span>
+                {x.from} → {x.to}
+              </span>
+              <span className="muted">first group {fmt(x.value)}, second</span>
+              <Num
+                value={valueOf(x)}
+                min={-0.99}
+                max={0.99}
+                onChange={(v) =>
+                  set({
+                    ...design,
+                    groups: {
+                      paths: pop.paths.map((y) => ({
+                        from: y.from,
+                        to: y.to,
+                        value: y.from === x.from && y.to === x.to ? v : valueOf(y),
+                      })),
+                    },
+                  })
+                }
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -925,6 +988,7 @@ function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: Optio
       </div>
       <MisspecificationBlock pop={design.population} setPop={setPop} />
       <InteractionBlock pop={design.population} setPop={setPop} />
+      <GroupsBlock design={design} set={setDesign} />
       <h3 style={{ marginTop: 14 }}>Design</h3>
       <div className="field">
         <label>Sample sizes</label>
@@ -1198,11 +1262,29 @@ export function roughDuration(seconds: number): string {
 /** Whether only the R engine runs the design: lavaan's WLSMV, cSEM's GSCA, latent interactions. */
 export const needsR = (d: McDesign) =>
   !!d.population.interactions?.length ||
+  !!d.groups ||
   d.estimators.some(
     (e) =>
       (e.method === 'cb' && e.estimator === 'WLSMV') ||
       (e.method === 'pls' && e.approach === 'GSCA'),
   );
+
+/** Why a two-group design cannot run as it is (null: it can). */
+export function groupsError(d: McDesign): string | null {
+  if (!d.groups) return null;
+  if (d.estimators.some((e) => e.method === 'regression'))
+    return 'Two groups are compared by PLS and CB-SEM: remove the regression estimators.';
+  if (d.population.interactions?.length)
+    return 'Two groups cannot be combined with latent interactions.';
+  if (d.ordinal || (d.missing && d.missing.rate > 0))
+    return 'Two groups are drawn with continuous, complete data: turn off ordinal indicators and missing values.';
+  const pls = d.estimators.some((e) => e.method === 'pls');
+  if (pls && d.bootSamples < 2)
+    return 'Two groups: PLS compares the groups by bootstrap standard errors; set bootstrap samples.';
+  if (pls && d.inference?.interval === 'bca')
+    return 'Two groups: PLS compares the groups by the pooled-SE t test, not a BCa interval.';
+  return null;
+}
 
 /** Why a design's estimators cannot take its latent interactions (null: they can). */
 export function interactionError(d: McDesign): string | null {
@@ -1796,6 +1878,7 @@ function TestsTable({
 function populationError(d: McDesign): string | null {
   try {
     buildPopulation(d.population);
+    if (d.groups) buildPopulation(withPathValues(d.population, d.groups.paths));
     return null;
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
@@ -1822,8 +1905,10 @@ export const mcAnalysis: AnalysisType<McDesign, McSummaryRow[]> = {
     const wlsmv = d.estimators.some((e) => e.method === 'cb' && e.estimator === 'WLSMV');
     if (wlsmv && ctx.settings.engine !== 'r')
       return 'WLSMV is estimated by lavaan: choose the R engine.';
-    const interaction = interactionError(d);
+    const interaction = interactionError(d) ?? groupsError(d);
     if (interaction) return interaction;
+    if (d.groups && ctx.settings.engine !== 'r')
+      return 'Two groups are compared by cSEM and lavaan: choose the R engine.';
     if (d.population.interactions?.length && ctx.settings.engine !== 'r')
       return 'Latent interactions are estimated by cSEM: choose the R engine.';
     if (needsR(d) && ctx.settings.engine !== 'r')

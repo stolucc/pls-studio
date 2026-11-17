@@ -186,6 +186,35 @@ ps_mc_body <- function(req) {
   # Population model: every indicator (co)variance fixed at its population value.
   pop <- c()
   for (i in seq_along(vars)) for (j in i:length(vars)) pop <- c(pop, sprintf("%s ~~ %s*%s", vars[i], format(S[i, j], digits = 15), vars[j]))
+  # Two groups (Qureshi & Compeau 2009): the second group's indicator covariance matrix, n cases from each; every
+  # estimator tests each path's difference (PLS: pooled-SE t on bootstrap SEs; CB-SEM: 1-df chi2 difference).
+  mg <- !is.null(req$groups)
+  pop2 <- c()
+  mg_paths <- data.frame(from = character(0), to = character(0), label = character(0))
+  if (mg) {
+    S2 <- num_mat(req$groups$Sigma, "covariance")
+    if (any(dim(S2) != length(vars))) stop("The second group's covariance matrix does not match the indicators.")
+    for (i in seq_along(vars)) for (j in i:length(vars)) pop2 <- c(pop2, sprintf("%s ~~ %s*%s", vars[i], format(S2[i, j], digits = 15), vars[j]))
+    if (!is.null(lat) || length(cuts) || miss$rate > 0) stop("Two groups are drawn with continuous complete data and no interaction.")
+    if (any(vapply(req$estimators, function(e) e$method == "regression", TRUE))) stop("Two groups are compared by PLS or CB-SEM.")
+    if (any(vapply(req$estimators, function(e) e$method == "pls", TRUE)) && (req$bootSamples < 2 || interval == "bca")) {
+      stop("Two groups: PLS compares the groups by bootstrap standard errors (no BCa).")
+    }
+    mg_paths <- data.frame(
+      from = unname(cv[vapply(spec$paths, `[[`, "", "from")]),
+      to = unname(cv[vapply(spec$paths, `[[`, "", "to")]),
+      label = paste0("mg", seq_along(spec$paths))
+    )
+  }
+  # The CB-SEM multigroup model: loadings equal across groups, each path labelled per group, its difference defined.
+  cb_mg <- c(
+    vapply(seq_along(spec$constructs), function(j) paste(cv[[j]], "=~", ps_marked(ind(j))), ""),
+    vapply(unique(mg_paths$to), function(t) {
+      k <- which(mg_paths$to == t)
+      paste(t, "~", paste(sprintf("c(%s_1, %s_2)*%s", mg_paths$label[k], mg_paths$label[k], mg_paths$from[k]), collapse = " + "))
+    }, ""),
+    sprintf("d_%s := %s_2 - %s_1", mg_paths$label, mg_paths$label, mg_paths$label)
+  )
   est_lines <- unlist(lapply(seq_along(req$estimators), function(ei) {
     e <- req$estimators[[ei]]
     if (e$method == "regression") {
@@ -222,6 +251,18 @@ ps_mc_body <- function(req) {
       # (GSCA: cSEM's alternating least squares; the only other approach is none, PLS)
       if (!is.null(e$approach) && !identical(e$approach, "GSCA")) stop("Invalid weighting approach in the request.")
       approach <- if (identical(e$approach, "GSCA")) ", .approach_weights = \"GSCA\"" else ""
+      if (mg) {
+        fit_on <- function(d) {
+          sprintf(
+            "csem(%s, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"%s\"%s%s)",
+            d, if (isTRUE(e$consistent)) "TRUE" else "FALSE", scheme, approach, mode
+          )
+        }
+        return(sprintf(
+          "  res[%d] <- list(tryCatch(pls_mg_stats(%s, %s, %d, boot_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL }))",
+          ei, fit_on("data_pls"), fit_on("data_pls2"), as.integer(req$bootSamples)
+        ))
+      }
       sprintf(
         "  res[%d] <- list(tryCatch(pls_stats(csem(data_pls, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"%s\"%s%s%s)%s), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL }))",
         ei,
@@ -231,6 +272,12 @@ ps_mc_body <- function(req) {
         mode,
         boot,
         own_boot
+      )
+    } else if (mg) {
+      sprintf(
+        "  res[%d] <- list(tryCatch(cb_mg_stats(data, data2, \"%s\"), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL }))",
+        ei,
+        e$estimator
       )
     } else {
       sprintf(
@@ -258,6 +305,8 @@ ps_mc_body <- function(req) {
     "cb_model <- '",
     paste0("  ", cbm),
     "'",
+    if (mg) c("pop_model2 <- '", paste0("  ", pop2), "'", "cb_mg_model <- '", paste0("  ", cb_mg), "'"),
+    if (mg) sprintf("mg_paths <- data.frame(from = %s, to = %s, label = %s)", ps_q(mg_paths$from), ps_q(mg_paths$to), ps_q(mg_paths$label)),
     sprintf("alpha <- %s; mc_draws <- %d", format(ps_number(req$alpha, "significance level")), as.integer(req$mcDraws)),
     sprintf("cb_checks <- %s; req_boot <- %d", if (isTRUE(req$cbChecks)) "TRUE" else "FALSE", as.integer(req$bootSamples)),
     sprintf(
@@ -480,6 +529,45 @@ ps_mc_body <- function(req) {
     "  ok <- !isTRUE(fit$Information$Arguments$.disattenuate) || sum(cSEM::verify(fit)) == 0",
     "  list(values = do.call(rbind, lapply(rows, `[[`, 'values')), tests = do.call(rbind, lapply(rows, `[[`, 'tests')), proper = as.numeric(ok))",
     "}",
+    "# Two groups, PLS: each group estimated on its own, the difference tested by the pooled-SE t test on the",
+    "# bootstrap SEs of the two groups (Chin 2000; Keil et al. 2000), n1 + n2 - 2 df; the interval is its t interval.",
+    "pls_mg_stats <- function(fit1, fit2, boot, seed) {",
+    "  for (fit in list(fit1, fit2)) if (!isTRUE(fit$Information$Weight_info$Convergence_status)) stop('not converged')",
+    "  P <- list(t(path_matrix(fit1)), t(path_matrix(fit2)))",
+    "  draws <- list(pls_boot(fit1, boot, seed), pls_boot(fit2, boot, seed + 1L))",
+    "  n <- c(nrow(fit1$Information$Data), nrow(fit2$Information$Data)); df <- sum(n) - 2",
+    "  crit <- stats::qt(1 - alpha / 2, df)",
+    "  rows <- lapply(seq_len(nrow(params)), function(k) {",
+    "    f <- params$from[k]; t <- params$to[k]",
+    "    se <- vapply(1:2, function(g) { x <- vapply(draws[[g]], function(D) D$direct[f, t], 0); stats::sd(x[is.finite(x)]) }, 0)",
+    "    d <- P[[2]][f, t] - P[[1]][f, t]",
+    "    s <- sqrt(sum((n - 1)^2 / df * se^2)) * sqrt(sum(1 / n))",
+    "    if (!is.finite(s) || s <= 0) return(c(d, NA, NA, NA))",
+    "    c(d, d - crit * s, d + crit * s, as.numeric(abs(d / s) > crit))",
+    "  })",
+    "  ok <- all(vapply(list(fit1, fit2), function(fit) !isTRUE(fit$Information$Arguments$.disattenuate) || sum(cSEM::verify(fit)) == 0, TRUE))",
+    "  list(values = do.call(rbind, rows), proper = as.numeric(ok))",
+    "}",
+    "# Two groups, CB-SEM: a lavaan multigroup model with equal loadings; the estimate is the difference of the",
+    "# groups' standardised paths, the interval the Wald interval of the unstandardised difference (marker metric),",
+    "# the test the 1-df chi2 difference against the model with that path held equal.",
+    "cb_mg_stats <- function(d1, d2, est) {",
+    "  D <- rbind(d1, d2); D$.g <- rep(c('g1', 'g2'), c(nrow(d1), nrow(d2)))",
+    "  fit_mg <- function(extra = NULL) sem(paste(c(cb_mg_model, extra), collapse = '\\n'), data = D, group = '.g', group.equal = 'loadings', estimator = est)",
+    "  free <- fit_mg()",
+    "  if (!lavInspect(free, 'converged')) stop('not converged')",
+    "  std <- standardizedSolution(free)",
+    "  pe <- parameterEstimates(free, level = 1 - alpha)",
+    "  rows <- lapply(seq_len(nrow(params)), function(k) {",
+    "    lab <- mg_paths$label[mg_paths$from == params$from[k] & mg_paths$to == params$to[k]]",
+    "    b <- vapply(1:2, function(g) std$est.std[std$label == paste0(lab, '_', g)][1], 0)",
+    "    ci <- unlist(pe[pe$label == paste0('d_', lab), c('ci.lower', 'ci.upper')])",
+    "    held <- tryCatch(fit_mg(sprintf('%s_1 == %s_2', lab, lab)), error = function(e) NULL)",
+    "    p <- if (is.null(held)) NA else suppressWarnings(lavTestLRT(free, held))[['Pr(>Chisq)']][2]",
+    "    c(b[2] - b[1], ci, as.numeric(p < alpha))",
+    "  })",
+    "  list(values = do.call(rbind, rows), proper = as.numeric(isTRUE(suppressWarnings(lavInspect(free, 'post.check')))))",
+    "}",
     "# CB-SEM: standardised estimates; Wald CIs (marker metric) for paths, Monte Carlo CIs for indirect effects.",
     "# CB-SEM measurement checks (as mcValidity.ts cbValidity): from the standardised loadings and factor",
     "# correlations, HTMT from the complete cases; per pair of exogenous factors the upper bound of the factor",
@@ -598,12 +686,15 @@ ps_mc_body <- function(req) {
     } else {
       "  data <- generate_latent(n)"
     },
+    if (mg) "  data2 <- simulateData(pop_model2, sample.nobs = n, skewness = skew, kurtosis = kurt)[, vars]",
     "  if (!is.null(fleishman)) data <- to_fleishman(data)",
+    if (mg) "  if (!is.null(fleishman)) data2 <- to_fleishman(data2)",
     "  if (length(cuts)) data[] <- lapply(data, function(x) findInterval(x, cuts) + 1)  # categories 1..k",
     "  if (miss_rate > 0) data <- add_missing(data, miss_seed)",
     "  # PLS (cSEM) needs complete data: mean replacement or casewise deletion.",
     "  data_pls <- if (pls_missing == 'mean') as.data.frame(lapply(data, function(x) { x[is.na(x)] <- mean(x, na.rm = TRUE); x })) else stats::na.omit(data)",
     if (!is.null(lat)) "  data_pls <- add_products(data_pls)",
+    if (mg) "  data_pls2 <- data2",
     "  res <- list()",
     est_lines,
     "  res",

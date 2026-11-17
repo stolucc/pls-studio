@@ -254,5 +254,19 @@ export function parseDesign(raw: unknown): McDesign | null {
           },
         }
       : {}),
+    ...(isObj(raw.groups) && Array.isArray(raw.groups.paths)
+      ? {
+          groups: {
+            paths: raw.groups.paths
+              .filter(isObj)
+              .slice(0, 5000)
+              .map((x) => ({
+                from: str(x.from),
+                to: str(x.to),
+                value: clampStrict(x.value, -0.999, 0.999, 0),
+              })),
+          },
+        }
+      : {}),
   };
 }
