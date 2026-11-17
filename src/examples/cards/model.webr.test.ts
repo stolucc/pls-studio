@@ -1187,3 +1187,169 @@ slowIt(
   },
   3_600_000,
 );
+
+slowIt(
+  'rhemtulla-composite-factor: a composite modelled as a common factor inflates its paths by √(4/3)',
+  async () => {
+    const run = await mcCardRun('rhemtulla-composite-factor');
+    against({
+      label:
+        'Rhemtulla, van Bork & Borsboom (2020), Equation 1: a factor model of an error-free composite of p components correlated c inflates its correlations by √((1 + (p − 1)c) / (pc)), here √(4/3): .6 → .693; sum scores and PLS estimate the composite’s .6',
+      level: 'recovery',
+      url: 'https://doi.org/10.1037/met0000220',
+    });
+    for (const n of [100, 250, 1000]) {
+      for (const key of ['path:X:M', 'path:M:Y']) {
+        near(`PLS ${key} at N = ${n}`, run.row('PLS', key, n).mean, 0.6, 0.02);
+        near(`sum scores ${key} at N = ${n}`, run.row('Sum scores', key, n).mean, 0.6, 0.02);
+        near(`PLSc ${key} at N = ${n}`, run.row('PLSc', key, n).mean, 0.693, 0.02);
+        // (ML SEM compromises: a factor M cannot reproduce cor(X, Y) = .36 under full mediation)
+        const ml = run.row('CB-ML', key, n).mean;
+        expect(ml, `ML ${key} at N = ${n}`).toBeGreaterThan(0.63);
+        expect(ml, `ML ${key} at N = ${n}`).toBeLessThan(0.68);
+      }
+      same(`ML failed at N = ${n}`, run.row('CB-ML', 'path:X:M', n).failed, 0);
+    }
+    expect(run.row('CB-ML', 'fit:chisq', 1000).rejection!).toBeGreaterThan(0.95);
+    expect(run.row('CB-ML', 'fit:chisq', 100).rejection!).toBeLessThan(0.35);
+  },
+  1_800_000,
+);
+
+/** Mean absolute error over a card's paths (Sarstedt et al. 2016, Eq. 4), from the replications that converged. */
+function pathMae(run: Awaited<ReturnType<typeof mcCardRun>>, estimator: string, n: number) {
+  const ei = run.card.estimators.findIndex((e) => e.id === estimator);
+  const params = designParameters(run.card, buildPopulation(run.card.population));
+  const errors = params.flatMap((p, pi) => {
+    if (p.kind !== 'path') return [];
+    const est = run.parts
+      .filter((x) => x.n === n)
+      .flatMap((x) => Array.from(x.est[ei][pi]))
+      .filter(Number.isFinite);
+    return [est.reduce((t, v) => t + Math.abs(v - p.value), 0) / est.length];
+  });
+  return errors.reduce((t, v) => t + v, 0) / errors.length;
+}
+
+const SARSTEDT = {
+  level: 'published' as const,
+  url: 'https://doi.org/10.1016/j.jbusres.2016.06.007',
+};
+
+slowIt(
+  'sarstedt cards: PLS biased on common factors at every N; PLSc and CB-SEM fail on composites at every N',
+  async () => {
+    const weak = await mcCardRun('sarstedt-factor-weak');
+    against({
+      ...SARSTEDT,
+      label:
+        'Sarstedt et al. (2016), Table 2, common factors (2 indicators; loadings .5): PLS’s MAE does not shrink with N (about .1 or more), PLSc’s and CB-SEM’s fall to about .01 to .02 at N = 10,000; at N = 100 PLS is the most accurate',
+    });
+    expect(pathMae(weak, 'PLS', 10000)).toBeGreaterThan(0.1);
+    for (const e of ['PLSc', 'CB-ML']) {
+      expect(pathMae(weak, e, 10000), e).toBeLessThan(0.04);
+      expect(pathMae(weak, e, 100), e).toBeGreaterThan(pathMae(weak, 'PLS', 100));
+    }
+    // (Reinartz et al. 2009: about half the solutions improper in this cell at N = 100)
+    expect(weak.row('CB-ML', 'path:Y1:Y2', 100).failed).toBeGreaterThan(60);
+
+    const unequal = await mcCardRun('sarstedt-factor-unequal');
+    against({
+      ...SARSTEDT,
+      label:
+        'Sarstedt et al. (2016), Table 2, common factors (4 indicators; loadings .5/.9): MAE about .08 to .10 for all three at N = 100; at N = 10,000 PLS .04 to .06, PLSc and CB-SEM .01',
+    });
+    for (const e of ['PLS', 'PLSc', 'CB-ML'])
+      near(`${e} at N = 100`, pathMae(unequal, e, 100), 0.08, 0.025);
+    near('PLS at N = 10,000', pathMae(unequal, 'PLS', 10000), 0.04, 0.015);
+    for (const e of ['PLSc', 'CB-ML'])
+      near(`${e} at N = 10,000`, pathMae(unequal, e, 10000), 0.01, 0.005);
+
+    const composites = [
+      ['sarstedt-composite-equal', '4 indicators, equal weights'],
+      ['sarstedt-composite-unequal', '2 indicators, unequal weights'],
+    ];
+    for (const [id, cell] of composites) {
+      const run = await mcCardRun(id);
+      against({
+        ...SARSTEDT,
+        label: `Sarstedt et al. (2016), Table 3, composites (${cell}): PLS’s MAE about .07 at N = 100 falling to .01 at 10,000; PLSc’s above 1 and CB-SEM’s about .5 or more at every N, CB-SEM converging in fewer than half the runs`,
+      });
+      near(`${id}: PLS at N = 100`, pathMae(run, 'PLS', 100), 0.065, 0.015);
+      expect(pathMae(run, 'PLS', 10000), `${id}: PLS at N = 10,000`).toBeLessThan(0.012);
+      for (const n of [100, 1000, 10000])
+        expect(pathMae(run, 'PLSc', n), `${id}: PLSc at N = ${n}`).toBeGreaterThan(1);
+      for (const n of [100, 1000])
+        expect(pathMae(run, 'CB-ML', n), `${id}: CB-ML at N = ${n}`).toBeGreaterThan(0.5);
+      for (const n of [250, 1000])
+        expect(
+          run.row('CB-ML', 'path:Y1:Y2', n).failed,
+          `${id}: CB-ML failed at N = ${n}`,
+        ).toBeGreaterThan(150);
+    }
+  },
+  7_200_000,
+);
+
+slowIt(
+  'dijkstra-henseler-plsc: PLSc and ML SEM recover the paths PLS and sum scores bias (Tables 3 and 4)',
+  async () => {
+    const run = await mcCardRun('dijkstra-henseler-plsc');
+    const bias = (e: string, key: string, n: number) => {
+      const r = run.row(e, key, n);
+      return r.mean - r.param.value;
+    };
+    against({
+      label:
+        'Dijkstra & Henseler (2015), Table 3, normal data, bias at N = 100 / 500: X2 → Y4 PLS −.274 / −.283, sum scores −.305 / −.303, PLSc .023 / .005, FIML .021 / .005; X1 → Y4 (0) PLS .157 / .162; Table 4: X1 → Y4 significant for sum scores 35.2% / 94.9%, FIML 4.6% / 5.1%; X1 → Y5 found by FIML 20.4% / 87.2%',
+      level: 'published',
+      url: 'https://doi.org/10.25300/MISQ/2015/39.2.02',
+    });
+    near('PLS bias X2 → Y4 at N = 100', bias('PLS factorial', 'path:X2:Y4', 100), -0.274, 0.02);
+    near('PLS bias X2 → Y4 at N = 500', bias('PLS factorial', 'path:X2:Y4', 500), -0.283, 0.015);
+    near('PLS bias X1 → Y4 at N = 500', bias('PLS factorial', 'path:X1:Y4', 500), 0.162, 0.015);
+    near(
+      'sum scores bias X2 → Y4 at N = 500',
+      bias('Sum scores', 'path:X2:Y4', 500),
+      -0.303,
+      0.015,
+    );
+    for (const e of ['PLSc', 'CB-ML'])
+      for (const key of ['path:X2:Y4', 'path:X2:Y5', 'path:X1:Y4', 'path:X1:Y5'])
+        near(`${e} bias ${key} at N = 500`, bias(e, key, 500), 0, 0.02);
+    near(
+      'sum scores: X1 → Y4 significant at N = 100',
+      run.row('Sum scores', 'path:X1:Y4', 100).rejection!,
+      0.352,
+      0.05,
+    );
+    near(
+      'sum scores: X1 → Y4 significant at N = 500',
+      run.row('Sum scores', 'path:X1:Y4', 500).rejection!,
+      0.949,
+      0.03,
+    );
+    for (const n of [100, 500])
+      near(
+        `ML: X1 → Y4 significant at N = ${n}`,
+        run.row('CB-ML', 'path:X1:Y4', n).rejection!,
+        0.05,
+        0.025,
+      );
+    near(
+      'ML: X1 → Y5 power at N = 100',
+      run.row('CB-ML', 'path:X1:Y5', 100).rejection!,
+      0.204,
+      0.05,
+    );
+    near(
+      'ML: X1 → Y5 power at N = 500',
+      run.row('CB-ML', 'path:X1:Y5', 500).rejection!,
+      0.872,
+      0.04,
+    );
+    // (GLS fails to converge in a few per cent of samples at N = 100, Table 2: 2.3%)
+    expect(run.row('CB-GLS', 'path:X1:Y4', 100).failed).toBeLessThan(60);
+  },
+  3_600_000,
+);

@@ -61,6 +61,7 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
     bootSamples: design.bootSamples,
     mcDraws: design.mcDraws,
     cbChecks: hasCbChecks(design),
+    factorModel: design.factorModel === true,
     // R's set.seed takes a signed 32-bit integer.
     seeds: reps.map(({ n, rep }) => ({
       n,

@@ -756,3 +756,40 @@ describe('CB-SEM measurement checks (Rönkkö & Cho 2022)', () => {
 function near(x: number, target: number, tol: number) {
   expect(Math.abs(x - target), `${x} near ${target}`).toBeLessThan(tol);
 }
+
+describe('a composite population estimated as common factors (Sarstedt et al. 2016)', () => {
+  const block = (name: string, p: string) => ({
+    name,
+    type: 'composite' as const,
+    indicators: [1, 2, 3, 4].map((i) => `${p}${i}`),
+    weights: [0.4, 0.4, 0.4, 0.4],
+    withinCor: 0.1875,
+  });
+  const design = (factorModel?: boolean): McDesign => ({
+    population: {
+      constructs: [block('A', 'a'), block('B', 'b')],
+      paths: [{ from: 'A', to: 'B', value: 0.5 }],
+      exoCor: [],
+    },
+    estimators: [
+      { id: 'PLS', method: 'pls', consistent: false, mode: 'A' },
+      { id: 'PLSc', method: 'pls', consistent: true },
+    ],
+    sampleSizes: [500],
+    replications: 60,
+    seed: 16,
+    alpha: 0.05,
+    bootSamples: 0,
+    mcDraws: 0,
+    ...(factorModel ? { factorModel } : {}),
+  });
+
+  it('PLSc corrects the composites for attenuation they do not have, PLS mode A estimates the path', () => {
+    const asFactors = run(design(true), 1);
+    near(row(asFactors, 'PLS', 'path:A:B').mean, 0.5, 0.03);
+    // (ρA of a block of weakly correlated indicators is low, so the correction inflates the path)
+    expect(row(asFactors, 'PLSc', 'path:A:B').mean).toBeGreaterThan(0.7);
+    // As composites (mode B), PLSc leaves them alone: the path is the composites'
+    near(row(run(design(), 1), 'PLSc', 'path:A:B').mean, 0.5, 0.03);
+  });
+});

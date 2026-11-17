@@ -70,6 +70,21 @@ describe('Monte Carlo card', () => {
     expect(mcSeconds({ ...cb, cbChecks: true }, 'builtin', 1)).toBe(mcSeconds(cb, 'builtin', 1));
   });
 
+  it('offers to estimate a composite population as common factors (Sarstedt et al. 2016)', () => {
+    const d = t.defaults(ctx());
+    const form = (o: typeof d) =>
+      renderToStaticMarkup(<t.Options options={o} set={() => {}} ctx={ctx()} disabled={false} />);
+    expect(form(d)).not.toContain('Estimate every construct as a common factor');
+    const composites = d.population.constructs.map((c) => ({
+      ...c,
+      type: 'composite' as const,
+      weights: [1, 1, 1],
+      withinCor: 0.5,
+    }));
+    const mixed = { ...d, population: { ...d.population, constructs: composites } };
+    expect(form(mixed)).toContain('Estimate every construct as a common factor');
+  });
+
   it('lets a construct correlation reach 1 (one factor split in two)', () => {
     const d = t.defaults(ctx({ model: { ...model, paths: [] } }));
     const form = renderToStaticMarkup(

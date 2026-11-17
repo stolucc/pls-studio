@@ -66,6 +66,14 @@ describe('simulation design', () => {
     expect(parseDesign(d)!.cbChecks).toBeUndefined();
   });
 
+  it('keeps the common-factor estimation of a composite population only as a literal true', () => {
+    const d = defaultDesign(populationFromModel(model, null, null));
+    const on = parseDesign(JSON.parse(JSON.stringify({ ...d, factorModel: true })))!;
+    expect(on.factorModel).toBe(true);
+    expect(parseDesign({ ...d, factorModel: 1 })!.factorModel).toBeUndefined();
+    expect(parseDesign(d)!.factorModel).toBeUndefined();
+  });
+
   it('keeps a construct correlation of 1 (one factor split in two), clamped to ±1', () => {
     const d = defaultDesign(populationFromModel(model, null, null));
     const one = { ...d, population: { ...d.population, exoCor: [{ a: 'A', b: 'B', value: 1 }] } };

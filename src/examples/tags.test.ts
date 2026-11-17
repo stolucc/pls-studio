@@ -51,7 +51,13 @@ describe('example topics', () => {
   it('groups the simulations of the PLS debate, each saying which population it assumes', () => {
     const debate = PACKAGE_EXAMPLES.filter((e) => exampleTags(e).includes('PLS debate'));
     expect(debate.map((e) => e.id)).toEqual(
-      expect.arrayContaining(['ronkko-evermann-null', 'henseler-four', 'goodhue-nonnormal']),
+      expect.arrayContaining([
+        'ronkko-evermann-null',
+        'henseler-four',
+        'goodhue-nonnormal',
+        'sarstedt-composite-equal',
+        'rhemtulla-composite-factor',
+      ]),
     );
     for (const e of debate) {
       const tags = exampleTags(e);
@@ -61,6 +67,8 @@ describe('example topics', () => {
       expect(population, e.id).toHaveLength(1);
       if (population[0] === 'Factor population' && e.description !== 'DRAFT')
         expect(e.description, e.id).toContain('The population is made of common factors');
+      if (population[0] === 'Composite population' && e.description !== 'DRAFT')
+        expect(e.description, e.id).toContain('The population is made of composites');
     }
   });
 

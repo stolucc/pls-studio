@@ -96,6 +96,11 @@ export interface McDesign {
    * (mcValidity.ts; off when omitted).
    */
   cbChecks?: boolean;
+  /**
+   * PLS and PLSc estimate every construct as a common factor (mode A; PLSc corrects every one), whatever the
+   * population's; CB-SEM always does. As Sarstedt et al. (2016) estimated their composite population (off when omitted).
+   */
+  factorModel?: boolean;
 }
 
 /**
@@ -444,7 +449,7 @@ export function runMcTask(
   const ci = (name: string) => C.indexOf(name);
   const truthCI = ciTruth(design, pop, params);
   const zc = zCrit(design.alpha);
-  const plsSpec = specFromPopulation(design.population);
+  const plsSpec = specFromPopulation(design.population, design.factorModel ? 'factor' : undefined);
   const cbSpec = specFromPopulation(design.population, 'factor');
 
   for (let k = 0; k < count; k++) {

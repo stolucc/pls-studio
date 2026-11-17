@@ -37,7 +37,8 @@ ps_mc_body <- function(req) {
     if (ncol(m) != 4) stop("Fleishman coefficients come in rows of four")
     fleishman <- matrix(vapply(m, function(v) ps_number(v, "Fleishman coefficient"), 0), nrow(m))
   }
-  # Estimation models: PLS keeps factors (=~) and composites (<~); CB-SEM treats every construct as a common factor.
+  # Estimation models: PLS keeps factors (=~) and composites (<~), unless the design estimates every construct as a
+  # common factor (factorModel); CB-SEM treats every construct as a common factor.
   ind <- function(j) unname(n$iv[n$inds[[j]]])
   ends <- unique(vapply(spec$paths, `[[`, "", "to"))
   reg <- vapply(
@@ -48,7 +49,7 @@ ps_mc_body <- function(req) {
   plsm <- c(
     vapply(
       seq_along(spec$constructs),
-      function(j) paste(cv[[j]], if (identical(spec$constructs[[j]]$type, "composite")) "<~" else "=~", paste(ind(j), collapse = " + ")),
+      function(j) paste(cv[[j]], if (identical(spec$constructs[[j]]$type, "composite") && !isTRUE(req$factorModel)) "<~" else "=~", paste(ind(j), collapse = " + ")),
       ""
     ),
     reg,

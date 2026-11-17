@@ -276,6 +276,38 @@ it("CB-SEM measurement checks (Rönkkö & Cho 2022): the factor correlation's in
   }
 }, 900_000);
 
+it('a composite population estimated as common factors: PLSc corrects the composites in R as built in', async () => {
+  const block = (name: string, p: string) => ({
+    name,
+    type: 'composite' as const,
+    indicators: [1, 2, 3, 4].map((i) => `${p}${i}`),
+    weights: [0.4, 0.4, 0.4, 0.4],
+    withinCor: 0.1875,
+  });
+  const d: McDesign = {
+    ...design,
+    population: {
+      constructs: [block('A', 'a'), block('B', 'b')],
+      paths: [{ from: 'A', to: 'B', value: 0.5 }],
+      exoCor: [],
+    },
+    estimators: [{ id: 'PLSc', method: 'pls', consistent: true }],
+    sampleSizes: [500],
+    replications: 40,
+    bootSamples: 0,
+    factorModel: true,
+  };
+  const path = (rows: ReturnType<typeof summariseMc>) =>
+    rows.find((x) => x.param.key === 'path:A:B')!;
+  const r = path(summariseMc(d, [await runMcChunkR(d, 500, 0, 40)]));
+  const b = path(summariseMc(d, [runMcTask({ design: d, n: 500, start: 0, end: 40 })]));
+  // (corrected for attenuation the composites do not have: well above .5 in both engines)
+  expect(r.mean).toBeGreaterThan(0.7);
+  expect(Math.abs(r.mean - b.mean)).toBeLessThan(
+    4 * Math.sqrt((r.sd ** 2 + b.sd ** 2) / 40) + 0.02,
+  );
+}, 900_000);
+
 it('skewed indicators: Fleishman per indicator lowers the paths, as in the built-in engine; Vale–Maurelli does not', async () => {
   const skewed = (nonnormal?: 'fleishman'): McDesign => ({
     ...design,

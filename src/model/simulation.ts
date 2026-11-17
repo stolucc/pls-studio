@@ -188,6 +188,7 @@ export function parseDesign(raw: unknown): McDesign | null {
     bootSamples: Math.round(clampStrict(raw.bootSamples, 0, 10000, 200)),
     mcDraws: Math.round(clampStrict(raw.mcDraws, 0, 1000000, 1000)),
     ...(raw.cbChecks === true ? { cbChecks: true } : {}),
+    ...(raw.factorModel === true ? { factorModel: true } : {}),
     ...(isObj(raw.ordinal)
       ? {
           ordinal: {

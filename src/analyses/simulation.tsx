@@ -909,6 +909,19 @@ function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: Optio
           Measurement checks for CB-SEM (discriminant validity tests of Rönkkö &amp; Cho 2022)
         </label>
       )}
+      {design.population.constructs.some((c) => c.type === 'composite') && (
+        <label
+          className="check"
+          title="PLS and PLSc estimate the composites of the population as common factors (mode A, and PLSc corrects them for attenuation), as Sarstedt et al. (2016) did; CB-SEM always estimates common factors."
+        >
+          <input
+            type="checkbox"
+            checked={design.factorModel === true}
+            onChange={(ev) => set({ factorModel: ev.target.checked ? true : undefined })}
+          />
+          Estimate every construct as a common factor
+        </label>
+      )}
       <div className="row2">
         <div className="field">
           <label>Bootstrap / rep (PLS)</label>

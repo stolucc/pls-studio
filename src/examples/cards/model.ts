@@ -522,6 +522,155 @@ const frankeSarstedtCard = (file: string, phi: number, lx: number, ly: number) =
   settings: CB('ML'),
 });
 
+/** Composite population: the other side of the debate the factor population cards take. */
+const COMPOSITE_POPULATION =
+  ' The population is made of composites, the view of measurement behind PLS: each construct is a weighted sum of its indicators, without measurement error, and the indicators correlate freely within a block. CB-SEM and PLSc estimate such data as common factors, which they are not; with a population of common factors the comparison turns around (Rönkkö & Evermann 2013), and no test of the data can say which of the two holds.';
+const COMPOSITE_DEBATE_TAGS = ['PLS debate', 'Composite population'];
+
+/** Sarstedt et al. (2016): Reinartz et al.'s (2009) model of seven constructs, Y5 added with two null paths. */
+const SARSTEDT_PATHS: [string, string, number][] = [
+  ['Y1', 'Y2', 0.5],
+  ['Y1', 'Y3', 0.15],
+  ['Y1', 'Y4', 0.15],
+  ['Y2', 'Y3', 0.5],
+  ['Y2', 'Y4', 0.5],
+  ['Y3', 'Y4', 0.3],
+  ['Y5', 'Y2', 0],
+  ['Y5', 'Y4', 0],
+  ['Y4', 'Y6', 0.5],
+  ['Y4', 'Y7', 0.5],
+  ['Y5', 'Y7', 0.5],
+  ['Y7', 'Y6', 0.15],
+];
+
+const SARSTEDT_CONSTRUCTS = ['Y1', 'Y2', 'Y3', 'Y4', 'Y5', 'Y6', 'Y7'];
+
+/**
+ * Sarstedt et al.'s population: every construct a common factor with `values` as loadings, or a composite with
+ * `values` as weights and `withinCor` the correlation of its indicators (not given in the paper: the value that
+ * gives the composite unit variance with equal correlations).
+ */
+export const sarstedtPopulation = (values: number[], withinCor?: number) => ({
+  constructs: SARSTEDT_CONSTRUCTS.map((name) => ({
+    name,
+    type: withinCor === undefined ? 'factor' : 'composite',
+    indicators: items(`${name.toLowerCase()}_`, values.length),
+    ...(withinCor === undefined ? { loadings: values } : { weights: values, withinCor }),
+  })),
+  paths: SARSTEDT_PATHS.map(([from, to, value]) => ({ from, to, value })),
+  exoCor: [],
+  skew: 0,
+  kurtosis: 0,
+});
+
+/** What the Sarstedt et al. cards take from the paper, and what is the app's. */
+const SARSTEDT_DIFFERS =
+  'As in the paper: the population (Figure 2), normal data, N = 100, 250, 500, 1,000 and 10,000, 300 replications, PLS mode A with path weighting (semPLS’s default), PLSc and ML SEM, every construct estimated as a common factor. The app’s choices: cSEM for PLS and PLSc where the paper used semPLS and matrixpls, lavaan where it used sem; the paper does not give the correlation of Y1 and Y5 (here 0) or, for composites, the correlations within a block (here equal, at the value that gives the weights unit variance). The paper reports the mean absolute error over the paths (MAE); the card gives each path’s bias and RMSE, and counts replications without a solution as failed where the paper notes cells where CB-SEM converged in fewer than half. Random numbers differ from the paper’s, so results agree up to Monte Carlo error.';
+
+const SARSTEDT_RUN =
+  'The card simulates 300 samples at N = 100, 250, 500, 1,000 and 10,000, each estimated by PLS (mode A, cSEM), PLSc and ML SEM (lavaan).';
+
+const sarstedtCard = (file: string, values: number[], withinCor?: number) => {
+  const composite = withinCor !== undefined;
+  const block = (name: string) => items(`${name.toLowerCase()}_`, values.length);
+  return {
+    package: 'cSEM' as const,
+    source:
+      'Sarstedt, Hair, Ringle, Thiele & Gudergan (2016), Estimation issues with PLS and CBSEM: where the bias lies!, the simulation',
+    links: [
+      { label: 'Sarstedt et al. (2016)', url: 'https://doi.org/10.1016/j.jbusres.2016.06.007' },
+    ],
+    tags: composite ? COMPOSITE_DEBATE_TAGS : FACTOR_DEBATE_TAGS,
+    data: {
+      package: 'cSEM' as const,
+      name: `Sarstedt et al. (2016), a sample of 250 (${composite ? 'composites' : 'common factors'})`,
+      file: `examples/montecarlo/${file}.csv`,
+    },
+    constructs: SARSTEDT_CONSTRUCTS.map((name) =>
+      composite ? c(name, block(name), 'A') : f(name, block(name)),
+    ),
+    paths: SARSTEDT_PATHS.map(([from, to]): [string, string] => [from, to]),
+    panel: {
+      kind: 'mc' as const,
+      population: sarstedtPopulation(values, withinCor),
+      estimators: [
+        { id: 'PLS', method: 'pls', consistent: false },
+        { id: 'PLSc', method: 'pls', consistent: true },
+        { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+      ],
+      sampleSizes: [100, 250, 500, 1000, 10000],
+      replications: 300,
+      seed: 2016,
+      alpha: 0.05,
+      bootSamples: 0,
+      mcDraws: 0,
+      ...(composite ? { factorModel: true } : {}),
+    },
+    settings: {
+      method: 'pls' as const,
+      plsPackage: 'cSEM' as const,
+      consistent: false,
+      scheme: 'path' as const,
+      missing: 'casewise' as const,
+      seed: 2016,
+    },
+  };
+};
+
+/**
+ * Dijkstra & Henseler (2015), Figure 4: five common factors with 2 to 6 indicators of differing loadings, two
+ * correlated exogenous factors (.7) and paths that are zero, small, medium and strong, some multicollinear.
+ */
+export const DIJKSTRA_HENSELER_POPULATION = {
+  constructs: [
+    { name: 'X1', type: 'factor', indicators: items('x1_', 2), loadings: [0.87, 0.94] },
+    {
+      name: 'X2',
+      type: 'factor',
+      indicators: items('x2_', 6),
+      loadings: [0.4, 0.41, 0.47, 0.6, 0.63, 0.65],
+    },
+    { name: 'Y3', type: 'factor', indicators: items('y3_', 4), loadings: [0.49, 0.6, 0.8, 0.9] },
+    { name: 'Y4', type: 'factor', indicators: items('y4_', 2), loadings: [0.63, 0.83] },
+    {
+      name: 'Y5',
+      type: 'factor',
+      indicators: items('y5_', 6),
+      loadings: [0.65, 0.67, 0.75, 0.75, 0.9, 0.9],
+    },
+  ],
+  paths: [
+    { from: 'X2', to: 'Y3', value: 0 },
+    { from: 'Y3', to: 'Y5', value: 0.35 },
+    { from: 'X2', to: 'Y4', value: 0.7 },
+    { from: 'X2', to: 'Y5', value: -0.7 },
+    { from: 'X1', to: 'Y4', value: 0 },
+    { from: 'X1', to: 'Y5', value: 0.22 },
+  ],
+  exoCor: [{ a: 'X1', b: 'X2', value: 0.7 }],
+  skew: 0,
+  kurtosis: 0,
+};
+
+/**
+ * Rhemtulla, van Bork & Borsboom (2020), Part A as a sampling study: X → M → Y (.6 each), M an error-free
+ * composite of three equally weighted components that correlate .5; X and Y are observed without error.
+ */
+export const RHEMTULLA_POPULATION = {
+  constructs: [
+    { name: 'X', type: 'composite', indicators: ['x'], weights: [1] },
+    { name: 'M', type: 'composite', indicators: items('m', 3), weights: [1, 1, 1], withinCor: 0.5 },
+    { name: 'Y', type: 'composite', indicators: ['y'], weights: [1] },
+  ],
+  paths: [
+    { from: 'X', to: 'M', value: 0.6 },
+    { from: 'M', to: 'Y', value: 0.6 },
+  ],
+  exoCor: [],
+  skew: 0,
+  kurtosis: 0,
+};
+
 /** Muthén & Muthén (2002), the CFA model: two factors of five indicators, loadings .8, residual variances .36, factor correlation .25. */
 export const MUTHEN_POPULATION = {
   constructs: [
@@ -1156,6 +1305,167 @@ export const CARD_MODEL: PackageExample[] = [
     shows:
       'Tables I and II of the paper, loadings .85 / .71, φ = .9, three items, N = 100 / 500, as 1 minus the card’s failing share: the factor correlation CI vs 1 row about .68 and 1.00 (PHI1 .67, 1), vs .90 about .04 and .04 (PHI.90 .03, .05); Fornell–Larcker for X about .18 and .02 (Table II FL1 .17, .03), for Y 0 (FL2 0, 0); HTMT (.90) about .46 and .49 (.48, .49), HTMT (.85) about .16 and .01 (.14, .02).',
     ...frankeSarstedtCard('franke2019-unequal', 0.9, 0.85, 0.71),
+  },
+  {
+    id: 'dijkstra-henseler-plsc',
+    package: 'cSEM',
+    title:
+      'Monte Carlo: consistent PLS against PLS, sum scores and CB-SEM (Dijkstra & Henseler 2015)',
+    source:
+      'Dijkstra & Henseler (2015), Consistent partial least squares path modeling: the Monte Carlo simulation',
+    links: [
+      { label: 'Dijkstra & Henseler (2015)', url: 'https://doi.org/10.25300/MISQ/2015/39.2.02' },
+    ],
+    tags: FACTOR_DEBATE_TAGS,
+    description:
+      'Dijkstra & Henseler’s population, built to test PLSc: five common factors with two to six indicators of unequal loadings (reliabilities .7 to .9), two exogenous factors correlated .7, and paths that are zero, small, medium and strong, some among multicollinear predictors. PLS (factorial weighting) and regression on sum scores underestimate the strong paths by about .3 and, between the correlated predictors, move effect from one to the other: the zero path X1 → Y4 comes out at about .16 and is significant in a third of the samples at N = 100 and nearly all at 500, while the true .22 of X1 → Y5 is never found. PLSc removes the bias as ML SEM does, at the cost of a larger SD; GLS and ULS behave like ML. ' +
+      'The card simulates 1,000 samples at N = 100, 200 and 500, each estimated by PLS (factorial weighting) and PLSc (cSEM) with 500 bootstrap samples, regression on sum scores, and ML, GLS and ULS SEM (lavaan). The diagram is fitted to one sample of 500 from that population (lavaan::simulateData, seed 2015). ' +
+      'As in the paper: the population (Figure 4), normal data, N, 1,000 replications and the estimators; the paper’s PLSc weights by the factorial scheme, the card’s by the path scheme (cSEM’s default), which ρA makes consistent either way. The paper does not say how PLS and PLSc were tested; the card tests by the bootstrap’s percentile interval, which gives PLSc more power and a higher Type I error at N = 100 than the paper’s Table 4. Its non-normal condition (indicators multiplied by a random factor per case) is not part of the card, nor are FIML (the same as ML on complete data), DWLS and WLS (which needs N > 210). Random numbers differ from the paper’s, so results agree up to Monte Carlo error.' +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Table 3 of the paper at N = 100 / 500, bias of X2 → Y4 (true .70): PLS about −.27 / −.29 (paper −.274 / −.283), sum scores −.31 / −.31 (−.305 / −.303), PLSc .03 / .00 (.023 / .005), ML .02 / .00. Table 4, the zero path X1 → Y4 significant: PLS about 35% / 95% (33.3 / 92.5), sum scores 36% / 96% (35.2 / 94.9), PLSc about 7% / 4%, ML 4% / 4% (4.6 / 5.1); X1 → Y5 (.22) found by ML in 20% / 86% (20.4 / 87.2).',
+    data: {
+      package: 'cSEM',
+      name: 'Dijkstra & Henseler (2015), a sample of 500',
+      file: 'examples/montecarlo/dijkstra2015.csv',
+    },
+    constructs: DIJKSTRA_HENSELER_POPULATION.constructs.map((x) => f(x.name, x.indicators)),
+    paths: DIJKSTRA_HENSELER_POPULATION.paths.map((x): [string, string] => [x.from, x.to]),
+    correlations: [['X1', 'X2', 'construct']],
+    panel: {
+      kind: 'mc',
+      population: DIJKSTRA_HENSELER_POPULATION,
+      estimators: [
+        { id: 'PLSc', method: 'pls', consistent: true },
+        { id: 'PLS factorial', method: 'pls', consistent: false, scheme: 'factor' },
+        { id: 'Sum scores', method: 'regression', dr: false },
+        { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+        { id: 'CB-GLS', method: 'cb', estimator: 'GLS' },
+        { id: 'CB-ULS', method: 'cb', estimator: 'ULS' },
+      ],
+      sampleSizes: [100, 200, 500],
+      replications: 1000,
+      seed: 2015,
+      alpha: 0.05,
+      bootSamples: 500,
+      mcDraws: 0,
+    },
+    settings: {
+      method: 'pls',
+      plsPackage: 'cSEM',
+      consistent: true,
+      scheme: 'path',
+      missing: 'casewise',
+      seed: 2015,
+    },
+  },
+  {
+    id: 'sarstedt-factor-weak',
+    title:
+      'Monte Carlo: PLS, PLSc and CB-SEM on common factors with two weak indicators (Sarstedt et al. 2016)',
+    description:
+      'Sarstedt et al.’s Study I in its hardest cell: seven common factors, each measured by two indicators with loadings .5 (reliability .40), the condition where PLS’s composites carry the most measurement error. PLS underestimates every nonzero path by about a third to a half (Y1 → Y2 about .20 for .50), at every N: its mean absolute error over the twelve paths stays near .17 from N = 250 to 10,000. PLSc and ML SEM are consistent, but at N = 100 they pay with huge variance (MAE about .6, the factor correlations behind them estimated from two weak items) and ML SEM does not converge in about half the samples (Reinartz et al. found about half the solutions improper in this cell); from N = 500 on both beat PLS, and at 10,000 their error is a seventh of its. ' +
+      SARSTEDT_RUN +
+      ' The diagram is fitted to one sample of 250 from that population (MASS::mvrnorm, seed 2016). ' +
+      SARSTEDT_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'At N = 100 / 250 / 500 / 1,000 / 10,000, Y1 → Y2 (true .50): PLS about .20 to .21 throughout; PLSc and ML SEM about .54 to .58 with SD about .5 at N = 100, then .53, .50, .50, .50 (SD .03 at 10,000). ML SEM does not converge in about half the samples at N = 100 and a tenth at 250. The paper’s MAE rows (2 indicators; loadings .5), averages over the other factor, show the same order: PLS best at N = 100, worst from 500 on.',
+    ...sarstedtCard('sarstedt2016-factor-weak', [0.5, 0.5]),
+  },
+  {
+    id: 'sarstedt-factor-unequal',
+    title:
+      'Monte Carlo: PLS, PLSc and CB-SEM on common factors with unequal loadings (Sarstedt et al. 2016)',
+    description:
+      'Sarstedt et al.’s Study I with a friendlier measurement model: seven common factors of four indicators, two loading .5 and two .9 (composite reliability about .82). PLS weights the strong indicators more and its bias shrinks, but does not vanish: Y1 → Y2 stays near .43 for .50 at every N, and its mean absolute error over the paths levels off near .04 while those of PLSc and ML SEM keep falling, to about .01 at N = 10,000. At N = 100 the three are about equally accurate, PLS slightly the best, which is the paper’s conclusion that the differences are marginal unless measurement is poor or samples are large. ' +
+      SARSTEDT_RUN +
+      ' The diagram is fitted to one sample of 250 from that population (MASS::mvrnorm, seed 2016). ' +
+      SARSTEDT_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'At N = 100 / 1,000 / 10,000, Y1 → Y2 (true .50): PLS about .44, .43, .43; PLSc and ML SEM about .50 throughout, their SD shrinking from about .09 to .01. The paper’s Table 2 (4 indicators; loadings .5/.9) gives PLS MAE .09/.08 at N = 100 and .06/.04 at 10,000 against .01 for PLSc and CB-SEM; the card’s path rows show the same: no failed replications.',
+    ...sarstedtCard('sarstedt2016-factor-unequal', [0.5, 0.5, 0.9, 0.9]),
+  },
+  {
+    id: 'sarstedt-composite-equal',
+    title:
+      'Monte Carlo: PLS, PLSc and CB-SEM on composites of four indicators (Sarstedt et al. 2016)',
+    description:
+      'Sarstedt et al.’s Study II: the same seven constructs as composites, each the equally weighted sum of four indicators (weights .40) without measurement error, estimated as common factors by all three methods. PLS mode A estimates the composites’ paths without bias and its error shrinks with N, from about .06 at N = 100 to .01 at 10,000. PLSc corrects for measurement error the composites do not have: ρA of four weakly correlated indicators is low, so the correction roughly doubles the paths (Y1 → Y2 about 1.05 for .50) and blows up others, at every N. ML SEM does not converge in half or more of the samples, more as N grows and in none at 10,000, and where it does its paths are about as wrong (Y1 → Y2 about 1.0). ' +
+      SARSTEDT_RUN +
+      ' The diagram is fitted to one sample of 250 from that population (MASS::mvrnorm, seed 2016). ' +
+      SARSTEDT_DIFFERS +
+      COMPOSITE_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'At N = 100 / 1,000 / 10,000, Y1 → Y2 (true .50): PLS about .51, .50, .50 (SD .07 to .01); PLSc about 1.10, 1.05, 1.04, with other paths far above 1; ML SEM about 1.0 where it converges, failing to in about 54% of samples at N = 100, 81% at 1,000 and all at 10,000. Table 3 of the paper (4 indicators, equal weights): MAE .07 to .01 for PLS, 2 to 18 for PLSc, about .8 for CB-SEM, which converged in fewer than half the runs.',
+    ...sarstedtCard('sarstedt2016-composite-equal', [0.4, 0.4, 0.4, 0.4], 0.1875),
+  },
+  {
+    id: 'sarstedt-composite-unequal',
+    title:
+      'Monte Carlo: PLS, PLSc and CB-SEM on composites with unequal weights (Sarstedt et al. 2016)',
+    description:
+      'Sarstedt et al.’s Study II with two unequally weighted indicators per composite (.30 and .90), estimated as common factors by all three methods. Mode A weights the indicators by their correlations with the neighbouring composites, not by the population’s weights, yet the paths come out right: PLS’s error falls from about .07 at N = 100 to .01 at 10,000. PLSc and ML SEM read the two indicators as a factor with unequal loadings and disattenuate by a reliability that does not exist: Y1 → Y2 comes out at 1.2 to 1.4 for .50, other paths are wildly off in either direction, and ML SEM does not converge in most samples. More data do not help; the bias is the model’s, not the sample’s. ' +
+      SARSTEDT_RUN +
+      ' The diagram is fitted to one sample of 250 from that population (MASS::mvrnorm, seed 2016). ' +
+      SARSTEDT_DIFFERS +
+      COMPOSITE_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'At N = 100 / 1,000 / 10,000, Y1 → Y2 (true .50): PLS about .49, .50, .49 (SD .08 to .01); PLSc about 2.0 (SD over 4), 1.22, 1.21; ML SEM about 1.4, 1.3, 1.3, not converging in about 64%, 86% and 99% of samples. Table 3 of the paper (2 indicators, unequal weights): MAE .07 to .01 for PLS, 2.3 to 5 for PLSc, .5 to .7 for CB-SEM.',
+    ...sarstedtCard('sarstedt2016-composite-unequal', [0.3, 0.9], 0.185),
+  },
+  {
+    id: 'rhemtulla-composite-factor',
+    package: 'lavaan',
+    title:
+      'Monte Carlo: a composite modelled as a common factor inflates its effects (Rhemtulla et al. 2020)',
+    source:
+      'Rhemtulla, van Bork & Borsboom (2020), Worse than measurement error: consequences of inappropriate latent variable measurement models, Part A as a sampling study',
+    links: [
+      { label: 'Rhemtulla et al. (2020)', url: 'https://doi.org/10.1037/met0000220' },
+      { label: 'Code and materials (OSF)', url: 'https://osf.io/f8g4d/' },
+    ],
+    tags: COMPOSITE_DEBATE_TAGS,
+    description:
+      'Rhemtulla, van Bork & Borsboom’s argument as a sampling study: X affects M, M affects Y (.6 each, indirect effect .36), and M is the sum of three components that correlate .5, observed without error. Modelled as a common factor, M keeps only what its components share, which correlates more strongly with X and Y than the sum does, by √((1 + (p − 1)c) / (pc)) = √(4/3) here: the opposite of attenuation, and worse, the authors argue, than the measurement error the factor model is meant to remove. PLS and regression on sum scores estimate the composite’s paths; PLSc, correcting for error the composite does not have, inflates both paths to about .69 and the indirect effect to .48. ML SEM inflates them less (about .66), because a factor M cannot reproduce the correlation of X and Y under full mediation, so its χ² test rejects the model more often as N grows. The card simulates 1,000 samples at N = 100, 250 and 1,000, each estimated by PLS and PLSc (every construct as a common factor, cSEM), regression on sum scores and ML SEM (lavaan). The diagram is fitted to one sample of 250 from that population (MASS::mvrnorm, seed 2020). The paper fits its models to population covariance matrices, without samples; the card draws samples from a simpler population of its Part A (components that do not depend on X one by one, and no measurement error), so its numbers are the card’s own, the direction the paper’s.' +
+      COMPOSITE_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'At N = 100 / 250 / 1,000: PLS and sum scores about .60 for both paths and .36 for the indirect effect; PLSc about .69 and .48 (.6 · √(4/3) = .693 and .48, the inflation the paper derives); ML SEM about .65 to .66 and .43, its χ² test rejecting the model in about 21%, 51% and 99% of samples (RMSEA about .06 to .07).',
+    data: {
+      package: 'lavaan',
+      name: 'Rhemtulla et al. (2020), a sample of 250',
+      file: 'examples/montecarlo/rhemtulla2020.csv',
+    },
+    constructs: [f('X', ['x']), f('M', items('m', 3)), f('Y', ['y'])],
+    paths: [
+      ['X', 'M'],
+      ['M', 'Y'],
+    ],
+    panel: {
+      kind: 'mc',
+      population: RHEMTULLA_POPULATION,
+      estimators: [
+        { id: 'PLS', method: 'pls', consistent: false },
+        { id: 'PLSc', method: 'pls', consistent: true },
+        { id: 'Sum scores', method: 'regression', dr: false },
+        { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+      ],
+      sampleSizes: [100, 250, 1000],
+      replications: 1000,
+      seed: 2020,
+      alpha: 0.05,
+      bootSamples: 0,
+      mcDraws: 0,
+      factorModel: true,
+    },
+    settings: CB('ML'),
   },
   {
     id: 'mulder-riclpm',
