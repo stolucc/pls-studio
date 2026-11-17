@@ -1566,7 +1566,90 @@ export const MUTHEN_POPULATION = {
   kurtosis: 0,
 };
 
-export const CARD_MODEL: PackageExample[] = [
+/** What each simulation paper ran on, as the paper or its supplement states it (checked 2026-11-17 against
+ * open copies only). The key is the start of the card ids drawn from that paper. */
+export const PAPER_SOFTWARE: [prefix: string, software: string][] = [
+  [
+    'muthen-',
+    'Mplus, for data and estimation (version not stated; the paper cites the 1998 user’s guide)',
+  ],
+  ['ronkko-evermann-', 'not checked (no open copy of the paper)'],
+  [
+    'henseler-beta5',
+    'R 3.0.1 for the data, semPLS 1.0-10 for PLS, sem 3.1-3 for ML and boot 1.3-9 for the intervals; lavaan 0.5-14 and Mplus 4.21 for the convergence check',
+  ],
+  [
+    'henseler-n500',
+    'R 3.0.1 for the data, semPLS 1.0-10 for PLS, sem 3.1-3 for ML and boot 1.3-9 for the intervals; lavaan 0.5-14 and Mplus 4.21 for the convergence check',
+  ],
+  [
+    'henseler-loadings',
+    'R 3.0.1 for the data, semPLS 1.0-10 for PLS, sem 3.1-3 for ML and boot 1.3-9 for the intervals; lavaan 0.5-14 and Mplus 4.21 for the convergence check',
+  ],
+  [
+    'henseler-four',
+    'R 3.0.1 for the data, semPLS 1.0-10 for PLS, sem 3.1-3 for ML and boot 1.3-9 for the intervals; lavaan 0.5-14 and Mplus 4.21 for the convergence check',
+  ],
+  ['goodhue-', 'not checked (no open copy of the paper)'],
+  ['henseler2015-', 'R 3.1.0 with semPLS (version not stated)'],
+  [
+    'ronkko-cho-',
+    'R with lavaan and semTools (versions not stated; the code is in the paper’s Online Supplement 2)',
+  ],
+  ['franke-sarstedt-', 'not checked (no open copy of the paper)'],
+  [
+    'dijkstra-henseler-',
+    'R 3.0.2: the authors’ own PLS and PLSc code, lavaan 0.5-15 for the covariance-based estimators',
+  ],
+  [
+    'reinartz-',
+    'R 2.7.0: the authors’ own data generation (Mattson’s method) and PLS code, the sem package for ML (as the working paper states it)',
+  ],
+  [
+    'henseler-sarstedt-gof-',
+    'SmartPLS 2.0 M3 beta for PLS (path weighting) and AMOS 5 (build 5138) for CB-SEM; the data generator is not named',
+  ],
+  ['kock-hadaya-', 'MATLAB (version not stated)'],
+  ['aguirre-reliability-', 'not checked (no open copy of the paper)'],
+  ['wolf-', 'Mplus 5.2, for data (MONTECARLO) and estimation'],
+  ['curran-', 'not checked (no open copy of the paper)'],
+  ['hu-bentler-', 'not checked (no open copy of the paper)'],
+  [
+    'aguirre-ronkko-',
+    'R with matrixpls and boot (versions not checked: no open copy of the paper)',
+  ],
+  ['chin-interaction-', 'PRELIS 2.14 for the data, PLS-Graph 3.0 for PLS'],
+  [
+    'qureshi-',
+    'not checked (no open copy of the paper; its references cite Mplus 4 Monte Carlo, AMOS 6.0 and PLS-Graph)',
+  ],
+  [
+    'sarstedt-',
+    'R: semPLS for PLS, matrixpls 0.7.0 for PLSc and sem 3.1-6 for ML; data after Mattson (factors) and Schlittgen’s SEGIRLS (composites)',
+  ],
+  [
+    'hair-mirror-',
+    'not checked (no open copy of the paper; its references cite R, semPLS, ASGSCA 1.4.0 and snowfall 1.84-6)',
+  ],
+  ['hwang-', 'not stated in the paper'],
+  ['cho-', 'not checked (no open copy could be read)'],
+  ['rhemtulla-', 'R for the population matrices, lavaan 0.5-23 for the fits'],
+];
+
+const OPENS = ' Opens its card on the Analyses tab beside the diagram.';
+
+/** A simulation card's description with the paper's software added (before the closing sentence, if any). */
+function withSoftware(card: PackageExample): PackageExample {
+  const entry = PAPER_SOFTWARE.find(([prefix]) => card.id.startsWith(prefix));
+  if (!entry || !card.description) return card;
+  const line = ` The paper’s software: ${entry[1]}.`;
+  const description = card.description.endsWith(OPENS)
+    ? card.description.slice(0, -OPENS.length) + line + OPENS
+    : card.description + line;
+  return { ...card, description };
+}
+
+const CARDS: PackageExample[] = [
   {
     id: 'datasets-faithful-chart',
     package: 'datasets',
@@ -1890,7 +1973,14 @@ export const CARD_MODEL: PackageExample[] = [
     shows:
       'The Per path table: with z = 2.486, n_min = (2.486 / |β|)² for each of the 13 paths. Nine need fewer than the 344 observations; competence → loyalty (β = 0.006), CSR → competence (0.059), attractiveness → competence (0.086) and performance → likeability (0.117) need more, the first of them a sample no survey has.',
     ...CORP_REP,
-    panel: { kind: 'minsample', alpha: 0.05, power: 0.8, tails: 'one', source: 'model', beta: 0.2 },
+    panel: {
+      kind: 'minsample',
+      alpha: 0.05,
+      power: 0.8,
+      tails: 'one',
+      source: 'model',
+      beta: 0.2,
+    },
     settings: SEMINR({ seed: 123 }),
   },
   {
@@ -1925,7 +2015,10 @@ export const CARD_MODEL: PackageExample[] = [
       'Muthén & Muthén (2002), How to use a Monte Carlo study to decide on sample size and determine power: the CFA model',
     links: [
       { label: 'Muthén & Muthén (2002)', url: 'https://doi.org/10.1207/S15328007SEM0904_8' },
-      { label: 'lavaan, ?simulateData', url: 'https://rdrr.io/cran/lavaan/man/simulateData.html' },
+      {
+        label: 'lavaan, ?simulateData',
+        url: 'https://rdrr.io/cran/lavaan/man/simulateData.html',
+      },
     ],
     description:
       'The paper’s CFA model: two factors of five indicators each, loadings .8, residual variances .36 and a correlation of .25 between the factors. With normal data and no missing values the paper finds that 150 observations give power .81 to detect the correlation. The card simulates the same population: 1,000 samples of 150, each fitted by ML (lavaan), with the bias, coverage and power of the correlation. The diagram is fitted to one sample of 150 from that population (lavaan::simulateData, the paper’s seed 53487). Opens its card on the Analyses tab beside the diagram.',
@@ -2565,7 +2658,7 @@ export const CARD_MODEL: PackageExample[] = [
     id: 'aguirre-ronkko-bca',
     title: 'Monte Carlo: BCa bootstrap intervals for PLSc (Aguirre-Urreta & Rönkkö 2018)',
     description:
-      'Aguirre-Urreta & Rönkkö asked whether bootstrap confidence intervals of PLSc paths cover the population value as often as they claim. Their simple model: four common factors K1 to K4 affect E1 with .48, .48, .48 and 0 (R² .69), three indicators each loading .7, .8 and .9. This card checks the bias-corrected and accelerated (BCa) interval, which shifts the percentile limits by the bootstrap’s median bias and by an acceleration taken from a jackknife (one refit per case). The paper recommends the percentile interval over BCa. Here BCa covers less than the percentile interval at N = 50 (.82 against .94 for γ1) and about as well at 250. K4, related to nothing, has no determined weights, so most PLSc solutions are inadmissible (a reliability or loading above 1); the app drops inadmissible bootstrap draws (ρA in (0, 1], correlations within ±1) and keeps the jackknife estimates that are finite. The card simulates 500 samples at N = 50 and 250 (not 1,000: the jackknife refits the model N times per sample), each estimated by PLS and PLSc (cSEM) with 1,000 bootstrap samples and BCa intervals. The diagram is fitted to one sample of 250 from that population (seed 2018). ' +
+      'Aguirre-Urreta & Rönkkö asked whether bootstrap confidence intervals of PLSc paths cover the population value as often as they claim. Their simple model: four common factors K1 to K4 affect E1 with .48, .48, .48 and 0 (R² .69), three indicators each loading .7, .8 and .9. This card checks the bias-corrected and accelerated (BCa) interval, which shifts the percentile limits by the bootstrap’s median bias and by an acceleration taken from a jackknife (one refit per case). The paper recommends the percentile interval over BCa. Here BCa covers less than the percentile interval at N = 50 (.82 against .94 for γ1) and about as well at 250. matrixpls, which the paper used, keeps inadmissible bootstrap draws by default; run outside the card (500 samples of 50), its BCa interval covers γ1 .94 with those draws kept and .88 with them dropped, so the paper’s BCa figures are flattered the same way as its percentile ones. K4, related to nothing, has no determined weights, so most PLSc solutions are inadmissible (a reliability or loading above 1); the app drops inadmissible bootstrap draws (ρA in (0, 1], correlations within ±1) and keeps the jackknife estimates that are finite. The card simulates 500 samples at N = 50 and 250 (not 1,000: the jackknife refits the model N times per sample), each estimated by PLS and PLSc (cSEM) with 1,000 bootstrap samples and BCa intervals. The diagram is fitted to one sample of 250 from that population (seed 2018). ' +
       AGUIRRE2018_DIFFERS +
       FACTOR_POPULATION +
       ' Opens its card on the Analyses tab beside the diagram.',
@@ -2591,7 +2684,7 @@ export const CARD_MODEL: PackageExample[] = [
     title:
       'Monte Carlo: BCa intervals for PLSc with correlated predictors (Aguirre-Urreta & Rönkkö 2018)',
     description:
-      'Aguirre-Urreta & Rönkkö’s correlated condition: the four common factors K1 to K4 correlated .3 and the paths rescaled to .3795, .3795, .3795 and 0 so that R² stays .69, three indicators each loading .7, .8 and .9, BCa intervals. K4 is now related to E1 through the other factors, so its weights are better determined: inadmissible PLSc solutions are 71% at N = 50 and 19% at 250, against 89% and 68% with uncorrelated factors; the paper finds this condition better behaved throughout. PLS attenuates the paths of K1 to K3 and moves part of their effect onto K4: its estimate of the zero path is biased upward, and its Type I error grows with N (the paper: PLS intervals for γ4 miss at the lower limit). The card simulates 500 samples at N = 50 and 250 (not 1,000: the BCa jackknife refits the model N times per sample), each estimated by PLS and PLSc (cSEM) with 1,000 bootstrap samples and BCa intervals. The diagram is fitted to one sample of 250 from that population (seed 2018). ' +
+      'Aguirre-Urreta & Rönkkö’s correlated condition: the four common factors K1 to K4 correlated .3 and the paths rescaled to .3795, .3795, .3795 and 0 so that R² stays .69, three indicators each loading .7, .8 and .9, BCa intervals. K4 is now related to E1 through the other factors, so its weights are better determined: inadmissible PLSc solutions are 71% at N = 50 and 19% at 250, against 89% and 68% with uncorrelated factors; the paper finds this condition better behaved throughout. PLS attenuates the paths of K1 to K3 and moves part of their effect onto K4: its estimate of the zero path is biased upward, and its Type I error grows with N (the paper: PLS intervals for γ4 miss at the lower limit). The PLSc BCa interval covers γ1 less often here than in the paper at N = 50 (.89 against about .95) for the same reason as in the percentile card: matrixpls, which the paper used, keeps inadmissible bootstrap draws by default. Run outside the card with matrixpls (500 samples of 50, BCa from a jackknife), it covers .96 with those draws kept and .89 with them dropped. The card simulates 500 samples at N = 50 and 250 (not 1,000: the BCa jackknife refits the model N times per sample), each estimated by PLS and PLSc (cSEM) with 1,000 bootstrap samples and BCa intervals. The diagram is fitted to one sample of 250 from that population (seed 2018). ' +
       AGUIRRE2018_DIFFERS +
       FACTOR_POPULATION +
       ' Opens its card on the Analyses tab beside the diagram.',
@@ -2972,3 +3065,5 @@ export const CARD_MODEL: PackageExample[] = [
     settings: { ...CB('ML'), missing: 'fiml' },
   },
 ];
+
+export const CARD_MODEL = CARDS.map(withSoftware);
