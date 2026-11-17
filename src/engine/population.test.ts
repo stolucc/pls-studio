@@ -153,6 +153,9 @@ describe('misspecified populations', () => {
     expect(pop.misspecified).toBe(true);
     // Estimated without it, the model no longer fits the population exactly.
     expect(estimateCb(exactSample(spec), specFromPopulation(spec)).fit.chisq).toBeGreaterThan(1);
+    // Leaving out a path that is zero in the population is no misspecification
+    const zero = { ...spec, paths: spec.paths.map((p) => (p.omitted ? { ...p, value: 0 } : p)) };
+    expect(buildPopulation(zero).misspecified).toBe(false);
   });
 
   it('refuses what a common-factor population cannot have', () => {

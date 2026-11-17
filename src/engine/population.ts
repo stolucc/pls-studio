@@ -279,7 +279,8 @@ export function buildPopulation(pop: PopulationSpec): Population {
     misspecified:
       (pop.crossLoadings ?? []).some((x) => x.value !== 0) ||
       (pop.errorCors ?? []).some((r) => r.value !== 0) ||
-      pop.paths.some((x) => x.omitted),
+      // (leaving out a path that is zero in the population is no misspecification)
+      pop.paths.some((x) => x.omitted && x.value !== 0),
   };
 }
 

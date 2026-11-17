@@ -854,6 +854,72 @@ const reinartzCard = (file: string, k: number, loading: number) => ({
 });
 
 /**
+ * Henseler & Sarstedt (2013), Figure 3: a mediation chain of three common factors (.6, .6, no direct effect) with
+ * loadings .6, .7, .8; `omit`: the population's paths the estimated model leaves out (Table 1's models).
+ */
+export const henseler2013Population = (omit: string[]) => ({
+  constructs: ['X1', 'X2', 'X3'].map((name, j) => ({
+    name,
+    type: 'factor',
+    indicators: items('x', 3, 3 * j + 1),
+    loadings: [0.6, 0.7, 0.8],
+  })),
+  paths: [
+    { from: 'X1', to: 'X2', value: 0.6 },
+    { from: 'X2', to: 'X3', value: 0.6 },
+    { from: 'X1', to: 'X3', value: 0 },
+  ].map((p) => (omit.includes(`${p.from}:${p.to}`) ? { ...p, omitted: true } : p)),
+  exoCor: [],
+  skew: 0,
+  kurtosis: 0,
+});
+
+/** What the Henseler & Sarstedt cards take from the paper, and what is the app's. */
+const HENSELER_SARSTEDT_DIFFERS =
+  'The paper analyses one data set of 100 cases that reproduces the population’s correlation matrix exactly (its Table 2), under eight specifications; the card draws 1,000 samples at N = 100, 250 and 500 from that population instead, so the GoF and the fit tests vary as they would in practice. As in the paper: the population (Figure 3), PLS mode A with path weighting, ML SEM, GoF as the square root of the mean communality times the mean R². The app’s choices: cSEM and lavaan where the paper used SmartPLS and AMOS; the cutoff .36 (Wetzels et al. 2009’s “large”) for GoF; the relative GoF and the PCA and canonical-correlation baselines are not computed.';
+
+const henseler2013Card = (file: string, omit: string[]) => ({
+  package: 'cSEM' as const,
+  source:
+    'Henseler & Sarstedt (2013), Goodness-of-fit indices for partial least squares path modeling, the simulated example (Figure 3, Table 1)',
+  links: [
+    { label: 'Henseler & Sarstedt (2013)', url: 'https://doi.org/10.1007/s00180-012-0317-1' },
+  ],
+  tags: FACTOR_DEBATE_TAGS,
+  data: {
+    package: 'cSEM' as const,
+    name: 'Henseler & Sarstedt (2013), a sample of 100',
+    file: `examples/montecarlo/${file}.csv`,
+  },
+  constructs: ['X1', 'X2', 'X3'].map((name, j) => f(name, items('x', 3, 3 * j + 1))),
+  paths: henseler2013Population(omit)
+    .paths.filter((p) => !('omitted' in p))
+    .map((p): [string, string] => [p.from, p.to]),
+  panel: {
+    kind: 'mc' as const,
+    population: henseler2013Population(omit),
+    estimators: [
+      { id: 'PLS', method: 'pls', consistent: false },
+      { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+    ],
+    sampleSizes: [100, 250, 500],
+    replications: 1000,
+    seed: 2013,
+    alpha: 0.05,
+    bootSamples: 0,
+    mcDraws: 0,
+  },
+  settings: {
+    method: 'pls' as const,
+    plsPackage: 'cSEM' as const,
+    consistent: false,
+    scheme: 'path' as const,
+    missing: 'casewise' as const,
+    seed: 2013,
+  },
+});
+
+/**
  * Dijkstra & Henseler (2015), Figure 4: five common factors with 2 to 6 indicators of differing loadings, two
  * correlated exogenous factors (.7) and paths that are zero, small, medium and strong, some multicollinear.
  */
@@ -1624,6 +1690,46 @@ export const CARD_MODEL: PackageExample[] = [
     shows:
       'At N = 100: ML without convergence in 66 of 200 samples and improper in 97 more; PLS strong paths about .21 to .24, power for weak / medium / strong about .19, .46, .47. At N = 500 / 1,000: ML weak, medium and strong power about .14, .36, .85 / .27, .65, .99 (the paper’s Table 7, 2 indicators, loadings .5: .13, .31, .86 / .29, .67, .98); PLS weak power about .77 / .97 (.78 / .95); PLS strong paths still about .20.',
     ...reinartzCard('reinartz2009-weak', 2, 0.5),
+  },
+  {
+    id: 'henseler-sarstedt-gof-correct',
+    title: 'Monte Carlo: GoF and the fit tests of the correct model (Henseler & Sarstedt 2013)',
+    description:
+      'Henseler & Sarstedt’s population: three common factors in a mediation chain, X1 → X2 → X3 (.6 each, no direct effect), with loadings .6, .7 and .8, estimated as the population has it (the paper’s Model 4). GoF averages PLS’s communalities and R²s; here it comes out near .37 to .38, below .36 in about a third of the samples at every N, although the model is right. ML SEM’s χ² test rejects about 5% to 8% of samples, its Type I error, and SRMR is below .08 almost always. GoF, the paper argues, measures how much variance the model explains, not whether it is the right model; the other two cards show it rising for a wrong one. ' +
+      'The card simulates 1,000 samples at N = 100, 250 and 500, each estimated by PLS (mode A, cSEM) with its GoF and by ML SEM (lavaan) with its χ² test and fit indices. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
+      HENSELER_SARSTEDT_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'At N = 100 / 250 / 500: GoF about .378, .373, .371 (Table 1, Model 4: .369), below .36 in about 35%, 35% and 32% of samples; PLS paths about .46 (Table 1: .455); ML paths .60, its χ² test rejecting 7.6%, 6.4% and 4.9%, SRMR about .055, .034, .024.',
+    ...henseler2013Card('henseler2013', ['X1:X3']),
+  },
+  {
+    id: 'henseler-sarstedt-gof-misspecified',
+    title: 'Monte Carlo: GoF does not notice a missing path (Henseler & Sarstedt 2013)',
+    description:
+      'Henseler & Sarstedt’s population estimated without the effect of X1 on X2 and with a direct path X1 → X3 (the paper’s Model 2). The model is wrong, yet PLS’s GoF comes out higher than for the right model (about .38 to .39 against .37 to .38), as in the paper’s Table 1 (.374 against .369), because GoF rewards explained variance and the extra path explains some. In the paper ML SEM rejects the model; in lavaan, as in this app, two exogenous factors correlate freely, so without X1 → X2 the model is an equivalent one, fits exactly as the right model does, and no test of the data can tell them apart (the paper’s AMOS model fixed that correlation at 0). The direct path comes out near 0 in ML SEM and at about .09 in PLS. ' +
+      'The card simulates 1,000 samples at N = 100, 250 and 500, each estimated by PLS (mode A, cSEM) with its GoF and by ML SEM (lavaan) with its χ² test and fit indices. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
+      HENSELER_SARSTEDT_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'At N = 100 / 250 / 500: GoF about .392, .380, .378 (the right model’s card: .378, .373, .371; Table 1, Model 2: .374), below .36 in about 28%, 32% and 25% of samples; ML’s χ² test rejecting 7.3%, 5.9% and 4.9%, as for the right model; X1 → X3 (true 0) about .09 in PLS, 0 in ML.',
+    ...henseler2013Card('henseler2013', ['X1:X2']),
+  },
+  {
+    id: 'henseler-sarstedt-gof-omitted',
+    title:
+      'Monte Carlo: GoF and the fit tests when the mediator’s effect is left out (Henseler & Sarstedt 2013)',
+    description:
+      'Henseler & Sarstedt’s population estimated without the mediator’s effect X2 → X3 and with a direct path X1 → X3 (the paper’s Model 3). Here GoF does drop, to about .31, below .36 in most samples, because the model now explains little of X3. ML SEM again cannot reject it: lavaan, like this app, lets the residuals of two outcomes that predict nothing correlate, which makes this model equivalent to the right one, with the same fit. What both methods then report is a direct effect of X1 on X3 that does not exist, about .36 in ML SEM (significant in about 74% of samples at N = 100 and all at 500) and .28 in PLS: an effect the fit statistics cannot catch, only theory can. ' +
+      'The card simulates 1,000 samples at N = 100, 250 and 500, each estimated by PLS (mode A, cSEM) with its GoF and by ML SEM (lavaan) with its χ² test and fit indices. The diagram is fitted to one sample of 100 from that population (lavaan::simulateData, seed 2013). ' +
+      HENSELER_SARSTEDT_DIFFERS +
+      FACTOR_POPULATION +
+      ' Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'At N = 100 / 250 / 500: GoF about .316, .310, .307 (Table 1, Model 3: .304), below .36 in about 81%, 93% and 98% of samples; ML’s χ² test rejecting 7.3%, 5.9% and 4.9%, as for the right model; X1 → X3 (true 0) about .35 to .36 in ML (significant in 74%, 99% and 100%) and .28 to .29 in PLS (Table 1: .457 and .273).',
+    ...henseler2013Card('henseler2013', ['X2:X3']),
   },
   {
     id: 'sarstedt-factor-weak',
