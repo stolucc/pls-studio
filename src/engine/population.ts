@@ -6,6 +6,9 @@
 // r), η = wᵀx with wᵀΣ_jj w = 1; cross-block covariances Σ_jj w ρ wᵀ Σ_kk.
 // Constructs: exogenous correlations as given; η_t = Σ β η_f + ζ_t with
 // Var ζ_t = 1 − R²_t so every construct has unit variance.
+// Latent interactions (Chin et al. 2003): η_t also gains v (η_a η_b − φ_ab) for two exogenous common factors a
+// and b. With normal factors the centred product is uncorrelated with every construct, so Σ is unchanged; it adds
+// v² Var(η_a η_b) to R²_t, and the data are drawn from the constructs' scores (generateLatent in mc.R).
 
 import { cholesky, solve, zeros, type Mat } from './linalg';
 import { fleishman, valeMaurelli, type ValeMaurelli } from './nonnormal';
@@ -48,7 +51,22 @@ export interface PopulationSpec {
   crossLoadings?: { indicator: string; construct: string; value: number }[];
   /** Misspecification: correlations between the errors of two common-factor indicators, not estimated. */
   errorCors?: { a: string; b: string; value: number }[];
+  /**
+   * Latent interactions: the centred product of the exogenous common factors a and b (a = b: a quadratic term)
+   * acting on `to` with coefficient `value` (normal data, common factors only; the R engine only).
+   */
+  interactions?: PopInteraction[];
 }
+
+export interface PopInteraction {
+  a: string;
+  b: string;
+  to: string;
+  value: number;
+}
+
+/** An interaction term's name (as the app's interactionName, without its quadratic special case). */
+export const interactionTerm = (x: Pick<PopInteraction, 'a' | 'b'>) => `${x.a} × ${x.b}`;
 
 export interface Population {
   names: string[];
@@ -77,6 +95,21 @@ export interface Population {
   factor: boolean[];
   /** Covariances of the indicators with the constructs, ΛΦ [indicator][construct] (constructs have variance 1). */
   indicatorCov: Mat;
+  /** Latent interactions as construct indices, with the standardised coefficient v·sd(η_a η_b). */
+  interactions: { a: number; b: number; to: number; value: number; standardised: number }[];
+  /**
+   * With interactions, what drawing the constructs' scores needs: Λ [indicator][construct], error variances θ,
+   * B [to][from], residual variances ψ (exogenous: 0), the constructs in causal order and which are exogenous
+   * (null without).
+   */
+  latent: {
+    Lambda: Mat;
+    theta: number[];
+    B: Mat;
+    psi: number[];
+    order: number[];
+    exogenous: boolean[];
+  } | null;
 }
 
 export function buildPopulation(pop: PopulationSpec): Population {
@@ -122,6 +155,31 @@ export function buildPopulation(pop: PopulationSpec): Population {
     Phi[a][b] = Phi[b][a] = r.value;
     covariances.push({ a, b, value: r.value });
   }
+  const interactions = (pop.interactions ?? []).map((x) => {
+    const [a, b, to] = [x.a, x.b, x.to].map((name) => {
+      const j = idx.get(name);
+      if (j === undefined) throw new Error(`An interaction names an unknown construct "${name}".`);
+      return j;
+    });
+    const term = interactionTerm(x);
+    if (!exo[a] || !exo[b])
+      throw new Error(`Interaction ${term}: both constructs must be exogenous (no paths into them).`);
+    if (exo[to]) throw new Error(`Interaction ${term}: "${x.to}" needs a path from another construct.`);
+    if (to === a || to === b) throw new Error(`Interaction ${term} cannot act on its own construct.`);
+    if (!Number.isFinite(x.value)) throw new Error(`Interaction ${term} needs a value.`);
+    return { a, b, to, value: x.value };
+  });
+  if (interactions.length) {
+    if (pop.constructs.some((c) => c.type !== 'factor'))
+      throw new Error('Latent interactions need every construct to be a common factor.');
+    if (pop.skew || pop.kurtosis || pop.constructs.some((c) => c.skew || c.kurtosis))
+      throw new Error('Latent interactions are drawn with normal data only.');
+    if ((pop.errorCors ?? []).some((r) => r.value !== 0))
+      throw new Error('Latent interactions cannot be combined with error correlations.');
+  }
+  // cov(η_a η_b, η_c η_d) of centred products of normal factors: φ_ac φ_bd + φ_ad φ_bc.
+  const productCov = (x: { a: number; b: number }, y: { a: number; b: number }) =>
+    Phi[x.a][y.a] * Phi[x.b][y.b] + Phi[x.a][y.b] * Phi[x.b][y.a];
   const r2: (number | null)[] = new Array(J).fill(null);
   const done: number[] = [];
   for (const t of order) {
@@ -131,7 +189,10 @@ export function buildPopulation(pop: PopulationSpec): Population {
         const v = preds[t].reduce((s, f) => s + B[t][f] * Phi[f][k], 0);
         Phi[t][k] = Phi[k][t] = v;
       }
-      const R2 = preds[t].reduce((s, f) => s + B[t][f] * Phi[f][t], 0);
+      const own = interactions.filter((x) => x.to === t);
+      const R2 =
+        preds[t].reduce((s, f) => s + B[t][f] * Phi[f][t], 0) +
+        own.reduce((s, x) => s + own.reduce((u, y) => u + x.value * y.value * productCov(x, y), 0), 0);
       if (!(R2 < 1)) throw new Error(`Population paths imply R² ≥ 1 for "${C[t]}".`);
       r2[t] = R2;
     }
@@ -276,6 +337,20 @@ export function buildPopulation(pop: PopulationSpec): Population {
     ),
     covariances,
     vm,
+    interactions: interactions.map((x) => ({
+      ...x,
+      standardised: x.value * Math.sqrt(productCov(x, x)),
+    })),
+    latent: interactions.length
+      ? {
+          Lambda,
+          theta,
+          B,
+          psi: C.map((_, j) => (exo[j] ? 0 : 1 - r2[j]!)),
+          order,
+          exogenous: exo,
+        }
+      : null,
     misspecified:
       (pop.crossLoadings ?? []).some((x) => x.value !== 0) ||
       (pop.errorCors ?? []).some((r) => r.value !== 0) ||

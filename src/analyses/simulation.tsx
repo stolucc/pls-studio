@@ -303,6 +303,99 @@ function PowerChart({
 }
 
 /**
+ * Latent interactions (Chin et al. 2003): the centred product of two exogenous common factors acting on another
+ * construct. Estimated by PLS with product indicators and by regression on sum scores (R engine).
+ */
+function InteractionBlock({
+  pop,
+  setPop,
+}: {
+  pop: PopulationSpec;
+  setPop: (fn: (p: PopulationSpec) => PopulationSpec) => void;
+}) {
+  const explained = new Set(pop.paths.map((x) => x.to));
+  const exogenous = pop.constructs.filter((c) => !explained.has(c.name)).map((c) => c.name);
+  const endogenous = pop.constructs.filter((c) => explained.has(c.name)).map((c) => c.name);
+  const list = pop.interactions ?? [];
+  const set = (next: typeof list) =>
+    setPop((p) => {
+      const { interactions: _, ...rest } = p;
+      return next.length ? { ...rest, interactions: next } : rest;
+    });
+  if (!exogenous.length || !endogenous.length) return null;
+  const edit = (i: number, change: Partial<(typeof list)[number]>) =>
+    set(list.map((y, k) => (k === i ? { ...y, ...change } : y)));
+  return (
+    <div className="pop-block mc-misspec">
+      <div className="pop-head">
+        <b>Latent interactions</b>{' '}
+        <span className="muted">
+          the product of two exogenous factors; PLS (product indicators) and sum scores, R engine
+        </span>
+      </div>
+      <div className="mc-misspec-group">
+        {list.map((x, i) => (
+          <div className="mc-misspec-row" key={i}>
+            {(['a', 'b'] as const).map((side) => (
+              <select
+                key={side}
+                className="select"
+                aria-label={`Interaction ${i + 1}: ${side === 'a' ? 'first' : 'second'} construct`}
+                value={x[side]}
+                onChange={(e) => edit(i, { [side]: e.target.value })}
+              >
+                {exogenous.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            ))}
+            <span className="muted">acts on</span>
+            <select
+              className="select"
+              aria-label={`Interaction ${i + 1}: outcome`}
+              value={x.to}
+              onChange={(e) => edit(i, { to: e.target.value })}
+            >
+              {endogenous.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <Num value={x.value} min={-0.99} max={0.99} onChange={(v) => edit(i, { value: v })} />
+            <button
+              className="btn sm ghost"
+              onClick={() => set(list.filter((_, k) => k !== i))}
+              aria-label={`Remove interaction ${i + 1}`}
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        <button
+          className="btn sm"
+          onClick={() =>
+            set([
+              ...list,
+              {
+                a: exogenous[0],
+                b: exogenous[1] ?? exogenous[0],
+                to: endogenous[0],
+                value: 0.3,
+              },
+            ])
+          }
+        >
+          Add interaction
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * What the population has and the estimated model leaves out: cross-loadings and error correlations of
  * common-factor indicators, structural paths. Fit tests then measure power to detect it, and the
  * parameters show the bias it causes.
@@ -831,6 +924,7 @@ function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: Optio
         </div>
       </div>
       <MisspecificationBlock pop={design.population} setPop={setPop} />
+      <InteractionBlock pop={design.population} setPop={setPop} />
       <h3 style={{ marginTop: 14 }}>Design</h3>
       <div className="field">
         <label>Sample sizes</label>
@@ -1101,13 +1195,28 @@ export function roughDuration(seconds: number): string {
   return `${h} h ${Math.round((seconds - h * 3600) / 60)} min`;
 }
 
-/** Whether the design has an estimator only the R engine runs (lavaan's WLSMV, cSEM's GSCA). */
+/** Whether only the R engine runs the design: lavaan's WLSMV, cSEM's GSCA, latent interactions. */
 export const needsR = (d: McDesign) =>
+  !!d.population.interactions?.length ||
   d.estimators.some(
     (e) =>
       (e.method === 'cb' && e.estimator === 'WLSMV') ||
       (e.method === 'pls' && e.approach === 'GSCA'),
   );
+
+/** Why a design's estimators cannot take its latent interactions (null: they can). */
+export function interactionError(d: McDesign): string | null {
+  if (!d.population.interactions?.length) return null;
+  const bad = d.estimators.filter(
+    (e) =>
+      e.method === 'cb' ||
+      (e.method === 'pls' && (e.consistent || e.approach !== undefined)) ||
+      (e.method === 'regression' && e.dr),
+  );
+  return bad.length
+    ? `Latent interactions are estimated by PLS (product indicators) and regression on sum scores only: remove ${bad.map((e) => e.id).join(', ')}.`
+    : null;
+}
 
 /**
  * Where R runs and how long it takes, and when the built-in engine would be much quicker (a long R run with
@@ -1713,6 +1822,10 @@ export const mcAnalysis: AnalysisType<McDesign, McSummaryRow[]> = {
     const wlsmv = d.estimators.some((e) => e.method === 'cb' && e.estimator === 'WLSMV');
     if (wlsmv && ctx.settings.engine !== 'r')
       return 'WLSMV is estimated by lavaan: choose the R engine.';
+    const interaction = interactionError(d);
+    if (interaction) return interaction;
+    if (d.population.interactions?.length && ctx.settings.engine !== 'r')
+      return 'Latent interactions are estimated by cSEM: choose the R engine.';
     if (needsR(d) && ctx.settings.engine !== 'r')
       return 'GSCA is estimated by cSEM: choose the R engine.';
     if (wlsmv && d.ordinal && d.missing && d.missing.rate > 0 && d.missing.cb === 'fiml')

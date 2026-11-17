@@ -36,6 +36,7 @@ import {
   compositeReliability,
   generateData,
   idealReliability,
+  interactionTerm,
   populationValidityInputs,
   specFromPopulation,
   unitReliability,
@@ -183,6 +184,8 @@ export interface McParam {
   unit?: number;
   /** 'validity': the check. */
   rule?: McValidityRule;
+  /** A path from a latent interaction term (from: its name): the two constructs whose product it is. */
+  interaction?: [string, string];
 }
 
 export interface McTask {
@@ -246,6 +249,18 @@ export function mcParameters(
         out.push({ key: `path:${f}:${t}`, kind: 'path', from: f, to: t, value: pop.paths[i][j] });
     }),
   );
+  // (the estimators standardise the interaction term: its true value is the standardised coefficient)
+  for (const x of pop.interactions) {
+    const from = interactionTerm({ a: C[x.a], b: C[x.b] });
+    out.push({
+      key: `path:${from}:${C[x.to]}`,
+      kind: 'path',
+      from,
+      to: C[x.to],
+      value: x.standardised,
+      interaction: [C[x.a], C[x.b]],
+    });
+  }
   for (const k of pop.covariances)
     out.push({
       key: `cov:${C[k.a]}:${C[k.b]}`,
@@ -428,6 +443,9 @@ export function runMcTask(
 ): McPart {
   const { design, n } = task;
   const pop = buildPopulation(design.population);
+  // (the card asks for the R engine first; simulation.tsx blocked)
+  if (pop.interactions.length)
+    throw new Error('Latent interactions are estimated by the R engine (cSEM product indicators).');
   const params = designParameters(design, pop);
   const E = design.estimators.length,
     count = Math.max(0, task.end - task.start);

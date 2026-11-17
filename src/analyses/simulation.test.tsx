@@ -103,6 +103,37 @@ describe('Monte Carlo card', () => {
     expect(t.blocked(gsca, ctx({ settings: { ...DEFAULT_SETTINGS, engine: 'r' } }))).toBeNull();
   });
 
+  it('runs latent interactions in R only, with PLS (product indicators) and sum scores, and edits them', async () => {
+    const { needsR } = await import('./simulation');
+    const d = t.defaults(ctx());
+    const interactions = [{ a: 'A', b: 'A', to: 'B', value: 0.3 }];
+    const withProduct = {
+      ...d,
+      population: { ...d.population, interactions },
+      estimators: [{ id: 'PLS', method: 'pls' as const, consistent: false }],
+    };
+    expect(needsR(withProduct)).toBe(true);
+    const r = ctx({ settings: { ...DEFAULT_SETTINGS, engine: 'r' } });
+    expect(t.blocked(withProduct, r)).toBeNull();
+    expect(
+      t.blocked(withProduct, ctx({ settings: { ...DEFAULT_SETTINGS, engine: 'builtin' } })),
+    ).toBe('Latent interactions are estimated by cSEM: choose the R engine.');
+    const withPlsc = {
+      ...withProduct,
+      estimators: [
+        ...withProduct.estimators,
+        { id: 'PLSc', method: 'pls' as const, consistent: true },
+      ],
+    };
+    expect(t.blocked(withPlsc, r)).toContain('remove PLSc');
+    const form = renderToStaticMarkup(
+      <t.Options options={withProduct} set={() => {}} ctx={ctx()} disabled={false} />,
+    );
+    expect(form).toContain('Latent interactions');
+    expect(form).toContain('aria-label="Remove interaction 1"');
+    expect(form).toContain('Add interaction');
+  });
+
   it('lets a construct correlation reach 1 (one factor split in two)', () => {
     const d = t.defaults(ctx({ model: { ...model, paths: [] } }));
     const form = renderToStaticMarkup(

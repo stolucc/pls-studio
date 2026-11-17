@@ -304,3 +304,52 @@ describe('a composite with its own indicator correlation matrix (Cho, Sarstedt &
     expect(() => buildPopulation(spec(half))).toThrow('1 on the diagonal');
   });
 });
+
+describe('latent interactions (Chin et al. 2003)', () => {
+  const factor = (name: string) => ({
+    name,
+    type: 'factor' as const,
+    indicators: [1, 2, 3].map((i) => `${name.toLowerCase()}${i}`),
+    loadings: [0.7, 0.7, 0.7],
+  });
+  const spec = (r: number, more: Partial<PopulationSpec> = {}): PopulationSpec => ({
+    constructs: [factor('X'), factor('Z'), factor('Y')],
+    paths: [
+      { from: 'X', to: 'Y', value: 0.3 },
+      { from: 'Z', to: 'Y', value: 0.5 },
+    ],
+    exoCor: [{ a: 'X', b: 'Z', value: r }],
+    interactions: [{ a: 'X', b: 'Z', to: 'Y', value: 0.3 }],
+    ...more,
+  });
+
+  it('adds v² Var(XZ) to R², leaves Σ to the linear part and keeps Y standardised', () => {
+    const pop = buildPopulation(spec(0));
+    // R² = .3² + .5² + .3² (Var XZ = 1 with uncorrelated factors); ψ = 1 − R²
+    expect(pop.r2[2]).toBeCloseTo(0.43, 12);
+    expect(pop.latent!.psi).toEqual([0, 0, expect.closeTo(0.57, 12)]);
+    expect(pop.latent!.exogenous).toEqual([true, true, false]);
+    const linear = buildPopulation({ ...spec(0), interactions: undefined });
+    expect(pop.Sigma).toEqual(linear.Sigma);
+    expect(pop.interactions).toEqual([{ a: 0, b: 1, to: 2, value: 0.3, standardised: 0.3 }]);
+    // Correlated .3: Var(XZ) = 1 + .3², so the standardised coefficient is .3 · √1.09
+    const correlated = buildPopulation(spec(0.3));
+    expect(correlated.interactions[0].standardised).toBeCloseTo(0.3 * Math.sqrt(1.09), 12);
+    expect(correlated.r2[2]).toBeCloseTo(0.09 + 0.25 + 2 * 0.3 * 0.5 * 0.3 + 0.09 * 1.09, 12);
+    expect(buildPopulation({ ...spec(0), interactions: undefined }).latent).toBeNull();
+  });
+
+  it('refuses an endogenous factor in the product, composites, non-normal data and an R² of 1', () => {
+    const onY = { interactions: [{ a: 'X', b: 'Y', to: 'Y', value: 0.3 }] };
+    expect(() => buildPopulation(spec(0, onY))).toThrow('exogenous');
+    const composite = { ...factor('Z'), type: 'composite' as const, weights: [1, 1, 1] };
+    expect(() =>
+      buildPopulation(spec(0, { constructs: [factor('X'), composite, factor('Y')] })),
+    ).toThrow('common factor');
+    expect(() => buildPopulation(spec(0, { skew: 1 }))).toThrow('normal data');
+    const big = { interactions: [{ a: 'X', b: 'Z', to: 'Y', value: 0.9 }] };
+    expect(() => buildPopulation(spec(0, big))).toThrow('R² ≥ 1');
+    const unknown = { interactions: [{ a: 'X', b: 'Q', to: 'Y', value: 0.3 }] };
+    expect(() => buildPopulation(spec(0, unknown))).toThrow('unknown construct "Q"');
+  });
+});

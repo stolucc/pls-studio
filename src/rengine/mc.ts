@@ -38,6 +38,24 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
         design.population.nonnormal === 'fleishman' && pop.vm
           ? pop.vm.coef.map((f) => [f.a, f.b, f.c, f.d])
           : [],
+      // Latent interactions: the constructs' scores are drawn first (population.ts latent), then the indicators
+      ...(pop.latent
+        ? {
+            latent: {
+              ...pop.latent,
+              constructs: pop.constructs,
+              Phi: pop.Phi,
+              interactions: pop.interactions.map((x) => ({
+                a: pop.constructs[x.a],
+                b: pop.constructs[x.b],
+                to: pop.constructs[x.to],
+                value: x.value,
+                // (the product is centred: its mean is the factors' correlation)
+                mean: pop.Phi[x.a][x.b],
+              })),
+            },
+          }
+        : {}),
     },
     estimators: design.estimators,
     params: params.map((p) => {
@@ -55,6 +73,8 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
         poorBelow: index?.poorBelow ?? (p.rule ? MC_VALIDITY_RULES[p.rule].poorBelow : false),
         // A composite reliability: its block's population moments (population.ts compositeReliability)
         ...(p.kind === 'reliability' ? blockMoments(pop, pop.constructs.indexOf(p.from)) : {}),
+        // A path from an interaction term: the two constructs of the product
+        ...(p.interaction ? { interaction: p.interaction } : {}),
       };
     }),
     alpha: design.alpha,

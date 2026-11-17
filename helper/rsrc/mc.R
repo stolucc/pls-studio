@@ -37,13 +37,104 @@ ps_mc_body <- function(req) {
     if (ncol(m) != 4) stop("Fleishman coefficients come in rows of four")
     fleishman <- matrix(vapply(m, function(v) ps_number(v, "Fleishman coefficient"), 0), nrow(m))
   }
+  # Latent interactions (population.ts latent): the constructs' scores are drawn, then the indicators; each
+  # interaction term is estimated by PLS as a construct of product indicators (Chin et al. 2003: every product of
+  # a standardised indicator of a with one of b) and by regression as the product of standardised sum scores.
+  lat <- req$population$latent
+  num_mat <- function(m, what) {
+    m <- if (is.matrix(m)) m else do.call(rbind, m)
+    matrix(vapply(m, function(v) ps_number(v, what), 0), nrow(m))
+  }
+  terms <- list()
+  if (!is.null(lat)) {
+    lat_names <- as.character(unlist(lat$constructs))
+    if (!identical(lat_names, n$cname)) stop("The latent constructs do not match the model.")
+    J <- length(lat_names)
+    num_vec <- function(v, what) vapply(unlist(v), function(x) ps_number(x, what), 0)
+    lat_L <- num_mat(lat$Lambda, "loading")
+    lat_B <- num_mat(lat$B, "path")
+    lat_phi <- num_mat(lat$Phi, "construct correlation")
+    lat_theta <- num_vec(lat$theta, "error variance")
+    lat_psi <- num_vec(lat$psi, "residual variance")
+    lat_order <- as.integer(num_vec(lat$order, "construct order")) + 1L
+    lat_exo <- which(vapply(unlist(lat$exogenous), isTRUE, TRUE))
+    if (nrow(lat_L) != length(vars) || ncol(lat_L) != J || any(dim(lat_B) != J) || any(dim(lat_phi) != J)) {
+      stop("The latent model does not match the constructs and indicators.")
+    }
+    if (length(lat_theta) != length(vars) || length(lat_psi) != J || !identical(sort(lat_order), seq_len(J))) {
+      stop("The latent model does not match the constructs and indicators.")
+    }
+    dep <- function(x) paste(deparse(x), collapse = "")
+    lat_code <- c(
+      "# Latent interactions: exogenous factors drawn multivariate normal, each other construct from its predictors,",
+      "# the centred products and its residual (variance psi, so it has variance 1), then x = Lambda eta + e.",
+      sprintf("lat_L <- %s; lat_theta <- %s", dep(lat_L), dep(lat_theta)),
+      sprintf("lat_B <- %s; lat_phi <- %s; lat_psi <- %s", dep(lat_B), dep(lat_phi), dep(lat_psi)),
+      sprintf("lat_order <- %s; lat_exo <- %s", dep(lat_order), dep(lat_exo))
+    )
+    construct_at <- function(x) {
+      j <- match(as.character(x), n$cname)
+      if (length(j) != 1 || is.na(j)) stop("An interaction names an unknown construct.")
+      j
+    }
+    terms <- lapply(lat$interactions, function(x) {
+      a <- construct_at(x$a); b <- construct_at(x$b); to <- construct_at(x$to)
+      term <- paste0(cv[[a]], "_x_", cv[[b]])
+      while (term %in% c(cv, n$iv)) term <- paste0(term, "_")
+      prods <- outer(unname(n$iv[n$inds[[a]]]), unname(n$iv[n$inds[[b]]]), paste, sep = "_x_")
+      prods <- as.vector(prods)
+      for (i in seq_along(prods)) while (prods[i] %in% c(n$iv, cv, prods[-i])) prods[i] <- paste0(prods[i], "_")
+      list(
+        a = a, b = b, to = to, term = term, prods = prods,
+        value = ps_number(x$value, "interaction"), mean = ps_number(x$mean, "interaction mean")
+      )
+    })
+    lat_code <- c(
+      lat_code,
+      sprintf(
+        "lat_int <- data.frame(a = %s, b = %s, to = %s, value = %s, mean = %s)",
+        paste(deparse(vapply(terms, `[[`, 0L, "a")), collapse = ""),
+        paste(deparse(vapply(terms, `[[`, 0L, "b")), collapse = ""),
+        paste(deparse(vapply(terms, `[[`, 0L, "to")), collapse = ""),
+        paste(deparse(vapply(terms, `[[`, 0, "value")), collapse = ""),
+        paste(deparse(vapply(terms, `[[`, 0, "mean")), collapse = "")
+      ),
+      "generate_latent <- function(n) {",
+      "  eta <- matrix(0, n, ncol(lat_L))",
+      "  eta[, lat_exo] <- MASS::mvrnorm(n, rep(0, length(lat_exo)), lat_phi[lat_exo, lat_exo, drop = FALSE])",
+      "  for (t in setdiff(lat_order, lat_exo)) {",
+      "    v <- drop(eta %*% lat_B[t, ]) + stats::rnorm(n, 0, sqrt(lat_psi[t]))",
+      "    for (k in which(lat_int$to == t)) v <- v + lat_int$value[k] * (eta[, lat_int$a[k]] * eta[, lat_int$b[k]] - lat_int$mean[k])",
+      "    eta[, t] <- v",
+      "  }",
+      "  x <- eta %*% t(lat_L) + sweep(matrix(stats::rnorm(n * nrow(lat_L)), n), 2, sqrt(lat_theta), `*`)",
+      "  colnames(x) <- vars",
+      "  as.data.frame(x)",
+      "}",
+      # Product indicators: the indicators of a and b standardised, every pair multiplied.
+      "add_products <- function(data) {",
+      unlist(lapply(terms, function(x) {
+        ia <- unname(n$iv[n$inds[[x$a]]]); ib <- unname(n$iv[n$inds[[x$b]]])
+        sprintf(
+          "  za <- scale(data[%s]); zb <- scale(data[%s]); data[%s] <- as.data.frame(za[, rep(seq_len(%d), times = %d), drop = FALSE] * zb[, rep(seq_len(%d), each = %d), drop = FALSE])",
+          ps_q(ia), ps_q(ib), ps_q(x$prods), length(ia), length(ib), length(ib), length(ia)
+        )
+      })),
+      "  data",
+      "}"
+    )
+    if (any(vapply(req$estimators, function(e) e$method == "cb" || isTRUE(e$consistent) || !is.null(e$approach) || isTRUE(e$dr), TRUE))) {
+      stop("Latent interactions are estimated by PLS with product indicators or by regression on sum scores only.")
+    }
+  }
   # Estimation models: PLS keeps factors (=~) and composites (<~), unless the design estimates every construct as a
   # common factor (factorModel); CB-SEM treats every construct as a common factor.
   ind <- function(j) unname(n$iv[n$inds[[j]]])
   ends <- unique(vapply(spec$paths, `[[`, "", "to"))
+  term_of <- function(t) vapply(Filter(function(x) n$cname[x$to] == t, terms), `[[`, "", "term")
   reg <- vapply(
     ends,
-    function(t) paste(cv[[t]], "~", paste(cv[vapply(Filter(function(p) p$to == t, spec$paths), `[[`, "", "from")], collapse = " + ")),
+    function(t) paste(cv[[t]], "~", paste(c(cv[vapply(Filter(function(p) p$to == t, spec$paths), `[[`, "", "from")], term_of(t)), collapse = " + ")),
     ""
   )
   plsm <- c(
@@ -52,6 +143,7 @@ ps_mc_body <- function(req) {
       function(j) paste(cv[[j]], if (identical(spec$constructs[[j]]$type, "composite") && !isTRUE(req$factorModel)) "<~" else "=~", paste(ind(j), collapse = " + ")),
       ""
     ),
+    vapply(terms, function(x) paste(x$term, "=~", paste(x$prods, collapse = " + ")), ""),
     reg,
     # (cSEM needs the construct correlations spelled out when there is no structural model)
     if (!length(spec$paths) && length(cv) > 1) utils::combn(unname(unlist(cv)), 2, function(x) paste(x[1], "~~", x[2]))
@@ -59,7 +151,13 @@ ps_mc_body <- function(req) {
   cbm <- c(vapply(seq_along(spec$constructs), function(j) paste(cv[[j]], "=~", ps_marked(ind(j))), ""), reg)
   req$params <- lapply(req$params, function(p) {
     # (fit tests and GoF are of the model, named 'model', not a construct)
-    if (p$kind != "fit" && p$from != "model") {
+    if (!is.null(p$interaction)) {
+      ab <- match(as.character(unlist(p$interaction)), n$cname)
+      hit <- Filter(function(x) identical(c(x$a, x$b), ab) && n$cname[x$to] == p$to, terms)
+      if (length(hit) != 1) stop("A parameter names an unknown interaction.")
+      p$from <- hit[[1]]$term
+      p$to <- cv[[p$to]]
+    } else if (p$kind != "fit" && p$from != "model") {
       p$from <- cv[[p$from]]
       p$to <- cv[[p$to]]
     }
@@ -162,7 +260,16 @@ ps_mc_body <- function(req) {
     "'",
     sprintf("alpha <- %s; mc_draws <- %d", format(ps_number(req$alpha, "significance level")), as.integer(req$mcDraws)),
     sprintf("cb_checks <- %s; req_boot <- %d", if (isTRUE(req$cbChecks)) "TRUE" else "FALSE", as.integer(req$bootSamples)),
-    sprintf("reg_from <- %s; reg_to <- %s", ps_q(cv[vapply(spec$paths, `[[`, "", "from")]), ps_q(cv[vapply(spec$paths, `[[`, "", "to")])),
+    sprintf(
+      "reg_from <- %s; reg_to <- %s",
+      ps_q(c(cv[vapply(spec$paths, `[[`, "", "from")], vapply(terms, `[[`, "", "term"))),
+      ps_q(c(cv[vapply(spec$paths, `[[`, "", "to")], unname(cv[vapply(terms, `[[`, 0L, "to")])))
+    ),
+    sprintf(
+      "reg_terms <- list(%s)",
+      paste(vapply(terms, function(x) sprintf("%s = %s", x$term, ps_q(c(cv[[x$a]], cv[[x$b]]))), ""), collapse = ", ")
+    ),
+    if (!is.null(lat)) lat_code,
     "# Parameters to evaluate: standardised paths, indirect effects and correlations of exogenous constructs.",
     "params <- data.frame(kind = ",
     ps_q(vapply(req$params, `[[`, "", "kind")),
@@ -243,8 +350,14 @@ ps_mc_body <- function(req) {
     "  }, 0)",
     "  ok <- all(rel > 0 & rel <= 1 + 1e-10)",
     "  C <- C / sqrt(outer(rel, rel)); diag(C) <- 1",
+    "  # Interaction terms: the product of the two standardised sum scores (Chin et al. 2003, Table 9).",
+    "  if (length(reg_terms)) {",
+    "    zc <- scale(comp)",
+    "    comp <- cbind(comp, sapply(reg_terms, function(ab) zc[, ab[1]] * zc[, ab[2]]))",
+    "    C <- stats::cor(comp)",
+    "  }",
     "  if (any(abs(C) > 1 + 1e-10)) ok <- FALSE",
-    "  lv <- names(blocks); B <- matrix(0, length(lv), length(lv), dimnames = list(lv, lv)); SE <- B * NA; df <- setNames(rep(NA, length(lv)), lv)",
+    "  lv <- c(names(blocks), names(reg_terms)); B <- matrix(0, length(lv), length(lv), dimnames = list(lv, lv)); SE <- B * NA; df <- setNames(rep(NA, length(lv)), lv)",
     "  for (t in lv) {",
     "    P <- reg_from[reg_to == t]",
     "    if (!length(P)) next",
@@ -480,12 +593,17 @@ ps_mc_body <- function(req) {
     "}",
     "one_replication <- function(n, seed, boot_seed, mc_seed, miss_seed) {",
     "  set.seed(seed)",
-    "  data <- simulateData(pop_model, sample.nobs = n, skewness = skew, kurtosis = kurt)[, vars]",
+    if (is.null(lat)) {
+      "  data <- simulateData(pop_model, sample.nobs = n, skewness = skew, kurtosis = kurt)[, vars]"
+    } else {
+      "  data <- generate_latent(n)"
+    },
     "  if (!is.null(fleishman)) data <- to_fleishman(data)",
     "  if (length(cuts)) data[] <- lapply(data, function(x) findInterval(x, cuts) + 1)  # categories 1..k",
     "  if (miss_rate > 0) data <- add_missing(data, miss_seed)",
     "  # PLS (cSEM) needs complete data: mean replacement or casewise deletion.",
     "  data_pls <- if (pls_missing == 'mean') as.data.frame(lapply(data, function(x) { x[is.na(x)] <- mean(x, na.rm = TRUE); x })) else stats::na.omit(data)",
+    if (!is.null(lat)) "  data_pls <- add_products(data_pls)",
     "  res <- list()",
     est_lines,
     "  res",

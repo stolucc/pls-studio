@@ -346,6 +346,47 @@ it('GSCA (cSEM) estimates the paths of a composite population as PLS mode B does
   }
 }, 900_000);
 
+it('a latent interaction (Chin et al. 2003): PLS product indicators and regression on sum scores recover it with reliable indicators', async () => {
+  const factor = (name: string, p: string) => ({
+    name,
+    type: 'factor' as const,
+    indicators: [1, 2, 3, 4, 5, 6].map((i) => `${p}${i}`),
+    loadings: [0.95, 0.95, 0.95, 0.95, 0.95, 0.95],
+  });
+  const d: McDesign = {
+    ...design,
+    population: {
+      constructs: [factor('X', 'x'), factor('Z', 'z'), factor('Y', 'y')],
+      paths: [
+        { from: 'X', to: 'Y', value: 0.3 },
+        { from: 'Z', to: 'Y', value: 0.5 },
+      ],
+      exoCor: [{ a: 'X', b: 'Z', value: 0.3 }],
+      interactions: [{ a: 'X', b: 'Z', to: 'Y', value: 0.3 }],
+    },
+    estimators: [
+      { id: 'PLS', method: 'pls', consistent: false },
+      { id: 'Sum scores', method: 'regression', dr: false },
+    ],
+    sampleSizes: [500],
+    replications: 40,
+    bootSamples: 0,
+  };
+  const rows = summariseMc(d, [await runMcChunkR(d, 500, 0, 40)]);
+  const at = (e: string, key: string) =>
+    rows.find((x) => x.estimator === e && x.param.key === key)!;
+  // (the product of factors correlated .3 has variance 1.09: the standardised coefficient is .3 · √1.09)
+  expect(at('PLS', 'path:X × Z:Y').param.value).toBeCloseTo(0.3 * Math.sqrt(1.09), 10);
+  for (const e of ['PLS', 'Sum scores']) {
+    for (const key of ['path:X:Y', 'path:Z:Y', 'path:X × Z:Y']) {
+      const r = at(e, key);
+      expect(r.failed, `${e} ${key}`).toBe(0);
+      // (loadings .95: composites nearly error-free, so the estimates within Monte Carlo error of the truth)
+      expect(Math.abs(r.mean - r.param.value), `${e} ${key}`).toBeLessThan(0.03);
+    }
+  }
+}, 900_000);
+
 it('skewed indicators: Fleishman per indicator lowers the paths, as in the built-in engine; Vale–Maurelli does not', async () => {
   const skewed = (nonnormal?: 'fleishman'): McDesign => ({
     ...design,

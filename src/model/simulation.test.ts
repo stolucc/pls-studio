@@ -98,6 +98,20 @@ describe('simulation design', () => {
     expect(parsed.estimators).toEqual([gsca]);
   });
 
+  it('keeps latent interactions through a project file, values clamped, at most 100', () => {
+    const d = defaultDesign(populationFromModel(model, null, null));
+    const interactions = [{ a: 'A', b: 'A', to: 'B', value: 0.3 }];
+    const kept = parseDesign(
+      JSON.parse(JSON.stringify({ ...d, population: { ...d.population, interactions } })),
+    )!;
+    expect(kept.population.interactions).toEqual(interactions);
+    const wild = Array.from({ length: 150 }, () => ({ a: 'A', b: 'A', to: 'B', value: 5 }));
+    const clamped = parseDesign({ ...d, population: { ...d.population, interactions: wild } })!;
+    expect(clamped.population.interactions).toHaveLength(100);
+    expect(clamped.population.interactions![0].value).toBe(0.999);
+    expect(parseDesign(d)!.population.interactions).toBeUndefined();
+  });
+
   it('keeps the common-factor estimation of a composite population only as a literal true', () => {
     const d = defaultDesign(populationFromModel(model, null, null));
     const on = parseDesign(JSON.parse(JSON.stringify({ ...d, factorModel: true })))!;

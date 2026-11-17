@@ -818,3 +818,36 @@ it('leaves GSCA to the R engine: built in, every replication fails', () => {
   };
   expect(row(run(design, 1), 'GSCA', 'path:A:B').failed).toBe(5);
 });
+
+it('gives a latent interaction its standardised path, and leaves it to the R engine', () => {
+  const factor = (name: string) => ({
+    name,
+    type: 'factor' as const,
+    indicators: [1, 2].map((i) => `${name.toLowerCase()}${i}`),
+    loadings: [0.8, 0.8],
+  });
+  const design: McDesign = {
+    population: {
+      constructs: [factor('X'), factor('Z'), factor('Y')],
+      paths: [
+        { from: 'X', to: 'Y', value: 0.3 },
+        { from: 'Z', to: 'Y', value: 0.5 },
+      ],
+      exoCor: [{ a: 'X', b: 'Z', value: 0.3 }],
+      interactions: [{ a: 'X', b: 'Z', to: 'Y', value: 0.3 }],
+    },
+    estimators: [{ id: 'PLS', method: 'pls', consistent: false }],
+    sampleSizes: [100],
+    replications: 2,
+    seed: 1,
+    alpha: 0.05,
+    bootSamples: 0,
+    mcDraws: 0,
+  };
+  const param = designParameters(design, buildPopulation(design.population)).find(
+    (p) => p.key === 'path:X × Z:Y',
+  )!;
+  expect(param).toMatchObject({ kind: 'path', from: 'X × Z', to: 'Y', interaction: ['X', 'Z'] });
+  expect(param.value).toBeCloseTo(0.3 * Math.sqrt(1.09), 12);
+  expect(() => runMcTask({ design, n: 100, start: 0, end: 2 })).toThrow('R engine');
+});

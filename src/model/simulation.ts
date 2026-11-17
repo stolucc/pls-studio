@@ -187,6 +187,19 @@ export function parseDesign(raw: unknown): McDesign | null {
             })),
         }
       : {}),
+    ...(Array.isArray(p.interactions) && p.interactions.length
+      ? {
+          interactions: p.interactions
+            .filter(isObj)
+            .slice(0, 100)
+            .map((x) => ({
+              a: str(x.a),
+              b: str(x.b),
+              to: str(x.to),
+              value: clampStrict(x.value, -0.999, 0.999, 0),
+            })),
+        }
+      : {}),
   };
   const ids = Array.isArray(raw.estimators) ? raw.estimators.filter(isObj).map((e) => e.id) : [];
   const estimators = ESTIMATOR_CHOICES.filter((e) => ids.includes(e.id));
