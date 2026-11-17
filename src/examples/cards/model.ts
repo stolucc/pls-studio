@@ -1566,14 +1566,16 @@ export const MUTHEN_POPULATION = {
   kurtosis: 0,
 };
 
-/** What each simulation paper ran on, as the paper or its supplement states it (checked 2026-11-17 against
- * open copies only). The key is the start of the card ids drawn from that paper. */
+/** What each simulation paper ran on, as the paper or its supplement states it (checked 2026-11-17). The key is the start of the card ids drawn from that paper. */
 export const PAPER_SOFTWARE: [prefix: string, software: string][] = [
   [
     'muthen-',
     'Mplus, for data and estimation (version not stated; the paper cites the 1998 user’s guide)',
   ],
-  ['ronkko-evermann-', 'not checked (no open copy of the paper)'],
+  [
+    'ronkko-evermann-',
+    'R with plspm 0.2-2 for PLS (the software for ML SEM and sum scores is not named)',
+  ],
   [
     'henseler-beta5',
     'R 3.0.1 for the data, semPLS 1.0-10 for PLS, sem 3.1-3 for ML and boot 1.3-9 for the intervals; lavaan 0.5-14 and Mplus 4.21 for the convergence check',
@@ -1590,13 +1592,19 @@ export const PAPER_SOFTWARE: [prefix: string, software: string][] = [
     'henseler-four',
     'R 3.0.1 for the data, semPLS 1.0-10 for PLS, sem 3.1-3 for ML and boot 1.3-9 for the intervals; lavaan 0.5-14 and Mplus 4.21 for the convergence check',
   ],
-  ['goodhue-', 'not checked (no open copy of the paper)'],
+  [
+    'goodhue-',
+    'SAS 9.2 for the data and regression, PLS-Graph 3.0 (build 1130) for PLS, LISREL with ML (version not stated)',
+  ],
   ['henseler2015-', 'R 3.1.0 with semPLS (version not stated)'],
   [
     'ronkko-cho-',
     'R with lavaan and semTools (versions not stated; the code is in the paper’s Online Supplement 2)',
   ],
-  ['franke-sarstedt-', 'not checked (no open copy of the paper)'],
+  [
+    'franke-sarstedt-',
+    'Mplus, for data and estimation (version not stated; the paper cites the 2015 user’s guide, 7th edition)',
+  ],
   [
     'dijkstra-henseler-',
     'R 3.0.2: the authors’ own PLS and PLSc code, lavaan 0.5-15 for the covariance-based estimators',
@@ -1610,18 +1618,24 @@ export const PAPER_SOFTWARE: [prefix: string, software: string][] = [
     'SmartPLS 2.0 M3 beta for PLS (path weighting) and AMOS 5 (build 5138) for CB-SEM; the data generator is not named',
   ],
   ['kock-hadaya-', 'MATLAB (version not stated)'],
-  ['aguirre-reliability-', 'not checked (no open copy of the paper)'],
+  [
+    'aguirre-reliability-',
+    'SAS (PROC IML) for the data and EQS 6.1 for the factor-based reliability; the PLS program is not named',
+  ],
   ['wolf-', 'Mplus 5.2, for data (MONTECARLO) and estimation'],
-  ['curran-', 'not checked (no open copy of the paper)'],
-  ['hu-bentler-', 'not checked (no open copy of the paper)'],
+  ['curran-', 'EQS 3.0, for the data and the three test statistics'],
+  [
+    'hu-bentler-',
+    'EQS (modified simulation procedures; version not stated), with SAS programs for RNI, Gamma Hat, Mc, RMSEA and BL89',
+  ],
   [
     'aguirre-ronkko-',
-    'R with matrixpls and boot (versions not checked: no open copy of the paper)',
+    'R with matrixpls 1.0.1 (the reference list cites 1.0.5), simsem for the data and boot for the intervals; the appendix code keeps every bootstrap draw',
   ],
   ['chin-interaction-', 'PRELIS 2.14 for the data, PLS-Graph 3.0 for PLS'],
   [
     'qureshi-',
-    'not checked (no open copy of the paper; its references cite Mplus 4 Monte Carlo, AMOS 6.0 and PLS-Graph)',
+    'Mplus Monte Carlo for the data, PLS-Graph 3.0 (build 1126) for PLS and AMOS 7.0 with ML for CB-SEM',
   ],
   [
     'sarstedt-',
@@ -1629,10 +1643,13 @@ export const PAPER_SOFTWARE: [prefix: string, software: string][] = [
   ],
   [
     'hair-mirror-',
-    'not checked (no open copy of the paper; its references cite R, semPLS, ASGSCA 1.4.0 and snowfall 1.84-6)',
+    'R for the data and sum scores, semPLS for PLS and ASGSCA for GSCA (versions not stated in the text; the references cite ASGSCA 1.4.0)',
   ],
   ['hwang-', 'not stated in the paper'],
-  ['cho-', 'not checked (no open copy could be read)'],
+  [
+    'cho-',
+    'lavaan 0.5-16 for ML and factor-score regression, the authors’ MATLAB code for GSCA and PLS (checked against GSCA Pro 1.1.4 and SmartPLS 3.0)',
+  ],
   ['rhemtulla-', 'R for the population matrices, lavaan 0.5-23 for the fits'],
 ];
 
@@ -2663,7 +2680,7 @@ const CARDS: PackageExample[] = [
       FACTOR_POPULATION +
       ' Opens its card on the Analyses tab beside the diagram.',
     shows:
-      'γ1 (.48): PLSc mean .47, .48 with BCa coverage .82, .93 at N = 50, 250 (percentile card .94, .96); PLS mean .41, coverage .86, .64. γ4 (0): Type I error PLSc .12, .06; PLS .05, .02. Inadmissible PLSc solutions: 89% and 68%.',
+      'γ1 (.48): PLSc mean .47, .48 with BCa coverage .82, .93 at N = 50, 250 (paper about .93, .94, read off Figure C1; percentile card .94, .96); PLS mean .41, coverage .86, .64. γ4 (0): Type I error PLSc .12, .06 (paper about .10, .08, Figure C4); PLS .05, .02. Inadmissible PLSc solutions: 89% and 68%.',
     ...aguirre2018Card(0, 'bca', [50, 250]),
   },
   {
@@ -2689,7 +2706,7 @@ const CARDS: PackageExample[] = [
       FACTOR_POPULATION +
       ' Opens its card on the Analyses tab beside the diagram.',
     shows:
-      'γ1 (.3795): PLSc mean .38, .38 with BCa coverage .89, .94 at N = 50, 250 (paper about .94 to .96); PLS mean .33, .34, coverage .90, .86. γ4 (0): PLSc Type I error .07, .08 (paper about .05 to .07); PLS mean .04, .03 and Type I error .07, .12. Inadmissible PLSc solutions: 71% and 19%.',
+      'γ1 (.3795): PLSc mean .38, .38 with BCa coverage .89, .94 at N = 50, 250 (paper about .95, .95, read off Figure C17); PLS mean .33, .34, coverage .90, .86. γ4 (0): PLSc Type I error .07, .08 (paper about .05, Figure C20); PLS mean .04, .03 and Type I error .07, .12. Inadmissible PLSc solutions: 71% and 19%.',
     ...aguirre2018Card(0.3, 'bca', [50, 250]),
   },
   {
