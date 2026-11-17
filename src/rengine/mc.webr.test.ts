@@ -541,6 +541,9 @@ it('PLS with bootstrap: each replication’s bootstrap SE, set against the SD of
   );
   expect(Array.from(part.se![0][pi]).every(Number.isFinite)).toBe(true);
   expect(Array.from(part.se![1][pi]).every(Number.isNaN)).toBe(true);
+  // admissible draws: (nearly) every one for PLS composites (a rare draw fails cSEM's verify), none counted for CB-SEM
+  expect(Array.from(part.kept![0]).every((c) => c >= 95 && c <= 100)).toBe(true);
+  expect(Array.from(part.kept![1]).every(Number.isNaN)).toBe(true);
   const rows = summariseMc(d, [part]);
   const pls = rows.find((r) => r.estimator === 'PLS' && r.param.key === 'path:A:C')!;
   expect(pls.seRatio!).toBeGreaterThan(0.7);
@@ -552,6 +555,7 @@ it('PLS with bootstrap: each replication’s bootstrap SE, set against the SD of
   const two: McDesign = { ...d, groups: { paths: [] }, estimators: [d.estimators[0]] };
   const mg = await runMcChunkR(two, 300, 0, 10);
   expect(Array.from(mg.se![0][0]).every((x) => Number.isFinite(x) && x > 0)).toBe(true);
+  expect(Array.from(mg.kept![0]).every((c) => c >= 95 && c <= 100)).toBe(true);
 }, 900_000);
 
 it('two groups, PLS: the individual sign change applies to each group’s bootstrap draws', async () => {

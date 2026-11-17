@@ -261,6 +261,38 @@ describe('Monte Carlo card', () => {
     expect(out).toContain('its tests conservative');
   });
 
+  it('flags thin bootstraps: the share with few admissible draws and the median kept', () => {
+    const d = t.defaults(ctx());
+    const path = { key: 'path:A:B', kind: 'path' as const, from: 'A', to: 'B', value: 0.3 };
+    const row: McSummaryRow = {
+      estimator: d.estimators[0].id,
+      n: 50,
+      param: path,
+      reps: 500,
+      failed: 0,
+      improper: 0,
+      mean: 0.3,
+      bias: 0,
+      relBias: 0,
+      sd: 0.1,
+      rmse: 0.1,
+      coverage: 0.84,
+      width: 0.45,
+      rejection: 0.6,
+    };
+    // every bootstrap full: no column
+    const full = renderToStaticMarkup(
+      <t.View result={[{ ...row, thinBoot: 0, keptMedian: 1000 }]} options={d} current />,
+    );
+    expect(full).not.toContain('Thin bootstrap');
+    const out = renderToStaticMarkup(
+      <t.View result={[{ ...row, thinBoot: 0.47, keptMedian: 46 }]} options={d} current />,
+    );
+    expect(out).toContain('Thin bootstrap');
+    expect(out).toContain('47% (46)');
+    expect(out).toContain('fewer than 100 admissible draws');
+  });
+
   it('draws the distribution of the estimates with the true value and a hover per bin', () => {
     const d = t.defaults(ctx());
     const path = { key: 'path:A:B', kind: 'path' as const, from: 'A', to: 'B', value: 0 };

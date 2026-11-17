@@ -3,7 +3,7 @@ import { toSpec } from '../model/project';
 import { makeSample } from '../sample';
 import { mergeBootstrap, runRange, summarise } from './bootstrap';
 import { estimatePls } from './pls';
-import { pnorm, qnorm } from './stats';
+import { bootQuantile, pnorm, qnorm } from './stats';
 
 describe('bootstrap options', () => {
   it('normal distribution and quantile functions are inverse', () => {
@@ -16,10 +16,12 @@ describe('bootstrap options', () => {
     const two = summarise(v, 0.6, 0.9),
       one = summarise(v, 0.6, 0.9, 1);
     expect(one.p).toBeCloseTo(two.p / 2, 15);
-    expect(two.ciLow).toBeCloseTo(0.05, 12);
-    expect(two.ciHigh).toBeCloseTo(0.95, 12);
-    expect(one.ciLow).toBeCloseTo(0.1, 12);
-    expect(one.ciHigh).toBeCloseTo(0.9, 12);
+    // limits as boot.ci's (bootQuantile), at .05 / .95 two-tailed and .10 / .90 one-tailed
+    const sorted = Float64Array.from(v);
+    expect(two.ciLow).toBeCloseTo(bootQuantile(sorted, 0.05), 12);
+    expect(two.ciHigh).toBeCloseTo(bootQuantile(sorted, 0.95), 12);
+    expect(one.ciLow).toBeCloseTo(bootQuantile(sorted, 0.1), 12);
+    expect(one.ciHigh).toBeCloseTo(bootQuantile(sorted, 0.9), 12);
   });
 
   it('BCa without bias or acceleration is the percentile interval; skewed jackknife shifts it', () => {

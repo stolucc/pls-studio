@@ -1,7 +1,8 @@
 // Bootstrap options through webR: BCa intervals and one-tailed tests.
-// PLS (cSEM): our BCa from cSEM's bootstrap and jackknife equals cSEM's own
-// infer(.quantity = "CI_bca"); the app's TypeScript summary equals R's
-// boot_summary on the same draws. Run with npm run test:webr.
+// PLS (cSEM): our percentile and BCa limits from cSEM's bootstrap and the full
+// jackknife equal boot::boot.ci on the same draws (Davison & Hinkley's order
+// statistics, as matrixpls and Aguirre-Urreta & Rönkkö 2018 use); the app's
+// TypeScript summary equals R's boot_summary on the same draws. Run with npm run test:webr.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { slowIt } from './webrSlow';
@@ -57,7 +58,7 @@ beforeAll(async () => {
 }, 900_000);
 
 describe('bootstrap options', () => {
-  it('BCa (cSEM): the formula equals cSEM’s infer(CI_bca); the app uses the full jackknife; one-tailed p is half', async () => {
+  it('BCa (cSEM): percentile and BCa limits equal boot.ci on the same draws; the app uses the full jackknife; one-tailed p is half', async () => {
     const boot = { samples: 200, seed: 7, confidence: 0.95 };
     const bca = await bootstrapR(
       data,
@@ -68,26 +69,38 @@ describe('bootstrap options', () => {
     expect(bca.interval).toBe('bca');
     const model =
       'EXPE ~ IMAG\\nSAT ~ IMAG + EXPE\\nIMAG =~ imag1 + imag2 + imag3 + imag4 + imag5\\nEXPE =~ expe1 + expe2 + expe3 + expe4 + expe5\\nSAT =~ sat1 + sat2 + sat3 + sat4';
-    const own = (await withR(['jsonlite', 'cSEM'], { common: commonR, boot: bootR }, (webR) =>
-      callJson(
-        webR,
-        `suppressPackageStartupMessages(library(cSEM)); eval(parse(text = PS_BOOT_SUMMARY))
+    const own = (await withR(
+      ['jsonlite', 'cSEM', 'boot'],
+      { common: commonR, boot: bootR },
+      (webR) =>
+        callJson(
+          webR,
+          `suppressPackageStartupMessages(library(cSEM)); eval(parse(text = PS_BOOT_SUMMARY))
       args <- list(.data = satisfaction, .model = "${model}", .PLS_weight_scheme_inner = "path", .disattenuate = FALSE, .tolerance = 1e-7, .iter_max = 300)
       fit <- do.call(csem, c(args, .resample_method = "bootstrap", .R = 200, .seed = 7))
       P <- fit$Estimates$Estimates_resample$Estimates1$Path_estimates
-      # cSEM's infer() takes its jackknife from resamplecSEMResults on the bootstrapped object (as many rows as bootstrap samples).
-      o <- fit; class(o) <- setdiff(class(o), "cSEMResults_resampled")
-      Jc <- cSEM:::resamplecSEMResults(.object = o, .resample_method = "jackknife")$Estimates$Estimates_resample$Estimates1$Path_estimates$Resampled
-      ci <- infer(fit, .quantity = "CI_bca", .alpha = 0.05)$Path_estimates$CI_bca
       # The full jackknife: every observation left out once.
       J <- do.call(csem, c(args, .resample_method = "jackknife"))$Estimates$Estimates_resample$Estimates1$Path_estimates$Resampled
-      withC <- boot_summary(P$Resampled, P$Original, 0.95, jack = Jc); full <- boot_summary(P$Resampled, P$Original, 0.95, jack = J)
-      ps_json(list(names = colnames(ci), cs = list(lo = unname(ci[1, ]), hi = unname(ci[2, ])), withC = list(lo = withC$ci_low, hi = withC$ci_high),
+      perc <- boot_summary(P$Resampled, P$Original, 0.95); full <- boot_summary(P$Resampled, P$Original, 0.95, jack = J)
+      # boot.ci on the same draws: a boot object of the draws; L, the jackknife influence values (boot's usual.jack).
+      ob <- list(t0 = unname(P$Original), t = unname(P$Resampled), R = nrow(P$Resampled), sim = "ordinary", stype = "i",
+        strata = rep(1, nrow(J)), weights = rep(1 / nrow(J), nrow(J)), data = matrix(0, nrow(J), 1),
+        statistic = function(d, i) 0, call = quote(boot(data = NULL, statistic = NULL, R = 0)))
+      class(ob) <- "boot"
+      ref <- lapply(seq_along(P$Original), function(k) {
+        L <- (nrow(J) - 1) * (mean(J[, k]) - J[, k])
+        list(perc = boot::boot.ci(ob, conf = 0.95, type = "perc", index = k)$percent[4:5],
+          bca = boot::boot.ci(ob, conf = 0.95, type = "bca", index = k, L = L)$bca[4:5])
+      })
+      ps_json(list(names = colnames(P$Resampled),
+        bootPerc = list(lo = sapply(ref, function(r) r$perc[1]), hi = sapply(ref, function(r) r$perc[2])),
+        bootBca = list(lo = sapply(ref, function(r) r$bca[1]), hi = sapply(ref, function(r) r$bca[2])),
+        perc = list(lo = perc$ci_low, hi = perc$ci_high),
         full = list(lo = full$ci_low, hi = full$ci_high), jackRows = nrow(J)))`,
-        null,
-      ),
+          null,
+        ),
     )) as { names: string[]; jackRows: number } & Record<
-      'cs' | 'withC' | 'full',
+      'bootPerc' | 'bootBca' | 'perc' | 'full',
       { lo: number[]; hi: number[] }
     >;
     expect(own.jackRows).toBe(250);
@@ -96,9 +109,11 @@ describe('bootstrap options', () => {
       return bca.stats.find((x) => x.key === `path:${from}:${to}`)!;
     };
     own.names.forEach((n, i) => {
-      // Our BCa formula, given cSEM's jackknife, is cSEM's CI_bca exactly.
-      expect(own.withC.lo[i], n).toBeCloseTo(own.cs.lo[i], 12);
-      expect(own.withC.hi[i], n).toBeCloseTo(own.cs.hi[i], 12);
+      // Our limits are boot.ci's, percentile and BCa, on the same draws and jackknife.
+      expect(own.perc.lo[i], n).toBeCloseTo(own.bootPerc.lo[i], 12);
+      expect(own.perc.hi[i], n).toBeCloseTo(own.bootPerc.hi[i], 12);
+      expect(own.full.lo[i], n).toBeCloseTo(own.bootBca.lo[i], 12);
+      expect(own.full.hi[i], n).toBeCloseTo(own.bootBca.hi[i], 12);
       // The app: the full jackknife.
       expect(path(n).ciLow, n).toBeCloseTo(own.full.lo[i], 10);
       expect(path(n).ciHigh, n).toBeCloseTo(own.full.hi[i], 10);

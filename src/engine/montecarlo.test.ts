@@ -10,6 +10,8 @@ import {
   replicationSeed,
   runMcTask,
   summariseMc,
+  THIN_BOOT,
+  thinBootstrap,
   categorise,
   ordinalThresholds,
   withMissing,
@@ -156,6 +158,12 @@ describe('Monte Carlo simulation', () => {
     expect(pls.seRatio!).toBeLessThan(1.3);
     // CB-SEM has no bootstrap draws here: no ratio.
     expect(row(rows, 'ML', 'path:X:M').seRatio).toBeUndefined();
+    // PLS composites are always admissible: every draw kept, no thin bootstrap; CB-SEM has no count.
+    expect(Array.from(parts[0].kept![0]).every((c) => c === 100)).toBe(true);
+    expect(Array.from(parts[0].kept![1]).every(Number.isNaN)).toBe(true);
+    expect(pls.thinBoot).toBe(0);
+    expect(pls.keptMedian).toBe(100);
+    expect(row(rows, 'ML', 'path:X:M').thinBoot).toBeUndefined();
     // Without bootstrap samples, PLS has none either.
     const plain = summariseMc(
       { ...design, bootSamples: 0 },
@@ -191,7 +199,12 @@ describe('Monte Carlo simulation', () => {
       se: of([0.1, 0.1, 0.12, NaN]),
       truthCI: [keys.map(() => NaN)],
       proper: [new Float64Array([1, 1, 1, 1])],
+      kept: [new Float64Array([50, 12, 49, 3])],
     };
+    // Thin: fewer than THIN_BOOT draws kept, or below that many samples fewer than all (50 here): 3 of 4.
+    const thin = row(summariseMc(design, [part]), 'PLS', 'path:X:M');
+    expect(thin.thinBoot).toBeCloseTo(0.75, 12);
+    expect(thin.keptMedian).toBe(30.5);
     const sd = Math.sqrt(((0.3 - 0.4) ** 2 + (0.5 - 0.4) ** 2) / 3);
     expect(row(summariseMc(design, [part]), 'PLS', 'path:X:M').seRatio).toBeCloseTo(
       0.32 / 3 / sd,
@@ -956,4 +969,15 @@ it('with two groups, tests each path’s difference only, and leaves it to the R
   // (CB-SEM's interval is for the unstandardised difference: × λ_marker(C) / λ_marker(A), here 1)
   expect(ciTruth(design, buildPopulation(design.population), params)[0][0]).toBeCloseTo(0.35, 12);
   expect(() => runMcTask({ design, n: 100, start: 0, end: 2 })).toThrow('R engine');
+});
+
+describe('thin bootstraps', () => {
+  it('count the replications with fewer than THIN_BOOT admissible draws (or fewer than all samples, below it)', () => {
+    expect(THIN_BOOT).toBe(100);
+    expect(thinBootstrap([1000, 46, 99, 100, 250], 1000)).toEqual({
+      thinBoot: 0.4,
+      keptMedian: 100,
+    });
+    expect(thinBootstrap([50, 49], 50)).toEqual({ thinBoot: 0.5, keptMedian: 49.5 });
+  });
 });

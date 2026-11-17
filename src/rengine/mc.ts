@@ -179,6 +179,8 @@ export function parseMcChunk(
     proper: rList<unknown>(raw.proper).map(f64),
     // (bootstrap SEs; absent from an older helper's answer)
     ...(raw.se === undefined ? {} : { se: arr(raw.se) }),
+    // (admissible bootstrap draws per replication; absent from an older helper's answer)
+    ...(raw.kept === undefined ? {} : { kept: rList<unknown>(raw.kept).map(f64) }),
     // (one entry per test, in MC_TESTS order; absent from an older helper's answer)
     ...(raw.tests === undefined
       ? {}

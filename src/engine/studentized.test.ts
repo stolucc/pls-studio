@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { mergeBootstrap, runRange, studentizedInterval } from './bootstrap';
 import { parseCsv } from './dataset';
+import { bootQuantile } from './stats';
 import { parseProject, DEFAULT_SETTINGS, serializeProject } from '../model/project';
 import type { ModelSpec } from './types';
 
@@ -22,23 +23,32 @@ const spec: ModelSpec = {
 
 describe('studentized intervals', () => {
   it('reflect the quantiles of the studentized draws around the estimate', () => {
-    // t* from −2 to 2 in steps of 0.1 (41 draws): the 2.5% and 97.5% quantiles (type 7) are −1.9 and 1.9.
+    // t* from −2 to 2 in steps of 0.1 (41 draws), symmetric: its 97.5% limit (boot.ci's, about 1.95) is q.
     const t = Array.from({ length: 41 }, (_, i) => -2 + i * 0.1);
+    const q = bootQuantile(Float64Array.from(t), 0.975);
+    expect(bootQuantile(Float64Array.from(t), 0.025)).toBeCloseTo(-q, 10);
     const skew = t.map((v) => (v > 0 ? v * 2 : v));
     const a = studentizedInterval(t, 0.5, 0.1, 0.95);
-    expect(a.ciLow).toBeCloseTo(0.5 - 1.9 * 0.1, 10);
-    expect(a.ciHigh).toBeCloseTo(0.5 + 1.9 * 0.1, 10);
+    expect(a.ciLow).toBeCloseTo(0.5 - q * 0.1, 10);
+    expect(a.ciHigh).toBeCloseTo(0.5 + q * 0.1, 10);
     // A long upper tail of t* lengthens the lower side: the interval is reflected.
     const b = studentizedInterval(skew, 0.5, 0.1, 0.95);
-    expect(0.5 - b.ciLow).toBeCloseTo(3.8 * 0.1, 10);
-    expect(b.ciHigh - 0.5).toBeCloseTo(1.9 * 0.1, 10);
+    expect(0.5 - b.ciLow).toBeCloseTo(2 * q * 0.1, 10);
+    expect(b.ciHigh - 0.5).toBeCloseTo(q * 0.1, 10);
   });
   it('uses the one-tailed level', () => {
     const t = Array.from({ length: 41 }, (_, i) => -2 + i * 0.1);
-    expect(studentizedInterval(t, 0, 1, 0.95, 1).ciHigh).toBeCloseTo(1.8 - 0.0 + 0, 1);
+    // one-tailed 95%: the 5% limit of t*, not the 2.5% one
+    const q05 = bootQuantile(Float64Array.from(t), 0.05);
+    expect(studentizedInterval(t, 0, 1, 0.95, 1).ciHigh).toBeCloseTo(-q05, 10);
+    expect(studentizedInterval(t, 0, 1, 0.95, 1).ciHigh).not.toBeCloseTo(
+      -bootQuantile(Float64Array.from(t), 0.025),
+      3,
+    );
   });
   it('ignores failed draws', () => {
-    expect(studentizedInterval([NaN, -1, 0, 1], 0, 1, 0.5).ciHigh).toBeCloseTo(0.5, 10);
+    // three finite draws: the 25% limit is the first order statistic ((3 + 1) · .25 = 1), so ciHigh = 1
+    expect(studentizedInterval([NaN, -1, 0, 1], 0, 1, 0.5).ciHigh).toBeCloseTo(1, 10);
   });
   const range = (start: number, end: number, inner?: number) =>
     runRange({

@@ -19,6 +19,7 @@ import type {
   McParam,
   McSummaryRow,
 } from '../engine/montecarlo';
+import { THIN_BOOT } from '../engine/montecarlo';
 import { buildPopulation, withPathValues, type PopulationSpec } from '../engine/population';
 import { fmt } from '../format';
 import {
@@ -1587,6 +1588,8 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
   const activeParam = params.find((p) => p.key === paramKey) ?? params[0];
   // (bootstrap estimators only; absent from results computed before the column existed)
   const showSeRatio = rows.some((r) => r.param.key === activeParam?.key && r.seRatio !== undefined);
+  // (only when some replication's bootstrap kept fewer than THIN_BOOT admissible draws)
+  const showThin = rows.some((r) => r.param.key === activeParam?.key && (r.thinBoot ?? 0) > 0);
   const ns = [...new Set(rows.map((r) => r.n))].sort((a, b) => a - b);
   const [distN, setDistN] = useState<number | null>(null);
   const [shape, setShape] = useState<'density' | 'histogram'>('density');
@@ -1715,6 +1718,7 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                 'Coverage',
                 'CI width',
                 ...(showSeRatio ? ['Boot SE / SD'] : []),
+                ...(showThin ? ['Thin bootstrap'] : []),
                 activeParam.kind === 'validity'
                   ? 'Fails cutoff'
                   : Math.abs(activeParam.value) < 1e-12
@@ -1747,6 +1751,16 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                           c(
                             r.seRatio ?? null,
                             r.seRatio !== undefined && Math.abs(r.seRatio - 1) > 0.1 ? 'warn' : '',
+                          ),
+                        ]
+                      : []),
+                    ...(showThin
+                      ? [
+                          c(
+                            r.thinBoot === undefined
+                              ? null
+                              : `${Math.round(r.thinBoot * 100)}% (${Math.round(r.keptMedian!)})`,
+                            (r.thinBoot ?? 0) > 0.05 ? 'warn' : '',
                           ),
                         ]
                       : []),
@@ -1831,6 +1845,8 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                     population loadings), for planning a sample size by precision.
                     {showSeRatio &&
                       ' Boot SE / SD: the mean bootstrap SE over the SD of the estimates across replications; near 1 the bootstrap gets the sampling variability right, above 1 its intervals are too wide and its tests conservative (PLS at small n: the weights, re-estimated in every bootstrap sample, vary more than between samples).'}{' '}
+                    {showThin &&
+                      ` Thin bootstrap: share of replications whose bootstrap kept fewer than ${THIN_BOOT} admissible draws (in brackets, the median number kept); intervals and tests resting on so few draws mean little, so read the coverage and rejection rates of those rows with care.`}{' '}
                     Inadmissible: share of solutions that are not possible ones (CB-SEM: negative
                     variances or correlations beyond ±1; PLSc: reliabilities or correlations beyond
                     1); they stay in the summary. Failed replications (non-convergence) are excluded

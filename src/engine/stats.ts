@@ -41,6 +41,26 @@ export function quantileSorted(sorted: ArrayLike<number>, p: number): number {
   return sorted[lo] + (h - lo) * (sorted[hi] - sorted[lo]);
 }
 
+/**
+ * A bootstrap interval limit at level p from the sorted draws, as boot's norm.inter (Davison & Hinkley
+ * 1997, eq. 5.8): the (R + 1)p-th order statistic, interpolated on the normal scale between its two
+ * neighbours; below the first rank or past the last, the extreme draw. It matches quantileSorted once
+ * there are many draws and gives the wider (boot.ci) limits when few are left.
+ */
+export function bootQuantile(sorted: ArrayLike<number>, p: number): number {
+  const R = sorted.length;
+  if (R === 0) return NaN;
+  const rank = (R + 1) * p;
+  const k = Math.trunc(rank);
+  if (k <= 0) return sorted[0];
+  if (k >= R) return sorted[R - 1];
+  if (k === rank) return sorted[k - 1];
+  const zk = qnorm(k / (R + 1));
+  const zNext = qnorm((k + 1) / (R + 1));
+  const share = (qnorm(p) - zk) / (zNext - zk);
+  return sorted[k - 1] + share * (sorted[k] - sorted[k - 1]);
+}
+
 /** R's bw.nrd0: Silverman's rule of thumb, 0.9 min(SD, IQR / 1.34) n^(-1/5), with R's fallbacks; finite values only. */
 export function bandwidthNrd0(values: ArrayLike<number>): number {
   const v = Array.from(values)

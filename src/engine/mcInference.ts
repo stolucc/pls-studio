@@ -21,7 +21,7 @@
 // An interval test rejects when its interval excludes 0.
 
 import { summarise } from './bootstrap';
-import { quantileSorted, tTestP, zCrit } from './stats';
+import { bootQuantile, tTestP, zCrit } from './stats';
 
 export type McSignChange = 'none' | 'individual' | 'construct';
 export type McInterval = 'percentile' | 'normal' | 'basic' | 'bca';
@@ -112,7 +112,7 @@ export function bootTests(
   const mean = v.reduce((s, x) => s + x, 0) / v.length;
   const se = Math.sqrt(v.reduce((s, x) => s + (x - mean) ** 2, 0) / (v.length - 1));
   const sorted = Float64Array.from(v).sort();
-  const q = (p: number) => quantileSorted(sorted, p);
+  const q = (p: number) => bootQuantile(sorted, p);
   const z = zCrit(alpha);
   const bias = mean - original;
   const ci: McTestResult['ci'] = {

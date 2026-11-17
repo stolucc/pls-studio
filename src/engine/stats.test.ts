@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { mulberry32, quantileSorted, sd, standardize, tTestP } from './stats';
+import { bootQuantile, mulberry32, quantileSorted, sd, standardize, tTestP } from './stats';
 import { invert, SingularMatrixError } from './linalg';
 
 describe('tTestP', () => {
@@ -108,5 +108,29 @@ describe('logistic quantile', () => {
     expect(qlogis(1, 1e-4)).toBeCloseTo(-qlogis(0, 1e-4), 12);
     // the starting values of the integration engines: qnorm agrees with Acklam's approximation used before
     expect(qnorm(0.975)).toBeCloseTo(1.959963985, 8);
+  });
+});
+
+describe('bootQuantile (boot.ci’s interval limits)', () => {
+  it('equals boot:::norm.inter: normal-scale interpolation, extreme draws outside the ranks', () => {
+    const x = [
+      0.3, -1.2, 2.5, 0.7, 1.1, -0.4, 0.9, 1.8, -2.0, 0.05, 1.4, 0.6, -0.8, 2.2, 0.2, -1.5, 1.0,
+      0.4, -0.1, 3.1,
+    ];
+    const sorted = Float64Array.from(x).sort();
+    const p = [0.001, 0.025, 0.04, 0.1, 0.5, 0.9, 0.95, 0.975, 0.999];
+    // R: boot:::norm.inter(x, p)[, 2] (boot 1.3-32)
+    const want = [-2, -2, -2, -1.46570362392407, 0.5, 2.46570362392407, 3.06068548312311, 3.1, 3.1];
+    p.forEach((q, i) => expect(bootQuantile(sorted, q), String(q)).toBeCloseTo(want[i], 12));
+  });
+
+  it('is wider than R’s default quantile with few draws and agrees with it with many', () => {
+    const few = Float64Array.from({ length: 20 }, (_, i) => i).sort();
+    expect(bootQuantile(few, 0.025)).toBeLessThan(quantileSorted(few, 0.025));
+    expect(bootQuantile(few, 0.975)).toBeGreaterThan(quantileSorted(few, 0.975));
+    const rand = mulberry32(5);
+    const many = Float64Array.from({ length: 5000 }, () => rand()).sort();
+    expect(Math.abs(bootQuantile(many, 0.025) - quantileSorted(many, 0.025))).toBeLessThan(1e-3);
+    expect(bootQuantile(new Float64Array(0), 0.5)).toBeNaN();
   });
 });

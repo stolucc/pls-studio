@@ -1,11 +1,29 @@
 # Bootstrapping with the packages' own resampling: cSEM (csem(.resample_method
 # = "bootstrap")), seminr (bootstrap_model) and lavaan (bootstrapLavaan). The
 # draws are summarised the same way for all (mean, SD, t = original / SD with
-# df = draws - 1, percentile interval), keyed like the app's built-in bootstrap.
+# df = draws - 1, percentile interval with boot.ci's limits), keyed like the app's built-in bootstrap.
 
 #' Summarise a draws matrix (rows = bootstrap samples, named columns).
 #' Lines of R that define it, so exported scripts carry the same summary.
 PS_BOOT_SUMMARY <- c(
+  "# An interval limit at level p from the draws, as boot's norm.inter (Davison & Hinkley 1997, eq. 5.8):",
+  "# the (B + 1)p-th order statistic, interpolated on the normal scale; below the first rank or past the last,",
+  "# the extreme draw (boot.ci's percentile and BCa limits).",
+  "boot_quantile <- function(x, p) {",
+  "  x <- sort(x[is.finite(x)])",
+  "  B <- length(x)",
+  "  vapply(p, function(pp) {",
+  "    if (B == 0) return(NA_real_)",
+  "    rank <- (B + 1) * pp",
+  "    k <- trunc(rank)",
+  "    if (k <= 0) return(x[1])",
+  "    if (k >= B) return(x[B])",
+  "    if (k == rank) return(x[k])",
+  "    zk <- stats::qnorm(k / (B + 1))",
+  "    z_next <- stats::qnorm((k + 1) / (B + 1))",
+  "    x[k] + (stats::qnorm(pp) - zk) / (z_next - zk) * (x[k + 1] - x[k])",
+  "  }, 0)",
+  "}",
   "# Each parameter over the draws where it is defined (e.g. an R\u00b2 can be undefined in an improper draw).",
   "# tails = 1: one-tailed p (half the two-tailed one: the test in the direction of the estimate) and",
   "# intervals [alpha, 1 - alpha]. jack (jackknife estimates, one row per case left out): BCa intervals",
@@ -22,7 +40,7 @@ PS_BOOT_SUMMARY <- c(
   "    }",
   "    p <- 2 * stats::pt(-abs(t), df = B - 1); if (tails == 1) p <- p / 2",
   "    c(original = o, mean = mean(x), sd = s, t = t, p = p,",
-  "      ci_low = unname(stats::quantile(x, lv[1])), ci_high = unname(stats::quantile(x, lv[2])), draws = B) }",
+  "      ci_low = boot_quantile(x, lv[1]), ci_high = boot_quantile(x, lv[2]), draws = B) }",
   "  out <- t(vapply(seq_len(ncol(draws)), function(j) one(draws[, j], original[[j]], if (is.null(jack)) NULL else jack[, j]), numeric(8)))",
   "  data.frame(parameter = colnames(draws), out, row.names = NULL, check.names = FALSE)",
   "}"

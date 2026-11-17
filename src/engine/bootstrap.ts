@@ -21,7 +21,7 @@ import {
   structural,
   type CompiledModel,
 } from './pls';
-import { corStd, mulberry32, pnorm, qnorm, quantileSorted, tTestP } from './stats';
+import { bootQuantile, corStd, mulberry32, pnorm, qnorm, quantileSorted, tTestP } from './stats';
 import type {
   BootstrapOptions,
   BootstrapResult,
@@ -489,7 +489,8 @@ export function runRange(req: RangeRequest, hooks: BootstrapHooks = {}): RangePa
  * Two-tailed p from t (df = draws − 1); one-tailed p is half of it (the test in
  * the direction of the estimate). Percentile interval [α/2, 1 − α/2] (one-tailed:
  * [α, 1 − α]); BCa (Efron 1987) shifts the levels by the bias correction z0 (from
- * the draws) and the acceleration a (from the jackknife). As R/boot.R boot_summary.
+ * the draws) and the acceleration a (from the jackknife). The limits are boot.ci's (bootQuantile).
+ * As R/boot.R boot_summary.
  */
 export function summarise(
   v: number[],
@@ -528,8 +529,8 @@ export function summarise(
     sd,
     t,
     p: tails === 1 ? p2 / 2 : p2,
-    ciLow: quantileSorted(sorted, lo),
-    ciHigh: quantileSorted(sorted, hi),
+    ciLow: bootQuantile(sorted, lo),
+    ciHigh: bootQuantile(sorted, hi),
   };
 }
 
@@ -544,8 +545,8 @@ export function studentizedInterval(
   const sorted = Float64Array.from(tDraws.filter(Number.isFinite)).sort();
   const alpha = tails === 1 ? 1 - confidence : (1 - confidence) / 2;
   return {
-    ciLow: original - quantileSorted(sorted, 1 - alpha) * sd,
-    ciHigh: original - quantileSorted(sorted, alpha) * sd,
+    ciLow: original - bootQuantile(sorted, 1 - alpha) * sd,
+    ciHigh: original - bootQuantile(sorted, alpha) * sd,
   };
 }
 

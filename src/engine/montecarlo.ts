@@ -234,6 +234,11 @@ export interface McPart {
    * there are no draws; absent from an older helper's answer.
    */
   se?: Float64Array[][];
+  /**
+   * Bootstrap estimators: each replication's admissible bootstrap draws, [estimator] per replication (two groups:
+   * the group with fewer), NaN without a bootstrap; absent from an older helper's answer.
+   */
+  kept?: Float64Array[];
 }
 
 /**
@@ -506,6 +511,8 @@ export function runMcTask(
     hi = arr(),
     sig = arr(),
     se = arr();
+  // (admissible bootstrap draws per estimator and replication; NaN without a bootstrap)
+  const kept = Array.from({ length: E }, () => new Float64Array(count).fill(NaN));
   const proper = Array.from({ length: E }, () => new Float64Array(count).fill(NaN));
   const tests = Object.fromEntries(MC_TESTS.map((t) => [t, arr()])) as Record<
     McTest,
@@ -608,6 +615,8 @@ export function runMcTask(
                 ? constructFlips(blocks, keys, part.originals, part.draws)
                 : null;
             const cases = prep.cols[0].length;
+            // (a draw that failed or was inadmissible is NaN in every parameter)
+            kept[ei][k] = part.draws.length ? part.draws[0].filter(Number.isFinite).length : 0;
             params.forEach((p, pi) => {
               const bi = keys.indexOf(p.key);
               if (p.kind === 'fit' || bi < 0) return;
@@ -749,7 +758,7 @@ export function runMcTask(
     });
     onProgress?.(k + 1, count);
   }
-  return { n, start: task.start, est, lo, hi, truthCI, sig, proper, tests, se };
+  return { n, start: task.start, est, lo, hi, truthCI, sig, proper, tests, se, kept };
 }
 
 export interface McSummaryRow {
@@ -778,6 +787,26 @@ export interface McSummaryRow {
    * the sampling variability right; above 1, as PLS at small n, its tests are conservative).
    */
   seRatio?: number;
+  /**
+   * Bootstrap estimators: the share of replications whose bootstrap kept fewer than THIN_BOOT admissible draws
+   * (or fewer than all, below THIN_BOOT samples), and the median count kept: intervals from so few draws mean little.
+   */
+  thinBoot?: number;
+  keptMedian?: number;
+}
+
+/** Fewer admissible bootstrap draws than this flag a replication's bootstrap as thin. */
+export const THIN_BOOT = 100;
+
+/** The share of thin bootstraps among the replications' counts of admissible draws, and the median count. */
+export function thinBootstrap(kept: number[], bootSamples: number) {
+  const limit = Math.min(THIN_BOOT, bootSamples);
+  const thin = kept.filter((c) => c < limit).length;
+  const sorted = [...kept].sort((a, b) => a - b);
+  const mid = sorted.length / 2;
+  const keptMedian =
+    sorted.length % 2 ? sorted[Math.floor(mid)] : (sorted[mid - 1] + sorted[mid]) / 2;
+  return { thinBoot: thin / kept.length, keptMedian };
 }
 
 /** Counts of estimates in HIST_BINS equal bins over [lo, hi]; estimates outside the range counted apart. */
@@ -896,6 +925,7 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
         const byTest = new Map<McTest, number[]>();
         let failed = 0,
           improper = 0;
+        const keptCounts: number[] = [];
         for (const part of ps) {
           const len = part.est[ei][pi].length;
           for (let k = 0; k < len; k++) {
@@ -906,6 +936,8 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
             }
             if (part.proper[ei][k] === 0) improper++;
             ests.push(v);
+            const kc = part.kept?.[ei]?.[k];
+            if (kc !== undefined && Number.isFinite(kc)) keptCounts.push(kc);
             const l = part.lo[ei][pi][k],
               h = part.hi[ei][pi][k];
             const truth = part.truthCI[ei][pi];
@@ -962,6 +994,7 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
           ...(ses.length > 1 && sd > 0
             ? { seRatio: ses.reduce((a, b) => a + b, 0) / ses.length / sd }
             : {}),
+          ...(keptCounts.length ? thinBootstrap(keptCounts, design.bootSamples) : {}),
           ...(byTest.size
             ? {
                 tests: Object.fromEntries(
