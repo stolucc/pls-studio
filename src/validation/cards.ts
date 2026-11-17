@@ -1115,6 +1115,15 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     features: ['rengine/bca::boot_summary', 'rengine/analyses::bootstrap agrees'],
   },
   'model:bootInterval:bca': { title: 'Bootstrap, BCa intervals', features: ['rengine/bca'] },
+  'model:bootInadmissible:drop': {
+    title: 'Bootstrap, inadmissible PLSc draws dropped',
+    features: ['engine/bootstrapOptions::inadmissible'],
+  },
+  'model:bootInadmissible:keep': {
+    title: 'Bootstrap, inadmissible PLSc draws kept',
+    features: ['engine/bootstrapOptions::inadmissible', 'rengine/bca::inadmissible'],
+    note: 'Kept draws as matrixpls keeps them by default; cSEM with .handle_inadmissibles = "ignore".',
+  },
   'model:bootInterval:studentized': {
     title: 'Bootstrap, studentized intervals',
     features: ['engine/studentized'],

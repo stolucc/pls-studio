@@ -415,6 +415,7 @@ export function resultsKey(s: Pick<State, 'model' | 'settings' | 'dataVersion'>)
     confidence: _c,
     bootTails: _t,
     bootInterval: _v,
+    bootInadmissible: _i,
     figure: _f,
     charts: _h,
     ...plsSettings

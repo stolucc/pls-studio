@@ -488,6 +488,7 @@ describe('describeChanges, the remaining branches', () => {
       ['confidence', 0.9, `confidence level ${Math.round(base.confidence * 100)}% → 90%`],
       ['bootTails', 'zzz', `tests ${base.bootTails} → zzz`],
       ['bootInterval', 'zzz', `bootstrap intervals ${base.bootInterval} → zzz`],
+      ['bootInadmissible', 'zzz', `inadmissible bootstrap draws ${base.bootInadmissible} → zzz`],
     ];
     for (const [k, value, text] of cases)
       expect(settingChanges(base, { ...base, [k]: value } as Settings), k).toEqual([text]);

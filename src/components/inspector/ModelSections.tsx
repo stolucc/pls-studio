@@ -1123,6 +1123,27 @@ export function Bootstrapping() {
           )}
         </div>
       </div>
+      {settings.method === 'pls' && settings.consistent && (
+        <div className="field">
+          <label>Inadmissible draws</label>
+          <div className="segmented">
+            <button
+              className={settings.bootInadmissible !== 'keep' ? 'on' : ''}
+              onClick={() => setSettings({ bootInadmissible: 'drop' })}
+              title="Drop PLSc draws with a loading or reliability above 1 or an impossible construct correlation (cSEM's default)"
+            >
+              Drop
+            </button>
+            <button
+              className={settings.bootInadmissible === 'keep' ? 'on' : ''}
+              onClick={() => setSettings({ bootInadmissible: 'keep' })}
+              title="Keep every draw, as matrixpls does by default (and simulations that used it); the intervals can become very wide"
+            >
+              Keep
+            </button>
+          </div>
+        </div>
+      )}
       <div className="hint">
         {intervalHint(settings)}; p-values from{' '}
         {settings.bootTails === 'one' ? 'one-tailed' : 'two-tailed'} t tests.

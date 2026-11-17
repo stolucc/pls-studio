@@ -415,6 +415,8 @@ export interface BootstrapOptions {
   tails?: 1 | 2;
   /** Percentile intervals (default) or bias-corrected and accelerated (BCa: needs a jackknife). */
   interval?: 'percentile' | 'bca' | 'studentized';
+  /** PLSc draws that are not admissible: dropped (default, as cSEM) or kept (as matrixpls). */
+  inadmissible?: 'drop' | 'keep';
 }
 
 export interface BootstrapStat {

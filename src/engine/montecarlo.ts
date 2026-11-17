@@ -608,6 +608,7 @@ export function runMcTask(
               start: 0,
               end: design.bootSamples,
               jackknife: inference.interval === 'bca',
+              keepInadmissible: inference.inadmissible === 'keep',
             });
             const keys = part.params.map((x) => x.key);
             const flips =

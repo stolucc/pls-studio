@@ -29,6 +29,7 @@ PS_BOOT_SUMMARY <- c(
   "# intervals [alpha, 1 - alpha]. jack (jackknife estimates, one row per case left out): BCa intervals",
   "# (Efron 1987): the percentile levels shifted by the bias correction z0 and the acceleration a.",
   "boot_summary <- function(draws, original, confidence, tails = 2, jack = NULL) {",
+  "  if (nrow(draws) < 2) stop(\"Fewer than two bootstrap draws gave an admissible solution: keep inadmissible draws, or use more samples.\")",
   "  a <- if (tails == 1) 1 - confidence else (1 - confidence) / 2",
   "  one <- function(x, o, j) { x <- x[is.finite(x)]; s <- stats::sd(x); t <- o / s; B <- length(x)",
   "    lv <- c(a, 1 - a)",
@@ -166,7 +167,7 @@ ps_b64_doubles <- function(text, rows, cols) {
   if (length(rows) != 1 || is.na(rows) || rows < 0 || length(bytes) != rows * cols * 8) {
     stop("Invalid bootstrap draws in the request.")
   }
-  matrix(readBin(bytes, "double", n = rows * cols, size = 8, endian = "little"), nrow = rows, byrow = TRUE)
+  matrix(readBin(bytes, "double", n = rows * cols, size = 8, endian = "little"), nrow = rows, ncol = cols, byrow = TRUE)
 }
 #' Inputs of the summarising call: the draws of all chunks (req$boot$draws: {names, parts: [{rows, values}], original},
 #' the values and the originals as ps_doubles_b64 gave them).
@@ -235,11 +236,31 @@ ps_pls_boot <- function(req_json, export = FALSE) {
     } else {
       ", .resample_method = \"bootstrap\", .R = %s, .seed = %s, .eval_plan = plan, .user_funs = list(R2 = function(.object) .object$Estimates$R2))"
     }
+    # Inadmissible PLSc draws: dropped (cSEM's default) or kept (as matrixpls keeps them).
+    if (identical(req$boot$inadmissible, "keep")) {
+      resample <- sub(".resample_method = \"bootstrap\"", ".resample_method = \"bootstrap\", .handle_inadmissibles = \"ignore\"", resample, fixed = TRUE)
+    }
     if (ps_boot_chunked(req)) {
+      call <- sub("^fit <- ", "", body[length(body)])
+      fit_lines <- sprintf("  fit <- %s", sub(")$", sprintf(resample, "R", "seed"), call))
+      if (!identical(req$boot$inadmissible, "keep")) {
+        # cSEM refuses a chunk with fewer than two admissible draws (common for PLSc in small samples): the
+        # chunk's draws count as failed (at most one admissible draw lost), the refit keeping them gives the originals.
+        ignore <- sub(".resample_method = \"bootstrap\"", ".resample_method = \"bootstrap\", .handle_inadmissibles = \"ignore\"", resample, fixed = TRUE)
+        fit_lines <- c(
+          sprintf("  fit <- tryCatch(%s,", sub(")$", sprintf(resample, "R", "seed"), call)),
+          "    error = function(e) if (grepl(\"Less than 2 admissible\", conditionMessage(e), fixed = TRUE)) NULL else stop(e))",
+          "  # (cSEM refuses a chunk with fewer than two admissible draws: its draws count as failed)",
+          "  none <- is.null(fit)",
+          sprintf("  if (none) fit <- %s", sub(")$", sprintf(ignore, "R", "seed"), call))
+        )
+      }
       body <- c(body, ps_boot_draw_lines(req, c(
         "draw_chunk <- function(R, seed) {",
-        sprintf("  fit <- %s", sub(")$", sprintf(resample, "R", "seed"), sub("^fit <- ", "", body[length(body)]))),
-        paste0("  ", extract), "  list(draws = draws, original = original)", "}"
+        fit_lines,
+        paste0("  ", extract),
+        if (!identical(req$boot$inadmissible, "keep")) "  if (none) draws <- draws[0, , drop = FALSE]",
+        "  list(draws = draws, original = original)", "}"
       )))
     } else {
       call <- body[length(body)]

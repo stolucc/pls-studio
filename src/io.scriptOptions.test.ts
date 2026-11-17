@@ -41,6 +41,16 @@ describe('buildRScript uses the calculation’s options', () => {
     expect(seen.analysis?.boot).toMatchObject({ interval: 'bca', tails: 1, samples: 300 });
   });
 
+  it('passes inadmissible PLSc draws kept on to the bootstrap (dropped by default)', async () => {
+    const s = useStore.getState();
+    s.setSettings({ method: 'pls', consistent: true });
+    await buildRScript('bootstrap');
+    expect(seen.analysis?.boot).toMatchObject({ inadmissible: 'drop' });
+    s.setSettings({ bootInadmissible: 'keep' });
+    await buildRScript('bootstrap');
+    expect(seen.analysis?.boot).toMatchObject({ inadmissible: 'keep' });
+  });
+
   it('gives the PLS script the imputation and higher-order settings', async () => {
     const s = useStore.getState();
     s.setSettings({ method: 'pls', miImputations: 7, seed: 42, hocApproach: 'embedded' });

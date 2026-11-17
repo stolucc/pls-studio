@@ -7,6 +7,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { slowIt } from './webrSlow';
 import { summarise } from '../engine/bootstrap';
+import { buildPopulation, generateData, specFromPopulation } from '../engine/population';
 import type { Dataset, ModelSpec } from '../engine/types';
 import { bootstrapR } from './analyses';
 import { rCall } from './bridge';
@@ -132,6 +133,63 @@ describe('bootstrap options', () => {
     );
     expect(one.tails).toBe(1);
     two.stats.forEach((x, i) => expect(one.stats[i].p).toBeCloseTo(x.p / 2, 12));
+  }, 900_000);
+
+  it('inadmissible PLSc draws (cSEM): dropped by default; kept on request (.handle_inadmissibles = "ignore")', async () => {
+    // Aguirre-Urreta & Rönkkö's simple model at N = 50: K4 related to nothing, so many PLSc draws are inadmissible.
+    const factor = (name: string) => ({
+      name,
+      type: 'factor' as const,
+      indicators: [1, 2, 3].map((i) => `${name.toLowerCase()}_${i}`),
+      loadings: [0.7, 0.8, 0.9],
+    });
+    const population = {
+      constructs: ['K1', 'K2', 'K3', 'K4', 'E1'].map(factor),
+      paths: [
+        { from: 'K1', to: 'E1', value: 0.48 },
+        { from: 'K2', to: 'E1', value: 0.48 },
+        { from: 'K3', to: 'E1', value: 0.48 },
+        { from: 'K4', to: 'E1', value: 0 },
+      ],
+      exoCor: [],
+    };
+    const small = generateData(buildPopulation(population), 50, 9);
+    const run = (inadmissible: 'drop' | 'keep') =>
+      bootstrapR(
+        small,
+        specFromPopulation(population),
+        {
+          kind: 'plsBoot',
+          pkg: 'cSEM',
+          options: { ...options, consistent: true },
+          boot: { samples: 400, seed: 3, confidence: 0.95, inadmissible },
+        },
+        () => '',
+      );
+    const dropped = await run('drop');
+    const kept = await run('keep');
+    // Dropped: most draws fail cSEM's admissibility check; kept: (nearly) every draw counts, as in matrixpls.
+    expect(dropped.failed).toBeGreaterThan(200);
+    expect(kept.failed).toBeLessThan(20);
+    const k1 = (r: typeof kept) => r.stats.find((x) => x.key === 'path:K1:E1')!;
+    expect(k1(kept).original).toBeCloseTo(k1(dropped).original, 12);
+    // (the inadmissible draws are the wild ones: keeping them widens the bootstrap distribution)
+    expect(k1(kept).sd).toBeGreaterThan(k1(dropped).sd);
+  }, 900_000);
+
+  it('inadmissible draws: a chunk without draws keeps its columns; fewer than two draws in all is a clear error', async () => {
+    const r = (await withR(['jsonlite'], { common: commonR, boot: bootR }, (webR) =>
+      callJson(
+        webR,
+        `eval(parse(text = PS_BOOT_SUMMARY))
+      empty <- ps_b64_doubles(ps_doubles_b64(matrix(0, 0, 3)), 0, 3)
+      err <- tryCatch(boot_summary(matrix(1, 1, 1, dimnames = list(NULL, "a")), c(a = 1), 0.95), error = conditionMessage)
+      ps_json(list(dims = dim(empty), err = err))`,
+        null,
+      ),
+    )) as { dims: number[]; err: string };
+    expect(r.dims).toEqual([0, 3]);
+    expect(r.err).toMatch(/Fewer than two bootstrap draws gave an admissible solution/);
   }, 900_000);
 
   // (slow: minutes in webR; run with WEBR_SLOW, as npm run validate:evidence does)

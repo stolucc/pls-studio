@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { toSpec } from '../model/project';
+import { DEFAULT_SETTINGS, parseProject, serializeProject, toSpec } from '../model/project';
 import { makeSample } from '../sample';
 import { mergeBootstrap, runRange, summarise } from './bootstrap';
 import { estimatePls } from './pls';
+import { buildPopulation, generateData, specFromPopulation } from './population';
 import { bootQuantile, pnorm, qnorm } from './stats';
 
 describe('bootstrap options', () => {
@@ -70,5 +71,59 @@ describe('bootstrap options', () => {
     expect(merged.interval).toBe('bca');
     expect(merged.tails).toBe(1);
     expect(mergeBootstrap([{ ...part, jack: undefined }], 0.95).interval).toBeUndefined();
+  });
+
+  it('inadmissible PLSc draws: dropped by default (as cSEM), kept on request (as matrixpls)', () => {
+    // Aguirre-Urreta & Rönkkö's simple model: K4 related to nothing, so many PLSc draws at N = 50 are inadmissible.
+    const factor = (name: string) => ({
+      name,
+      type: 'factor' as const,
+      indicators: [1, 2, 3].map((i) => `${name.toLowerCase()}_${i}`),
+      loadings: [0.7, 0.8, 0.9],
+    });
+    const population = {
+      constructs: ['K1', 'K2', 'K3', 'K4', 'E1'].map(factor),
+      paths: [
+        { from: 'K1', to: 'E1', value: 0.48 },
+        { from: 'K2', to: 'E1', value: 0.48 },
+        { from: 'K3', to: 'E1', value: 0.48 },
+        { from: 'K4', to: 'E1', value: 0 },
+      ],
+      exoCor: [],
+    };
+    const data = generateData(buildPopulation(population), 50, 9);
+    const spec = specFromPopulation(population);
+    const run = (keepInadmissible: boolean) =>
+      runRange({
+        job: 'pls',
+        data,
+        spec,
+        options: { consistent: true },
+        seed: 3,
+        start: 0,
+        end: 200,
+        keepInadmissible,
+      });
+    const finite = (draws: Float64Array) => draws.filter(Number.isFinite).length;
+    const dropped = run(false),
+      kept = run(true);
+    // The same resamples: kept, every draw with finite estimates (125 of 200 here; a draw whose ρA is negative has
+    // none: cSEM takes |ρA| there, the built-in engine does not); dropped by default, most of them (24 left).
+    expect(finite(kept.draws[0])).toBeGreaterThan(2 * finite(dropped.draws[0]));
+    expect(finite(dropped.draws[0])).toBeGreaterThan(0);
+  });
+
+  it('inadmissible draws: the choice survives a project file; anything else reads as drop', () => {
+    const save = (bootInadmissible: unknown) =>
+      serializeProject(
+        { constructs: [], paths: [], moderations: [] },
+        { ...DEFAULT_SETTINGS, bootInadmissible } as typeof DEFAULT_SETTINGS,
+        null,
+        null,
+        null,
+      );
+    expect(DEFAULT_SETTINGS.bootInadmissible).toBe('drop');
+    expect(parseProject(save('keep')).settings.bootInadmissible).toBe('keep');
+    expect(parseProject(save('zzz')).settings.bootInadmissible).toBe('drop');
   });
 });

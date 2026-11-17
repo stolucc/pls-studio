@@ -27,5 +27,6 @@ export function bootOptionsOf(st: Settings) {
     confidence: st.confidence,
     tails: st.bootTails === 'one' ? (1 as const) : (2 as const),
     interval: st.bootInterval === 'bca' ? ('bca' as const) : ('percentile' as const),
+    inadmissible: st.bootInadmissible === 'keep' ? ('keep' as const) : ('drop' as const),
   };
 }

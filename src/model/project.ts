@@ -145,6 +145,11 @@ export interface Settings {
   bootTails: 'two' | 'one';
   /** Bootstrap intervals: percentile, or bias-corrected and accelerated (BCa; adds a jackknife). */
   bootInterval: 'percentile' | 'bca' | 'studentized';
+  /**
+   * PLSc bootstrap draws with a loading or reliability above 1 or an impossible construct correlation: dropped (cSEM's
+   * default) or kept (as matrixpls's default, and simulations that used it, e.g. Aguirre-Urreta & Rönkkö 2018).
+   */
+  bootInadmissible: 'drop' | 'keep';
   seed: number;
   confidence: number;
   /** Conditional process analysis: moderator values at which effects are probed. */
@@ -706,6 +711,7 @@ export const DEFAULT_SETTINGS: Settings = {
   bootSamples: 1000,
   bootTails: 'two',
   bootInterval: 'percentile',
+  bootInadmissible: 'drop',
   seed: 1234,
   confidence: 0.95,
   probe: 'percentiles',
@@ -2249,6 +2255,7 @@ export function parseSettings(raw: unknown): Settings {
     autoCalculate: s.autoCalculate === true,
     bootTails: s.bootTails === 'one' ? 'one' : 'two',
     bootInterval: BOOT_INTERVALS.find((x) => x === s.bootInterval) ?? 'percentile',
+    bootInadmissible: s.bootInadmissible === 'keep' ? 'keep' : 'drop',
     seed: Math.round(clampStrict(s.seed, 0, 2 ** 31, DEFAULT_SETTINGS.seed)),
     confidence: clampStrict(s.confidence, 0.5, 0.999, DEFAULT_SETTINGS.confidence),
     probe: s.probe === 'meansd' ? 'meansd' : 'percentiles',

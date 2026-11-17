@@ -21,6 +21,8 @@ ps_mc_body <- function(req) {
   # sign() of its empty indirect-effect estimates)
   sign_change <- c(none = "none", individual = "none", construct = "construct_reestimate")[[req$inference$signChange %||% "none"]]
   individual <- identical(req$inference$signChange, "individual")
+  # Inadmissible PLSc bootstrap draws: dropped (cSEM's default) or kept (as matrixpls keeps them).
+  keep_inadmissible <- identical(req$inference$inadmissible, "keep")
   interval <- c(percentile = "percentile", normal = "normal", basic = "basic", bca = "bca")[[req$inference$interval %||% "percentile"]]
   # Ordinal indicators: the thresholds to cut at (from the app), none: continuous.
   cuts <- vapply(req$ordinal$thresholds %||% list(), function(t) ps_number(t, "threshold"), 0)
@@ -476,7 +478,7 @@ ps_mc_body <- function(req) {
     "}",
     "# The bootstrap of a PLS fit as cSEM's resampling does it: cSEM's estimation (cSEM:::foreman, which csem()",
     "# runs for each draw) on each resample with the fit's own arguments; inadmissible draws dropped (cSEM's",
-    "# default); with the construct sign change, a draw whose construct's loadings flip is estimated again with",
+    "# default; kept with keep_inadmissible, as matrixpls); with the construct sign change, a draw whose construct's loadings flip is estimated again with",
     "# that construct's weights reversed (cSEM's construct_reestimate). Without cSEM's summaries of every draw it",
     "# takes about two thirds of the time. The draws: each one's direct and indirect effects.",
     "pls_boot <- function(fit, R, seed) {",
@@ -491,7 +493,8 @@ ps_mc_body <- function(req) {
     "    a <- args",
     "    a$.data <- X[sample.int(n, n, replace = TRUE), , drop = FALSE]",
     "    est <- estimate(a)",
-    "    if (is.null(est) || sum(unlist(cSEM::verify(est))) != 0) return(NULL)",
+    "    if (is.null(est)) return(NULL)",
+    "    if (!keep_inadmissible && sum(unlist(cSEM::verify(est))) != 0) return(NULL)",
     "    W <- est$Estimates$Weight_estimates",
     "    if (sign_change == 'construct_reestimate' && any(sign(est0$Weight_estimates) != sign(W))) {",
     "      L0 <- est0$Loading_estimates",
@@ -727,6 +730,7 @@ ps_mc_body <- function(req) {
     sprintf("cuts <- %s", paste(deparse(unname(cuts)), collapse = "")),
     sprintf("interval <- %s", ps_q(interval)),
     sprintf("individual <- %s", if (individual) "TRUE" else "FALSE"),
+    sprintf("keep_inadmissible <- %s", if (keep_inadmissible) "TRUE" else "FALSE"),
     sprintf("sign_change <- %s", ps_q(sign_change)),
     "# Missing values: MCAR, or MAR on the first indicator (kept complete): chance 2 * rate * rank / n.",
     "add_missing <- function(data, seed) {",

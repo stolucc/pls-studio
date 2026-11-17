@@ -512,6 +512,42 @@ it('PLSc with BCa: a replication whose bootstrap has too few admissible draws ke
   expect(k1.reps).toBe(8);
 }, 900_000);
 
+it('PLSc bootstrap: inadmissible draws dropped by default (cSEM), kept on request (matrixpls)', async () => {
+  const factor = (name: string, p: string) => ({
+    name,
+    type: 'factor' as const,
+    indicators: [1, 2, 3].map((i) => `${p}${i}`),
+    loadings: [0.7, 0.8, 0.9],
+  });
+  const d: McDesign = {
+    ...design,
+    population: {
+      constructs: [factor('K1', 'k'), factor('K4', 'q'), factor('E1', 'e')],
+      paths: [
+        { from: 'K1', to: 'E1', value: 0.5 },
+        { from: 'K4', to: 'E1', value: 0 },
+      ],
+      exoCor: [],
+    },
+    estimators: [{ id: 'PLSc', method: 'pls', consistent: true }],
+    inference: { signChange: 'none', interval: 'percentile' },
+    sampleSizes: [50],
+    replications: 6,
+    bootSamples: 50,
+  };
+  const median = (x: Float64Array) => [...x].sort((a, b) => a - b)[Math.floor(x.length / 2)];
+  const dropped = await runMcChunkR(d, 50, 0, 6);
+  const kept = await runMcChunkR(
+    { ...d, inference: { ...d.inference!, inadmissible: 'keep' } },
+    50,
+    0,
+    6,
+  );
+  // Kept: every draw that gives estimates; dropped: those cSEM's verify passes, far fewer here.
+  expect(median(kept.kept![0])).toBeGreaterThan(45);
+  expect(median(dropped.kept![0])).toBeLessThan(median(kept.kept![0]) / 2);
+}, 900_000);
+
 it('PLS with bootstrap: each replication’s bootstrap SE, set against the SD of the estimates', async () => {
   const factor = (name: string, p: string) => ({
     name,

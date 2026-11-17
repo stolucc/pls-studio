@@ -194,6 +194,17 @@ describe('simulation design', () => {
       parseDesign({ ...d, inference: { signChange: '<x>', interval: 'bootstrap' } })!.inference,
     ).toEqual({ signChange: 'none', interval: 'percentile' });
     expect(parseDesign(d)!.inference).toBeUndefined();
+    // inadmissible PLSc draws kept survives; anything else is the default (dropped, not stored)
+    const keep = {
+      signChange: 'none' as const,
+      interval: 'bca' as const,
+      inadmissible: 'keep' as const,
+    };
+    expect(parseDesign({ ...d, inference: keep })!.inference).toEqual(keep);
+    expect(parseDesign({ ...d, inference: { ...keep, inadmissible: 'zzz' } })!.inference).toEqual({
+      signChange: 'none',
+      interval: 'bca',
+    });
   });
 
   it('keeps ordinal indicators of a design, clamped', () => {

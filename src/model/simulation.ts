@@ -241,6 +241,7 @@ export function parseDesign(raw: unknown): McDesign | null {
               ['percentile', 'normal', 'basic', 'bca'] as const,
               'percentile',
             ),
+            ...(raw.inference.inadmissible === 'keep' ? { inadmissible: 'keep' as const } : {}),
           },
         }
       : {}),

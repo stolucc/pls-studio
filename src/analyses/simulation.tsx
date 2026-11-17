@@ -719,7 +719,8 @@ const INTERVAL_LABELS: Record<McInference['interval'], string> = {
 function inferenceNote(inf: McInference): string {
   const name = inf.interval === 'bca' ? 'BCa' : inf.interval;
   const correction = inf.signChange === 'none' ? '' : `, ${inf.signChange} sign-change correction`;
-  return `bootstrap ${name}${correction}`;
+  const kept = inf.inadmissible === 'keep' ? ', inadmissible PLSc draws kept' : '';
+  return `bootstrap ${name}${correction}${kept}`;
 }
 
 /**
@@ -735,35 +736,54 @@ function InferenceFields({
 }) {
   const inf = design.inference ?? DEFAULT_INFERENCE;
   const change = (patch: Partial<McInference>) => set({ inference: { ...inf, ...patch } });
+  const plsc = design.estimators.some((e) => e.method === 'pls' && e.consistent);
   return (
-    <div className="row2">
-      <div className="field">
-        <label>Sign-change correction</label>
-        <select
-          className="select"
-          value={inf.signChange}
-          onChange={(e) => change({ signChange: e.target.value as McInference['signChange'] })}
-        >
-          <option value="none">None</option>
-          <option value="individual">Individual</option>
-          <option value="construct">Construct level</option>
-        </select>
+    <>
+      <div className="row2">
+        <div className="field">
+          <label>Sign-change correction</label>
+          <select
+            className="select"
+            value={inf.signChange}
+            onChange={(e) => change({ signChange: e.target.value as McInference['signChange'] })}
+          >
+            <option value="none">None</option>
+            <option value="individual">Individual</option>
+            <option value="construct">Construct level</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>Interval (coverage)</label>
+          <select
+            className="select"
+            value={inf.interval}
+            onChange={(e) => change({ interval: e.target.value as McInference['interval'] })}
+          >
+            {(Object.keys(INTERVAL_LABELS) as McInference['interval'][]).map((k) => (
+              <option key={k} value={k}>
+                {INTERVAL_LABELS[k]}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
-      <div className="field">
-        <label>Interval (coverage)</label>
-        <select
-          className="select"
-          value={inf.interval}
-          onChange={(e) => change({ interval: e.target.value as McInference['interval'] })}
-        >
-          {(Object.keys(INTERVAL_LABELS) as McInference['interval'][]).map((k) => (
-            <option key={k} value={k}>
-              {INTERVAL_LABELS[k]}
-            </option>
-          ))}
-        </select>
-      </div>
-    </div>
+      {plsc && (
+        <div className="field">
+          <label>Inadmissible PLSc draws</label>
+          <select
+            className="select"
+            value={inf.inadmissible ?? 'drop'}
+            onChange={(e) =>
+              change({ inadmissible: e.target.value === 'keep' ? 'keep' : undefined })
+            }
+            title="Drop draws with a loading or reliability above 1 or an impossible construct correlation (cSEM's default), or keep them all (matrixpls's default, as some published simulations did)"
+          >
+            <option value="drop">Drop (as cSEM)</option>
+            <option value="keep">Keep (as matrixpls)</option>
+          </select>
+        </div>
+      )}
+    </>
   );
 }
 

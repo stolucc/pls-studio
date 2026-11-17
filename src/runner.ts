@@ -555,6 +555,7 @@ export function run(kind: JobKind) {
         start,
         end,
         ...(studentized ? { innerSamples: STUDENTIZED_INNER } : {}),
+        ...(s.settings.bootInadmissible === 'keep' ? { keepInadmissible: true } : {}),
         ...(i === 0 && job !== 'fittest' && s.settings.bootInterval === 'bca'
           ? { jackknife: true }
           : {}),

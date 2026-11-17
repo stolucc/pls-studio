@@ -70,6 +70,7 @@ export const INFERENCE_KEYS = [
   'confidence',
   'bootTails',
   'bootInterval',
+  'bootInadmissible',
 ] as const satisfies readonly (keyof Settings)[];
 
 export const estimationSettings = (s: Settings) =>
@@ -135,6 +136,7 @@ const SETTING_NAMES: Partial<Record<keyof Settings, string>> = {
   confidence: 'confidence level',
   bootTails: 'tests',
   bootInterval: 'bootstrap intervals',
+  bootInadmissible: 'inadmissible bootstrap draws',
 };
 const METHOD_NAMES: Record<string, string> = {
   pls: 'PLS-SEM',

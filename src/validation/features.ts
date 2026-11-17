@@ -759,6 +759,15 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'engine/studentized': native('Studentized bootstrap intervals', 'Built-in engine', [], {
     label: 'the bootstrap-t interval by hand on known draws (Davison & Hinkley 1997, §5.2)',
   }),
+  'engine/bootstrapOptions': native(
+    'Bootstrap options (one-tailed, inadmissible draws)',
+    'Built-in engine',
+    [],
+    {
+      label:
+        'the same resamples with inadmissible PLSc draws dropped and kept, against the draws by hand',
+    },
+  ),
   'engine/nonnormal': native('Non-normal data (Fleishman, Vale–Maurelli)', 'Built-in engine', [], {
     label:
       'Fleishman’s (1978) table and high-precision solutions in desktop R (vale-maurelli.json)',

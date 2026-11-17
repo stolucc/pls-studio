@@ -30,6 +30,11 @@ export interface McInference {
   signChange: McSignChange;
   /** The interval coverage and width are reported for (and BCa computed at all: it needs the jackknife). */
   interval: McInterval;
+  /**
+   * PLSc bootstrap draws that are not admissible: dropped (absent or 'drop', as cSEM) or kept ('keep', as matrixpls
+   * keeps them by default, and simulations that used it, e.g. Aguirre-Urreta & Rönkkö 2018).
+   */
+  inadmissible?: 'drop' | 'keep';
 }
 
 export const DEFAULT_INFERENCE: McInference = { signChange: 'none', interval: 'percentile' };

@@ -60,6 +60,8 @@ export interface RangeRequest {
   jackknife?: boolean;
   /** Studentized intervals: this many inner resamples of each sample, for that sample's own standard error. */
   innerSamples?: number;
+  /** PLSc: keep inadmissible draws (as matrixpls) instead of dropping them (as cSEM). */
+  keepInadmissible?: boolean;
 }
 
 export interface RangePart {
@@ -207,7 +209,12 @@ export function chainProduct(pathCoef: number[][], chain: number[]): number {
   return product;
 }
 
-function plsJob(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>): Job {
+function plsJob(
+  data: Dataset,
+  spec: ModelSpec,
+  options: Partial<PlsOptions>,
+  keepInadmissible = false,
+): Job {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const prep = preparePls(data, spec, opts);
   const first = prep.estimate(prep.cols);
@@ -223,8 +230,10 @@ function plsJob(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>): J
       // null path too small (a null PLS path then rejected four times too often at α = .05).
       const eb = prep.estimate(resample(prep.cols, idx));
       if (!eb.core.converged) throw new Error('not converged');
-      // An inadmissible PLSc draw is dropped, as cSEM does by default; it counts as failed.
-      if (opts.consistent && plscProblems(eb.m, eb.st).problems.length)
+      // An inadmissible PLSc draw is dropped, as cSEM does by default; it counts as failed. Kept on request
+      // (as matrixpls does by default); a draw whose ρA is negative has no estimates either way (NaN; cSEM
+      // takes |ρA| there).
+      if (!keepInadmissible && opts.consistent && plscProblems(eb.m, eb.st).problems.length)
         throw new Error('inadmissible');
       return params.map((p) => p.get(eb.st, eb.core.w));
     },
@@ -413,7 +422,7 @@ function fitTestJob(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>
 /** Estimate bootstrap samples [start, end) of a job. Safe to run in parallel workers. */
 /** The estimation one bootstrap sample repeats, for the kind of job requested. */
 function jobFor(req: RangeRequest) {
-  if (req.job === 'pls') return plsJob(req.data, req.spec, req.options);
+  if (req.job === 'pls') return plsJob(req.data, req.spec, req.options, req.keepInadmissible);
   if (req.job === 'cb') {
     const missing = { ...DEFAULT_OPTIONS, ...req.options }.missing;
     return cbJob(req.data, req.spec, missing, req.estimator ?? 'ML');

@@ -406,6 +406,21 @@ describe('Monte Carlo card', () => {
       <t.Options options={{ ...d, bootSamples: 0 }} set={() => {}} ctx={ctx()} disabled={false} />,
     );
     expect(noBoot).not.toContain('Sign-change correction');
+    // inadmissible PLSc draws: asked only with a PLSc estimator; kept, the notes say so
+    const noPlsc = { ...d, estimators: d.estimators.filter((e) => !('consistent' in e && e.consistent)) };
+    expect(
+      renderToStaticMarkup(<t.Options options={noPlsc} set={() => {}} ctx={ctx()} disabled={false} />),
+    ).not.toContain('Inadmissible PLSc draws');
+    const plsc = {
+      ...d,
+      estimators: [{ id: 'PLSc', method: 'pls' as const, consistent: true }],
+      inference: { ...d.inference, inadmissible: 'keep' as const },
+    };
+    const withPlsc = renderToStaticMarkup(
+      <t.Options options={plsc} set={() => {}} ctx={ctx()} disabled={false} />,
+    );
+    expect(withPlsc).toContain('Inadmissible PLSc draws');
+    expect(withPlsc).toContain('Keep (as matrixpls)');
 
     const path = { key: 'path:A:B', kind: 'path' as const, from: 'A', to: 'B', value: 0 };
     const row: McSummaryRow = {
