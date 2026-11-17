@@ -1585,6 +1585,8 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
   const [metric, setMetric] = useState<'rejection' | 'relBias' | 'coverage'>('rejection');
   const params = [...new Map(rows.map((r) => [r.param.key, r.param])).values()];
   const activeParam = params.find((p) => p.key === paramKey) ?? params[0];
+  // (bootstrap estimators only; absent from results computed before the column existed)
+  const showSeRatio = rows.some((r) => r.param.key === activeParam?.key && r.seRatio !== undefined);
   const ns = [...new Set(rows.map((r) => r.n))].sort((a, b) => a - b);
   const [distN, setDistN] = useState<number | null>(null);
   const [shape, setShape] = useState<'density' | 'histogram'>('density');
@@ -1712,6 +1714,7 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                 'RMSE',
                 'Coverage',
                 'CI width',
+                ...(showSeRatio ? ['Boot SE / SD'] : []),
                 activeParam.kind === 'validity'
                   ? 'Fails cutoff'
                   : Math.abs(activeParam.value) < 1e-12
@@ -1739,6 +1742,14 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                       r.coverage !== null && (r.coverage < 0.9 || r.coverage > 0.98) ? 'warn' : '',
                     ),
                     c(r.width),
+                    ...(showSeRatio
+                      ? [
+                          c(
+                            r.seRatio ?? null,
+                            r.seRatio !== undefined && Math.abs(r.seRatio - 1) > 0.1 ? 'warn' : '',
+                          ),
+                        ]
+                      : []),
                     c(
                       r.rejection,
                       r.rejection !== null &&
@@ -1817,10 +1828,13 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                     paths, Monte Carlo for indirect effects). Power: share of replications rejecting
                     H₀ at α = {design.alpha}; 0.80 is the usual target. CI width: mean width of the
                     intervals, standardised (CB-SEM: the marker-metric width rescaled by the
-                    population loadings), for planning a sample size by precision. Inadmissible:
-                    share of solutions that are not possible ones (CB-SEM: negative variances or
-                    correlations beyond ±1; PLSc: reliabilities or correlations beyond 1); they stay
-                    in the summary. Failed replications (non-convergence) are excluded and counted.
+                    population loadings), for planning a sample size by precision.
+                    {showSeRatio &&
+                      ' Boot SE / SD: the mean bootstrap SE over the SD of the estimates across replications; near 1 the bootstrap gets the sampling variability right, above 1 its intervals are too wide and its tests conservative (PLS at small n: the weights, re-estimated in every bootstrap sample, vary more than between samples).'}{' '}
+                    Inadmissible: share of solutions that are not possible ones (CB-SEM: negative
+                    variances or correlations beyond ±1; PLSc: reliabilities or correlations beyond
+                    1); they stay in the summary. Failed replications (non-convergence) are excluded
+                    and counted.
                   </>
                 )
               }

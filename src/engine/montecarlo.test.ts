@@ -128,6 +128,76 @@ describe('Monte Carlo simulation', () => {
       row(rows, 'PLS', 'path:M:Y', 40).rejection!,
     );
   });
+
+  it('sets the mean bootstrap SE against the SD of the estimates (PLS with bootstrap only)', () => {
+    const design: McDesign = {
+      population: pop,
+      estimators: [
+        { id: 'PLS', method: 'pls', consistent: false },
+        { id: 'ML', method: 'cb', estimator: 'ML' },
+      ],
+      sampleSizes: [300],
+      replications: 40,
+      seed: 4,
+      alpha: 0.05,
+      bootSamples: 100,
+      mcDraws: 0,
+    };
+    const parts = mcTasks(design, 1).map((t) => runMcTask(t));
+    const rows = summariseMc(design, parts);
+    const pls = row(rows, 'PLS', 'path:X:M');
+    // (every replication of a bootstrapped path has its bootstrap SE)
+    const pi = designParameters(design, buildPopulation(pop)).findIndex(
+      (p) => p.key === 'path:X:M',
+    );
+    expect(Array.from(parts[0].se![0][pi]).every(Number.isFinite)).toBe(true);
+    // At N = 300 with loadings .7 to .8 the bootstrap gets the sampling variability about right.
+    expect(pls.seRatio!).toBeGreaterThan(0.75);
+    expect(pls.seRatio!).toBeLessThan(1.3);
+    // CB-SEM has no bootstrap draws here: no ratio.
+    expect(row(rows, 'ML', 'path:X:M').seRatio).toBeUndefined();
+    // Without bootstrap samples, PLS has none either.
+    const plain = summariseMc(
+      { ...design, bootSamples: 0 },
+      mcTasks({ ...design, bootSamples: 0 }, 1).map((t) => runMcTask(t)),
+    );
+    expect(row(plain, 'PLS', 'path:X:M').seRatio).toBeUndefined();
+  });
+
+  it('computes the ratio from the parts: mean SE over the SD of the estimates', () => {
+    const design: McDesign = {
+      population: pop,
+      estimators: [{ id: 'PLS', method: 'pls', consistent: false }],
+      sampleSizes: [100],
+      replications: 4,
+      seed: 1,
+      alpha: 0.05,
+      bootSamples: 50,
+      mcDraws: 0,
+    };
+    const keys = designParameters(design, buildPopulation(pop)).map((p) => p.key);
+    const of = (values: number[]) => [
+      keys.map((k) =>
+        k === 'path:X:M' ? Float64Array.from(values) : new Float64Array(4).fill(NaN),
+      ),
+    ];
+    const part = {
+      n: 100,
+      start: 0,
+      est: of([0.3, 0.4, 0.5, 0.4]),
+      lo: of([NaN, NaN, NaN, NaN]),
+      hi: of([NaN, NaN, NaN, NaN]),
+      sig: of([NaN, NaN, NaN, NaN]),
+      se: of([0.1, 0.1, 0.12, NaN]),
+      truthCI: [keys.map(() => NaN)],
+      proper: [new Float64Array([1, 1, 1, 1])],
+    };
+    const sd = Math.sqrt(((0.3 - 0.4) ** 2 + (0.5 - 0.4) ** 2) / 3);
+    expect(row(summariseMc(design, [part]), 'PLS', 'path:X:M').seRatio).toBeCloseTo(
+      0.32 / 3 / sd,
+      12,
+    );
+  });
 });
 
 describe('precision and admissibility', () => {

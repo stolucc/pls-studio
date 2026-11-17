@@ -8,7 +8,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { runMcTask, summariseMc, type McDesign } from '../engine/montecarlo';
+import { designParameters, runMcTask, summariseMc, type McDesign } from '../engine/montecarlo';
+import { buildPopulation } from '../engine/population';
 import { mcScriptR, runMcChunkR } from './mc';
 import { helperLibrary } from './nativeR';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
@@ -478,6 +479,48 @@ it('two groups (Qureshi & Compeau 2009): PLS and CB-SEM estimate and test each p
     expect(Math.abs(same.mean), e).toBeLessThan(0.05);
     expect(same.rejection, e).toBeLessThan(0.2);
   }
+}, 900_000);
+
+it('PLS with bootstrap: each replication’s bootstrap SE, set against the SD of the estimates', async () => {
+  const factor = (name: string, p: string) => ({
+    name,
+    type: 'factor' as const,
+    indicators: [1, 2, 3].map((i) => `${p}${i}`),
+    loadings: [0.7, 0.8, 0.9],
+  });
+  const population = {
+    constructs: [factor('A', 'a'), factor('C', 'c')],
+    paths: [{ from: 'A', to: 'C', value: 0.3 }],
+    exoCor: [],
+  };
+  const d: McDesign = {
+    ...design,
+    population,
+    estimators: [
+      { id: 'PLS', method: 'pls', consistent: false },
+      { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+    ],
+    sampleSizes: [300],
+    replications: 30,
+    bootSamples: 100,
+  };
+  const part = await runMcChunkR(d, 300, 0, 30);
+  const pi = designParameters(d, buildPopulation(population)).findIndex(
+    (p) => p.key === 'path:A:C',
+  );
+  expect(Array.from(part.se![0][pi]).every(Number.isFinite)).toBe(true);
+  expect(Array.from(part.se![1][pi]).every(Number.isNaN)).toBe(true);
+  const rows = summariseMc(d, [part]);
+  const pls = rows.find((r) => r.estimator === 'PLS' && r.param.key === 'path:A:C')!;
+  expect(pls.seRatio!).toBeGreaterThan(0.7);
+  expect(pls.seRatio!).toBeLessThan(1.4);
+  expect(
+    rows.find((r) => r.estimator === 'CB-ML' && r.param.key === 'path:A:C')!.seRatio,
+  ).toBeUndefined();
+  // Two groups: the pooled SE of the difference.
+  const two: McDesign = { ...d, groups: { paths: [] }, estimators: [d.estimators[0]] };
+  const mg = await runMcChunkR(two, 300, 0, 10);
+  expect(Array.from(mg.se![0][0]).every((x) => Number.isFinite(x) && x > 0)).toBe(true);
 }, 900_000);
 
 it('two groups, PLS: the individual sign change applies to each group’s bootstrap draws', async () => {

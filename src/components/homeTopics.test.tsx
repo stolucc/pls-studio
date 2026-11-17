@@ -75,8 +75,11 @@ it('filters by author: a row of the authors whose books, manuals and papers the 
     'Hair',
   ])
     expect(names, a).toContain(a);
-  expect(names).toEqual(
-    [...names].sort(
+  // ("Authors", the button that clears the choice, comes first; the authors follow in alphabetical order)
+  expect(names[0]).toBe('Authors');
+  const authors = names.slice(1);
+  expect(authors).toEqual(
+    [...authors].sort(
       (a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }) || a.localeCompare(b),
     ),
   );

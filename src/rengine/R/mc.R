@@ -545,11 +545,13 @@ ps_mc_body <- function(req) {
     "    if (length(x) < 2) return(list(values = c(v, NA, NA, NA), tests = none$tests))",
     "    b <- if (is.null(bca)) NULL else if (path) bca$Path_estimates$CI_bca[, nm] else bca$Indirect_effect$CI_bca[, nm]",
     "    res <- boot_tests(x, v, n_cases, b)",
-    "    list(values = c(v, res$ci[[interval]], res$reject[[interval]]), tests = unname(res$reject))",
+    "    # (se: the bootstrap SE, set against the Monte Carlo SD of the estimates in the summary)",
+    "    list(values = c(v, res$ci[[interval]], res$reject[[interval]]), tests = unname(res$reject), se = stats::sd(x))",
     "  })",
     "  # PLSc: admissible as cSEM's verify() defines it (loadings, reliabilities, construct correlations); composites always are.",
     "  ok <- !isTRUE(fit$Information$Arguments$.disattenuate) || sum(cSEM::verify(fit)) == 0",
-    "  list(values = do.call(rbind, lapply(rows, `[[`, 'values')), tests = do.call(rbind, lapply(rows, `[[`, 'tests')), proper = as.numeric(ok))",
+    "  se <- vapply(rows, function(x) if (is.null(x$se)) NA_real_ else x$se, 0)",
+    "  list(values = do.call(rbind, lapply(rows, `[[`, 'values')), tests = do.call(rbind, lapply(rows, `[[`, 'tests')), proper = as.numeric(ok), se = se)",
     "}",
     "# Two groups, PLS: each group estimated on its own, the difference tested by the pooled-SE t test on the",
     "# bootstrap SEs of the two groups (Chin 2000; Keil et al. 2000), n1 + n2 - 2 df; the interval is its t interval.",
@@ -569,11 +571,13 @@ ps_mc_body <- function(req) {
     "    }, 0)",
     "    d <- P[[2]][f, t] - P[[1]][f, t]",
     "    s <- sqrt(sum((n - 1)^2 / df * se^2)) * sqrt(sum(1 / n))",
-    "    if (!is.finite(s) || s <= 0) return(c(d, NA, NA, NA))",
-    "    c(d, d - crit * s, d + crit * s, as.numeric(abs(d / s) > crit))",
+    "    if (!is.finite(s) || s <= 0) return(c(d, NA, NA, NA, NA))",
+    "    c(d, d - crit * s, d + crit * s, as.numeric(abs(d / s) > crit), s)",
     "  })",
     "  ok <- all(vapply(list(fit1, fit2), function(fit) !isTRUE(fit$Information$Arguments$.disattenuate) || sum(cSEM::verify(fit)) == 0, TRUE))",
-    "  list(values = do.call(rbind, rows), proper = as.numeric(ok))",
+    "  # (se: the pooled SE of the difference)",
+    "  values <- do.call(rbind, rows)",
+    "  list(values = values[, 1:4, drop = FALSE], proper = as.numeric(ok), se = values[, 5])",
     "}",
     "# Two groups, CB-SEM: a lavaan multigroup model with equal loadings; the estimate is the difference of the",
     "# groups' standardised paths, the interval the Wald interval of the unstandardised difference (marker metric),",
@@ -780,6 +784,10 @@ ps_mc <- function(req_json, export = FALSE) {
   }
   ps_json(list(
     est = pick(1), lo = pick(2), hi = pick(3), sig = pick(4),
+    # bootstrap SEs (PLS; NA for the other estimators and the parameters without draws)
+    se = lapply(seq_len(E), function(e) lapply(seq_len(K), function(k) {
+      I(vapply(env$results, function(r) if (is.null(r[[e]]$se)) NA_real_ else r[[e]]$se[k], 0))
+    })),
     tests = lapply(seq_len(5), function(ti) {
       lapply(seq_len(E), function(e) {
         lapply(seq_len(K), function(k) {

@@ -50,6 +50,7 @@ import {
   densityAt,
   mulberry32,
   qnorm,
+  sd as sampleSdOf,
   standardize,
   tTestP,
   zCrit,
@@ -228,6 +229,11 @@ export interface McPart {
   proper: Float64Array[];
   /** Bootstrap estimators: the rejection (1 / 0, NaN: none) of every test, [estimator][param] per test. */
   tests?: Partial<Record<McTest, Float64Array[][]>>;
+  /**
+   * Bootstrap estimators: each replication's bootstrap SE (two groups: the pooled SE of the difference), NaN where
+   * there are no draws; absent from an older helper's answer.
+   */
+  se?: Float64Array[][];
 }
 
 /**
@@ -235,14 +241,16 @@ export interface McPart {
  * one; with two groups, the difference of each estimated path only.
  */
 export const designParameters = (design: McDesign, pop: Population): McParam[] =>
-  design.groups ? groupDifferences(pop, buildPopulation(groupPopulation(design))) : mcParameters(
-    pop,
-    design.estimators.some((e) => e.method === 'cb'),
-    design.estimators.some((e) => e.method !== 'cb'),
-    design.estimators.some((e) => e.method === 'pls'),
-    design.bootSamples > 0,
-    hasCbChecks(design),
-  );
+  design.groups
+    ? groupDifferences(pop, buildPopulation(groupPopulation(design)))
+    : mcParameters(
+        pop,
+        design.estimators.some((e) => e.method === 'cb'),
+        design.estimators.some((e) => e.method !== 'cb'),
+        design.estimators.some((e) => e.method === 'pls'),
+        design.bootSamples > 0,
+        hasCbChecks(design),
+      );
 
 /** Each estimated path's difference between the groups (second minus first). */
 function groupDifferences(first: Population, second: Population): McParam[] {
@@ -496,7 +504,8 @@ export function runMcTask(
   const est = arr(),
     lo = arr(),
     hi = arr(),
-    sig = arr();
+    sig = arr(),
+    se = arr();
   const proper = Array.from({ length: E }, () => new Float64Array(count).fill(NaN));
   const tests = Object.fromEntries(MC_TESTS.map((t) => [t, arr()])) as Record<
     McTest,
@@ -618,6 +627,7 @@ export function runMcTask(
               );
               [lo[ei][pi][k], hi[ei][pi][k]] = res.ci[inference.interval];
               sig[ei][pi][k] = res.reject[inference.interval];
+              se[ei][pi][k] = sampleSdOf(v.filter(Number.isFinite));
               for (const t of MC_TESTS) tests[t][ei][pi][k] = res.reject[t];
             });
           }
@@ -739,7 +749,7 @@ export function runMcTask(
     });
     onProgress?.(k + 1, count);
   }
-  return { n, start: task.start, est, lo, hi, truthCI, sig, proper, tests };
+  return { n, start: task.start, est, lo, hi, truthCI, sig, proper, tests, se };
 }
 
 export interface McSummaryRow {
@@ -763,6 +773,11 @@ export interface McSummaryRow {
   hist?: McHistogram;
   /** Bootstrap estimators: the rejection rate of every test computed. */
   tests?: Partial<Record<McTest, number>>;
+  /**
+   * Bootstrap estimators: the mean bootstrap SE over the Monte Carlo SD of the estimates (1: the bootstrap gets
+   * the sampling variability right; above 1, as PLS at small n, its tests are conservative).
+   */
+  seRatio?: number;
 }
 
 /** Counts of estimates in HIST_BINS equal bins over [lo, hi]; estimates outside the range counted apart. */
@@ -876,7 +891,8 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
         const ests: number[] = [],
           cover: number[] = [],
           widths: number[] = [],
-          rej: number[] = [];
+          rej: number[] = [],
+          ses: number[] = [];
         const byTest = new Map<McTest, number[]>();
         let failed = 0,
           improper = 0;
@@ -899,6 +915,8 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
             }
             const sg = part.sig[ei][pi][k];
             if (Number.isFinite(sg)) rej.push(sg);
+            const bse = part.se?.[ei]?.[pi]?.[k];
+            if (bse !== undefined && Number.isFinite(bse)) ses.push(bse);
             for (const t of MC_TESTS) {
               const x = part.tests?.[t]?.[ei]?.[pi]?.[k];
               if (x === undefined || !Number.isFinite(x)) continue;
@@ -941,6 +959,9 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
           width: widths.length ? widths.reduce((s, x) => s + x, 0) / widths.length : null,
           rejection: rej.length ? rej.reduce((s, x) => s + x, 0) / rej.length : null,
           hist: histogram(ests, ranges[pi]),
+          ...(ses.length > 1 && sd > 0
+            ? { seRatio: ses.reduce((a, b) => a + b, 0) / ses.length / sd }
+            : {}),
           ...(byTest.size
             ? {
                 tests: Object.fromEntries(

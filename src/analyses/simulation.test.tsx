@@ -232,6 +232,35 @@ describe('Monte Carlo card', () => {
     expect(out).toContain('10.0%');
   });
 
+  it('shows the bootstrap SE over the SD of the estimates when the results have it', () => {
+    const d = t.defaults(ctx());
+    const path = { key: 'path:A:B', kind: 'path' as const, from: 'A', to: 'B', value: 0.3 };
+    const row: McSummaryRow = {
+      estimator: d.estimators[0].id,
+      n: 100,
+      param: path,
+      reps: 50,
+      failed: 0,
+      improper: 0,
+      mean: 0.3,
+      bias: 0,
+      relBias: 0,
+      sd: 0.1,
+      rmse: 0.1,
+      coverage: 0.97,
+      width: 0.45,
+      rejection: 0.6,
+    };
+    const without = renderToStaticMarkup(<t.View result={[row]} options={d} current />);
+    expect(without).not.toContain('Boot SE / SD');
+    const out = renderToStaticMarkup(
+      <t.View result={[{ ...row, seRatio: 1.153 }]} options={d} current />,
+    );
+    expect(out).toContain('Boot SE / SD');
+    expect(out).toContain('1.153');
+    expect(out).toContain('its tests conservative');
+  });
+
   it('draws the distribution of the estimates with the true value and a hover per bin', () => {
     const d = t.defaults(ctx());
     const path = { key: 'path:A:B', kind: 'path' as const, from: 'A', to: 'B', value: 0 };
