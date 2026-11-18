@@ -69,6 +69,15 @@ describe('request values never become R code', () => {
       'ps_mc',
       {
         ...mc,
+        seeds: mc.seeds.map((x: object, i: number) => (i === 0 ? { ...x, miss: NUMBER } : x)),
+      },
+      'simulation',
+      /Invalid replication seeds/,
+    );
+    await refused(
+      'ps_mc',
+      {
+        ...mc,
         params: mc.params.map((p: object, i: number) => (i === 0 ? { ...p, value: NUMBER } : p)),
       },
       'simulation',

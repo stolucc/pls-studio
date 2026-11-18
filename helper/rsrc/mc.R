@@ -766,7 +766,10 @@ ps_mc_body <- function(req) {
 ps_mc <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   body <- ps_mc_body(req)
-  seeds <- req$seeds # list of {n, rep, data, boot, mc}
+  seeds <- req$seeds # list of {n, rep, data, boot, mc, miss}
+  fields <- c("n", "rep", "data", "boot", "mc", "miss")
+  ok_seed <- function(s) all(vapply(fields, function(f) is.numeric(s[[f]]) && length(s[[f]]) == 1 && is.finite(s[[f]]), TRUE))
+  if (!length(seeds) || !all(vapply(seeds, ok_seed, TRUE))) stop("Invalid replication seeds in the request.")
   run <- c(
     "mc_errors <- character(0)",
     "results <- lapply(seq_len(nrow(seeds)), function(i) one_replication(seeds$n[i], seeds$data[i], seeds$boot[i], seeds$mc[i], seeds$miss[i]))",
