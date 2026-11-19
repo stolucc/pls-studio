@@ -12,6 +12,7 @@ import { AccountMenu } from './cloud/AccountMenu';
 import { PresenceBar } from './cloud/Presence';
 import { ShareDialog } from './cloud/ShareDialog';
 import { HelpMenu } from './tour/TourEntry';
+import { HelperLight } from './HelperLight';
 import { IconEye, IconShare, IconLogo, IconPlay, IconRedo, IconRepeat, IconUndo } from './icons';
 
 const mod =
@@ -182,6 +183,7 @@ export function TopBar() {
       </div>
       {/* Right: people, sharing, the method and calculation. */}
       <div className="tb-group tb-right">
+        <HelperLight />
         <HelpMenu />
         <PresenceBar />
         <button

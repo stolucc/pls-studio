@@ -45,8 +45,8 @@ function HelperDownloadLinks() {
   );
 }
 
-/** Desktop R through the helper: status, pairing and the packages its R has. */
-function HelperStatus() {
+/** Desktop R through the helper: status, pairing and the packages its R has (also in the top bar's helper light). */
+export function HelperStatus() {
   const { state, info, packages, message } = useHelper();
   const [code, setCode] = useState('');
   const [useCode, setUseCode] = useState(false);
@@ -291,7 +291,7 @@ export function gpuHint(
   precision: GpuPrecision,
 ): string {
   if (state !== 'ready')
-    return 'Connect the helper first (Desktop R above): the GPU worker runs through it. Bootstraps run in the browser until then.';
+    return 'Connect the helper first (the Helper light in the top bar): the GPU worker runs through it. Bootstraps run in the browser until then.';
   if (!status) return 'This helper has no GPU worker: install the current helper.';
   if (status.starting) return 'The GPU worker is starting…';
   if (status.accelerators.length === 0)

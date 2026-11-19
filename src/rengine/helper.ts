@@ -150,6 +150,9 @@ export class HelperMissingPackages extends HelperUnavailable {
   }
 }
 
+/** Whether this browser was paired with the helper before (a token is stored): the app then probes it at start. */
+export const helperPairedBefore = () => getToken() !== '';
+
 const getToken = () => {
   try {
     return globalThis.localStorage?.getItem(TOKEN_KEY) ?? '';

@@ -522,6 +522,13 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 @keyframes fade { from { opacity: 0; } }
 @keyframes pop { from { opacity: 0; transform: translateY(4px) scale(0.98); } }
 
+.helper-light-btn { gap: 6px; }
+.helper-dot { width: 8px; height: 8px; border-radius: 4px; background: var(--border-strong); flex: none; }
+.helper-light-btn.green .helper-dot { background: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 25%, transparent); }
+.helper-light-btn.amber .helper-dot { background: var(--warn); }
+.helper-pop { width: min(380px, calc(100vw - 24px)); padding: 10px 12px; font-size: 12.5px; }
+.helper-pop-title { font-weight: 600; margin-bottom: 6px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .menu { position: relative; }
 .menu-pop {
   position: absolute; top: calc(100% + 6px); right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
