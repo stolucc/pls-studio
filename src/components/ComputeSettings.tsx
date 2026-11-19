@@ -330,7 +330,7 @@ function GpuSettings() {
   }, [gpu]);
   return (
     <div className="field" style={{ marginTop: 10 }}>
-      <label id="gpu-bootstrap">GPU bootstrap (built-in engine, through the helper)</label>
+      <label id="gpu-bootstrap">GPU bootstrap (Calculated by: Built-in, through the helper)</label>
       <div className="segmented" role="radiogroup" aria-labelledby="gpu-bootstrap">
         {([false, true] as const).map((on) => (
           <button

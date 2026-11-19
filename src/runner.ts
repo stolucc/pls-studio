@@ -431,6 +431,12 @@ export function run(kind: JobKind) {
     return;
   }
   if (s.settings.engine === 'r' && !builtInTerms && !studentized) {
+    // GPU bootstrap chosen but the R packages calculate: say so (the GPU engine is the built-in engine's).
+    if (kind === 'boot' && !cb && useCompute.getState().gpu)
+      s.toast(
+        'info',
+        'GPU bootstrap is on, but the R packages are calculating: choose Calculated by → Built-in to bootstrap on the GPU.',
+      );
     runR(kind, key);
     return;
   }
