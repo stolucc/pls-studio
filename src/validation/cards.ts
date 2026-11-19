@@ -1122,7 +1122,7 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   'model:bootInadmissible:keep': {
     title: 'Bootstrap, inadmissible PLSc draws kept',
     features: ['engine/bootstrapOptions::inadmissible', 'rengine/bca::inadmissible'],
-    note: 'Kept draws as matrixpls keeps them by default; cSEM with .handle_inadmissibles = "ignore".',
+    note: 'Kept draws as matrixpls keeps them by default; cSEM with .handle_inadmissibles = "ignore". A negative ρA is taken as |ρA| in kept draws (built-in engine, as cSEM and matrixpls do).',
   },
   'model:bootInterval:studentized': {
     title: 'Bootstrap, studentized intervals',

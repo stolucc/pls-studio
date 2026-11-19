@@ -313,6 +313,12 @@ export interface PlsOptions {
   approach?: 'PLS-PM' | 'GSCA' | 'PCA' | 'unit';
   /** Second-order constructs: (disjoint) two-stage, embedded two-stage (cSEM "mixed") or repeated indicators. */
   hocApproach?: 'two_stage' | 'embedded' | 'repeated';
+  /**
+   * PLSc, built-in engine: where ρA comes out negative, correct with |ρA| (as cSEM and matrixpls do) instead of
+   * leaving the corrected correlations, paths and loadings undefined (NaN; seminr refuses such a model). Set only
+   * for a bootstrap that keeps inadmissible draws (bootInadmissible 'keep'), never for an estimate on its own.
+   */
+  absRhoA?: boolean;
 }
 
 export const DEFAULT_OPTIONS: PlsOptions = {
@@ -415,7 +421,7 @@ export interface BootstrapOptions {
   tails?: 1 | 2;
   /** Percentile intervals (default) or bias-corrected and accelerated (BCa: needs a jackknife). */
   interval?: 'percentile' | 'bca' | 'studentized';
-  /** PLSc draws that are not admissible: dropped (default, as cSEM) or kept (as matrixpls). */
+  /** PLSc draws that are not admissible: dropped (default, as cSEM) or kept (as matrixpls; built-in engine: a negative ρA taken as |ρA|, PlsOptions.absRhoA). */
   inadmissible?: 'drop' | 'keep';
 }
 

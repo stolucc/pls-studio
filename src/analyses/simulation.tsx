@@ -3,6 +3,7 @@
 // simulateData with cSEM and lavaan, or the built-in engine).
 
 import { useEffect, useMemo, useState } from 'react';
+import { KEEP_INADMISSIBLE_NOTE } from '../engine/bootstrap';
 import { MC_FIT_INDICES, poorFitRule } from '../engine/mcFitIndices';
 import { MC_VALIDITY_RULES } from '../engine/mcValidity';
 import {
@@ -783,6 +784,7 @@ function InferenceFields({
           </select>
         </div>
       )}
+      {plsc && inf.inadmissible === 'keep' && <div className="hint">{KEEP_INADMISSIBLE_NOTE}</div>}
     </>
   );
 }

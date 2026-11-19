@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, parseProject, serializeProject, toSpec } from '../model/project';
 import { makeSample } from '../sample';
 import { mergeBootstrap, runRange, summarise } from './bootstrap';
-import { estimatePls } from './pls';
+import { estimatePls, preparePls } from './pls';
+import { DEFAULT_OPTIONS } from './types';
 import { buildPopulation, generateData, specFromPopulation } from './population';
 import { bootQuantile, pnorm, qnorm } from './stats';
 
@@ -107,13 +108,57 @@ describe('bootstrap options', () => {
     const finite = (draws: Float64Array) => draws.filter(Number.isFinite).length;
     const dropped = run(false),
       kept = run(true);
-    // The same resamples: kept, every draw with finite estimates (125 of 200 here; a draw whose ρA is negative has
-    // none: cSEM takes |ρA| there, the built-in engine does not); dropped by default, most of them (24 left).
-    expect(finite(kept.draws[0])).toBeGreaterThan(2 * finite(dropped.draws[0]));
+    // The same resamples: kept, every draw (a negative ρA taken as |ρA|, as cSEM and matrixpls do); dropped by
+    // default, most of them (24 left).
+    expect(finite(kept.draws[0])).toBe(200);
+    expect(finite(dropped.draws[0])).toBeLessThan(50);
     expect(finite(dropped.draws[0])).toBeGreaterThan(0);
     // An admissible draw is the same resample either way: the same estimate, kept or not.
     const i = dropped.draws[0].findIndex(Number.isFinite);
     expect(kept.draws[0][i]).toBeCloseTo(dropped.draws[0][i], 12);
+  });
+
+  it('negative ρA: undefined (NaN) by default, as seminr refuses it; |ρA| with absRhoA, as cSEM and matrixpls', () => {
+    // A block whose indicators correlate negatively on balance: ĉ² < 0, so ρA < 0.
+    const spec = {
+      constructs: [
+        { name: 'F', type: 'factor' as const, mode: 'A' as const, indicators: ['x1', 'x2', 'x3'] },
+        { name: 'Y', type: 'factor' as const, mode: 'A' as const, indicators: ['y1', 'y2', 'y3'] },
+      ],
+      paths: [{ from: 'F', to: 'Y' }],
+    };
+    const n = 200;
+    let seed = 11;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 3.4;
+    const cols: Record<string, Float64Array> = {};
+    for (const k of ['x1', 'x2', 'x3', 'y1', 'y2', 'y3']) cols[k] = new Float64Array(n);
+    for (let r = 0; r < n; r++) {
+      const y = rnd(),
+        u = 2 * rnd(),
+        v = 2 * rnd();
+      // x1 and x2 both follow y but correlate negatively with each other (−.6), x3 weakly (.2): the weighted
+      // off-diagonal correlations sum below zero, so ĉ² and ρA do too
+      cols.x1[r] = y + u;
+      cols.x2[r] = y - u;
+      cols.x3[r] = y + v;
+      cols.y1[r] = y + 0.5 * rnd();
+      cols.y2[r] = y + 0.5 * rnd();
+      cols.y3[r] = y + 0.5 * rnd();
+    }
+    const data = { names: Object.keys(cols), cols: Object.values(cols) };
+    const fit = (absRhoA: boolean) => {
+      const prep = preparePls(data, spec, { ...DEFAULT_OPTIONS, consistent: true, absRhoA });
+      return prep.estimate(prep.cols).st;
+    };
+    const strict = fit(false),
+      lenient = fit(true);
+    expect(strict.rhoA[0]).toBeLessThan(0);
+    expect(Number.isNaN(strict.pathCoef[0][1])).toBe(true);
+    // |ρA|: the same number with the sign dropped, and a path that exists.
+    expect(lenient.rhoA[0]).toBeCloseTo(-strict.rhoA[0], 12);
+    expect(Number.isFinite(lenient.pathCoef[0][1])).toBe(true);
+    // A positive ρA does not change.
+    expect(lenient.rhoA[1]).toBeCloseTo(strict.rhoA[1], 12);
   });
 
   it('inadmissible draws: the choice survives a project file; anything else reads as drop', () => {

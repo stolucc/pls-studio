@@ -124,4 +124,11 @@ describe('Inspector markup', () => {
       Object.fromEntries(model.constructs.map((c) => [c.name, show(s, [c.id])])),
     ).toMatchSnapshot(),
   );
+  it('inadmissible PLSc draws kept: the note says a negative ρA is taken as |ρA|; dropped: no note', () => {
+    const plsc = { method: 'pls' as const, consistent: true };
+    expect(show({ ...plsc, bootInadmissible: 'keep' }, [])).toContain(
+      'uses |ρA|, as cSEM and matrixpls do',
+    );
+    expect(show({ ...plsc, bootInadmissible: 'drop' }, [])).not.toContain('uses |ρA|');
+  });
 });

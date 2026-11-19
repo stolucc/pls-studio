@@ -60,7 +60,7 @@ export interface RangeRequest {
   jackknife?: boolean;
   /** Studentized intervals: this many inner resamples of each sample, for that sample's own standard error. */
   innerSamples?: number;
-  /** PLSc: keep inadmissible draws (as matrixpls) instead of dropping them (as cSEM). */
+  /** PLSc: keep inadmissible draws (as matrixpls) instead of dropping them (as cSEM); a negative ρA is taken as |ρA|. */
   keepInadmissible?: boolean;
 }
 
@@ -209,13 +209,26 @@ export function chainProduct(pathCoef: number[][], chain: number[]): number {
   return product;
 }
 
+/**
+ * What keeping inadmissible PLSc draws means (Inspector and simulation form). Shown with the setting, since a
+ * negative ρA is handled differently from an estimate on its own.
+ */
+export const KEEP_INADMISSIBLE_NOTE =
+  'Kept: every bootstrap draw counts, including draws with a loading or reliability above 1. ' +
+  'Where a draw’s reliability ρA comes out negative, the PLSc correction (which divides by √ρA) uses |ρA|, ' +
+  'as cSEM and matrixpls do (seminr refuses such samples). ' +
+  'Only bootstrap draws are treated this way: the estimate itself stops with an error when a ρA is negative. ' +
+  'Intervals can become very wide.';
+
 function plsJob(
   data: Dataset,
   spec: ModelSpec,
   options: Partial<PlsOptions>,
   keepInadmissible = false,
 ): Job {
-  const opts = { ...DEFAULT_OPTIONS, ...options };
+  // Kept inadmissible draws: a negative ρA is taken as |ρA|, as cSEM and matrixpls do, so every draw has
+  // estimates (KEEP_INADMISSIBLE_NOTE). The estimate itself (estimatePls) still stops at a negative ρA.
+  const opts = { ...DEFAULT_OPTIONS, ...options, ...(keepInadmissible ? { absRhoA: true } : {}) };
   const prep = preparePls(data, spec, opts);
   const first = prep.estimate(prep.cols);
   const params = plsParameters(prep.m, first.st);
@@ -231,8 +244,7 @@ function plsJob(
       const eb = prep.estimate(resample(prep.cols, idx));
       if (!eb.core.converged) throw new Error('not converged');
       // An inadmissible PLSc draw is dropped, as cSEM does by default; it counts as failed. Kept on request
-      // (as matrixpls does by default); a draw whose ρA is negative has no estimates either way (NaN; cSEM
-      // takes |ρA| there).
+      // (as matrixpls does by default), with |ρA| where ρA is negative (opts.absRhoA).
       if (!keepInadmissible && opts.consistent && plscProblems(eb.m, eb.st).problems.length)
         throw new Error('inadmissible');
       return params.map((p) => p.get(eb.st, eb.core.w));
@@ -411,7 +423,7 @@ function fitTestJob(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>
         const cb = plsCore(Xb, m, opts, core.w);
         if (!cb.converged) throw new Error('not converged');
         const Rb = Xb.map((a) => Xb.map((c) => corStd(a, c)));
-        const fit = modelFit(m, Rb, structural(m, Xb, cb, opts.consistent))[which];
+        const fit = modelFit(m, Rb, structural(m, Xb, cb, opts.consistent, opts.absRhoA))[which];
         return DISC.map((d) => fit[d]);
       }),
   };

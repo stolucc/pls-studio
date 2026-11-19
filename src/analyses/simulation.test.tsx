@@ -407,9 +407,14 @@ describe('Monte Carlo card', () => {
     );
     expect(noBoot).not.toContain('Sign-change correction');
     // inadmissible PLSc draws: asked only with a PLSc estimator; kept, the notes say so
-    const noPlsc = { ...d, estimators: d.estimators.filter((e) => !('consistent' in e && e.consistent)) };
+    const noPlsc = {
+      ...d,
+      estimators: d.estimators.filter((e) => !('consistent' in e && e.consistent)),
+    };
     expect(
-      renderToStaticMarkup(<t.Options options={noPlsc} set={() => {}} ctx={ctx()} disabled={false} />),
+      renderToStaticMarkup(
+        <t.Options options={noPlsc} set={() => {}} ctx={ctx()} disabled={false} />,
+      ),
     ).not.toContain('Inadmissible PLSc draws');
     const plsc = {
       ...d,
@@ -421,6 +426,18 @@ describe('Monte Carlo card', () => {
     );
     expect(withPlsc).toContain('Inadmissible PLSc draws');
     expect(withPlsc).toContain('Keep (as matrixpls)');
+    // kept: the note on what keeping means, the |ρA| rule included; dropped: no note
+    expect(withPlsc).toContain('uses |ρA|, as cSEM and matrixpls do');
+    const dropped = renderToStaticMarkup(
+      <t.Options
+        options={{ ...plsc, inference: { ...plsc.inference, inadmissible: undefined } }}
+        set={() => {}}
+        ctx={ctx()}
+        disabled={false}
+      />,
+    );
+    expect(dropped).toContain('Inadmissible PLSc draws');
+    expect(dropped).not.toContain('|ρA|');
 
     const path = { key: 'path:A:B', kind: 'path' as const, from: 'A', to: 'B', value: 0 };
     const row: McSummaryRow = {

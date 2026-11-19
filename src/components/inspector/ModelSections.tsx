@@ -1,5 +1,5 @@
 import { ComputeSettings } from '../ComputeSettings';
-import { STUDENTIZED_INNER } from '../../engine/bootstrap';
+import { KEEP_INADMISSIBLE_NOTE, STUDENTIZED_INNER } from '../../engine/bootstrap';
 import { validateModel, type Settings } from '../../model/project';
 import { useStore } from '../../store';
 import { OrderedPicker } from '../OrderedPicker';
@@ -1137,12 +1137,15 @@ export function Bootstrapping() {
             <button
               className={settings.bootInadmissible === 'keep' ? 'on' : ''}
               onClick={() => setSettings({ bootInadmissible: 'keep' })}
-              title="Keep every draw, as matrixpls does by default (and simulations that used it); the intervals can become very wide"
+              title="Keep every draw, as matrixpls does by default (and simulations that used it); a negative ρA is taken as |ρA|"
             >
               Keep
             </button>
           </div>
         </div>
+      )}
+      {settings.method === 'pls' && settings.consistent && settings.bootInadmissible === 'keep' && (
+        <div className="hint">{KEEP_INADMISSIBLE_NOTE}</div>
       )}
       <div className="hint">
         {intervalHint(settings)}; p-values from{' '}

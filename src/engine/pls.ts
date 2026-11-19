@@ -291,8 +291,10 @@ function totalEffectsOf(B: number[][]): number[][] {
 /**
  * Dijkstra–Henseler ρA of a Mode A block, with weights scaled so the composite
  * has unit variance. Also returns the correction factor ĉ (λ̂ = ĉ ŵ).
+ * A negative ĉ² stays negative (ρA < 0, the correction undefined) unless `abs`:
+ * then |ĉ²|, as cSEM (sqrt(abs(cf))) and matrixpls (c2 <- abs(c2)) take it.
  */
-function rhoAOf(b: number[], w: Float64Array, R: Mat): { rhoA: number; c: number } {
+function rhoAOf(b: number[], w: Float64Array, R: Mat, abs = false): { rhoA: number; c: number } {
   const k = b.length;
   const wb = b.map((i) => w[i]);
   const ww = wb.reduce((s, v) => s + v * v, 0);
@@ -300,7 +302,7 @@ function rhoAOf(b: number[], w: Float64Array, R: Mat): { rhoA: number; c: number
   for (let a = 0; a < k; a++)
     for (let d = 0; d < k; d++) if (a !== d) num += wb[a] * R[b[a]][b[d]] * wb[d];
   const den = ww * ww - wb.reduce((s, v) => s + v ** 4, 0);
-  const c2 = num / den;
+  const c2 = abs ? Math.abs(num / den) : num / den;
   return { rhoA: ww * ww * c2, c: Math.sqrt(Math.max(c2, 0)) };
 }
 
@@ -347,13 +349,15 @@ export function plscProblems(
 /**
  * Structural results that bootstrapping also needs. With `consistent`, common
  * factors are corrected for attenuation (PLSc, Dijkstra & Henseler 2015):
- * loadings λ = ĉŵ and construct correlations r / √(ρA_i ρA_j).
+ * loadings λ = ĉŵ and construct correlations r / √(ρA_i ρA_j). `absRhoA`:
+ * a negative ρA is taken as |ρA| (PlsOptions.absRhoA).
  */
 export function structural(
   m: CompiledModel,
   X: Float64Array[],
   core: CoreResult,
   consistent = false,
+  absRhoA = false,
 ) {
   const J = m.constructs.length;
   const Y = core.scores;
@@ -365,7 +369,7 @@ export function structural(
     const R = b.map((a) => b.map((d) => corStd(X[a], X[d])));
     const local = b.map((_, i) => i);
     const wLocal = Float64Array.from(b, (i) => core.w[i]);
-    const r = rhoAOf(local, wLocal, R);
+    const r = rhoAOf(local, wLocal, R, absRhoA);
     rhoA[j] = r.rhoA;
     if (consistent) b.forEach((i) => (loadings[i] = r.c * core.w[i]));
   });
@@ -592,7 +596,11 @@ function excludedRSquared(
   if (!isolated) {
     try {
       const core = plsCore(X, reduced, opts);
-      return rSquaredOf(structural(reduced, X, core, opts.consistent).C, remaining, to).r2;
+      return rSquaredOf(
+        structural(reduced, X, core, opts.consistent, opts.absRhoA).C,
+        remaining,
+        to,
+      ).r2;
     } catch {
       // fall through to the fixed-scores approximation
     }
@@ -805,7 +813,7 @@ export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
         m: m1,
         X,
         core,
-        st: structural(m1, X, core, opts.consistent),
+        st: structural(m1, X, core, opts.consistent, opts.absRhoA),
         ...(w ? { scores: plain(m1, core, Z, w) } : {}),
       };
     };
@@ -941,8 +949,11 @@ export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
         w: Float64Array.from([...core1.w, ...products.map(() => 1)]),
         scores: [...core1.scores, ...products.map((p, i) => standardize(p, names[i]))],
       };
-      const st = structural(m2, X, core, true);
-      const moment = latentMoments(core1.scores, structural(m1, X1, core1, true).rhoA);
+      const st = structural(m2, X, core, true, opts.absRhoA);
+      const moment = latentMoments(
+        core1.scores,
+        structural(m1, X1, core1, true, opts.absRhoA).rhoA,
+      );
       const regressors = (j: number): number[][] =>
         m2.preds[j].map((p) =>
           p < m1.constructs.length ? [p] : Array.from(pairs[p - m1.constructs.length]),
