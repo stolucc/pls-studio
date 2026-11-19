@@ -45,7 +45,7 @@ export function gpuUnavailable(
   spec: ModelSpec,
   settings: Pick<Settings, 'method' | 'engine' | 'missing'>,
   kind: 'estimate' | 'boot' | 'fittest',
-  helper: { state: HelperState; gpu?: GpuStatus },
+  helper: { state: HelperState; info: { gpu?: GpuStatus } | null },
   precision: GpuPrecision,
 ): string | null {
   if (kind !== 'boot') return 'only bootstrapping runs there';
@@ -61,13 +61,15 @@ export function gpuUnavailable(
   if (LAVAAN_MISSING.includes(settings.missing) || settings.missing === 'mi')
     return 'its missing-value treatment is mean replacement or casewise deletion';
   if (helper.state !== 'ready') return 'the helper is not connected';
-  if (!helper.gpu) return 'the helper is too old to have a GPU worker';
-  if (helper.gpu.starting) return 'the GPU worker is still starting';
-  if (helper.gpu.accelerators.length === 0)
-    return helper.gpu.error
-      ? `the helper has no GPU worker (${helper.gpu.error})`
+  // The helper store's shape (rengine/helper.ts useHelper): the gpu entry lives under info.
+  const gpu = helper.info?.gpu;
+  if (!gpu) return 'the helper is too old to have a GPU worker';
+  if (gpu.starting) return 'the GPU worker is still starting';
+  if (gpu.accelerators.length === 0)
+    return gpu.error
+      ? `the helper has no GPU worker (${gpu.error})`
       : 'the helper has no GPU worker';
-  if (ableAccelerators(helper.gpu, precision).length === 0)
+  if (ableAccelerators(gpu, precision).length === 0)
     return `no accelerator computes in ${precision} precision (an Apple GPU computes in single precision only)`;
   return null;
 }

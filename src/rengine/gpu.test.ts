@@ -62,7 +62,8 @@ const cuda: GpuStatus = {
     },
   ],
 };
-const ready = { state: 'ready' as const, gpu: mps };
+// Shaped like the helper store (useHelper), which runner.ts passes whole: the gpu entry under info.
+const ready = { state: 'ready' as const, info: { gpu: mps } };
 
 describe('gpuUnavailable', () => {
   it('allows a plain PLS bootstrap on a connected helper with a worker', () => {
@@ -106,16 +107,18 @@ describe('gpuUnavailable', () => {
     ).toMatch(/ordinal/);
   });
   it('needs the helper, a worker and an accelerator of the precision', () => {
-    expect(gpuUnavailable(spec, settings, 'boot', { state: 'absent' }, 'auto')).toMatch(
+    expect(gpuUnavailable(spec, settings, 'boot', { state: 'absent', info: null }, 'auto')).toMatch(
       /not connected/,
     );
-    expect(gpuUnavailable(spec, settings, 'boot', { state: 'ready' }, 'auto')).toMatch(/too old/);
+    expect(gpuUnavailable(spec, settings, 'boot', { state: 'ready', info: {} }, 'auto')).toMatch(
+      /too old/,
+    );
     expect(
       gpuUnavailable(
         spec,
         settings,
         'boot',
-        { state: 'ready', gpu: { accelerators: [], starting: true } },
+        { state: 'ready', info: { gpu: { accelerators: [], starting: true } } },
         'auto',
       ),
     ).toMatch(/starting/);
@@ -124,13 +127,13 @@ describe('gpuUnavailable', () => {
         spec,
         settings,
         'boot',
-        { state: 'ready', gpu: { accelerators: [], error: 'not set up' } },
+        { state: 'ready', info: { gpu: { accelerators: [], error: 'not set up' } } },
         'auto',
       ),
     ).toMatch(/not set up/);
     expect(gpuUnavailable(spec, settings, 'boot', ready, 'double')).toMatch(/double precision/);
     expect(
-      gpuUnavailable(spec, settings, 'boot', { state: 'ready', gpu: cuda }, 'double'),
+      gpuUnavailable(spec, settings, 'boot', { state: 'ready', info: { gpu: cuda } }, 'double'),
     ).toBeNull();
   });
   it('lists the accelerators able to compute in a precision', () => {
