@@ -319,8 +319,11 @@ const PRECISION_LABEL: Record<GpuPrecision, string> = {
   double: 'Double',
 };
 
-/** Bootstrapping with the built-in engine on an accelerator through the helper (rengine/gpu.ts): a preference of this browser. */
-function GpuSettings() {
+/**
+ * Bootstrapping with the built-in engine on an accelerator through the helper (rengine/gpu.ts): a preference of
+ * this browser, shown under Calculated by: Built-in (inspector/ModelSections.tsx), as R runs in is under R packages.
+ */
+export function GpuSettings() {
   const gpu = useCompute((s) => s.gpu);
   const precision = useCompute((s) => s.gpuPrecision);
   const state = useHelper((s) => s.state);
@@ -330,7 +333,7 @@ function GpuSettings() {
   }, [gpu]);
   return (
     <div className="field" style={{ marginTop: 10 }}>
-      <label id="gpu-bootstrap">GPU bootstrap (Calculated by: Built-in, through the helper)</label>
+      <label id="gpu-bootstrap">Bootstrap on</label>
       <div className="segmented" role="radiogroup" aria-labelledby="gpu-bootstrap">
         {([false, true] as const).map((on) => (
           <button
@@ -342,10 +345,10 @@ function GpuSettings() {
             title={
               on
                 ? 'Bootstrap samples are estimated all at once on the GPU (torch) by the helper’s worker; the browser prepares the data and reads the draws.'
-                : 'Bootstraps run in this browser’s workers.'
+                : 'Bootstraps run in this browser’s workers, one per core.'
             }
           >
-            {on ? 'On' : 'Off'}
+            {on ? 'GPU (helper)' : 'This browser'}
           </button>
         ))}
       </div>
@@ -465,7 +468,6 @@ export function ComputeSettings() {
           )}
         </div>
       </div>
-      <GpuSettings />
     </>
   );
 }

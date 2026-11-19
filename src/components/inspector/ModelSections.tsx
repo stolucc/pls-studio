@@ -1,4 +1,4 @@
-import { ComputeSettings } from '../ComputeSettings';
+import { ComputeSettings, GpuSettings } from '../ComputeSettings';
 import { KEEP_INADMISSIBLE_NOTE, STUDENTIZED_INNER } from '../../engine/bootstrap';
 import { validateModel, type Settings } from '../../model/project';
 import { useStore } from '../../store';
@@ -452,6 +452,7 @@ export function EngineChoice({ where }: { where: string }) {
           ' The first calculation loads the packages; your data never leave this computer. Monte Carlo simulation also runs in R (lavaan::simulateData, cSEM, lavaan).'}
       </div>
       {settings.engine === 'r' && <ComputeSettings />}
+      {settings.engine === 'builtin' && pls && <GpuSettings />}
       <button
         className="btn sm"
         style={{ marginTop: 8 }}
