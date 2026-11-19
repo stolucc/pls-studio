@@ -16,3 +16,8 @@ SHA256SUMS
 .validation/
 .cache/
 .validation-desktop/
+# GPU worker development venv and reference dumps
+helper/gpusrc/.venv/
+helper/gpusrc/ref/out/
+__pycache__/
+.pytest_cache/

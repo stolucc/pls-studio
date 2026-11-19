@@ -43,6 +43,8 @@ describe('compute preferences', () => {
     expect(JSON.parse(store.get('pls-studio.compute')!)).toEqual({
       backend: 'browser',
       workers: 4,
+      gpu: false,
+      gpuPrecision: 'auto',
     });
     vi.resetModules();
     expect((await import('./compute')).useCompute.getState().workers).toBe(4);
@@ -113,6 +115,8 @@ describe('compute preferences: backend', () => {
     expect(JSON.parse(store.get('pls-studio.compute')!)).toEqual({
       backend: 'browser',
       workers: 3,
+      gpu: false,
+      gpuPrecision: 'auto',
     });
     useCompute.getState().set({ workers: 99 });
     expect(useCompute.getState().workers).toBe(8);
@@ -129,5 +133,54 @@ describe('compute preferences: backend', () => {
     expect(again.getState()).toMatchObject({ backend: 'browser', workers: 1 });
     again.getState().set({ workers: 2 });
     expect(again.getState().workers).toBe(2);
+  });
+});
+
+describe('GPU bootstrap preference', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+  it('is off by default, remembered when set, and ignores bad stored values', async () => {
+    const store = new Map<string, string>();
+    store.set('pls-studio.compute', JSON.stringify({ gpu: 'yes', gpuPrecision: 'half' }));
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+    });
+    const { useCompute, clampPrecision } = await import('./compute');
+    expect(useCompute.getState().gpu).toBe(false);
+    expect(useCompute.getState().gpuPrecision).toBe('auto');
+    useCompute.getState().set({ gpu: true, gpuPrecision: 'double' });
+    expect(JSON.parse(store.get('pls-studio.compute')!)).toMatchObject({
+      gpu: true,
+      gpuPrecision: 'double',
+    });
+    useCompute.getState().set({ gpuPrecision: 'nonsense' as never });
+    expect(useCompute.getState().gpuPrecision).toBe('auto');
+    expect(clampPrecision('single')).toBe('single');
+  });
+  it('tells what the GPU setting needs', async () => {
+    const { gpuHint } = await import('../components/ComputeSettings');
+    const mps = {
+      accelerators: [
+        {
+          where: 'local',
+          device: 'mps',
+          name: 'Apple GPU (Metal)',
+          torch: '2.15',
+          precisions: ['float32'],
+        },
+      ],
+    };
+    expect(gpuHint('absent', undefined, 'auto')).toMatch(/Connect the helper/);
+    expect(gpuHint('ready', undefined, 'auto')).toMatch(/no GPU worker/);
+    expect(gpuHint('ready', { accelerators: [], starting: true }, 'auto')).toMatch(/starting/);
+    expect(gpuHint('ready', { accelerators: [], error: 'not set up' }, 'auto')).toMatch(
+      /setup-gpu/,
+    );
+    expect(gpuHint('ready', mps, 'auto')).toMatch(/Apple GPU \(Metal\) \(mps, single precision\)/);
+    expect(gpuHint('ready', mps, 'double')).toMatch(/No accelerator computes in double/);
+    expect(gpuHint('ready', mps, 'single')).not.toMatch(/No accelerator/);
   });
 });

@@ -58,6 +58,21 @@ export interface HelperInfo {
   r: string;
   workers: number;
   rError?: string;
+  /** The helper's GPU workers (helper/accel.go); absent from an older helper. */
+  gpu?: GpuStatus;
+}
+/** One GPU worker: where it runs, torch's device and the precisions it computes in (Apple GPUs: float32 only). */
+export interface GpuAccelerator {
+  where: string;
+  device: string;
+  name: string;
+  torch: string;
+  precisions: string[];
+}
+export interface GpuStatus {
+  accelerators: GpuAccelerator[];
+  starting?: boolean;
+  error?: string;
 }
 interface HelperStore {
   state: HelperState;
@@ -239,12 +254,14 @@ export async function probeHelper(
     r?: string;
     workers?: number;
     r_error?: string;
+    gpu?: GpuStatus;
   };
   const info: HelperInfo = {
     helperVersion: String(raw.helper_version ?? ''),
     r: String(raw.r ?? ''),
     workers: Number(raw.workers ?? 0),
     ...(raw.r_error ? { rError: String(raw.r_error) } : {}),
+    ...(raw.gpu ? { gpu: gpuStatusOf(raw.gpu) } : {}),
   };
   if (raw.r_error) return set('no-r', raw.r_error, { info });
   if (raw.bridge !== (await bridgeHash(sources)))
@@ -273,6 +290,25 @@ export async function probeHelper(
     info,
     packages: Object.fromEntries(packages.map((k) => [k, versions[k] ?? null])),
   });
+}
+
+/** The helper's gpu entry, with every field checked. */
+export function gpuStatusOf(raw: unknown): GpuStatus {
+  const g = (raw ?? {}) as Partial<GpuStatus>;
+  const accelerators = Array.isArray(g.accelerators)
+    ? g.accelerators.map((a) => ({
+        where: String(a?.where ?? ''),
+        device: String(a?.device ?? ''),
+        name: String(a?.name ?? ''),
+        torch: String(a?.torch ?? ''),
+        precisions: Array.isArray(a?.precisions) ? a.precisions.map(String) : [],
+      }))
+    : [];
+  return {
+    accelerators,
+    ...(g.starting ? { starting: true } : {}),
+    ...(g.error ? { error: String(g.error) } : {}),
+  };
 }
 
 /** The bearer token from a /connect or /pair answer, checked and stored. */
@@ -465,6 +501,43 @@ export async function helperCall(
   }
   if (!r.ok) throw new HelperUnavailable(`The helper answered ${r.status}.`);
   return resultOf((await r.json()) as Reply);
+}
+
+/** The GPU worker could not run this bootstrap (no accelerator of the precision, a model it cannot estimate): the caller bootstraps in the browser. */
+export class GpuError extends Error {}
+
+/**
+ * One range of a PLS bootstrap on the helper's GPU worker (POST /gpu/bootstrap). The request is the worker's
+ * (rengine/gpu.ts gpuRequest); the answer the native engine's RangePart as JSON (null for NaN) with the precision used.
+ */
+export async function helperGpuBootstrap(req: object): Promise<Record<string, unknown>> {
+  if (transport) throw new GpuError('GPU bootstrapping needs the helper.');
+  const id = newId();
+  running.set(id, rCallOwner());
+  let r: Response;
+  try {
+    r = await postRetrying('/gpu/bootstrap', JSON.stringify({ id, req }));
+  } catch {
+    useHelper.setState({ state: 'absent', message: 'The helper stopped.' });
+    throw new HelperUnavailable('The helper is not reachable.');
+  } finally {
+    running.delete(id);
+  }
+  if (r.status === 401) {
+    setToken('');
+    useHelper.setState({ state: 'unpaired', message: 'Pair again.' });
+    throw new HelperUnavailable('The helper no longer accepts this browser: pair again.');
+  }
+  if (!r.ok) throw new HelperUnavailable(`The helper answered ${r.status}.`);
+  const rep = (await r.json()) as {
+    ok: boolean;
+    result?: Record<string, unknown>;
+    kind?: string;
+    message?: string;
+  };
+  if (rep.ok && rep.result) return rep.result;
+  if (rep.kind === 'cancelled') throw new Error('Cancelled.');
+  throw new GpuError(rep.message ?? 'The GPU worker failed.');
 }
 
 /**

@@ -36,6 +36,12 @@ type config struct {
 	// RWorkers is the number of R processes kept running (each one
 	// calculation at a time). 0 = automatic (cores - 1).
 	RWorkers int `json:"r_workers,omitempty"`
+	// GPUPython, when set, is the Python (with torch) that runs the GPU
+	// worker; empty = the virtual environment `setup-gpu` creates
+	// (~/.pls-studio-helper/gpu/venv).
+	GPUPython string `json:"gpu_python,omitempty"`
+	// GPUDevice picks the worker's torch device: "cuda", "mps", "cpu"; empty = automatic.
+	GPUDevice string `json:"gpu_device,omitempty"`
 
 	// File path derived from the config location. Not persisted.
 	Path string `json:"-"`
@@ -60,6 +66,8 @@ type configFile struct {
 	Rscript        string   `json:"rscript,omitempty"`
 	RLibrary       string   `json:"r_library,omitempty"`
 	RWorkers       int      `json:"r_workers,omitempty"`
+	GPUPython      string   `json:"gpu_python,omitempty"`
+	GPUDevice      string   `json:"gpu_device,omitempty"`
 }
 
 // file copies the persisted fields (the caller holds c.mu or owns c).
@@ -72,6 +80,8 @@ func (c *config) file() configFile {
 		Rscript:        c.Rscript,
 		RLibrary:       c.RLibrary,
 		RWorkers:       c.RWorkers,
+		GPUPython:      c.GPUPython,
+		GPUDevice:      c.GPUDevice,
 	}
 }
 
@@ -88,6 +98,8 @@ func (c *config) setFile(f configFile, keepPort bool) {
 	c.Rscript = f.Rscript
 	c.RLibrary = f.RLibrary
 	c.RWorkers = f.RWorkers
+	c.GPUPython = f.GPUPython
+	c.GPUDevice = f.GPUDevice
 }
 
 // snapshot is a copy of the persisted fields, safe to read while the helper runs.

@@ -24,6 +24,8 @@ type server struct {
 	pair   *pairStore
 	jobs   *jobRegistry
 	pool   *rPool
+	// gpu runs PLS bootstraps on accelerators (accel.go); nil in tests without one.
+	gpu *accelPool
 	// connect approves one-click connections (connect.go).
 	connect *connectGate
 	// limiter caps the request rate (a parallel bootstrap sends one call
@@ -57,6 +59,7 @@ func newServer(cfg *config, logger *log.Logger, pool *rPool) *server {
 	mux.HandleFunc("/call", withAuth(cfg, true, s.handleCall))
 	mux.HandleFunc("/batch", withAuth(cfg, true, s.handleBatch))
 	mux.HandleFunc("/cancel/", withAuth(cfg, true, s.handleCancel))
+	mux.HandleFunc("/gpu/bootstrap", withAuth(cfg, true, s.handleGPUBootstrap))
 	mux.HandleFunc(examplePrefix, withAuth(cfg, true, s.handleExampleData))
 	// Bind to 127.0.0.1 ONLY (see main.go: the listener is created there).
 	s.HTTP = &http.Server{
@@ -172,6 +175,9 @@ func (s *server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		resp["r_error"] = err.Error()
+	}
+	if s.gpu != nil {
+		resp["gpu"] = s.gpu.status()
 	}
 	writeJSON(w, resp)
 }

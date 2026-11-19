@@ -188,3 +188,34 @@ it is signed and published.
 Linux has no tray: run it as a systemd user service, e.g.
 `~/.config/systemd/user/pls-studio-helper.service` with
 `ExecStart=/path/to/pls-studio-helper --no-tray`.
+
+## GPU bootstrapping
+
+The helper can bootstrap PLS and PLSc models of the **built-in engine** on a
+GPU: every bootstrap sample is estimated at once by a batched torch port of
+the engine (`gpusrc/plsgpu.py`), on an Apple GPU (Metal, single precision),
+an NVIDIA GPU (CUDA, single or double precision) or, without one, the CPU
+(double precision). The samples use the same rows as in the browser, so the
+draws are the browser engine's up to rounding (exactly, in double precision).
+
+Install torch into the helper's own Python environment, then restart the helper:
+
+```bash
+./pls-studio-helper setup-gpu                     # ~/.pls-studio-helper/gpu/venv
+./pls-studio-helper setup-gpu --index-url https://download.pytorch.org/whl/cu126   # Linux + CUDA 12
+```
+
+Needs Python 3.10 or later on PATH (`--python <path>` to choose one). The
+config keys `gpu_python` (another Python with torch) and `gpu_device`
+(`cuda`, `mps` or `cpu`; empty = automatic) override the defaults.
+
+In PLS Studio: **Inspector → Calculated by → Built-in**, then **R runs in →
+GPU bootstrap → On** and the precision (Auto: the accelerator's own; Double is
+not available on Apple GPUs). Models with interaction terms, copulas, sampling
+weights or ordinal indicators keep bootstrapping in the browser; the message
+says why. The results name the engine, device and precision.
+
+The GPU worker is a separate process started by the helper (`python -I
+worker.py`), one request at a time, JSON lines over its standard streams; it
+is replaced when it stops. `/gpu/bootstrap` runs through the same Host pin,
+origin allow list and bearer token as the R endpoints.

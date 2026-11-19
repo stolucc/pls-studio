@@ -8,12 +8,21 @@ import {
 } from './engine/bootstrap';
 import type { CbEstimator, CbResult } from './engine/cbsem';
 import type { McDesign, McPart, McSummaryRow } from './engine/montecarlo';
-import type { PlsOptions } from './engine/types';
+import type { BootstrapResult, PlsOptions } from './engine/types';
 import { toSpec, validateModel } from './model/project';
 import { bootOptionsOf, plsOptionsOf } from './runOptions';
 import { processGraph } from './process/fromModel';
 import { indirectPaths as processPlanPaths } from './process/plan';
 import { processInput } from './process/input';
+import { useCompute } from './rengine/compute';
+import {
+  ableAccelerators,
+  gpuBootstrap,
+  gpuEngineTag,
+  gpuPlan,
+  gpuUnavailable,
+} from './rengine/gpu';
+import { GpuError, useHelper } from './rengine/helper';
 import { beginRJob, cancelRJob, endRJob, newRJob, type RJob } from './rengine/jobs';
 import { resultsKey, useStore, type JobKind } from './store';
 import type { WorkerRequest, WorkerResponse } from './worker';
@@ -481,88 +490,166 @@ export function run(kind: JobKind) {
     );
     return;
   }
-  // Bootstrap and fit test: split the samples across a pool of workers.
   let job: BootJobKind = cb ? 'cb' : 'pls';
   if (kind === 'fittest') job = 'fittest';
   const total = Math.max(2, Math.floor(s.settings.bootSamples));
-  const ranges = splitRanges(total, workerCount());
-  const done = new Array<number>(ranges.length).fill(0);
-  const parts: RangePart[] = [];
-  s.setJob({ kind, done: 0, total, workers: ranges.length });
 
-  ranges.forEach(([start, end], i) => {
-    const w = spawn();
-    w.onmessage = (e: MessageEvent<WorkerResponse>) => {
-      // (a message from a worker already terminated, by cancelJob or a failed part, is stale)
-      if (!pool.includes(w)) return;
-      const msg = e.data;
-      if (msg.kind === 'progress') {
-        done[i] = msg.done;
-        useStore
-          .getState()
-          .setJob({ kind, done: done.reduce((a, b) => a + b, 0), total, workers: ranges.length });
-        return;
-      }
-      if (msg.kind === 'error') {
-        fail(msg.message);
-        return;
-      }
-      if (msg.kind !== 'range') return;
-      parts.push(msg.part);
-      if (parts.length < ranges.length) return;
-      terminateAll();
-      const st = useStore.getState();
-      st.setJob(null);
-      try {
-        if (kind === 'fittest') {
-          const result = mergeFitTest(parts);
-          st.setResults({ fitTest: result }, key);
-          logged();
-          st.toast(
-            'success',
-            `Fit test finished: ${result.samples} bootstrap samples on ${ranges.length} core${ranges.length > 1 ? 's' : ''}.`,
-          );
-          if (!useStore.getState().results?.pls) run('estimate');
-        } else {
-          const result = mergeBootstrap(parts, s.settings.confidence, {
-            tails: s.settings.bootTails === 'one' ? 1 : 2,
-          });
-          st.setResults({ boot: { ...result, seed: s.settings.seed } }, key);
-          logged();
-          const failed = result.failed ? ` (${result.failed} samples failed and were skipped)` : '';
-          st.toast(
-            'success',
-            `Bootstrapping finished: ${result.samples} samples on ${ranges.length} core${ranges.length > 1 ? 's' : ''}${failed}.`,
-          );
-          const r = useStore.getState().results;
-          if (!(cb ? r?.cb : r?.pls)) run('estimate');
-        }
-      } catch (err) {
-        st.toast('error', err instanceof Error ? err.message : String(err));
-      }
-    };
-    w.onerror = (e) => fail(`Calculation failed: ${e.message}`);
-    const req: WorkerRequest = {
-      kind: 'range',
-      // BCa: the first worker also runs the jackknife (the fit test has no intervals).
-      range: {
-        job,
+  /** The finished bootstrap: shown, logged, and the estimate run when none is there yet. */
+  const finishBootstrap = (
+    parts: RangePart[],
+    engine: BootstrapResult['engine'],
+    where: string,
+  ) => {
+    const st = useStore.getState();
+    st.setJob(null);
+    try {
+      const result = mergeBootstrap(parts, s.settings.confidence, {
+        tails: s.settings.bootTails === 'one' ? 1 : 2,
+      });
+      st.setResults(
+        { boot: { ...result, seed: s.settings.seed, ...(engine ? { engine } : {}) } },
+        key,
+      );
+      logged();
+      const failed = result.failed ? ` (${result.failed} samples failed and were skipped)` : '';
+      st.toast('success', `Bootstrapping finished: ${result.samples} samples ${where}${failed}.`);
+      const r = useStore.getState().results;
+      if (!(cb ? r?.cb : r?.pls)) run('estimate');
+    } catch (err) {
+      st.toast('error', err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  // The GPU engine (rengine/gpu.ts): a PLS bootstrap on the helper's accelerators when chosen and possible;
+  // otherwise, and when the worker refuses the request, in this browser's workers (with the reason).
+  const compute = useCompute.getState();
+  if (compute.gpu && job === 'pls') {
+    const helper = useHelper.getState();
+    const reason = gpuUnavailable(spec, s.settings, kind, helper, compute.gpuPrecision);
+    if (reason) s.toast('info', `Bootstrapping in the browser, not on the GPU: ${reason}.`);
+    else {
+      const able = ableAccelerators(helper.info?.gpu, compute.gpuPrecision);
+      const plan = gpuPlan(
         data,
         spec,
         options,
-        estimator: s.settings.estimator as CbEstimator,
-        seed: s.settings.seed,
-        start,
-        end,
-        ...(studentized ? { innerSamples: STUDENTIZED_INNER } : {}),
-        ...(s.settings.bootInadmissible === 'keep' ? { keepInadmissible: true } : {}),
-        ...(i === 0 && job !== 'fittest' && s.settings.bootInterval === 'bca'
-          ? { jackknife: true }
-          : {}),
-      },
-    };
-    w.postMessage(req);
-  });
+        {
+          samples: total,
+          seed: s.settings.seed,
+          interval: s.settings.bootInterval,
+          inadmissible: s.settings.bootInadmissible,
+        },
+        able.length,
+        compute.gpuPrecision,
+      );
+      const token = ++rToken;
+      s.setJob({ kind, done: 0, total, workers: plan.ranges.length });
+      gpuBootstrap(plan, (finished, n) => {
+        if (token === rToken)
+          useStore
+            .getState()
+            .setJob({ kind, done: Math.round((total * finished) / n), total, workers: n });
+      }).then(
+        ({ parts, precision }) => {
+          if (token !== rToken) return;
+          const tag = gpuEngineTag(able[0], precision);
+          finishBootstrap(parts, tag, `on ${tag.package} ${tag.version}`);
+        },
+        (err: unknown) => {
+          if (token !== rToken) return;
+          if (err instanceof GpuError) {
+            useStore
+              .getState()
+              .toast(
+                'info',
+                `The GPU worker could not run this bootstrap (${err.message}); bootstrapping in the browser.`,
+              );
+            bootstrapInBrowser();
+            return;
+          }
+          fail(err instanceof Error ? err.message : String(err));
+        },
+      );
+      return;
+    }
+  }
+
+  bootstrapInBrowser();
+
+  // Bootstrap and fit test: split the samples across a pool of workers.
+  function bootstrapInBrowser() {
+    const ranges = splitRanges(total, workerCount());
+    const done = new Array<number>(ranges.length).fill(0);
+    const parts: RangePart[] = [];
+    s.setJob({ kind, done: 0, total, workers: ranges.length });
+
+    ranges.forEach(([start, end], i) => {
+      const w = spawn();
+      w.onmessage = (e: MessageEvent<WorkerResponse>) => {
+        // (a message from a worker already terminated, by cancelJob or a failed part, is stale)
+        if (!pool.includes(w)) return;
+        const msg = e.data;
+        if (msg.kind === 'progress') {
+          done[i] = msg.done;
+          useStore
+            .getState()
+            .setJob({ kind, done: done.reduce((a, b) => a + b, 0), total, workers: ranges.length });
+          return;
+        }
+        if (msg.kind === 'error') {
+          fail(msg.message);
+          return;
+        }
+        if (msg.kind !== 'range') return;
+        parts.push(msg.part);
+        if (parts.length < ranges.length) return;
+        terminateAll();
+        const st = useStore.getState();
+        st.setJob(null);
+        try {
+          if (kind === 'fittest') {
+            const result = mergeFitTest(parts);
+            st.setResults({ fitTest: result }, key);
+            logged();
+            st.toast(
+              'success',
+              `Fit test finished: ${result.samples} bootstrap samples on ${ranges.length} core${ranges.length > 1 ? 's' : ''}.`,
+            );
+            if (!useStore.getState().results?.pls) run('estimate');
+          } else {
+            finishBootstrap(
+              parts,
+              undefined,
+              `on ${ranges.length} core${ranges.length > 1 ? 's' : ''}`,
+            );
+          }
+        } catch (err) {
+          st.toast('error', err instanceof Error ? err.message : String(err));
+        }
+      };
+      w.onerror = (e) => fail(`Calculation failed: ${e.message}`);
+      const req: WorkerRequest = {
+        kind: 'range',
+        // BCa: the first worker also runs the jackknife (the fit test has no intervals).
+        range: {
+          job,
+          data,
+          spec,
+          options,
+          estimator: s.settings.estimator as CbEstimator,
+          seed: s.settings.seed,
+          start,
+          end,
+          ...(studentized ? { innerSamples: STUDENTIZED_INNER } : {}),
+          ...(s.settings.bootInadmissible === 'keep' ? { keepInadmissible: true } : {}),
+          ...(i === 0 && job !== 'fittest' && s.settings.bootInterval === 'bca'
+            ? { jackknife: true }
+            : {}),
+        },
+      };
+      w.postMessage(req);
+    });
+  }
 }
 
 // ---------- Monte Carlo simulation ----------

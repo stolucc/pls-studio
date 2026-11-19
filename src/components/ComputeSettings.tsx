@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { MAX_WORKERS, useCompute } from '../rengine/compute';
+import { MAX_WORKERS, useCompute, type GpuPrecision } from '../rengine/compute';
+import { ableAccelerators } from '../rengine/gpu';
 import {
   browserPlatform,
   HELPER_RELEASES,
@@ -7,6 +8,8 @@ import {
   helperDownloads,
   useHelper,
   type HelperUpdate,
+  type GpuStatus,
+  type HelperState,
 } from '../rengine/helper';
 
 /** Choices of the parallel option: off, and up to the computer's cores (at most MAX_WORKERS). */
@@ -281,6 +284,108 @@ function ParallelDesktop() {
   );
 }
 
+/** What the GPU bootstrap setting shows under its buttons: the accelerators, or what is missing. */
+export function gpuHint(
+  state: HelperState,
+  status: GpuStatus | undefined,
+  precision: GpuPrecision,
+): string {
+  if (state !== 'ready')
+    return 'Connect the helper first (Desktop R above): the GPU worker runs through it. Bootstraps run in the browser until then.';
+  if (!status) return 'This helper has no GPU worker: install the current helper.';
+  if (status.starting) return 'The GPU worker is starting…';
+  if (status.accelerators.length === 0)
+    return `${status.error ?? 'The helper has no GPU worker'}. Set it up with pls-studio-helper setup-gpu (installs torch), then restart the helper.`;
+  const list = status.accelerators
+    .map(
+      (a) =>
+        `${a.name} (${a.device}, ${a.precisions.map((p) => (p === 'float64' ? 'double' : 'single')).join(' and ')} precision)`,
+    )
+    .join('; ');
+  const able = ableAccelerators(status, precision);
+  const lack =
+    able.length === 0
+      ? ` No accelerator computes in ${precision} precision (an Apple GPU has no double): choose Auto or Single, or the bootstrap runs in the browser.`
+      : '';
+  return (
+    `${list}.${lack} Single precision agrees with the browser engine to about 1e-5, double exactly. ` +
+    'PLS and PLSc bootstraps of models without interaction terms, copulas, sampling weights or ordinal indicators; others run in the browser.'
+  );
+}
+
+const PRECISION_LABEL: Record<GpuPrecision, string> = {
+  auto: 'Auto',
+  single: 'Single',
+  double: 'Double',
+};
+
+/** Bootstrapping with the built-in engine on an accelerator through the helper (rengine/gpu.ts): a preference of this browser. */
+function GpuSettings() {
+  const gpu = useCompute((s) => s.gpu);
+  const precision = useCompute((s) => s.gpuPrecision);
+  const state = useHelper((s) => s.state);
+  const status = useHelper((s) => s.info?.gpu);
+  useEffect(() => {
+    if (gpu) void import('../rengine/bridge').then(({ checkHelper }) => checkHelper(false));
+  }, [gpu]);
+  return (
+    <div className="field" style={{ marginTop: 10 }}>
+      <label id="gpu-bootstrap">GPU bootstrap (built-in engine, through the helper)</label>
+      <div className="segmented" role="radiogroup" aria-labelledby="gpu-bootstrap">
+        {([false, true] as const).map((on) => (
+          <button
+            key={String(on)}
+            role="radio"
+            aria-checked={gpu === on}
+            className={gpu === on ? 'on' : ''}
+            onClick={() => useCompute.getState().set({ gpu: on })}
+            title={
+              on
+                ? 'Bootstrap samples are estimated all at once on the GPU (torch) by the helper’s worker; the browser prepares the data and reads the draws.'
+                : 'Bootstraps run in this browser’s workers.'
+            }
+          >
+            {on ? 'On' : 'Off'}
+          </button>
+        ))}
+      </div>
+      {gpu && (
+        <>
+          <div
+            className="segmented"
+            role="radiogroup"
+            aria-label="GPU precision"
+            style={{ marginTop: 8 }}
+          >
+            {(Object.keys(PRECISION_LABEL) as GpuPrecision[]).map((p) => (
+              <button
+                key={p}
+                role="radio"
+                aria-checked={precision === p}
+                className={precision === p ? 'on' : ''}
+                onClick={() => useCompute.getState().set({ gpuPrecision: p })}
+              >
+                {PRECISION_LABEL[p]}
+              </button>
+            ))}
+          </div>
+          <div className="hint" style={{ marginTop: 6 }}>
+            {gpuHint(state, status, precision)}{' '}
+            <button
+              className="btn sm ghost"
+              onClick={() =>
+                void import('../rengine/bridge').then(({ checkHelper }) => checkHelper(true))
+              }
+            >
+              Check again
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Where R runs (browser or desktop helper) and parallel R sessions: preferences of this browser. */
 export function ComputeSettings() {
   const workers = useCompute((s) => s.workers);
@@ -360,6 +465,7 @@ export function ComputeSettings() {
           )}
         </div>
       </div>
+      <GpuSettings />
     </>
   );
 }

@@ -753,3 +753,49 @@ describe('cancelling a job in the helper', () => {
     expect(await pb).toBe('other');
   });
 });
+
+describe('GPU worker status and calls', () => {
+  it('reads the helper’s gpu entry defensively', async () => {
+    const { gpuStatusOf } = await import('./helper');
+    expect(gpuStatusOf(undefined)).toEqual({ accelerators: [] });
+    expect(gpuStatusOf({ accelerators: 'no', error: 5 })).toEqual({ accelerators: [], error: '5' });
+    expect(
+      gpuStatusOf({
+        accelerators: [
+          { where: 'local', device: 'mps', name: 'Apple', torch: 1, precisions: ['float32'] },
+        ],
+        starting: false,
+      }),
+    ).toEqual({
+      accelerators: [
+        { where: 'local', device: 'mps', name: 'Apple', torch: '1', precisions: ['float32'] },
+      ],
+    });
+  });
+  it('posts a range to /gpu/bootstrap and turns the worker’s refusal into GpuError', async () => {
+    const calls: { url: string; body: string }[] = [];
+    let reply: unknown = { id: 'x', ok: true, result: { start: 0, params: [], draws: [] } };
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+      calls.push({ url, body: String(init.body) });
+      return new Response(JSON.stringify(reply), { status: 200 });
+    });
+    try {
+      const h = await import('./helper');
+      const result = await h.helperGpuBootstrap({ start: 0, end: 5 });
+      expect(result).toEqual({ start: 0, params: [], draws: [] });
+      expect(calls[0].url).toMatch(/\/gpu\/bootstrap$/);
+      expect(JSON.parse(calls[0].body)).toMatchObject({ req: { start: 0, end: 5 } });
+      reply = {
+        id: 'x',
+        ok: false,
+        kind: 'gpu_error',
+        message: 'no accelerator computes in double precision',
+      };
+      await expect(h.helperGpuBootstrap({})).rejects.toBeInstanceOf(h.GpuError);
+      reply = { id: 'x', ok: false, kind: 'cancelled', message: 'Cancelled.' };
+      await expect(h.helperGpuBootstrap({})).rejects.toThrow('Cancelled.');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

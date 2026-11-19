@@ -65,6 +65,9 @@ func main() {
 		case "setup":
 			runSetup(logger)
 			return
+		case "setup-gpu":
+			runSetupGPU(logger, os.Args[2:])
+			return
 		case "info":
 			runInfo(logger)
 			return
@@ -116,6 +119,8 @@ func main() {
 		logger.Printf("%s, %d R workers", rv, n)
 	}
 	srv := newServer(cfg, logger, pool)
+	srv.gpu = newAccelPool(cfg, logger)
+	defer srv.gpu.close()
 	tray := !*noTrayFlag && trayDefault()
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -185,6 +190,9 @@ Usage:
   pls-studio-helper pair                  print a one-time 6-digit pairing code
   pls-studio-helper setup                 install the R packages PLS Studio uses
                                           (into ~/.pls-studio-helper/library)
+  pls-studio-helper setup-gpu [--index-url <url>] [--python <path>]
+                                          install torch for GPU bootstrapping
+                                          (into ~/.pls-studio-helper/gpu/venv)
   pls-studio-helper rotate                rotate the bearer token
   pls-studio-helper allow-origin <url>    trust a PLS Studio deployment
   pls-studio-helper deny-origin <url>     remove an origin from the trust list

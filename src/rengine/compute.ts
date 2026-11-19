@@ -5,11 +5,16 @@
 import { create } from 'zustand';
 
 export type Backend = 'browser' | 'helper';
+/** The floating-point precision a GPU bootstrap asks for: the accelerator's own, single (float32) or double (float64). */
+export type GpuPrecision = 'auto' | 'single' | 'double';
 interface Compute {
   backend: Backend;
   /** R sessions for parallel work; 1 = off (one run of the package, its exact results). */
   workers: number;
-  set: (p: Partial<Pick<Compute, 'backend' | 'workers'>>) => void;
+  /** Bootstrap with the built-in engine on an accelerator through the helper (rengine/gpu.ts). */
+  gpu: boolean;
+  gpuPrecision: GpuPrecision;
+  set: (p: Partial<Pick<Compute, 'backend' | 'workers' | 'gpu' | 'gpuPrecision'>>) => void;
 }
 
 const KEY = 'pls-studio.compute';
@@ -17,26 +22,38 @@ export const MAX_WORKERS = 8;
 export const clampWorkers = (n: number) =>
   Math.max(1, Math.min(MAX_WORKERS, Math.round(Number.isFinite(n) ? n : 1)));
 
-function load(): Pick<Compute, 'backend' | 'workers'> {
+const PRECISIONS: GpuPrecision[] = ['auto', 'single', 'double'];
+export const clampPrecision = (p: unknown): GpuPrecision =>
+  PRECISIONS.includes(p as GpuPrecision) ? (p as GpuPrecision) : 'auto';
+
+type Stored = Pick<Compute, 'backend' | 'workers' | 'gpu' | 'gpuPrecision'>;
+function load(): Stored {
   try {
     const raw = JSON.parse(globalThis.localStorage?.getItem(KEY) ?? '{}') as Partial<Compute>;
     return {
       backend: raw.backend === 'helper' ? 'helper' : 'browser',
       workers: clampWorkers(raw.workers ?? 1),
+      gpu: raw.gpu === true,
+      gpuPrecision: clampPrecision(raw.gpuPrecision),
     };
   } catch {
-    return { backend: 'browser', workers: 1 };
+    return { backend: 'browser', workers: 1, gpu: false, gpuPrecision: 'auto' };
   }
 }
 
 export const useCompute = create<Compute>((set, get) => ({
   ...load(),
   set: (p) => {
-    set({ ...p, ...(p.workers !== undefined ? { workers: clampWorkers(p.workers) } : {}) });
+    set({
+      ...p,
+      ...(p.workers !== undefined ? { workers: clampWorkers(p.workers) } : {}),
+      ...(p.gpuPrecision !== undefined ? { gpuPrecision: clampPrecision(p.gpuPrecision) } : {}),
+    });
     try {
+      const { backend, workers, gpu, gpuPrecision } = get();
       globalThis.localStorage?.setItem(
         KEY,
-        JSON.stringify({ backend: get().backend, workers: get().workers }),
+        JSON.stringify({ backend, workers, gpu, gpuPrecision }),
       );
     } catch {
       /* private mode: not remembered */
