@@ -111,6 +111,9 @@ describe('bootstrap options', () => {
     // none: cSEM takes |ρA| there, the built-in engine does not); dropped by default, most of them (24 left).
     expect(finite(kept.draws[0])).toBeGreaterThan(2 * finite(dropped.draws[0]));
     expect(finite(dropped.draws[0])).toBeGreaterThan(0);
+    // An admissible draw is the same resample either way: the same estimate, kept or not.
+    const i = dropped.draws[0].findIndex(Number.isFinite);
+    expect(kept.draws[0][i]).toBeCloseTo(dropped.draws[0][i], 12);
   });
 
   it('inadmissible draws: the choice survives a project file; anything else reads as drop', () => {
