@@ -28,7 +28,7 @@ import {
   predictAnalysis,
 } from './plsAssessment';
 import { fimixAnalysis, pathmoxAnalysis, posAnalysis, rebusAnalysis } from './segmentation';
-import { mcAnalysis } from './simulation';
+import { mcPlanAnalysis } from './samplePlan';
 import { bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis } from './cbModel';
 import { specSearchAnalysis } from './specSearch';
 import { equivalentAnalysis } from './equivalent';
@@ -142,7 +142,7 @@ export const ANALYSIS_TYPES: AnalysisType[] = [
   pathmoxAnalysis,
   fimixAnalysis,
   posAnalysis,
-  mcAnalysis,
+  mcPlanAnalysis,
   rsaAnalysis,
   psemAnalysis,
   matchAnalysis,

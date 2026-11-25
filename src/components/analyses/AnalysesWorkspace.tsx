@@ -313,7 +313,10 @@ function AddMenu({ disabled }: { disabled: boolean }) {
                     role="menuitem"
                     className="menu-item"
                     onClick={() =>
-                      pick(() => addAnalysis(t.id, e.options?.(t.defaults(currentCtx()))))
+                      pick(() => {
+                        const ctx = currentCtx();
+                        return addAnalysis(t.id, e.options?.(t.defaults(ctx), ctx));
+                      })
                     }
                   >
                     <span>

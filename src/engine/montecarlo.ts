@@ -113,6 +113,21 @@ export interface McDesign {
    * CB-SEM by a 1-df χ² difference test of a lavaan multigroup model (R engine only).
    */
   groups?: McGroups;
+  /** A sample-size plan (the guided flow, samplePlan.ts): its focal hypotheses also give a joint-power row. */
+  plan?: McPlan;
+}
+
+/**
+ * A sample-size plan: the hypotheses that must come out significant (parameter keys), the power wanted, and how
+ * the sample sizes are chosen ('auto': a coarse grid from minN to maxN, then a finer one where power crosses the
+ * target; 'fixed': design.sampleSizes as given).
+ */
+export interface McPlan {
+  focal: string[];
+  target: number;
+  search: 'auto' | 'fixed';
+  minN: number;
+  maxN: number;
 }
 
 export interface McGroups {
@@ -194,8 +209,18 @@ export interface McParam {
    * GoF; value: the population's; the rejection rate is the share failing the rule's cutoff.
    * 'difference': with two groups, a path's value in the second group minus the first's; the rejection rate is
    * the share of samples in which the test finds the groups differ.
+   * 'joint': with a sample-size plan, all its focal hypotheses at once (key 'joint', value 1); the rejection rate is
+   * the share of replications in which every focal effect is significant (joint power).
    */
-  kind: 'path' | 'indirect' | 'covariance' | 'fit' | 'reliability' | 'validity' | 'difference';
+  kind:
+    | 'path'
+    | 'indirect'
+    | 'covariance'
+    | 'fit'
+    | 'reliability'
+    | 'validity'
+    | 'difference'
+    | 'joint';
   from: string;
   to: string;
   /** True standardised value. */
@@ -1005,9 +1030,71 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
             : {}),
         });
       });
+      const joint = jointRow(design, params, ps, ei);
+      if (joint) rows.push({ ...joint, estimator: e.id, n });
     });
   }
   return rows;
+}
+
+/** The joint-power parameter of a plan's focal hypotheses. */
+export const JOINT_PARAM: McParam = {
+  key: 'joint',
+  kind: 'joint',
+  from: 'all focal hypotheses',
+  to: '',
+  value: 1,
+};
+
+/**
+ * Joint power of a plan's focal hypotheses for one estimator at one sample size: the share of replications in
+ * which every focal effect is significant with the population's sign (replications where any focal test is missing are left out, as each
+ * parameter's rejection rate leaves them out). Null without a plan or focal parameters.
+ */
+function jointRow(
+  design: McDesign,
+  params: McParam[],
+  parts: McPart[],
+  ei: number,
+): Omit<McSummaryRow, 'estimator' | 'n'> | null {
+  const focal = (design.plan?.focal ?? [])
+    .map((k) => params.findIndex((p) => p.key === k))
+    .filter((i) => i >= 0);
+  if (!focal.length) return null;
+  let all = 0,
+    counted = 0,
+    total = 0;
+  for (const part of parts) {
+    const len = part.est[ei][focal[0]].length;
+    for (let k = 0; k < len; k++) {
+      total++;
+      let ok = true,
+        missing = false;
+      for (const pi of focal) {
+        const sg = part.sig[ei][pi][k];
+        if (!Number.isFinite(sg)) missing = true;
+        // (significant in the hypothesised direction: a wrong-signed rejection does not support it)
+        else if (sg !== 1 || part.est[ei][pi][k] * params[pi].value <= 0) ok = false;
+      }
+      if (missing) continue;
+      counted++;
+      if (ok) all++;
+    }
+  }
+  return {
+    param: JOINT_PARAM,
+    reps: counted,
+    failed: total - counted,
+    improper: 0,
+    mean: NaN,
+    bias: NaN,
+    relBias: null,
+    sd: NaN,
+    rmse: NaN,
+    coverage: null,
+    width: null,
+    rejection: counted ? all / counted : null,
+  };
 }
 
 /** Tasks: every sample size split into `chunks` replication ranges. */

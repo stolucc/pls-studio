@@ -4,7 +4,7 @@ import type { McDesign, McEstimator } from '../engine/montecarlo';
 import type { PopulationSpec } from '../engine/population';
 import type { CbResult } from '../engine/cbsem';
 import type { PlsResult } from '../engine/types';
-import type { ModelState } from './project';
+import { impliedMainEffects, type ModelState } from './project';
 
 export const ESTIMATOR_CHOICES: McEstimator[] = [
   // PLS with each construct in its model mode (factors mode A, composites mode B), path weighting.
@@ -56,7 +56,10 @@ export function populationFromModel(
     });
     return { ...base, weights, withinCor: 0.5 };
   });
-  const paths = model.paths.map((p) => {
+  // The full structural model: the drawn paths and the moderators' main effects the diagram leaves implicit
+  // (estimated either way: modelSpec adds them too).
+  const structural = [...model.paths, ...impliedMainEffects(model)];
+  const paths = structural.map((p) => {
     const f = name.get(p.from)!,
       t = name.get(p.to)!;
     let value = 0.3;
@@ -72,7 +75,7 @@ export function populationFromModel(
     return { from: f, to: t, value: round(value) };
   });
   const exo = model.constructs
-    .filter((c) => !model.paths.some((p) => p.to === c.id))
+    .filter((c) => !structural.some((p) => p.to === c.id))
     .map((c) => c.name);
   const exoCor: PopulationSpec['exoCor'] = [];
   for (let a = 0; a < exo.length; a++)
@@ -252,6 +255,17 @@ export function parseDesign(raw: unknown): McDesign | null {
             mechanism: raw.missing.mechanism === 'MAR' ? 'MAR' : 'MCAR',
             pls: raw.missing.pls === 'casewise' ? 'casewise' : 'mean',
             cb: raw.missing.cb === 'fiml' ? 'fiml' : 'casewise',
+          },
+        }
+      : {}),
+    ...(isObj(raw.plan) && Array.isArray(raw.plan.focal)
+      ? {
+          plan: {
+            focal: raw.plan.focal.slice(0, 1000).map(str).filter(Boolean),
+            target: clampStrict(raw.plan.target, 0.5, 0.99, 0.8),
+            search: raw.plan.search === 'fixed' ? ('fixed' as const) : ('auto' as const),
+            minN: Math.round(clampStrict(raw.plan.minN, 10, 100000, 50)),
+            maxN: Math.round(clampStrict(raw.plan.maxN, 20, 100000, 1000)),
           },
         }
       : {}),

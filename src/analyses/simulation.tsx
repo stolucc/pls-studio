@@ -43,7 +43,7 @@ import { legendHeight, SvgLegend, type LegendItem } from '../figure/legend';
 import { PlotPanel } from '../figure/panel';
 
 /** Number input that keeps the typed text until blur (so "-0." can be typed). */
-function Num({
+export function Num({
   value,
   onChange,
   step = 0.05,
@@ -100,6 +100,7 @@ const fitIndexOf = (p: McParam) => MC_FIT_INDICES.find((f) => `fit:${f.id}` === 
 
 /** A parameter in the menu, with its true value. */
 function paramOption(p: McParam): string {
+  if (p.kind === 'joint') return 'All focal hypotheses jointly';
   if (p.kind === 'fit')
     return `${paramTitle(p)} (CB-SEM, ${p.value ? 'misspecified' : 'correct'} model)`;
   if (p.kind === 'covariance') return `${p.from} ↔ ${p.to} (correlation, true ${fmt(p.value)})`;
@@ -111,6 +112,7 @@ function paramOption(p: McParam): string {
 
 /** A parameter as the title of its table. */
 function paramTitle(p: McParam): string {
+  if (p.kind === 'joint') return 'All focal hypotheses jointly';
   if (p.kind === 'fit') {
     const index = fitIndexOf(p);
     return index ? `${index.label}, poor fit if ${poorFitRule(index)}` : 'Model χ² test';
@@ -125,7 +127,7 @@ function paramTitle(p: McParam): string {
   return `${p.from} → ${p.to}${p.kind === 'indirect' ? ' (indirect)' : ''}`;
 }
 
-function PowerChart({
+export function PowerChart({
   rows,
   paramKey,
   estimators,
@@ -308,7 +310,7 @@ function PowerChart({
  * Two groups (Qureshi & Compeau 2009): a second group with its own path values and the same measurement; every
  * estimator tests each path's difference between the groups (R engine).
  */
-function GroupsBlock({ design, set }: { design: McDesign; set: (d: McDesign) => void }) {
+export function GroupsBlock({ design, set }: { design: McDesign; set: (d: McDesign) => void }) {
   const pop = design.population;
   if (!pop.paths.length) return null;
   const groups = design.groups;
@@ -374,7 +376,7 @@ function GroupsBlock({ design, set }: { design: McDesign; set: (d: McDesign) => 
  * Latent interactions (Chin et al. 2003): the centred product of two exogenous common factors acting on another
  * construct. Estimated by PLS with product indicators and by regression on sum scores (R engine).
  */
-function InteractionBlock({
+export function InteractionBlock({
   pop,
   setPop,
 }: {
@@ -792,7 +794,7 @@ function InferenceFields({
 const NO_MISSING: McMissing = { rate: 0, mechanism: 'MCAR', pls: 'mean', cb: 'casewise' };
 
 /** Missing values in every replication, and how PLS and CB-SEM treat them. */
-function MissingFields({ design, set }: { design: McDesign; set: (p: Partial<McDesign>) => void }) {
+export function MissingFields({ design, set }: { design: McDesign; set: (p: Partial<McDesign>) => void }) {
   const m = design.missing ?? NO_MISSING;
   const change = (patch: Partial<McMissing>) => set({ missing: { ...m, ...patch } });
   return (
@@ -853,7 +855,7 @@ function MissingFields({ design, set }: { design: McDesign; set: (p: Partial<McD
   );
 }
 
-function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: OptionsProps<McDesign>) {
+export function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: OptionsProps<McDesign>) {
   const model = ctx.model ?? emptyModel();
   const method = ctx.settings.method;
   const engine = ctx.settings.engine;
@@ -1603,7 +1605,9 @@ function DistributionChart({
   );
 }
 
-function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
+export function McView({ rows: all, design }: { rows: McSummaryRow[]; design: McDesign }) {
+  // (a plan's joint power is shown by its own view, samplePlan.tsx)
+  const rows = all.filter((r) => r.param.kind !== 'joint');
   const [paramKey, setParamKey] = useState('');
   const [metric, setMetric] = useState<'rejection' | 'relBias' | 'coverage'>('rejection');
   const params = [...new Map(rows.map((r) => [r.param.key, r.param])).values()];

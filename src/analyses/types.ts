@@ -80,7 +80,7 @@ export interface AnalysisType<O = any, R = any> {
   /** One line for the Add menu. */
   sub: string;
   /** Several Add-menu entries for one analysis, each with its starting options (e.g. factor analysis and PCA). */
-  entries?: { title: string; sub: string; options: (defaults: O) => O }[];
+  entries?: { title: string; sub: string; options: (defaults: O, ctx?: AnalysisCtx) => O }[];
   /** The card's title when it depends on the options. */
   cardTitle?: (o: O) => string;
   /** The card offers the built-in engine as well as R: its side panel shows the engine choice above Run. */

@@ -1899,3 +1899,81 @@ slowIt(
   },
   3_600_000,
 );
+(process.env.PS_TMP_IDS ? slowIt : it.skip)(
+  'TMP generic dump',
+  async () => {
+    const { appendFileSync } = await import('node:fs');
+    const out =
+      '/private/tmp/claude-501/-Users-alan/c2d207a5-1832-4375-8c5d-499972dfd77d/scratchpad/generic.log';
+    for (const id of (process.env.PS_TMP_IDS ?? '').split(',')) {
+      const run = await mcCardRun(id, process.env.PS_TMP_BOOT === '1');
+      for (const r of run.rows)
+        appendFileSync(
+          out,
+          [
+            id,
+            r.n,
+            r.estimator,
+            r.param.key,
+            r.param.value.toFixed(3),
+            r.mean.toFixed(3),
+            r.sd.toFixed(3),
+            r.rejection?.toFixed(3),
+            `f${r.failed}`,
+            `i${r.improper}`,
+            `c${r.coverage?.toFixed(3)}`,
+            `s${r.seRatio?.toFixed(3)}`,
+            `t${r.thinBoot?.toFixed(3)}`,
+            `k${r.keptMedian}`,
+          ].join('\t') + '\n',
+        );
+    }
+  },
+  14_400_000,
+);
+
+(process.env.PS_TMP_PATCH ? slowIt : it.skip)(
+  'TMP patched dump',
+  async () => {
+    const { appendFileSync } = await import('node:fs');
+    const out =
+      '/private/tmp/claude-501/-Users-alan/c2d207a5-1832-4375-8c5d-499972dfd77d/scratchpad/patched.log';
+    // PS_TMP_PATCH: a JSON file of [{ tag, id, patch }], patch merged over the card's design
+    const runs = JSON.parse(readFileSync(process.env.PS_TMP_PATCH!, 'utf8')) as {
+      tag: string;
+      id: string;
+      patch: Partial<McDesign>;
+    }[];
+    for (const { tag, id, patch } of runs) {
+      const { options } = await open(id, 'Simulation', ['cSEM', 'lavaan']);
+      const design: McDesign = { ...(options as McDesign), ...patch };
+      const chunks = design.sampleSizes.flatMap((n) =>
+        Array.from({ length: Math.ceil(design.replications / 100) }, (_, c) => ({ n, s: 100 * c })),
+      );
+      const parts: McPart[] = await Promise.all(
+        chunks.map(({ n, s }) => runMcChunkR(design, n, s, Math.min(design.replications, s + 100))),
+      );
+      for (const r of summariseMc(design, parts))
+        appendFileSync(
+          out,
+          [
+            tag,
+            r.n,
+            r.estimator,
+            r.param.key,
+            r.param.value.toFixed(3),
+            r.mean.toFixed(3),
+            r.sd.toFixed(3),
+            r.rejection?.toFixed(3),
+            `f${r.failed}`,
+            `i${r.improper}`,
+            `c${r.coverage?.toFixed(3)}`,
+            `s${r.seRatio?.toFixed(3)}`,
+            `t${r.thinBoot?.toFixed(3)}`,
+            `k${r.keptMedian}`,
+          ].join('\t') + '\n',
+        );
+    }
+  },
+  14_400_000,
+);
