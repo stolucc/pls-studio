@@ -93,9 +93,9 @@ it('filters by author: a row of the authors whose books, manuals and papers the 
       card.querySelector('[aria-label="Authors"]')?.textContent,
       card.textContent?.slice(0, 60),
     ).toContain('Bollen');
-  // Bollen's package examples, plus the built-ins: political democracy, Bollen & Curran's two latent curve models and the seven from his 1989 book.
+  // Bollen's package examples, plus the built-ins: political democracy, Bollen & Curran's two latent curve models and the ten from his 1989 book.
   expect(shown.length).toBe(
-    PACKAGE_EXAMPLES.filter((e) => exampleAuthors(e).includes('Bollen')).length + 10,
+    PACKAGE_EXAMPLES.filter((e) => exampleAuthors(e).includes('Bollen')).length + 13,
   );
   // Clicking the author again shows every example.
   act(() => {

@@ -586,6 +586,9 @@ export type ExampleId =
   | 'bollen-democracy-cfa'
   | 'bollen-democracy-cfa-errors'
   | 'bollen-air'
+  | 'bollen-cause-mimic'
+  | 'bollen-cause-index'
+  | 'bollen-cause-reflective'
   | 'eqs-bagozzi'
   | 'eqs-werts'
   | 'eqs-headstart'
@@ -743,6 +746,21 @@ export const BUILTIN: Record<
     make: () => import('./examples/bollen1989').then((m) => m.makeSesExample),
     toast:
       'Bollen (1989), ch. 4: objective and subjective status of whites (Kluegel et al. 1977), N = 432; subjective income and prestige cause each other, an exactly identified model (R engine, N − 1 as LISREL). Press Calculate.',
+  },
+  'bollen-cause-mimic': {
+    make: () => import('./examples/bollen1989').then((m) => m.makeCauseMimicExample),
+    toast:
+      'Bollen (1989), Figure 9.1a: income and occupational prestige as cause indicators of subjective status, measured by three ratings (Kluegel et al. 1977), N = 432 (R engine, N − 1 as LISREL). Press Calculate.',
+  },
+  'bollen-cause-index': {
+    make: () => import('./examples/bollen1989').then((m) => m.makeCauseIndexExample),
+    toast:
+      'Bollen (1989), Figure 7.6b: objective status as a weighted index of income and prestige (cause indicators with ψ = 0, a composite), affecting subjective status, N = 432 (R engine). Press Calculate.',
+  },
+  'bollen-cause-reflective': {
+    make: () => import('./examples/bollen1989').then((m) => m.makeCauseReflectiveExample),
+    toast:
+      'Bollen (1989), Figure 7.6a: income and prestige as effect indicators of objective status, affecting subjective status: the same fit as the cause-indicator models, N = 432 (R engine). Press Calculate.',
   },
   'bollen-ses-error': {
     make: () => import('./examples/bollen1989').then((m) => m.makeSesErrorExample),

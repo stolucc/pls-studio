@@ -17,6 +17,7 @@ import {
   DEM_S,
   lowerToFull,
   makeAirQualityExample,
+  makeCauseExample,
   makeDemocracyCfaExample,
   makeMoraleExample,
   makeSesErrorExample,
@@ -34,6 +35,9 @@ const every = {
   demUncorrelated: makeDemocracyCfaExample(DEFAULT_SETTINGS, 'uncorrelated'),
   demCorrelated: makeDemocracyCfaExample(DEFAULT_SETTINGS, 'correlated'),
   air: makeAirQualityExample(DEFAULT_SETTINGS),
+  causeMimic: makeCauseExample(DEFAULT_SETTINGS, 'mimic'),
+  causeIndex: makeCauseExample(DEFAULT_SETTINGS, 'index'),
+  causeReflective: makeCauseExample(DEFAULT_SETTINGS, 'reflective'),
 };
 
 describe('Bollen (1989) examples', () => {
@@ -110,6 +114,31 @@ describe('Bollen (1989) examples', () => {
     expect(cb.fit.df).toBe(2);
     // (normal likelihood with N: 16.039 × 57 / 56)
     expect(cb.fit.chisq).toBeCloseTo((16.039 * 57) / 56, 1);
+  });
+});
+
+describe('cause indicators of status (Bollen 1989, Figures 7.6 and 9.1)', () => {
+  it('income and prestige are cause indicators (observed boxes), a composite, or effect indicators', () => {
+    const m = every.causeMimic.model;
+    const subj = m.constructs.find((c) => c.name === 'Subjective status')!;
+    const causes = m.constructs.filter((c) => c.covariate).map((c) => c.name);
+    expect(causes).toEqual(['income', 'prestige']);
+    expect(m.paths.filter((p) => p.to === subj.id)).toHaveLength(2);
+    const obj = (ex: typeof every.causeIndex) =>
+      ex.model.constructs.find((c) => c.name === 'Objective status')!;
+    expect(obj(every.causeIndex)).toMatchObject({
+      type: 'composite',
+      indicators: ['income', 'prestige'],
+    });
+    expect(obj(every.causeReflective)).toMatchObject({ type: 'factor' });
+  });
+  it('the built-in engine gives Bollen’s χ² = 26.6 on 4 df for the MIMIC and the effect-indicator form', () => {
+    for (const ex of [every.causeMimic, every.causeReflective]) {
+      const cb = estimateCb(ex.data, toSpec(ex.model), 'casewise', 'ML');
+      expect(cb.fit.df).toBe(4);
+      // (normal likelihood with N; native lavaan with N − 1: 26.535, the book 26.6)
+      expect(cb.fit.chisq).toBeCloseTo((26.535 * 432) / 431, 2);
+    }
   });
 });
 

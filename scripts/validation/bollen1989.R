@@ -8,13 +8,13 @@ suppressPackageStartupMessages({
   library(lavaan)
   library(jsonlite)
 })
-fit_one <- function(model, S, n, ...) {
+fit_one <- function(model, S, n, ..., fixed.x = FALSE) {
   f <- lavaan::sem(
     model,
     sample.cov = S,
     sample.nobs = n,
     likelihood = "wishart",
-    fixed.x = FALSE,
+    fixed.x = fixed.x,
     auto.cov.y = FALSE,
     ...
   )
@@ -237,6 +237,16 @@ A <- getCov(
 )
 out$air <- fit_one("Air =~ overall + clarity + color + odor", A, 57)
 out$air$book <- list(chisq = 16.0, df = 2)
+# ch. 7, Figure 7.6, and ch. 9, Figure 9.1: income and prestige as cause indicators; one fit for all three
+# forms, chi-square 26.6 on 4 df (p. 312). The MIMIC form's causes are observed covariates (fixed.x, as the app's
+# boxes); the weighted index is objective status with psi11 = 0, a composite (<~).
+subj <- "Subj =~ subjIncome + subjPrestige + subjStatus"
+out$causeMimic <- fit_one(paste(subj, "Subj ~ income + prestige", sep = "\n"), W, 432, fixed.x = TRUE)
+out$causeMimic$book <- list(chisq = 26.6, df = 4)
+out$causeIndex <- fit_one(paste(subj, "Obj <~ income + prestige\nSubj ~ Obj", sep = "\n"), W, 432)
+out$causeIndex$book <- list(chisq = 26.6, df = 4)
+out$causeReflective <- fit_one(paste(subj, "Obj =~ income + prestige\nSubj ~ Obj", sep = "\n"), W, 432)
+out$causeReflective$book <- list(chisq = 26.6, df = 4)
 out$versions <- list(R = R.version.string, lavaan = as.character(packageVersion("lavaan")))
 writeLines(
   toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE),

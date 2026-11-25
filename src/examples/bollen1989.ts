@@ -177,6 +177,46 @@ export function makeSesGroupsExample(settings: Settings): BuiltinExample {
   );
 }
 
+// ---- Cause indicators of status (ch. 7, Figure 7.6, and ch. 9, Figure 9.1; the same matrix of whites, N = 432)
+// Three models with one fit, χ² = 26.6 on 4 df (p. 312): income and prestige as cause indicators of subjective
+// status (the MIMIC model of Figure 9.1a), as cause indicators of objective status with ψ11 = 0, a weighted index
+// (Figure 7.6b), and as effect indicators of objective status (Figure 7.6a).
+export type CauseForm = 'mimic' | 'index' | 'reflective';
+export function makeCauseExample(settings: Settings, form: CauseForm): BuiltinExample {
+  const subj = C('Subjective status', ['subjIncome', 'subjPrestige', 'subjStatus'], {
+    side: 'right',
+  });
+  if (form === 'mimic') {
+    // Cause indicators are observed and free of error (x = ξ, p. 311): boxes with a path into η; ζ stays free.
+    const inc = C('income', ['income'], { covariate: true }),
+      pre = C('prestige', ['prestige'], { covariate: true });
+    return finish(
+      'Cause indicators of subjective status (Kluegel et al. 1977)',
+      { names: SES_NAMES, cols: [], moments: { S: SES_WHITES, n: 432 } },
+      `${BOLLEN}, ch. 9 (Figure 9.1a): covariance matrix of whites`,
+      { constructs: [inc, pre, subj], paths: [P(inc, subj), P(pre, subj)], moderations: [] },
+      settings,
+    );
+  }
+  // ψ11 = 0 makes objective status an exact weighted sum of income and prestige: a composite (lavaan <~).
+  const obj =
+    form === 'index'
+      ? C('Objective status', ['income', 'prestige'], { type: 'composite', mode: 'B' })
+      : C('Objective status', ['income', 'prestige']);
+  return finish(
+    form === 'index'
+      ? 'Objective status as a weighted index (Kluegel et al. 1977)'
+      : 'Objective status with effect indicators (Kluegel et al. 1977)',
+    { names: SES_NAMES, cols: [], moments: { S: SES_WHITES, n: 432 } },
+    `${BOLLEN}, ch. 7 (Figure 7.6${form === 'index' ? 'b' : 'a'}): covariance matrix of whites`,
+    { constructs: [obj, subj], paths: [P(obj, subj)], moderations: [] },
+    settings,
+  );
+}
+export const makeCauseMimicExample = (s: Settings) => makeCauseExample(s, 'mimic');
+export const makeCauseIndexExample = (s: Settings) => makeCauseExample(s, 'index');
+export const makeCauseReflectiveExample = (s: Settings) => makeCauseExample(s, 'reflective');
+
 // ---- Morale and sense of belonging of female and male students, with means (ch. 8)
 // Table 8.7's heading gives N = 47 and 59, the text 49 and 57; the text's Ns reproduce the chi-squares of Table 8.8.
 export const MORALE_NAMES = [

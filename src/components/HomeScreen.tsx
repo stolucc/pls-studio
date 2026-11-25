@@ -599,6 +599,58 @@ export const EXAMPLES = [
       'An exactly identified model, so χ² = 0 and the fit says nothing; read the estimates instead. The reciprocal effects of rated income and rated prestige on each other are 0.29 and 0.25, as Bollen reports.',
   },
   {
+    id: 'bollen-cause-mimic' as const,
+    authors: ['Bollen'] as string[],
+    title: 'Cause indicators of subjective status (Bollen 1989, Fig. 9.1a)',
+    tags: ['CB-SEM', 'Causal indicators', 'MIMIC', 'Covariance input', 'Textbook example'],
+    links: [
+      {
+        label: 'Bollen (1989), Structural Equations with Latent Variables',
+        url: 'https://doi.org/10.1002/9781118619179',
+      },
+    ],
+    body: 'Income and occupational prestige of 432 white respondents (Kluegel et al. 1977) as cause indicators of subjective status, which three ratings reflect: subjective income, prestige and overall status. Bollen’s cause indicators are observed and free of error (x = ξ), drawn as boxes with a path into the latent variable, whose disturbance ζ stays free; the effect indicators identify it (a MIMIC model). χ² = 26.6 on 4 df, the fit Bollen reports for the two forms of Figure 7.6, to which he shows this model is equivalent.',
+    shows:
+      'Income (standardised 0.37) and prestige (0.20) both raise subjective status and explain 22% of it (R² = .22); its disturbance ζ holds the rest. The model does not fit (χ² = 26.6 on 4 df, p < .001; RMSEA .11), as Bollen notes: neither it nor its equivalents matches the data.',
+  },
+  {
+    id: 'bollen-cause-index' as const,
+    authors: ['Bollen'] as string[],
+    title: 'Objective status as a weighted index (Bollen 1989, Fig. 7.6b)',
+    tags: [
+      'CB-SEM',
+      'Causal indicators',
+      'Composites',
+      'Equivalent models',
+      'Covariance input',
+      'Textbook example',
+    ],
+    links: [
+      {
+        label: 'Bollen (1989), Structural Equations with Latent Variables',
+        url: 'https://doi.org/10.1002/9781118619179',
+      },
+    ],
+    body: 'Income and prestige as cause indicators of objective status, which affects subjective status. With no effect indicators of its own, objective status is identified by fixing its disturbance variance at zero, which makes it a weighted index of its causes (a composite, lavaan’s <~), and by scaling it to subjective status. The fit is that of the MIMIC model, χ² = 26.6 on 4 df.',
+    shows:
+      'The same χ² = 26.6 on 4 df as the MIMIC model and the effect-indicator model: Bollen’s point that models with different structures can fit identically, so fit alone cannot settle which is valid.',
+  },
+  {
+    id: 'bollen-cause-reflective' as const,
+    authors: ['Bollen'] as string[],
+    title: 'Objective status with effect indicators (Bollen 1989, Fig. 7.6a)',
+    tags: ['CB-SEM', 'CFA', 'Equivalent models', 'Covariance input', 'Textbook example'],
+    links: [
+      {
+        label: 'Bollen (1989), Structural Equations with Latent Variables',
+        url: 'https://doi.org/10.1002/9781118619179',
+      },
+    ],
+    body: 'The alternative Bollen contrasts with the cause-indicator models: income and prestige as effect indicators of objective status, which affects subjective status. Assuming that income and prestige are determined by objective status is harder to defend, Bollen argues, yet the fit is identical: χ² = 26.6 on 4 df.',
+    shows:
+      'χ² = 26.6 on 4 df, identical to the two cause-indicator forms: the data cannot tell effect from cause indicators here; the choice rests on theory.',
+  },
+  {
     id: 'bollen-ses-error' as const,
     authors: ['Bollen'] as string[],
     title: 'Subjective status with measurement error (Bollen 1989, ch. 5)',

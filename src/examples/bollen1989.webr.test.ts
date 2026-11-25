@@ -12,6 +12,7 @@ import { against, example, near, same } from '../validation/record';
 import { builtinDefinition, nearest } from '../validation/textbook';
 import {
   makeAirQualityExample,
+  makeCauseExample,
   makeDemocracyCfaExample,
   makeMoraleExample,
   makeSesErrorExample,
@@ -45,6 +46,8 @@ const RENAMED: Record<string, string> = {
   SI: 'Subjective income',
   SP: 'Subjective prestige',
   Air: 'Air quality',
+  Subj: 'Subjective status',
+  Obj: 'Objective status',
 };
 const CASES = {
   ses: makeSesExample,
@@ -54,6 +57,9 @@ const CASES = {
   demUncorrelated: (s: typeof DEFAULT_SETTINGS) => makeDemocracyCfaExample(s, 'uncorrelated'),
   demCorrelated: (s: typeof DEFAULT_SETTINGS) => makeDemocracyCfaExample(s, 'correlated'),
   air: makeAirQualityExample,
+  causeMimic: (s: typeof DEFAULT_SETTINGS) => makeCauseExample(s, 'mimic'),
+  causeIndex: (s: typeof DEFAULT_SETTINGS) => makeCauseExample(s, 'index'),
+  causeReflective: (s: typeof DEFAULT_SETTINGS) => makeCauseExample(s, 'reflective'),
 };
 /** Chi-squares the app (as native lavaan) gives on the printed matrices, against the book's: within its rounding of the matrices. */
 /** The examples' ids (src/io.ts). */
@@ -65,8 +71,19 @@ const ID: Record<keyof typeof CASES, string> = {
   demUncorrelated: 'bollen-democracy-cfa',
   demCorrelated: 'bollen-democracy-cfa-errors',
   air: 'bollen-air',
+  causeMimic: 'bollen-cause-mimic',
+  causeIndex: 'bollen-cause-index',
+  causeReflective: 'bollen-cause-reflective',
 };
-const BOOK_TOL: Record<string, number> = { sesGroups: 0.06, morale: 0.07, demCorrelated: 0.2 };
+const BOOK_TOL: Record<string, number> = {
+  sesGroups: 0.06,
+  morale: 0.07,
+  demCorrelated: 0.2,
+  // (the book prints 26.6; lavaan 26.535 on the three-decimal matrix)
+  causeMimic: 0.07,
+  causeIndex: 0.07,
+  causeReflective: 0.07,
+};
 
 it.each(Object.keys(CASES))(
   '%s reproduces native lavaan and the book',
