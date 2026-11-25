@@ -15,8 +15,13 @@ name: ci
 on:
   push:
     branches: ['**']
+    # (a release tag also runs the slow webR tests: webr-all below)
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
+  # Nightly: the whole webR suite, the slow tests included (webr-all below).
+  schedule:
+    - cron: '17 2 * * *'
 
 permissions:
   contents: read
@@ -126,3 +131,36 @@ jobs:
       # converted into .cache/ as the app converts them; the tests read it there.
       - run: npm run data:fetch
       - run: npm run test:webr
+
+  # The slow webR tests too (src/rengine/webrSlow.ts: 4PL IRT with priors, large mixtures, Monte Carlo studies, bootstraps,
+  # three-level models; minutes to most of an hour each): nightly, on release tags and on request. npm run test:webr
+  # above leaves them out; npm run validate:evidence runs them, so the validation record stays complete.
+  webr-all:
+    name: webR, slow tests included (nightly and releases)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Cache the R runtime
+        id: webr-cache
+        uses: actions/cache@v4
+        with:
+          path: public/webr
+          key: webr-${{ hashFiles('scripts/webr/webr-lock.json', 'scripts/webr/vendor/**') }}-no-sources
+      - name: Fetch the R runtime
+        if: steps.webr-cache.outputs.cache-hit != 'true'
+        run: node scripts/webr/fetch.mjs --no-sources
+      - name: Cache the example data
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: example-data-${{ hashFiles('scripts/validation/fetch_example_data.mjs', 'src/examples/remote/convert.ts', 'src/examples/remote/source.ts', 'src/examples/**/*.ts') }}
+          restore-keys: example-data-
+      - run: npm run data:fetch
+      - run: npm run test:webr:all
