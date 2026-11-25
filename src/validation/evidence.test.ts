@@ -30,7 +30,8 @@ const lock = JSON.parse(readFileSync(join(root, 'scripts', 'webr', 'webr-lock.js
 };
 const exampleCheck = (id: string) =>
   evidence.checks.find((c) => c.subject === 'example' && c.id === id);
-const STALE = 'changed since its evidence was recorded: npm run validate:evidence';
+const STALE =
+  'changed since its evidence was recorded: npm run validate:evidence:files -- <its webR test file> (or validate:evidence)';
 
 describe('the validation evidence', () => {
   it('every check passed', () => {
