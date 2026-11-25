@@ -113,6 +113,8 @@ export interface FigureInput {
     ny: number;
     points: [number, number][];
     label: FigureLabel | null;
+    /** Implied by the composite model (a composite's indicators correlate freely): dashed, no estimate. */
+    implied?: boolean;
   }[];
   /** The constant (triangle, "1") and its arrows: latent means and intercepts. */
   constant?: { x: number; y: number };
@@ -318,7 +320,7 @@ function drawCorrelations({ style, semplot, plsStyle, out, extend }: Pen, f: Fig
     for (const [x, y] of k.points) extend(x, y);
     const corEdge = semplot ? semplotEdge(k.label?.value ?? null) : null;
     out.push(
-      `<path d="${k.d}" fill="none" stroke="${corEdge?.color ?? style.correlationColor}" stroke-width="${n(corEdge?.width ?? (plsStyle ? 1 : style.pathWidth * 0.8))}"${plsStyle ? ' stroke-dasharray="4 3"' : ''}/>`,
+      `<path d="${k.d}" fill="none" stroke="${corEdge?.color ?? style.correlationColor}" stroke-width="${n(corEdge?.width ?? (plsStyle ? 1 : style.pathWidth * 0.8))}"${k.implied ? ' stroke-dasharray="5 4"' : plsStyle ? ' stroke-dasharray="4 3"' : ''}/>`,
     );
     for (const h of k.heads)
       out.push(`<path d="${h}" fill="${corEdge?.color ?? style.correlationColor}"/>`);
@@ -338,7 +340,7 @@ function drawModerations({ style, small, out, extend, line }: Pen, f: FigureInpu
       extend(tx - textWidth(q.tag, small) / 2, ty - small);
       extend(tx + textWidth(q.tag, small) / 2, ty + small);
       out.push(
-        `<path d="${q.d}" fill="none" stroke="${style.moderationColor}" stroke-width="${n(style.pathWidth)}" stroke-dasharray="6 4"/>`,
+        `<path d="${q.d}" fill="none" stroke="${style.moderationColor}" stroke-width="${n(style.pathWidth)}"/>`,
       );
       out.push(
         `<path d="${arrowHead(q.x2, q.y2, -q.nx * QUAD_RISE, -q.ny * QUAD_RISE, 6 + style.pathWidth * 2, 2.5 + style.pathWidth)}" fill="${style.moderationColor}"/>`,
@@ -346,7 +348,7 @@ function drawModerations({ style, small, out, extend, line }: Pen, f: FigureInpu
       out.push(
         `<text x="${n(tx)}" y="${n(ty + small * 0.35)}" font-size="${n(small)}" font-style="italic" font-weight="bold" text-anchor="middle" fill="${style.moderationColor}">${esc(q.tag)}</text>`,
       );
-    } else line(m.x1, m.y1, m.x2, m.y2, style.moderationColor, style.pathWidth, true, '6 4');
+    } else line(m.x1, m.y1, m.x2, m.y2, style.moderationColor, style.pathWidth, true);
     out.push(`<circle cx="${n(m.x2)}" cy="${n(m.y2)}" r="3" fill="${style.moderationColor}"/>`);
   }
 }

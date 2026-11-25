@@ -158,7 +158,7 @@ describe('figure SVG', () => {
     const { svg } = renderFigureSvg(f, { ...DEFAULT_FIGURE_STYLE, pFormat: 'stars' });
     expect(svg).toContain(`<path d="${q.d}" fill="none"`);
     expect(svg).toMatch(
-      /<path d="M [^"]+ C [^"]+" fill="none" stroke="[^"]+" stroke-width="[\d.]+" stroke-dasharray="6 4"\/>/,
+      /<path d="M [^"]+ C [^"]+" fill="none" stroke="[^"]+" stroke-width="[\d.]+"\/>/,
     );
     expect(svg).toContain('font-style="italic" font-weight="bold" text-anchor="middle"');
     expect(svg).toContain('>Trust &amp; &lt;Risk&gt;²</text>');

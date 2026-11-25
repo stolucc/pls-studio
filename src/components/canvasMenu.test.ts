@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { ModelState } from '../model/project';
+import {
+  renameIndicator,
+  renameIndicatorError,
+  suggestIndicatorName,
+  type ModelState,
+} from '../model/project';
 import { menuFor, type MenuTarget } from './canvasMenu';
 
 const C = (id: string, indicators: string[], type: 'factor' | 'composite' = 'factor') => ({
@@ -44,6 +49,55 @@ describe('canvas context menus', () => {
     ]);
   });
 
+  it('adds an indicator to a construct and renames one, unless read-only', () => {
+    for (const method of ['pls', 'cbsem'] as const) {
+      expect(actions({ kind: 'construct', id: 'a' }, method)).toContain('add-indicator');
+      expect(actions({ kind: 'indicator', construct: 'a', name: 'a1' }, method)).toContain(
+        'rename-indicator',
+      );
+    }
+    expect(actions({ kind: 'construct', id: 'a' }, 'pls', true)).not.toContain('add-indicator');
+    // (read-only, an indicator has no menu at all)
+    expect(
+      actions({ kind: 'indicator', construct: 'a', name: 'a1' }, 'pls', true) ?? [],
+    ).not.toContain('rename-indicator');
+  });
+
+  it('names a new indicator after its construct, with the first free number', () => {
+    const sat = { ...C('s', ['satisf1']), name: 'Satisfaction' };
+    const m = { ...model, constructs: [...model.constructs, sat] };
+    expect(suggestIndicatorName(m, sat)).toBe('satisf2');
+    expect(suggestIndicatorName(model, model.constructs[0])).toBe('a3');
+    // (a name taken by another construct's indicator is skipped; no letters: "item")
+    const taken = { ...model, constructs: [C('a', ['a1']), C('z', ['a2'])] };
+    expect(suggestIndicatorName(taken, taken.constructs[0])).toBe('a3');
+    expect(suggestIndicatorName(model, { ...C('q', []), name: '12 ?' })).toBe('item1');
+  });
+
+  it('renames an indicator everywhere the model refers to it, nothing else', () => {
+    const m: ModelState = {
+      ...model,
+      constructs: [
+        { ...C('a', ['a1', 'a2']), fixedLoadings: { a1: 1 }, loadingLabels: { a2: 'l2' } },
+        // (a construct called like the indicator keeps its name)
+        { ...C('x', ['a1']), name: 'a1' },
+      ],
+      ordered: ['a1'],
+    };
+    const r = renameIndicator(m, 'a1', 'sat1');
+    expect(r.constructs[0].indicators).toEqual(['sat1', 'a2']);
+    expect(r.constructs[0].fixedLoadings).toEqual({ sat1: 1 });
+    expect(r.constructs[0].loadingLabels).toEqual({ a2: 'l2' });
+    expect(r.constructs[1]).toMatchObject({ name: 'a1', indicators: ['sat1'] });
+    expect(r.ordered).toEqual(['sat1']);
+    expect(r.correlations).toEqual([{ id: 'k1', kind: 'indicator', a: 'sat1', b: 'a2' }]);
+    expect(r.paths).toEqual(m.paths);
+    expect(renameIndicatorError(m, 'a1', 'a2')).toMatch(/already a variable/);
+    expect(renameIndicatorError(m, 'a1', 'A')).toMatch(/name of a construct/);
+    expect(renameIndicatorError(m, 'a1', ' ')).toMatch(/Type the name/);
+    expect(renameIndicatorError(m, 'a1', 'sat1')).toBeNull();
+  });
+
   it('titles the menu with what was clicked', () => {
     expect(
       menuFor({ kind: 'path', id: 'p1' }, model, { method: 'pls', readOnly: false })?.title,
@@ -76,6 +130,7 @@ describe('canvas context menus', () => {
     ).toBe('Correlate with…');
     expect(actions({ kind: 'indicator', construct: 'a', name: 'a1' }, 'pls')).toEqual([
       'toggle-ordinal',
+      'rename-indicator',
       'remove-indicator',
     ]);
   });

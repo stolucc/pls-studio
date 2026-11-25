@@ -19,7 +19,7 @@ import { useModal } from './useModal';
 const NODE_W = 34;
 const NODE_H = 20;
 
-/** A conceptual diagram of a template (Hayes style): boxes, solid paths, dashed moderation arrows. */
+/** A conceptual diagram of a template (Hayes style): boxes, solid paths and moderation arrows. */
 export function TemplateDiagram({
   g,
   pos,

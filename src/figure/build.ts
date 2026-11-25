@@ -149,7 +149,12 @@ export function buildFigureInput(
       ];
     }),
   );
-  const cov = covarianceLayout(m, method === 'cbsem', opts.showErrors);
+  const cov = covarianceLayout(
+    m,
+    method === 'cbsem',
+    opts.showErrors,
+    !!opts.showImpliedEffects && method !== 'process',
+  );
   // (direct effects on indicators: drawn as arrows like a higher-order loading)
   higherOrder.push(
     ...cov.sharedLoadings.map((d) => {
@@ -187,8 +192,9 @@ export function buildFigureInput(
       return { term, kind: 'disturbance' as const, value, r2: reliability(value) };
     }),
   ];
-  const correlations = cov.curves.map(({ k, curve }) => {
-    const l = values.correlation?.(k);
+  const correlations = cov.curves.map(({ k, curve, composite }) => {
+    // (a composite's indicators: implied, no estimate)
+    const l = composite ? null : values.correlation?.(k);
     return {
       d: curve.d,
       heads: curve.heads,
@@ -202,6 +208,7 @@ export function buildFigureInput(
         [curve.lx, curve.ly],
       ] as [number, number][],
       label: label(l?.value, l?.p ?? null),
+      ...(composite ? { implied: true } : {}),
     };
   });
   // The constant and its arrows (means and intercepts).

@@ -1,7 +1,16 @@
 // What the canvas's context menu actions do (canvasMenu.ts decides which each target offers): edits through the
 // store, and dialogs for values, labels and held parameters.
 
-import { newId, endogenousIds, type ModelState } from '../../model/project';
+import {
+  newId,
+  endogenousIds,
+  renameIndicator,
+  renameIndicatorError,
+  suggestIndicatorName,
+  type ModelState,
+  addCausalIndicator,
+  renameCovariate,
+} from '../../model/project';
 import { groupOrder, heldText, parseHeldValue, type HeldValue } from '../../model/heldValue';
 import { nameError } from '../../model/expr';
 import { useStore } from '../../store';
@@ -231,6 +240,51 @@ export function toggleOptional(target: MenuTarget) {
 }
 
 /** Carries out a context menu's action on its target. */
+/** A new indicator for a construct, at once, with a default name (rename it from its own menu). */
+const addIndicator = (id: string) => {
+  const c = st().model.constructs.find((k) => k.id === id);
+  if (c)
+    st().updateConstruct(id, {
+      indicators: [...c.indicators, suggestIndicatorName(st().model, c)],
+    });
+};
+
+/** Rename an observed covariate: the data column it stands for, and its name with it (renameCovariate). */
+const renameCovariateDialog = async (id: string) => {
+  const c = st().model.constructs.find((k) => k.id === id);
+  const from = c?.covariate ? c.indicators[0] : undefined;
+  if (!c || from === undefined) return;
+  const to = await textDialog({
+    title: `Rename ${from}`,
+    body: 'The name of the data column it stands for.',
+    confirmLabel: 'Rename',
+    text: {
+      label: 'New name',
+      initial: from,
+      check: (x) => renameIndicatorError(st().model, from, x),
+    },
+  });
+  if (to !== null && to.trim() !== from) st().commit((m) => renameCovariate(m, id, to));
+};
+
+/** Rename an indicator everywhere in the model (renameIndicator). */
+const renameIndicatorDialog = async (from: string) => {
+  const shared = st().model.constructs.filter((k) => k.indicators.includes(from)).length > 1;
+  const to = await textDialog({
+    title: `Rename ${from}`,
+    body: shared
+      ? `${from} measures several constructs: it is renamed in each.`
+      : 'The name of the data column it stands for.',
+    confirmLabel: 'Rename',
+    text: {
+      label: 'New name',
+      initial: from,
+      check: (x) => renameIndicatorError(st().model, from, x),
+    },
+  });
+  if (to !== null && to.trim() !== from) st().commit((m) => renameIndicator(m, from, to));
+};
+
 export function runMenuAction(target: MenuTarget, a: MenuAction, ui: MenuUi) {
   const s = st();
   switch (a) {
@@ -255,6 +309,16 @@ export function runMenuAction(target: MenuTarget, a: MenuAction, ui: MenuUi) {
       break;
     case 'delete-construct':
       if (target.kind === 'construct') s.deleteItems([target.id], []);
+      break;
+    case 'add-indicator':
+      if (target.kind === 'construct') addIndicator(target.id);
+      break;
+    case 'add-causal-indicator':
+      if (target.kind === 'construct') s.commit((m) => addCausalIndicator(m, target.id));
+      break;
+    case 'rename-indicator':
+      if (target.kind === 'indicator') void renameIndicatorDialog(target.name);
+      else if (target.kind === 'construct') void renameCovariateDialog(target.id);
       break;
     case 'remove-indicator':
       if (target.kind === 'indicator') s.removeIndicator(target.construct, target.name);

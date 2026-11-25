@@ -24,6 +24,9 @@ export type MenuAction =
   | 'correlate'
   | 'delete-construct'
   | 'remove-indicator'
+  | 'add-indicator'
+  | 'add-causal-indicator'
+  | 'rename-indicator'
   | 'reverse-path'
   | 'add-quadratic'
   | 'toggle-copula'
@@ -198,6 +201,21 @@ export function menuFor(
       const endogenous = endogenousIds(model).has(c.id);
       return out(c.name, [
         { action: 'edit', label: edit ? 'Edit in inspector' : 'Show in inspector' },
+        // (a model can be drawn before there is data: the names are matched with the columns on import)
+        edit &&
+          !c.covariate &&
+          !c.components?.length && { action: 'add-indicator', label: 'Add indicator' },
+        // Bollen's causal indicators: observed causes of the factor, which keeps a disturbance ζ.
+        edit &&
+          cb &&
+          !c.covariate &&
+          c.type === 'factor' &&
+          !c.components?.length && {
+            action: 'add-causal-indicator',
+            label: 'Add causal indicator',
+          },
+        // (an observed covariate is its data column)
+        edit && !!c.covariate && { action: 'rename-indicator', label: 'Rename…' },
         // PLS and CB-SEM (lavaan's composites) both model common factors and composites.
         edit &&
           (pls || cb) &&
@@ -301,6 +319,7 @@ export function menuFor(
               ordinal && { action: 'held-threshold' as const, label: 'Hold or label a threshold…' },
             ]
           : []),
+        edit && { action: 'rename-indicator', label: 'Rename…' },
         edit && { action: 'remove-indicator', label: `Remove from ${owner}`, danger: true },
       ]);
     }

@@ -558,7 +558,7 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 
 /* moderation arrows */
 .mod-layer { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
-.mod-line { stroke: var(--mod, #8b5cf6); stroke-width: 1.6; stroke-dasharray: 6 4; fill: none; }
+.mod-line { stroke: var(--mod, #8b5cf6); stroke-width: 1.6; fill: none; }
 .mod-hit { stroke: transparent; stroke-width: 16; fill: none; pointer-events: stroke; cursor: pointer; }
 .mod-dot { fill: var(--mod, #8b5cf6); }
 .mod.on .mod-line { stroke: var(--accent); stroke-width: 2.4; }
@@ -758,6 +758,9 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .cor.inactive .cor-head { opacity: 0.45; }
 .cor.auto .cor-line { stroke-width: 1.3; opacity: 0.8; }
 .cor.auto .cor-hit { cursor: help; }
+/* A composite's indicators: correlated by the composite model, not drawn by the user (as .pedge.implied). */
+.cor.composite .cor-line { stroke-dasharray: 5 4; opacity: 0.5; }
+.cor.composite .cor-head { opacity: 0.5; }
 .cor:hover .cor-line { stroke-width: 2.4; }
 .cor.inactive .cor-line { stroke-dasharray: 3 4; opacity: 0.45; }
 .elabel.cor-label { position: absolute; cursor: pointer; border-color: #a5f3fc; }
@@ -901,7 +904,7 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .tpl-k input { width: 54px; }
 .tpl-diagram { display: block; margin: 4px auto; }
 .tpl-diagram .tpl-path { stroke: var(--text-2); stroke-width: 1.2; }
-.tpl-diagram .tpl-mod { stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 3 2; }
+.tpl-diagram .tpl-mod { stroke: var(--accent); stroke-width: 1.2; }
 .tpl-diagram marker path { fill: var(--text-2); }
 .tpl-diagram .tpl-node rect { fill: var(--surface-2); stroke: var(--border-strong, var(--text-3)); }
 .tpl-diagram .tpl-node text { font-size: 10px; fill: var(--text); font-weight: 600; }
@@ -1183,3 +1186,15 @@ table.grid.evidence-table th:last-child, table.grid.evidence-table td.hint { tex
 .builder-doc { color: var(--text-3); font-size: 11.5px; line-height: 1.35; }
 @media (max-width: 760px) { .formula-builder { grid-template-columns: 1fr; } }
 .data-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+/* Plan sample size (analyses/samplePlan.tsx) */
+.plan-options h3 { margin-bottom: 4px; }
+.plan-effect { display: flex; align-items: center; gap: 8px; margin: 4px 0; flex-wrap: wrap; }
+.plan-effect-label { flex: 1 1 160px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-hyps { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 6px; }
+.plan-more { margin: 8px 0; }
+.plan-more > summary { cursor: pointer; color: var(--text-2); font-size: 13px; }
+.plan-answer { border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; background: var(--surface-2); }
+.plan-answer-n { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.plan-methods { margin-top: 10px; }
+.plan-methods p { font-size: 13px; line-height: 1.55; margin: 6px 0 0; user-select: text; }

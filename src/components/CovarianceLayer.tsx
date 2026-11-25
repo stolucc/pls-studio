@@ -16,6 +16,7 @@ import {
 } from '../geometry';
 import {
   endogenousIds,
+  impliedCompositeCorrelations,
   impliedCorrelations,
   indicatorsDrawnElsewhere,
   type Construct,
@@ -69,7 +70,15 @@ function indicatorPlaces(model: ModelState): Map<string, IndicatorPlace> {
  * Geometry of the error terms (ε, ζ) and correlation arcs, shared by the
  * on-screen layer and figure export.
  */
-export function covarianceLayout(model: ModelState, active: boolean, showErrors: boolean) {
+const compositeBow = (dist: number) => Math.min(240, 20 + 0.5 * dist);
+
+export function covarianceLayout(
+  model: ModelState,
+  active: boolean,
+  showErrors: boolean,
+  /** Also the correlations the composite model implies among each composite's indicators (dashed). */
+  showImplied = false,
+) {
   // A covariance fixed at zero is not drawn: in path diagrams, no arrow means zero (RAM convention).
   const drawn = (model.correlations ?? []).filter((k) => !k.zero);
   // CB-SEM also estimates covariances nobody drew (exogenous constructs, covariates): show those too.
@@ -108,6 +117,33 @@ export function covarianceLayout(model: ModelState, active: boolean, showErrors:
       ? { kind: 'circle', x: pl.term.cx, y: pl.term.cy, r: ERR_R }
       : { kind: 'point', x: pl.term.ax, y: pl.term.ay };
   };
+  // A composite's indicators correlate freely: arcs between the outer sides of its boxes, bowing outwards.
+  const compositeEnds = new Map<string, IndicatorPlace>();
+  if (showImplied)
+    for (const c of model.constructs)
+      if (c.type === 'composite' && !c.covariate && !c.components?.length)
+        for (const ind of constructGeometry(c).indicators)
+          compositeEnds.set(`${c.id}\u0000${ind.name}`, { owner: c, term: errorTerm(c, ind) });
+  const compositeCurves = (showImplied ? impliedCompositeCorrelations(model) : []).flatMap(
+    ({ construct, ...k }) => {
+      const pa = compositeEnds.get(`${construct}\u0000${k.a}`);
+      const pb = compositeEnds.get(`${construct}\u0000${k.b}`);
+      if (!pa || !pb) return [];
+      return [
+        {
+          k,
+          curve: correlationCurve(
+            { kind: 'point', x: pa.term.ax, y: pa.term.ay },
+            { kind: 'point', x: pb.term.ax, y: pb.term.ay },
+            // (every pair of a block: each span bows further, so the arcs nest instead of overlapping)
+            { normal: [pa.term.nx, pa.term.ny], away: centre, bow: compositeBow },
+          ),
+          auto: true,
+          composite: true,
+        },
+      ];
+    },
+  );
   const curves = corrs.flatMap((k) => {
     const a = anchorOf(k, k.a);
     const b = anchorOf(k, k.b);
@@ -124,9 +160,11 @@ export function covarianceLayout(model: ModelState, active: boolean, showErrors:
         k,
         curve: correlationCurve(a, b, { normal, away: centre }),
         auto: k.id.startsWith('auto:'),
+        composite: false,
       },
     ];
   });
+  curves.push(...compositeCurves);
   // Direct effects on indicators: a straight arrow from the construct's border to the indicator's box.
   const boxes = new Map<string, { x: number; y: number; w: number; h: number }>();
   for (const c of model.constructs)
@@ -249,6 +287,8 @@ export function CovarianceLayer({
           })),
         )
       : [];
+  // The correlations the composite model implies among a composite's indicators, with the other implied arrows.
+  const showImplied = useStore((s) => s.showImpliedEffects && s.settings.method !== 'process');
   const selected = useStore((s) => s.selection.correlations ?? NONE);
   const setSelection = useStore((s) => s.setSelection);
   const {
@@ -258,7 +298,7 @@ export function CovarianceLayer({
     errors,
     direct,
     sharedLoadings,
-  } = covarianceLayout(model, active, showErrors);
+  } = covarianceLayout(model, active, showErrors, showImplied);
   if (raw.length === 0 && !errors && disturbances.length === 0 && direct.length === 0) return null;
   const curves = raw.map((r) => ({ ...r, on: selected.includes(r.k.id) }));
 
@@ -488,12 +528,19 @@ export function CovarianceLayer({
             </line>
           </g>
         ))}
-        {curves.map(({ k, curve, on, auto }) => (
+        {curves.map(({ k, curve, on, auto, composite }) => (
           <g
             key={k.id}
-            className={`cor${on ? ' on' : ''}${active ? '' : ' inactive'}${auto ? ' auto' : ''}${active && k.optional ? ' optional' : ''}`}
+            className={`cor${on ? ' on' : ''}${active || composite ? '' : ' inactive'}${auto ? ' auto' : ''}${composite ? ' composite' : ''}${active && k.optional ? ' optional' : ''}`}
           >
-            {auto ? (
+            {composite ? (
+              <path className="cor-hit" d={curve.d}>
+                <title>
+                  Implied: the indicators of a composite correlate freely (composite model;
+                  Henseler, 2021). They keep their observed correlations; no parameter is estimated.
+                </title>
+              </path>
+            ) : auto ? (
               // Implied, not a choice: covariates (fixed.x) and factors of one ESEM block (rotation).
               <path
                 className="cor-hit"
@@ -553,8 +600,8 @@ export function CovarianceLayer({
           </div>
         );
       })}
-      {curves.map(({ k, curve }) => {
-        const l = active ? labelFor(k) : null;
+      {curves.map(({ k, curve, composite }) => {
+        const l = active && !composite ? labelFor(k) : null;
         if (!l || l.value === null) return null;
         const cls = significanceClass(l.p);
         const at =

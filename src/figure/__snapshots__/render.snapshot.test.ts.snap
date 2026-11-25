@@ -12,10 +12,19 @@ exports[`the figure SVG of a rich model > is unchanged in full for the default s
 <path d="M 463.0044664205851 67.21434582349214 Q 546.5115551794422 160 463.0044664205851 252.78565417650788" fill="none" stroke="#0e7490" stroke-width="1.28"/>
 <path d="M 463.0044664205851 67.21434582349214 L 471.99832559017585 71.22813421322684 L 466.0519724201985 76.57985206620643 Z" fill="#0e7490"/>
 <path d="M 463.0044664205851 252.78565417650788 L 466.0519724201985 243.42014793379357 L 471.99832559017585 248.7718657867732 Z" fill="#0e7490"/>
-<line x1="13.56" y1="262" x2="211" y2="0" stroke="#8b5cf6" stroke-width="1.6" stroke-dasharray="6 4"/>
+<path d="M 364 -141.6 Q 392 -189.6 420 -141.6" fill="none" stroke="#0e7490" stroke-width="1.28" stroke-dasharray="5 4"/>
+<path d="M 364 -141.6 L 365.07972362612304 -151.38949421018222 L 371.98995483331055 -147.35852600598955 Z" fill="#0e7490"/>
+<path d="M 420 -141.6 L 412.01004516668945 -147.35852600598955 L 418.92027637387696 -151.38949421018222 Z" fill="#0e7490"/>
+<path d="M 364 -141.6 Q 420 -217.6 476 -141.6" fill="none" stroke="#0e7490" stroke-width="1.28" stroke-dasharray="5 4"/>
+<path d="M 364 -141.6 L 366.1185679930352 -151.21829868837972 L 372.5590146918621 -146.4727063839809 Z" fill="#0e7490"/>
+<path d="M 476 -141.6 L 467.4409853081379 -146.4727063839809 L 473.8814320069648 -151.21829868837972 Z" fill="#0e7490"/>
+<path d="M 420 -141.6 Q 448 -189.6 476 -141.6" fill="none" stroke="#0e7490" stroke-width="1.28" stroke-dasharray="5 4"/>
+<path d="M 420 -141.6 L 421.07972362612304 -151.38949421018222 L 427.98995483331055 -147.35852600598955 Z" fill="#0e7490"/>
+<path d="M 476 -141.6 L 468.01004516668945 -147.35852600598955 L 474.92027637387696 -151.38949421018222 Z" fill="#0e7490"/>
+<line x1="13.56" y1="262" x2="211" y2="0" stroke="#8b5cf6" stroke-width="1.6"/>
 <path d="M 211 0 L 208.7375985879598 9.81486321100801 L 202.1888421053018 4.8799074330050285 Z" fill="#8b5cf6"/>
 <circle cx="211" cy="0" r="3" fill="#8b5cf6"/>
-<path d="M 59 6.56 C 92.94 -37.99 238.87 111.6 204.94 156.14" fill="none" stroke="#8b5cf6" stroke-width="1.6" stroke-dasharray="6 4"/>
+<path d="M 59 6.56 C 92.94 -37.99 238.87 111.6 204.94 156.14" fill="none" stroke="#8b5cf6" stroke-width="1.6"/>
 <path d="M 204.93565793427143 156.1414536642068 L 207.24998546255645 146.3387046573301 L 213.77252556682296 151.30825902248554 Z" fill="#8b5cf6"/>
 <text x="166.72" y="39" font-size="9.35" font-style="italic" font-weight="bold" text-anchor="middle" fill="#8b5cf6">Trust &lt;&amp;&gt;²</text>
 <circle cx="204.94" cy="156.14" r="3" fill="#8b5cf6"/>
@@ -258,33 +267,33 @@ exports[`the figure SVG of a rich model > is unchanged in full for the default s
 
 exports[`the figure SVG of a rich model > is unchanged under every style 1`] = `
 {
-  "cbsem/circles/amos": "b6ec28ecc02bcb35",
-  "cbsem/circles/classic": "7650e0e01ab8e65b",
-  "cbsem/circles/default": "ffe072589e8a0a08",
-  "cbsem/circles/greyscale": "f9088b466d940dbe",
-  "cbsem/circles/pls": "fbd48fb6d2811e7b",
-  "cbsem/circles/publication": "65ed254a0ea374f9",
-  "cbsem/circles/semplot": "d1d2a3b4a34a3526",
-  "cbsem/ellipses/amos": "09d5f35f6df69100",
-  "cbsem/ellipses/classic": "e40a80f2e65f4e3e",
-  "cbsem/ellipses/default": "14b0a4eea7b0e5df",
-  "cbsem/ellipses/greyscale": "4c4adef058fb0f2d",
-  "cbsem/ellipses/pls": "94a698588b408c2b",
-  "cbsem/ellipses/publication": "17fbef07f46bd5d8",
-  "cbsem/ellipses/semplot": "c1316dfe59ede7ab",
-  "pls/circles/amos": "4cef226d8df6597f",
-  "pls/circles/classic": "4c79b3999414381b",
-  "pls/circles/default": "d7eb0edd180821e7",
-  "pls/circles/greyscale": "d8b94b25b928b28f",
-  "pls/circles/pls": "4ae9eceb41e01272",
-  "pls/circles/publication": "94112f73b2743919",
-  "pls/circles/semplot": "758e84543116b616",
-  "pls/ellipses/amos": "062d91951379a851",
-  "pls/ellipses/classic": "a396e0277764941e",
-  "pls/ellipses/default": "040c717d01a41ed5",
-  "pls/ellipses/greyscale": "5f59432452362a78",
-  "pls/ellipses/pls": "3f05563e2c5ca7a8",
-  "pls/ellipses/publication": "78e431a192bd99c1",
-  "pls/ellipses/semplot": "e7fbab12723571bc",
+  "cbsem/circles/amos": "a0530338e1375e9c",
+  "cbsem/circles/classic": "b977e8b8940294ce",
+  "cbsem/circles/default": "569d0711eba537b1",
+  "cbsem/circles/greyscale": "5531cd2fb195035e",
+  "cbsem/circles/pls": "1146a9a1f8a76703",
+  "cbsem/circles/publication": "11b4ca9fece6082a",
+  "cbsem/circles/semplot": "06b01a3c9e45ca99",
+  "cbsem/ellipses/amos": "40a88fae68f02c7a",
+  "cbsem/ellipses/classic": "d4095392bf0124a0",
+  "cbsem/ellipses/default": "ebf67af0b8b93f36",
+  "cbsem/ellipses/greyscale": "164578f1bb40b592",
+  "cbsem/ellipses/pls": "93210463c7cfce81",
+  "cbsem/ellipses/publication": "9378696c6b9f432e",
+  "cbsem/ellipses/semplot": "c0815058f5d3eef0",
+  "pls/circles/amos": "bf5bd3ce8142e3b4",
+  "pls/circles/classic": "4546f7d8e8499bc5",
+  "pls/circles/default": "beb60ef43d5a2bed",
+  "pls/circles/greyscale": "954568b5b853741a",
+  "pls/circles/pls": "24f1efd6bf539b9e",
+  "pls/circles/publication": "649a5edcafe5c15a",
+  "pls/circles/semplot": "f6e9d5973eaec518",
+  "pls/ellipses/amos": "48ea298407f02c0b",
+  "pls/ellipses/classic": "2f2cd3e0f8d63585",
+  "pls/ellipses/default": "262b731fbbed96e1",
+  "pls/ellipses/greyscale": "c77cecbeebdc29ae",
+  "pls/ellipses/pls": "8ed58b953e91c326",
+  "pls/ellipses/publication": "a4d9fc4c4bba53f4",
+  "pls/ellipses/semplot": "4ed341962bf264df",
 }
 `;

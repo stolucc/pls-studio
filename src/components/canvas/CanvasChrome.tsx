@@ -5,7 +5,7 @@ import { useReactFlow, type ConnectionLineComponentProps } from '@xyflow/react';
 import type { Dataset } from '../../engine/types';
 import { GRADIENT_CONSTRUCT, GRADIENT_INDICATOR, PLS_STYLE_ERROR } from '../../figure/style';
 import { importModelSyntax } from '../../io';
-import { impliedIntercepts, type Method } from '../../model/project';
+import { impliedCompositeCorrelations, impliedIntercepts, type Method } from '../../model/project';
 import { useStore, type Tool } from '../../store';
 import {
   IconArrow,
@@ -268,15 +268,16 @@ export function ToolDock({
           Intercepts
         </button>
       )}
-      {implied.length > 0 && (
+      {(implied.length > 0 ||
+        (method !== 'process' && impliedCompositeCorrelations(model).length > 0)) && (
         <button
           className={`btn ghost${showImplied ? ' on' : ''}`}
           onClick={() => st().setShowImpliedEffects(!showImplied)}
           aria-pressed={showImplied}
           title={
             showImplied
-              ? 'Hide what the model implies (dashed: the moderators’ main effects; they are estimated either way)'
-              : 'Show what the model implies as dashed arrows (the moderators’ main effects; they are estimated either way)'
+              ? 'Hide what the model implies (dashed: the moderators’ main effects, estimated either way; the correlations among a composite’s indicators, free in the composite model)'
+              : 'Show what the model implies as dashed arrows (the moderators’ main effects, estimated either way; the correlations among a composite’s indicators, free in the composite model)'
           }
         >
           Implied

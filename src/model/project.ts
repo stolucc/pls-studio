@@ -610,6 +610,32 @@ export function impliedCorrelations(model: ModelState): Correlation[] {
 }
 
 /**
+ * The correlations among each composite's indicators: the composite model leaves them unrestricted
+ * (Henseler, 2021; Dijkstra & Henseler, 2015), so its implied correlations within a block are the observed
+ * ones. Nobody draws or estimates them as parameters; the diagram can show them, like a moderator's
+ * implied main effect.
+ */
+export function impliedCompositeCorrelations(
+  model: Pick<ModelState, 'constructs'>,
+): (Correlation & { construct: string })[] {
+  const out: (Correlation & { construct: string })[] = [];
+  for (const c of model.constructs) {
+    if (c.type !== 'composite' || c.covariate || c.components?.length) continue;
+    const inds = [...new Set(c.indicators)];
+    for (let i = 0; i < inds.length; i++)
+      for (let j = i + 1; j < inds.length; j++)
+        out.push({
+          id: `implied-ind:${c.id}:${inds[i]}:${inds[j]}`,
+          kind: 'indicator',
+          a: inds[i],
+          b: inds[j],
+          construct: c.id,
+        });
+  }
+  return out;
+}
+
+/**
  * Whether an ESEM rotation correlates two factors of one block: not an orthogonal one, and a bifactor
  * rotation keeps its general factor (the block's first) uncorrelated with the specific factors.
  */
@@ -842,6 +868,126 @@ export function indicatorNameError(name: string, c: Pick<Construct, 'indicators'
   if (n.length > 64) return 'A column name has at most 64 characters.';
   if (c.indicators.includes(n)) return `${n} is already an indicator of this construct.`;
   return null;
+}
+
+/**
+ * A name for a new indicator of construct c: the construct's name in lower case (at most six letters and digits)
+ * with the first number no variable of the model uses yet (Satisfaction: satisf1, satisf2, …).
+ */
+export function suggestIndicatorName(m: Pick<ModelState, 'constructs'>, c: Construct): string {
+  const base =
+    c.name
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '')
+      .replace(/^[0-9_]+/, '')
+      .slice(0, 6) || 'item';
+  const used = new Set(m.constructs.flatMap((k) => [...k.indicators, k.name]));
+  let k = c.indicators.length + 1;
+  while (used.has(`${base}${k}`)) k++;
+  return `${base}${k}`;
+}
+
+/**
+ * CB-SEM: a causal indicator of factor `id` (Bollen, 1989; Bollen & Bauldry, 2011): an observed variable, drawn
+ * as a box (a covariate), with a path into the factor, whose disturbance ζ is free. It goes on the side away
+ * from the factor's reflective indicators, below or above the causes already there. Its name stands for the
+ * data column, like a new indicator's.
+ */
+export function addCausalIndicator(m: ModelState, id: string): ModelState {
+  const c = m.constructs.find((k) => k.id === id);
+  if (!c || c.covariate || c.components?.length || c.type !== 'factor') return m;
+  const base =
+    c.name
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '')
+      .replace(/^[0-9_]+/, '')
+      .slice(0, 6) || 'cause';
+  const causes = m.constructs.filter(
+    (k) => k.covariate && m.paths.some((p) => p.from === k.id && p.to === c.id),
+  );
+  const used = new Set(m.constructs.flatMap((k) => [...k.indicators, k.name]));
+  let n = causes.length + 1;
+  while (used.has(`${base}_x${n}`)) n++;
+  const name = `${base}_x${n}`;
+  // Away from the indicators (c.side), stacked across: 0, +110, −110, +220, …
+  const gap = 300;
+  const i = causes.length;
+  const across = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 110;
+  const [dx, dy] = { left: [gap, 0], right: [-gap, 0], top: [0, gap], bottom: [0, -gap] }[c.side];
+  const at = dx ? { x: c.x + dx, y: c.y + across } : { x: c.x + across, y: c.y + dy };
+  const cause: Construct = {
+    id: newId('c'),
+    name,
+    type: 'factor',
+    mode: 'A',
+    indicators: [name],
+    ...at,
+    side: c.side,
+    covariate: true,
+  };
+  return {
+    ...m,
+    constructs: [...m.constructs, cause],
+    paths: [...m.paths, { id: newId('p'), from: cause.id, to: c.id }],
+  };
+}
+
+/**
+ * The model with observed covariate `id` standing for column `to`: its variable renamed everywhere
+ * (renameIndicator), and its name too while that was the column's.
+ */
+export function renameCovariate(m: ModelState, id: string, to: string): ModelState {
+  const c = m.constructs.find((k) => k.id === id);
+  const from = c?.covariate ? c.indicators[0] : undefined;
+  if (!c || from === undefined) return m;
+  const r = renameIndicator(m, from, to);
+  if (r === m || c.name !== from) return r;
+  return {
+    ...r,
+    constructs: r.constructs.map((k) => (k.id === id ? { ...k, name: to.trim() } : k)),
+  };
+}
+
+/** Why an indicator cannot be renamed to `to` (null when it can). */
+export function renameIndicatorError(
+  m: Pick<ModelState, 'constructs'>,
+  from: string,
+  to: string,
+): string | null {
+  const n = to.trim();
+  if (!n) return 'Type the name of the data column.';
+  if (n.length > 64) return 'A column name has at most 64 characters.';
+  if (n === from) return null;
+  if (m.constructs.some((k) => k.indicators.includes(n)))
+    return `${n} is already a variable of the model.`;
+  if (m.constructs.some((k) => k.name === n)) return `${n} is the name of a construct.`;
+  return null;
+}
+
+/** Keys whose strings never name an indicator: a construct's own name and id, labels, free text. */
+const NOT_INDICATOR_KEYS = new Set(['id', 'name', 'label', 'notes', 'title', 'text']);
+
+/**
+ * The model with indicator `from` renamed to `to` everywhere it is referenced: in every construct it measures
+ * (an indicator is a data column, so it is the same variable in each), and in the options keyed by it or naming it
+ * (ordinal and count indicators, held loadings, loading labels, error correlations, held parameters, …).
+ */
+export function renameIndicator(m: ModelState, from: string, to: string): ModelState {
+  const n = to.trim();
+  if (!n || n === from) return m;
+  const walk = (v: unknown): unknown => {
+    if (typeof v === 'string') return v === from ? n : v;
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === 'object')
+      return Object.fromEntries(
+        Object.entries(v).map(([k, x]) => [
+          k === from ? n : k,
+          NOT_INDICATOR_KEYS.has(k) ? x : walk(x),
+        ]),
+      );
+    return v;
+  };
+  return walk(m) as ModelState;
 }
 
 /** CB-SEM: indicators that load on several factors (outside ESEM blocks too: the A, C and E factors of a twin model). */

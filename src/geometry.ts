@@ -596,7 +596,12 @@ function clipAnchor(a: Anchor, dx: number, dy: number): [number, number] {
 export function correlationCurve(
   a: Anchor,
   b: Anchor,
-  opts: { normal?: [number, number]; away?: { x: number; y: number } } = {},
+  opts: {
+    normal?: [number, number];
+    away?: { x: number; y: number };
+    /** How far the arc bows, by the distance between its ends (default: at least 64, then 0.45 × it). */
+    bow?: (dist: number) => number;
+  } = {},
 ) {
   const p = centreOf(a);
   const q = centreOf(b);
@@ -611,7 +616,7 @@ export function correlationCurve(
     ny = -ny;
   }
   // Longer arrows bow further, so nested arrows (and their labels) fan out.
-  const bow = Math.min(240, Math.max(64, 0.45 * dist));
+  const bow = opts.bow ? opts.bow(dist) : Math.min(240, Math.max(64, 0.45 * dist));
   const kx = mx + nx * bow;
   const ky = my + ny * bow;
   const [x1, y1] = clipAnchor(a, kx - p.x, ky - p.y);

@@ -206,12 +206,20 @@ function checkComponentsOrIndicators(v: Ctx, c: Construct, err: Report, warn: Re
     err(
       method.method === 'process'
         ? `"${c.name}" has no variable yet. Drag a column (or a scale's items) from the data panel onto it.`
-        : `"${c.name}" has no indicators. Drag variables from the data panel onto it.`,
+        : causalIndicators(model, c.id) > 0
+          ? `"${c.name}" has causal indicators only. Bollen and Davis (2009) identify such a variable through two or more effects on other constructs; that is not estimated here yet. Give it at least one reflective indicator (right-click it → Add indicator), as in a MIMIC model.`
+          : `"${c.name}" has no indicators. Drag variables from the data panel onto it.`,
       c.id,
     );
   if (higher && method.method === 'process')
     err(`"${c.name}" is a higher-order construct; these are supported in CB-SEM only.`, c.id);
 }
+
+/** The observed covariates with a path into construct `id`: its causal indicators (Bollen & Bauldry, 2011). */
+const causalIndicators = (model: ModelState, id: string) =>
+  model.constructs.filter(
+    (k) => k.covariate && model.paths.some((p) => p.from === k.id && p.to === id),
+  ).length;
 
 /** CB-SEM measurement options: covariates, known reliabilities, an estimated error variance. */
 function checkSingleIndicatorOptions(v: Ctx, c: Construct, err: Report) {

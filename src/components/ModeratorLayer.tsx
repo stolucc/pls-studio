@@ -31,7 +31,7 @@ interface ModItem {
 const NONE: string[] = [];
 
 /**
- * Moderating effects drawn as dashed arrows from the moderator onto the
+ * Moderating effects drawn as solid arrows from the moderator onto the
  * midpoint of the moderated path. Rendered in flow coordinates.
  */
 export function ModeratorLayer({

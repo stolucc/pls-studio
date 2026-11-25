@@ -298,7 +298,7 @@ export const TOUR: TourChapter[] = [
         before: () => ensureWorkspace('model'),
         body: [
           'Drag from one construct to another to draw a path: a hypothesised effect. With any tool, you can also drag from the dot on a construct’s edge.',
-          'Drop a path onto another path and it becomes a moderation: an interaction term, drawn as a dashed arrow.',
+          'Drop a path onto another path and it becomes a moderation: an interaction term, drawn as an arrow onto the path.',
         ],
       },
       {
