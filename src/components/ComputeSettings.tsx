@@ -432,28 +432,23 @@ export function ComputeSettings() {
         )}
       </div>
       <div className="field" style={{ marginTop: 10 }}>
-        <label id="parallel-workers">
-          Parallel bootstrap and simulation{backend === 'helper' ? ' (this browser only)' : ''}
-        </label>
-        <div
-          className="segmented"
-          role="radiogroup"
-          aria-labelledby="parallel-workers"
-          aria-disabled={backend === 'helper'}
-        >
-          {choices.map((n) => (
-            <button
-              key={n}
-              role="radio"
-              aria-checked={backend === 'browser' && workers === n}
-              className={backend === 'browser' && workers === n ? 'on' : ''}
-              disabled={backend === 'helper'}
-              onClick={() => useCompute.getState().set({ workers: n })}
-            >
-              {n === 1 ? 'Off' : `${n} sessions`}
-            </button>
-          ))}
-        </div>
+        <label id="parallel-workers">Parallel bootstrap and simulation</label>
+        {/* (the helper spreads the work over its own R processes: the browser's sessions do not apply) */}
+        {backend !== 'helper' && (
+          <div className="segmented" role="radiogroup" aria-labelledby="parallel-workers">
+            {choices.map((n) => (
+              <button
+                key={n}
+                role="radio"
+                aria-checked={workers === n}
+                className={workers === n ? 'on' : ''}
+                onClick={() => useCompute.getState().set({ workers: n })}
+              >
+                {n === 1 ? 'Off' : `${n} sessions`}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="hint" style={{ marginTop: 6 }}>
           {backend === 'helper' ? (
             <ParallelDesktop />

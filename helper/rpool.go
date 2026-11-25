@@ -180,13 +180,7 @@ func newRPool(cfg *config, logger *log.Logger) (*rPool, error) {
 	if err := os.Chmod(dir, 0o700); err != nil {
 		return nil, err
 	}
-	for _, f := range bridgeFiles() {
-		data, _ := bridgeFS.ReadFile("rsrc/" + f)
-		if err := os.WriteFile(filepath.Join(dir, f), data, 0o600); err != nil {
-			return nil, err
-		}
-	}
-	if err := os.WriteFile(filepath.Join(dir, "worker.R.txt"), workerR, 0o600); err != nil {
+	if err := writeSources(dir); err != nil {
 		return nil, err
 	}
 	p := &rPool{library: cfg.RLibrary, dir: dir, logger: logger, size: cfg.workers(),
@@ -208,11 +202,40 @@ func newRPool(cfg *config, logger *log.Logger) (*rPool, error) {
 	return p, nil
 }
 
+// writeSources puts the bridge's R files and the worker script into dir (made again if it is gone). Each file is
+// written under a temporary name and renamed, so a worker starting meanwhile never reads half a file.
+//
+// spawn calls it before every worker: the directory lives in the system's temporary folder, which macOS cleans of
+// files not used for a few days. A helper left running that long would otherwise restart workers (after a crash, a
+// cancel or the DLL limit) with no bridge at all, and every call would come back "Unknown function."
+func writeSources(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	put := func(name string, data []byte) error {
+		tmp := filepath.Join(dir, "."+name+".tmp")
+		if err := os.WriteFile(tmp, data, 0o600); err != nil {
+			return err
+		}
+		return os.Rename(tmp, filepath.Join(dir, name))
+	}
+	for _, f := range bridgeFiles() {
+		data, _ := bridgeFS.ReadFile("rsrc/" + f)
+		if err := put(f, data); err != nil {
+			return err
+		}
+	}
+	return put("worker.R.txt", workerR)
+}
+
 // rMaxDLLs is the R_MAX_NUM_DLLS given to every R worker (see spawn).
 const rMaxDLLs = "150"
 
 // spawn starts one R worker and waits for its ready line.
 func (p *rPool) spawn() (*rWorker, error) {
+	if err := writeSources(p.dir); err != nil {
+		return nil, err
+	}
 	// The worker script is not named *.R so it is not sourced as part of the bridge.
 	cmd := exec.Command(p.rscript, "--vanilla", filepath.Join(p.dir, "worker.R.txt"), p.dir)
 	cmd.Dir = p.dir

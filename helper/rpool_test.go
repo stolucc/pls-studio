@@ -361,3 +361,29 @@ func multicoreRequest(cores int) string {
 		"boot": map[string]any{"samples": 300, "seed": 5, "confidence": 0.95}, "cores": cores})
 	return string(b)
 }
+
+// The system cleans its temporary folder of old files while a helper keeps running: a worker started afterwards
+// (here: the replacement of a cancelled one) still gets the bridge.
+func TestRPool_ReplacementWorkerSurvivesTempCleanup(t *testing.T) {
+	p := testPool(t, 1)
+	if err := os.RemoveAll(p.dir); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := p.call(ctx, &callRequest{ID: "long", Fn: "ps_nca", Req: ncaRequestN(5000, 20000)})
+		done <- err
+	}()
+	time.Sleep(1500 * time.Millisecond)
+	cancel()
+	if err := <-done; err != errCancelled {
+		t.Fatalf("expected errCancelled, got %v", err)
+	}
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel2()
+	rep, err := p.call(ctx2, &callRequest{ID: "after", Fn: "ps_nca", Req: ncaRequest(0)})
+	if err != nil || !rep.OK {
+		t.Fatalf("after the cleanup: %v %+v", err, rep)
+	}
+}
