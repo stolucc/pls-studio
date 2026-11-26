@@ -126,6 +126,7 @@ export function example(
   }
   current.example = check;
   current.source = null;
+  current.touched.add(check);
   return check;
 }
 

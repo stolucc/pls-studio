@@ -186,6 +186,10 @@ export default defineConfig({
       ...(process.env.WEBR_TESTS ? [] : ['**/*.webr.test.ts', '**/*.webr.test.tsx']),
       ...(process.env.WEBR_SLOW ? [] : ['**/*.slow.webr.test.ts', '**/*.slow.webr.test.tsx']),
       ...(process.env.WEBR_TESTS && !process.env.PS_NATIVE_R ? EVIDENCE_RUNS.desktop : []),
+      // (Monte Carlo cards too slow to record in webR: their evidence is recorded in desktop R)
+      ...(process.env.WEBR_TESTS && !process.env.PS_NATIVE_R && process.env.PS_VALIDATION_DIR
+        ? EVIDENCE_RUNS.desktopSlow
+        : []),
     ],
   },
 } as never);

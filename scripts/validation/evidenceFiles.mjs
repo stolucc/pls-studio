@@ -43,18 +43,29 @@ export const sourcesOf = (recordFile) => {
   return [`${base}.test.ts`, `${base}.test.tsx`];
 };
 
-/** Checks of `previous` missing from `next` that no rerun test file accounts for. */
+/** The test files (feature keys) a check's evidence came from: its `test` field, "file: test; file: test". */
+const featuresOf = (c) => [
+  ...new Set(
+    String(c.test ?? '')
+      .split('; ')
+      .map((t) => t.split(': ')[0]),
+  ),
+];
+
+/**
+ * What `previous` had that `next` lacks and no rerun test file accounts for: per check, per test file it came from
+ * ("example x from examples/cards/model"), since an example checked in several files keeps its check when one file's
+ * records are missing, only without that file's comparisons.
+ */
 export function lostChecks(previous, next, rerunFeatures) {
-  const have = new Set(next.map((c) => `${c.subject}:${c.id}`));
-  return previous
-    .filter((c) => !have.has(`${c.subject}:${c.id}`))
-    .filter(
-      (c) =>
-        !String(c.test ?? '')
-          .split('; ')
-          .every((t) => rerunFeatures.has(t.split(': ')[0])),
-    )
-    .map((c) => `${c.subject} ${c.id}`);
+  const have = new Set(
+    next.flatMap((c) => featuresOf(c).map((f) => `${c.subject}:${c.id}\u0000${f}`)),
+  );
+  return previous.flatMap((c) =>
+    featuresOf(c)
+      .filter((f) => !rerunFeatures.has(f) && !have.has(`${c.subject}:${c.id}\u0000${f}`))
+      .map((f) => `${c.subject} ${c.id} from ${f}`),
+  );
 }
 
 function vitest(files, env) {
@@ -75,7 +86,9 @@ function main() {
   if (!named.length)
     fail('Name the test files to record: npm run validate:evidence:files -- <file> ...');
   for (const f of named) if (!existsSync(f)) fail(`No such file: ${f}`);
-  const desktop = named.filter((f) => runs.desktop.some((d) => f.endsWith(d)));
+  const desktop = named.filter((f) =>
+    [...runs.desktop, ...runs.desktopSlow].some((d) => f.endsWith(d)),
+  );
   if (desktop.length)
     fail(`Desktop-R files (npm run validate:evidence:desktop): ${desktop.join(', ')}`);
   if (!existsSync(DIR) || !existsSync(OUT))

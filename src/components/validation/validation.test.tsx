@@ -160,6 +160,45 @@ describe('ValidationPage', () => {
     const chip = [...host.querySelectorAll('.evidence-head .chip.evidence.published')][0];
     expect(chip.getAttribute('title')).toContain('2 numbers compared.');
   });
+
+  it('says which comparisons of an example were computed in desktop R when the others were in webR', async () => {
+    const mixed: Evidence = {
+      ...evidence,
+      checks: [
+        {
+          ...evidence.checks[0],
+          comparisons: [
+            ...evidence.checks[0].comparisons,
+            {
+              quantity: 'power at N = 100',
+              value: 0.37,
+              reference: 0.37,
+              tolerance: 0.05,
+              source: 'Mplus User’s Guide, example 5.25',
+              runtime: 'desktop',
+            },
+          ],
+        },
+      ],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, json: async () => mixed })),
+    );
+    act(() => {
+      createRoot(host).render(
+        <ValidationPage onBack={() => {}} focus="mplus-ex5.25" titles={{}} />,
+      );
+    });
+    await flush();
+    expect(host.querySelector('.evidence-head .chip.runtime')!.textContent).toBe(
+      'partly desktop R',
+    );
+    expect(host.textContent).toContain(
+      '1 of the comparisons were computed in the helper’s desktop R',
+    );
+    expect(host.textContent).not.toContain('not in webR: the package');
+  });
 });
 
 describe('the Analyses tab', () => {

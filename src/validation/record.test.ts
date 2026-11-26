@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { current, evidenceFile } from './collector';
+import { current, endTest, evidenceFile } from './collector';
 import { against, definitionHash, example, near, same, UNHASHED_FIELDS } from './record';
 
 describe('evidenceFile', () => {
@@ -83,5 +83,38 @@ describe('the level an example’s comparisons give it', () => {
     near('pooled estimate', 0.444, 0.34, 0.336, { monteCarlo: true });
     near('complete data', 1, 1, 0.001);
     expect(c.comparisons.map((x) => x.monteCarlo)).toEqual([true, undefined]);
+  });
+});
+
+describe('the end of a test', () => {
+  const start = (id: string) => example(id, { title: id, method: 'PLS', packages: ['cSEM'] });
+  afterEach(() => {
+    current.abandoned = false;
+    current.touched.clear();
+  });
+
+  it('a passed test leaves its examples passed and starts the next test afresh', () => {
+    const c = start('end-passed');
+    endTest(false, false, null);
+    expect(c.passed).toBe(true);
+    expect(current.example).toBeNull();
+    expect(current.touched.size).toBe(0);
+  });
+
+  it('a failed test fails every example it fed, not only the last, and its feature check', () => {
+    const a = start('end-failed-a');
+    const b = start('end-failed-b');
+    const feature = { ...a, id: 'feature', passed: true };
+    endTest(true, false, feature);
+    expect([a.passed, b.passed, feature.passed]).toEqual([false, false, false]);
+  });
+
+  it('after a timeout no later check of the file passes, since the abandoned test may still record into it', () => {
+    const timedOut = start('end-timeout');
+    endTest(true, true, null);
+    expect(timedOut.passed).toBe(false);
+    const later = start('end-after-timeout');
+    endTest(false, false, null);
+    expect(later.passed).toBe(false);
   });
 });

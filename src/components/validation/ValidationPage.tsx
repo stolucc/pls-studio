@@ -59,7 +59,15 @@ function Sources({ c }: { c: Check }) {
       ))}
       {c.runtime === 'desktop' && (
         <li className="hint">
-          Computed in the helper’s desktop R (the package does not run in the browser), not in webR.
+          Computed in the helper’s desktop R, not in webR: the package does not run in the browser,
+          or the Monte Carlo study is too slow there.
+        </li>
+      )}
+      {!c.runtime && c.comparisons.some((x) => x.runtime === 'desktop') && (
+        <li className="hint">
+          {c.comparisons.filter((x) => x.runtime === 'desktop').length} of the comparisons were
+          computed in the helper’s desktop R (a Monte Carlo study too slow for the browser), the
+          others in webR.
         </li>
       )}
       {c.runtime === 'fixture' && (
@@ -160,6 +168,14 @@ function CheckRow({
           {c.runtime === 'desktop' && (
             <span className="chip coverage runtime" title="Computed in desktop R, not in webR">
               desktop R
+            </span>
+          )}
+          {!c.runtime && c.comparisons.some((x) => x.runtime === 'desktop') && (
+            <span
+              className="chip coverage runtime"
+              title="Some comparisons computed in desktop R, the others in webR"
+            >
+              partly desktop R
             </span>
           )}
         </span>

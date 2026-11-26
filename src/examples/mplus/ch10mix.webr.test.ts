@@ -13,7 +13,8 @@ beforeAll(async () => {
 });
 afterAll(stopTestRuntime);
 
-const TWO_LEVEL = [['ex10.2'], ['ex10.2alt'], ['ex10.3'], ['ex10.4'], ['ex10.11'], ['ex10.13']];
+// (ex10.4, about half an hour in webR, has a file of its own: ch10mix4.webr.test.ts)
+const TWO_LEVEL = [['ex10.2'], ['ex10.2alt'], ['ex10.3'], ['ex10.11'], ['ex10.13']];
 
 it.each(TWO_LEVEL)(
   '%s: the mixture model card reproduces the Mplus two-level mixture: fit, every estimate and MLR standard error',

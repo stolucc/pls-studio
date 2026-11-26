@@ -17,14 +17,18 @@ const PUBLIC = join(ROOT, 'public', 'webr');
 let server: Server | null = null;
 let native: NativePool | null = null;
 
-/** Whether a test file is one of the desktop-only packages' (recorded in desktop R). */
+/** Whether a test file is recorded in desktop R: a desktop-only package's, or a Monte Carlo card file too slow for webR. */
 export const isDesktopEvidence = (testPath: string | undefined) =>
-  !!testPath && EVIDENCE_RUNS.desktop.some((f) => testPath.replace(/\\/g, '/').endsWith(`/${f}`));
+  !!testPath &&
+  [...EVIDENCE_RUNS.desktop, ...EVIDENCE_RUNS.desktopSlow].some((f) =>
+    testPath.replace(/\\/g, '/').endsWith(`/${f}`),
+  );
 
 export async function startTestRuntime() {
   // PS_NATIVE_R=1 (npm run test:native): the bridge's calls run in desktop R (nativeR.ts); webR stays available for
   // tests that drive it directly. Not for the validation record, which is what the browser computes, except for the
-  // files of desktop-only packages (validation/evidenceRuns.json `desktop`, npm run validate:evidence:desktop), whose
+  // files of desktop-only packages and the slowest Monte Carlo cards (validation/evidenceRuns.json `desktop` and
+  // `desktopSlow`, npm run validate:evidence:desktop), whose
   // checks are marked as computed in desktop R.
   if (process.env.PS_NATIVE_R && !native) {
     if (process.env.PS_VALIDATION_DIR && !isDesktopEvidence(expect.getState().testPath))

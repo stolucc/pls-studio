@@ -49,7 +49,32 @@ export function flush() {
 }
 
 /** Examples: the example whose check the toBeCloseTo calls of a test feed (record.ts), and the source compared with. */
-export const current: { example: Check | null; source: string | null } = {
+export const current: {
+  example: Check | null;
+  source: string | null;
+  /** The example checks the running test has fed. */
+  touched: Set<Check>;
+  /** A test of this file timed out (endTest). */
+  abandoned: boolean;
+} = {
   example: null,
   source: null,
+  touched: new Set(),
+  abandoned: false,
 };
+
+/**
+ * The end of a test (setup.ts): a failed test fails every check it fed, so a test that timed out before its comparisons does
+ * not leave its example's check passed. A timed-out test keeps running in the background and its late comparisons land in
+ * whatever check the file is on by then, so from a timeout on no check of the file passes: the file has to be rerun.
+ */
+export function endTest(failed: boolean, timedOut: boolean, feature: Check | null) {
+  if (timedOut) current.abandoned = true;
+  if (failed || current.abandoned) {
+    for (const check of current.touched) check.passed = false;
+    if (feature) feature.passed = false;
+  }
+  current.touched.clear();
+  current.example = null;
+  current.source = null;
+}

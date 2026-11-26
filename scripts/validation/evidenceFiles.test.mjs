@@ -25,7 +25,13 @@ describe('the partial evidence run', () => {
       check('c', 'rengine/pls: c'),
     ];
     const rerun = new Set(['examples/bollen1989']);
-    expect(lostChecks(previous, [], rerun)).toEqual(['example b', 'example c']);
+    expect(lostChecks(previous, [], rerun)).toEqual([
+      'example b from analyses/cards',
+      'example c from rengine/pls',
+    ]);
     expect(lostChecks(previous, previous, rerun)).toEqual([]);
+    // b still there, but only from the rerun file: what analyses/cards gave it is gone
+    const partial = [check('b', 'examples/bollen1989: b'), previous[2]];
+    expect(lostChecks(previous, partial, rerun)).toEqual(['example b from analyses/cards']);
   });
 });

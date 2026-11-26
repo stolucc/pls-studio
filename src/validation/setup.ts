@@ -3,23 +3,26 @@
 // (features.ts), and the file's evidence is written when it ends. Without it, nothing changes.
 
 import { afterAll, afterEach, expect } from 'vitest';
-import { current, flush, runtime } from './collector';
+import { current, endTest, flush, runtime } from './collector';
 import { featureCheck, recordComparison } from './record';
 
 if (process.env.PS_VALIDATION_DIR) {
   afterAll(flush);
   afterEach((ctx) => {
-    current.example = null;
-    current.source = null;
     // A webR validation test with no recorded comparison (counts, orderings, recovered structure) still leaves its check: whether
     // it passed. The plain test files recorded without R (runtime 'fixture') also test behaviour: there only tests that compared
     // numbers leave a check, or a failure.
-    const failed = !!ctx.task.result?.errors?.length;
+    const errors = ctx.task.result?.errors ?? [];
+    const failed = errors.length > 0 || current.abandoned;
     const check = featureCheck(
       expect.getState().currentTestName ?? ctx.task.name,
       runtime() !== 'fixture' || failed,
     );
-    if (check && failed) check.passed = false;
+    endTest(
+      failed,
+      errors.some((e) => /Test timed out/.test(String(e?.message))),
+      check,
+    );
   });
   expect.extend({
     // Exactly as vitest's own: |expected − received| < ½·10^−digits, equal infinities pass; like vitest's, it

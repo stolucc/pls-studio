@@ -7,5 +7,26 @@
     "src/analyses/charts.test.tsx", "src/analyses/methodCompare.test.ts", "src/examples/mplus/bsem.test.ts", "src/examples/mplus/dsem.test.ts",
     "src/measurement/htmtBootstrap.test.ts", "src/measurement/loadings.test.ts"
   ],
-  "desktop": ["src/rengine/metasem.webr.test.ts", "src/rengine/semtree.webr.test.ts", "src/rengine/plssem.webr.test.ts"]
+  "desktop": ["src/rengine/metasem.webr.test.ts", "src/rengine/semtree.webr.test.ts", "src/rengine/plssem.webr.test.ts"],
+  "desktopSlow": [
+    "src/examples/cards/model.ronkkoChoOne.webr.test.ts",
+    "src/examples/cards/model.ronkkoChoNine.webr.test.ts",
+    "src/examples/cards/model.ronkkoChoUnequal.webr.test.ts",
+    "src/examples/cards/model.ronkkoChoNineItems50.webr.test.ts",
+    "src/examples/cards/model.ronkkoChoNineItems100.webr.test.ts",
+    "src/examples/cards/model.ronkkoChoNineItems250.webr.test.ts",
+    "src/examples/cards/model.ronkkoChoNineItems1000.webr.test.ts",
+    "src/examples/cards/model.frankeSarstedtCutoff.webr.test.ts",
+    "src/examples/cards/model.frankeSarstedtUnequal.webr.test.ts",
+    "src/examples/cards/model.rhemtulla.webr.test.ts",
+    "src/examples/cards/model.reinartzPower.webr.test.ts",
+    "src/examples/cards/model.reinartzWeak.webr.test.ts",
+    "src/examples/cards/model.henselerSarstedtGof.webr.test.ts",
+    "src/examples/cards/model.goodhue.webr.test.ts",
+    "src/examples/cards/model.kockHadaya100.webr.test.ts",
+    "src/examples/cards/model.kockHadaya300.webr.test.ts",
+    "src/examples/cards/model.kockHadaya400.webr.test.ts",
+    "src/examples/cards/model.sarstedt.webr.test.ts",
+    "src/examples/cards/model.aguirreRonkko.webr.test.ts"
+  ]
 }

@@ -49,6 +49,15 @@ it('records in desktop R exactly the webR files whose packages are all desktop-o
   for (const f of RUNS.desktop) expect(existsSync(join(src, '..', f)), f).toBe(true);
 });
 
+it('records in desktop R the Monte Carlo card files too slow for webR, which are webR test files of packages webR has', () => {
+  expect(RUNS.desktopSlow.length).toBeGreaterThan(0);
+  for (const f of RUNS.desktopSlow) {
+    expect(existsSync(join(src, '..', f)), f).toBe(true);
+    expect(f, f).toMatch(/^src\/examples\/cards\/model\.\w+\.webr\.test\.ts$/);
+    expect(RUNS.desktop, f).not.toContain(f);
+  }
+});
+
 it('names reference scripts that exist', () => {
   for (const [file, f] of Object.entries(FEATURES)) {
     if (typeof f === 'string') continue;

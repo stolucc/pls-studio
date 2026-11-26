@@ -3,14 +3,17 @@
 // public/validation.json, with the R and package versions from the webR lock.
 //
 //   npm run validate:evidence          (the webR tests, then the plain tests recorded without R, then this)
-//   npm run validate:evidence:desktop  (the desktop-only packages' files in desktop R, then this with --desktop)
+//   npm run validate:evidence:desktop  (the desktop-only packages' and the slowest Monte Carlo cards' files in desktop R,
+//                                       then this with --desktop)
 //   node scripts/validation/evidence.mjs <dir> [--desktop]
 //
-// The desktop run's checks (runtime "desktop") are kept by a later webR run, and replaced by the next desktop run.
+// Both runs' records are merged: the other run's directory (.validation-desktop for a webR run, .validation for a desktop
+// run) when it is here, else the other run's checks kept from public/validation.json. An example checked in both (a Monte
+// Carlo card in desktop R, its "runs" check in webR) is one check, each comparison marked with where it was computed.
 // Checks of tests on private data (PRIVATE_DATA) are kept by a run without the data, and replaced by one with them.
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 // Features whose tests run on data that are not in the repository (src/validation/features.ts keys), each with the
 // variable that points at the data: rengine/barcomb.webr.test.ts runs only with BARCOMB_DATA=<csv>.
@@ -18,6 +21,10 @@ const PRIVATE_DATA = { 'rengine/barcomb': 'BARCOMB_DATA' };
 
 const dir = process.argv[2] ?? '.validation';
 const desktop = process.argv.includes('--desktop');
+const other = desktop ? '.validation' : '.validation-desktop';
+const haveOther = existsSync(other) && resolve(other) !== resolve(dir);
+// (webR's records first, so that a check computed in both keeps webR as its runtime)
+const dirs = haveOther ? (desktop ? [other, dir] : [dir, other]) : [dir];
 const previous = existsSync('public/validation.json')
   ? JSON.parse(readFileSync('public/validation.json', 'utf8'))
   : null;
@@ -25,11 +32,19 @@ const lock = JSON.parse(readFileSync('scripts/webr/webr-lock.json', 'utf8'));
 const pkgs = lock.packages ?? lock;
 const version = (name) => pkgs?.[name]?.version;
 
+/** Marks a check's comparisons with its runtime, when it has one, before it joins a check computed elsewhere. */
+const markRuntime = (c) => {
+  if (c.runtime) for (const x of c.comparisons) x.runtime ??= c.runtime;
+};
+
 const byKey = new Map();
-for (const f of readdirSync(dir)
-  .filter((x) => x.endsWith('.json'))
-  .sort()) {
-  for (const c of JSON.parse(readFileSync(join(dir, f), 'utf8'))) {
+for (const [d, f] of dirs.flatMap((d) =>
+  readdirSync(d)
+    .filter((x) => x.endsWith('.json'))
+    .sort()
+    .map((f) => [d, f]),
+)) {
+  for (const c of JSON.parse(readFileSync(join(d, f), 'utf8'))) {
     const key = `${c.subject}:${c.id}`;
     const prev = byKey.get(key);
     if (!prev) {
@@ -39,6 +54,11 @@ for (const f of readdirSync(dir)
     // The same example checked in several test files: one check with every source and comparison (the app shows each kind of
     // evidence; `level` keeps one, published before native, for sorting).
     const rank = { published: 0, native: 1, 'same-r': 2, recovery: 3, runs: 4 };
+    if (c.runtime !== prev.runtime) {
+      markRuntime(prev);
+      markRuntime(c);
+      delete prev.runtime;
+    }
     prev.level = rank[c.level] < rank[prev.level] ? c.level : prev.level;
     prev.comparisons.push(...c.comparisons);
     for (const s of c.sources)
@@ -50,8 +70,9 @@ for (const f of readdirSync(dir)
     prev.definition ??= c.definition;
   }
 }
-// The other run's checks: a webR run keeps the desktop checks; a desktop run keeps everything else.
-for (const c of previous?.checks ?? []) {
+// Without the other run's directory, its checks from before: a webR run keeps the desktop checks; a desktop run keeps
+// everything else.
+for (const c of haveOther ? [] : (previous?.checks ?? [])) {
   const key = `${c.subject}:${c.id}`;
   if ((c.runtime === 'desktop') !== desktop && !byKey.has(key)) byKey.set(key, c);
 }

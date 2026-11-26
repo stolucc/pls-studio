@@ -48,6 +48,11 @@ export interface Comparison {
    * error", not as a precision.
    */
   monteCarlo?: true;
+  /**
+   * In a check computed in more than one place (scripts/validation/evidence.mjs): where this comparison was, when not
+   * webR (Check.runtime).
+   */
+  runtime?: 'desktop' | 'fixture';
 }
 
 /**
@@ -86,8 +91,9 @@ export interface Check {
   /** The analyses (cards, modes, Model-tab entries: validation/cards.ts keys) this check is evidence for. */
   cards?: string[];
   /**
-   * Where the app's numbers were computed: absent, webR (the browser's R); `desktop`, the helper's desktop R (the
-   * desktop-only packages, npm run validate:evidence:desktop); `fixture`, no R at all (the built-in engine, or a
+   * Where the app's numbers were computed: absent, webR (the browser's R), or more than one place (each comparison then
+   * says where: Comparison.runtime); `desktop`, the helper's desktop R (the desktop-only packages and the Monte Carlo
+   * cards too slow for webR, npm run validate:evidence:desktop); `fixture`, no R at all (the built-in engine, or a
    * desktop run recorded in a fixture and compared again).
    */
   runtime?: 'desktop' | 'fixture';
