@@ -130,6 +130,19 @@ export function example(
   return check;
 }
 
+/**
+ * Go back to an example this file already started, so a test that runs several examples before comparing them
+ * records each comparison under the example it measures; its sources are given again with against().
+ */
+export function resume(id: string): Check {
+  const check = checks.get(`example:${id}`);
+  if (!check) throw new Error(`resume(${id}) before example()`);
+  current.example = check;
+  current.source = null;
+  current.touched.add(check);
+  return check;
+}
+
 const RANK: Record<EvidenceLevel, number> = {
   published: 0,
   native: 1,

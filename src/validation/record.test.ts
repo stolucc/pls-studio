@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { current, endTest, evidenceFile } from './collector';
-import { against, definitionHash, example, near, same, UNHASHED_FIELDS } from './record';
+import { against, definitionHash, example, near, resume, same, UNHASHED_FIELDS } from './record';
 
 describe('evidenceFile', () => {
   it('keeps .webr, so a plain and a webR test file of the same name write different files', () => {
@@ -83,6 +83,18 @@ describe('the level an example’s comparisons give it', () => {
     near('pooled estimate', 0.444, 0.34, 0.336, { monteCarlo: true });
     near('complete data', 1, 1, 0.001);
     expect(c.comparisons.map((x) => x.monteCarlo)).toEqual([true, undefined]);
+  });
+
+  it('resume: back to an earlier example, its comparisons recorded there and not under the last one started', () => {
+    const first = start('test-resume-first');
+    const second = start('test-resume-second');
+    resume('test-resume-first');
+    against({ label: 'a paper', level: 'published' });
+    near('GoF', 0.37, 0.37, 0.01);
+    expect(first.comparisons).toHaveLength(1);
+    expect(first.level).toBe('published');
+    expect(second.comparisons).toHaveLength(0);
+    expect(() => resume('test-resume-never-started')).toThrow(/before example/);
   });
 });
 
