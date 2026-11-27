@@ -362,6 +362,48 @@ describe('factors scaled by their variance, and direct effects on indicators (Mp
       parseProject(serializeProject(bare.model, CB, null, null)).model.constructs[0].scaling,
     ).toBeUndefined();
   });
+  it('effects coding (loadings constrained to average 1) imports as a scaling: the spec, the Mplus input, a saved project, the validation', () => {
+    const { model, warnings } = parseLavaanSyntax(
+      [
+        'visual =~ NA*x1 + l1*x1 + l2*x2 + l3*x3',
+        'textual =~ NA*x4 + l4*x4 + l5*x5 + l6*x6',
+        'l1 == 3 - l2 - l3',
+        'l4 + l5 + l6 == 3',
+        'textual ~ visual',
+      ].join('\n'),
+    );
+    expect(warnings).toEqual([]);
+    for (const c of model.constructs) {
+      expect(c).toMatchObject({ scaling: 'effects' });
+      // (the labels and the constraint are the scaling's own)
+      expect(c.loadingLabels).toBeUndefined();
+    }
+    expect(model.inequalities).toBeUndefined();
+    expect(toSpec(model).constructs[0]).toMatchObject({ scaling: 'effects' });
+    const inp = toMplus(model, CB, null, null, 'p').inp;
+    expect(inp).toContain('visual BY\n    x1* (efc1_1)\n    x2* (efc1_2)\n    x3* (efc1_3);');
+    expect(inp).toContain('efc1_1 = 3 - efc1_2 - efc1_3;');
+    expect(inp).toContain('efc2_1 = 3 - efc2_2 - efc2_3;');
+    expect(parseProject(serializeProject(model, CB, null, null)).model.constructs[0].scaling).toBe(
+      'effects',
+    );
+    // lavaan's: refused by the built-in engine and with groups
+    const issues = (s: Partial<typeof CB> & { engine?: 'builtin' | 'r' }, m = model) =>
+      validateModel(m, null, { ...CB, ...s })
+        .map((i) => i.message)
+        .join(' ');
+    expect(issues({ engine: 'builtin' })).toMatch(/effects coding is fitted by lavaan/);
+    expect(issues({ engine: 'r' })).not.toMatch(/effects coding/);
+    expect(
+      issues({}, { ...model, multigroup: { column: 'g', invariance: 'configural', free: [] } }),
+    ).toMatch(/effects coding is available for a model without groups/);
+    // Not effects coding: the constraint sums to another number, or a label is used elsewhere; kept as written.
+    const other = parseLavaanSyntax('f =~ NA*y1 + a*y1 + b*y2 + c*y3\na == 2 - b - c');
+    expect(other.model.constructs[0].scaling).toBeUndefined();
+    expect(other.warnings).toEqual([expect.stringMatching(/free first loading/)]);
+    const reused = parseLavaanSyntax('f =~ NA*y1 + a*y1 + b*y2 + c*y3\na == 3 - b - c\nab := a*b');
+    expect(reused.model.constructs[0].scaling).toBeUndefined();
+  });
   it('y1 ~ x1, y1 an indicator of a factor, imports as a direct effect on the indicator: spec, Mplus input, project, validation', () => {
     const { model, warnings } = parseLavaanSyntax(
       'f1 =~ y1 + y2 + y3\nf1 ~ x1 + x2\ny1 ~ d*x1\ny3 ~ 0.5*x2',

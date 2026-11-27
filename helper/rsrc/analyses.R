@@ -107,7 +107,7 @@ ps_miiv <- function(req_json, export = FALSE) {
     stop("MIIV-2SLS does not use sampling weights; choose ML, MLR or MLM.")
   }
   req$estimator <- "ML"
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   # Same model syntax; single-indicator error variances are implied by MIIVsem's scaling.
   body <- b$body[!grepl("~~ 0\\*", b$body)]
   # An error-free single indicator stands for its construct directly: MIIVsem takes a one-indicator factor

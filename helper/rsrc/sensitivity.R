@@ -16,7 +16,7 @@
 
 ps_semsens <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "Sensitivity analysis (SEMsens)", raw = FALSE)
   if (!grepl("^fit <- sem\\(model, .*\\)$", b$call)) {
     stop("Sensitivity analysis (SEMsens) is not available for this model.")

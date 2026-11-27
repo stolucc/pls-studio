@@ -119,7 +119,7 @@ ps_sc_series <- function(scus, fun, fn, z) {
 
 ps_scoretest <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   what <- "Score-based invariance tests"
   ps_cb_plain(b, what)
   if (!grepl("^fit <- sem\\(.*\\)$", b$call)) {

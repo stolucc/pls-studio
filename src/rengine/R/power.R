@@ -78,7 +78,7 @@ ps_power <- function(req_json, export = FALSE) {
     )
     report <- "summary(pw)"
   } else if (analysis == "parameter") {
-    b <- ps_cb_build(req)
+    b <- ps_cb_build_fit(req)
     ps_cb_plain(b, "Power for a parameter", raw = FALSE)
     if (!grepl("^fit <- sem\\(.*\\)$", b$call)) {
       stop("Power for a parameter is not available for this model.")
@@ -160,7 +160,7 @@ ps_power <- function(req_json, export = FALSE) {
     src <- o[["source", exact = TRUE]] %||% "manual"
     if (!src %in% c("model", "manual")) stop("Invalid source in the request.")
     if (src == "model") {
-      b <- ps_cb_build(req)
+      b <- ps_cb_build_fit(req)
       ps_cb_plain(b, "The RMSEA equivalence test", raw = FALSE)
       if (!grepl("^fit <- sem\\(.*\\)$", b$call)) {
         stop("The RMSEA equivalence test is not available for this model.")

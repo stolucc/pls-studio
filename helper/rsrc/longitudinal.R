@@ -223,6 +223,12 @@ ps_growth <- function(req_json, export = FALSE) {
   ))
 }
 
+#' `between`: "intercepts", the RI-CLPM (compared with the traditional CLPM); "growth", the latent curve model with
+#' structured residuals (LCM-SR; Curran, Howard, Bainter, Lane & McGinley 2014): a linear intercept and slope per
+#' variable (time scores 0 ... T-1, means and covariances free, observed intercepts zero) in place of the random
+#' intercepts, and the same within-person lagged effects among the deviations from each person's own trajectory. The
+#' LCM-SR is compared with the RI-CLPM on the same data by information criteria: the RI-CLPM's free occasion means
+#' are not a restriction of the growth factors' means, so the two are not nested and no likelihood-ratio test applies.
 ps_riclpm <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   xs <- unlist(req$x)
@@ -231,11 +237,30 @@ ps_riclpm <- function(req_json, export = FALSE) {
   if (T < 3 || length(ys) != T) {
     stop("The RI-CLPM needs both variables at the same three or more waves.")
   }
+  between <- req$between %||% "intercepts"
+  if (!identical(between, "intercepts") && !identical(between, "growth")) {
+    stop("Invalid between-person part in the request.")
+  }
+  growth <- between == "growth"
+  if (growth && T < 4) {
+    stop("The latent curve model with structured residuals needs both variables at four or more waves.")
+  }
   fr <- ps_long_frame(req, c(xs, ys))
   o <- ps_long_options(req)
   x <- unname(fr$v[xs])
   y <- unname(fr$v[ys])
   equal <- isTRUE(req$equal)
+  factors <- c("Ix", "Sx", "Iy", "Sy")
+  trajectories <- c(
+    sprintf("Ix =~ %s", paste0("1*", x, collapse = " + ")),
+    sprintf("Sx =~ %s", paste0(0:(T - 1), "*", x, collapse = " + ")),
+    sprintf("Iy =~ %s", paste0("1*", y, collapse = " + ")),
+    sprintf("Sy =~ %s", paste0(0:(T - 1), "*", y, collapse = " + ")),
+    sprintf("%s ~ 1", factors),
+    sprintf("%s ~ 0*1", c(x, y)),
+    unlist(lapply(1:4, function(i) sprintf("%s ~~ %s", factors[i], factors[i:4]))),
+    sprintf("%s ~~ 0*wx1 + 0*wy1", factors)
+  )
   spec <- function(random) {
     c(
       if (random) c(sprintf("RIx =~ %s", paste0("1*", x, collapse = " + ")), sprintf("RIy =~ %s", paste0("1*", y, collapse = " + "))),
@@ -250,47 +275,73 @@ ps_riclpm <- function(req_json, export = FALSE) {
       sprintf("%s ~~ 0*%s", c(x, y), c(x, y))
     )
   }
-  call <- function(name, model) {
+  call <- function(name, model, intercepts = TRUE) {
     sprintf(
-      "%s <- lavaan(%s, data = data, meanstructure = TRUE, int.ov.free = TRUE, estimator = \"%s\"%s%s)",
-      name, model, o$est, ps_lavaan_missing(req$missing), o$extra
+      "%s <- lavaan(%s, data = data, meanstructure = TRUE, int.ov.free = %s, estimator = \"%s\"%s%s)",
+      name, model, intercepts, o$est, ps_lavaan_missing(req$missing), o$extra
     )
   }
-  body <- c(
-    "suppressPackageStartupMessages(library(lavaan))",
-    if (!o$fiml) ps_missing_code(req$missing),
+  ri_lines <- c(
     "# RI-CLPM: stable between-person differences (random intercepts RIx, RIy) separated from",
     "# within-person fluctuations (wx, wy), which carry the autoregressive and cross-lagged effects.",
-    "riclpm <- '", paste0("  ", spec(TRUE)), "'",
-    "# The traditional cross-lagged panel model: the same without random intercepts.",
-    "clpm <- '", paste0("  ", spec(FALSE)), "'",
-    call("fit", "riclpm"), call("fit_clpm", "clpm"),
-    "# Do the random intercepts improve fit? (Their variances lie on the boundary: conservative test.)",
-    "compare <- lavTestLRT(fit_clpm, fit)"
+    "riclpm <- '", paste0("  ", spec(TRUE)), "'"
   )
+  body <- if (growth) {
+    c(
+      "suppressPackageStartupMessages(library(lavaan))",
+      if (!o$fiml) ps_missing_code(req$missing),
+      "# LCM-SR (Curran et al. 2014): each person's linear trajectory on both variables (growth factors Ix, Sx, Iy, Sy)",
+      "# separated from the deviations from it (wx, wy), which carry the autoregressive and cross-lagged effects.",
+      "lcmsr <- '", paste0("  ", c(trajectories, spec(FALSE))), "'",
+      ri_lines,
+      call("fit", "lcmsr", FALSE), call("fit_riclpm", "riclpm"),
+      "# Not nested (the RI-CLPM's occasion means are free): compare by information criteria.",
+      "compare <- fitMeasures(fit_riclpm, c(\"aic\", \"bic\")) - fitMeasures(fit, c(\"aic\", \"bic\"))"
+    )
+  } else {
+    c(
+      "suppressPackageStartupMessages(library(lavaan))",
+      if (!o$fiml) ps_missing_code(req$missing),
+      ri_lines,
+      "# The traditional cross-lagged panel model: the same without random intercepts.",
+      "clpm <- '", paste0("  ", spec(FALSE)), "'",
+      call("fit", "riclpm"), call("fit_clpm", "clpm"),
+      "# Do the random intercepts improve fit? (Their variances lie on the boundary: conservative test.)",
+      "compare <- lavTestLRT(fit_clpm, fit)"
+    )
+  }
   inputs <- list(data = fr$data)
   if (export) {
     return(ps_script(
-      "RI-CLPM (lavaan)", "lavaan", inputs, body,
+      if (growth) "LCM-SR (lavaan)" else "RI-CLPM (lavaan)", "lavaan", inputs, body,
       c("summary(fit, fit.measures = TRUE, standardized = TRUE)", "compare")
     ))
   }
   env <- ps_run(body, inputs)
-  lvs <- c("RIx", "RIy", sprintf("wx%d", 1:T), sprintf("wy%d", 1:T))
+  lvs <- c(if (growth) factors else c("RIx", "RIy"), sprintf("wx%d", 1:T), sprintf("wy%d", 1:T))
   cmp <- env$compare
-  ps_json(list(
-    n = lavaan::lavInspect(env$fit, "nobs"),
-    waves = T,
-    equal = equal,
-    fit = ps_long_fit(env$fit),
-    clpmFit = ps_long_fit(env$fit_clpm),
-    estimates = ps_long_estimates(env$fit, fr$back, lvs),
-    comparison = list(
-      chisqDiff = unname(cmp[["Chisq diff"]][2]),
-      dfDiff = unname(cmp[["Df diff"]][2]),
-      p = unname(cmp[["Pr(>Chisq)"]][2])
+  ps_json(c(
+    list(
+      n = lavaan::lavInspect(env$fit, "nobs"),
+      waves = T,
+      equal = equal,
+      between = between,
+      fit = ps_long_fit(env$fit),
+      estimates = ps_long_estimates(env$fit, fr$back, lvs)
     ),
-    warnings = env$.warnings, engine = ps_engine("lavaan")
+    if (growth) {
+      list(riclpmFit = ps_long_fit(env$fit_riclpm))
+    } else {
+      list(
+        clpmFit = ps_long_fit(env$fit_clpm),
+        comparison = list(
+          chisqDiff = unname(cmp[["Chisq diff"]][2]),
+          dfDiff = unname(cmp[["Df diff"]][2]),
+          p = unname(cmp[["Pr(>Chisq)"]][2])
+        )
+      )
+    },
+    list(warnings = env$.warnings, engine = ps_engine("lavaan"))
   ))
 }
 

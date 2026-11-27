@@ -13,6 +13,8 @@ import { PROCESS_TABS, ProcessTab, type ProcessTabId } from './results/ProcessTa
 import { processGraph } from '../process/fromModel';
 import { MessagesView } from './results/Messages';
 import { ScriptView } from './results/ScriptView';
+import { TroubleshootView, useTroubleshoot } from './results/Troubleshoot';
+import { findings } from '../model/troubleshoot';
 import { IconAlert } from './icons';
 
 /** The progress line: R's message, "Estimating…", or the resampling count. */
@@ -51,7 +53,7 @@ export function ResultsPanel({
   const [miivTab, setMiivTab] = useState<MiivTabId>('equations');
   const [processTab, setProcessTab] = useState<ProcessTabId>('effects');
   /** A session tab shown instead of the method's results. */
-  const [extra, setExtra] = useState<'messages' | 'script' | null>(null);
+  const [extra, setExtra] = useState<'messages' | 'script' | 'troubleshoot' | null>(null);
   const messageCount = useStore((s) => s.messages.length);
   const warned = useStore((s) =>
     s.messages.length > 0 && s.messages[s.messages.length - 1].level === 'error'
@@ -73,6 +75,11 @@ export function ResultsPanel({
   const boot = results?.boot ?? null;
   const rMessage = useR((s) => (s.status === 'loading' ? s.message : ''));
   const engineLabel = engineOf(results, method, isMiiv);
+  const settings = useStore((s) => s.settings);
+  const data = useStore((s) => s.data);
+  // (CB-SEM only: empty otherwise, and then the tab is not shown)
+  const troubleChecks = useTroubleshoot(model, data, settings, cb);
+  const troubleCount = findings(troubleChecks).length;
 
   // The method's tab list and the tab chosen in it.
   let tabs: readonly { id: string; label: string }[];
@@ -102,6 +109,7 @@ export function ResultsPanel({
   let body: ReactNode;
   if (extra === 'messages') body = <MessagesView />;
   else if (extra === 'script') body = <ScriptView />;
+  else if (extra === 'troubleshoot' && troubleChecks.length) body = <TroubleshootView />;
   else if (proc)
     body = <ProcessTab tab={processTab} res={proc} title={procTitle} level={confidence} />;
   else if (pls)
@@ -247,6 +255,18 @@ export function ResultsPanel({
         >
           Messages{messageCount > 0 ? ` (${messageCount})` : ''}
         </button>
+        {troubleChecks.length > 0 && (
+          <button
+            role="tab"
+            aria-selected={extra === 'troubleshoot'}
+            className={`tab${extra === 'troubleshoot' ? ' on' : ''}`}
+            onClick={() => setExtra('troubleshoot')}
+            data-tour="results-tab-troubleshoot"
+            title="The usual causes of nonconvergence and improper solutions, checked on this model and data"
+          >
+            Troubleshoot{troubleCount > 0 ? ` (${troubleCount})` : ''}
+          </button>
+        )}
         <div className="spacer" />
         {cb?.groups && !cb.groups.levels && invariance && invariance !== 'configural' && (
           <span

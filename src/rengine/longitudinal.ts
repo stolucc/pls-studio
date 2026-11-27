@@ -51,10 +51,17 @@ export interface GrowthResult {
   groups?: string[];
 }
 
+/**
+ * The between-person part of the cross-lagged panel model: random intercepts (the RI-CLPM), or a linear trajectory per
+ * person on each variable (the latent curve model with structured residuals, LCM-SR; Curran et al. 2014).
+ */
+export type PanelBetween = 'intercepts' | 'growth';
 export interface RiclpmInput {
   x: string[];
   y: string[];
   equal: boolean;
+  /** Absent: random intercepts. */
+  between?: PanelBetween;
   estimator: 'ML' | 'MLR';
   missing: MissingTreatment;
   information?: 'observed';
@@ -63,10 +70,14 @@ export interface RiclpmResult {
   n: number;
   waves: number;
   equal: boolean;
+  between: PanelBetween;
   fit: Partial<CbFit>;
-  clpmFit: Partial<CbFit>;
+  /** Random intercepts: the traditional CLPM, and the likelihood-ratio test of the random intercepts. */
+  clpmFit?: Partial<CbFit>;
+  comparison?: { chisqDiff: number; dfDiff: number; p: number };
+  /** Growth (LCM-SR): the RI-CLPM on the same data, compared by information criteria (the two are not nested). */
+  riclpmFit?: Partial<CbFit>;
   estimates: LongEstimate[];
-  comparison: { chisqDiff: number; dfDiff: number; p: number };
   warnings: string[];
   engine: REngineInfo;
 }
@@ -136,8 +147,10 @@ export async function riclpmR(data: Dataset, input: RiclpmInput): Promise<Riclpm
   const raw = await rCall<Record<string, any>>('ps_riclpm', riclpmRequest(data, input), 'lavaan');
   return {
     ...raw,
+    between: raw.between ?? 'intercepts',
     fit: fitOf(raw.fit ?? {}),
-    clpmFit: fitOf(raw.clpmFit ?? {}),
+    ...(raw.clpmFit ? { clpmFit: fitOf(raw.clpmFit) } : {}),
+    ...(raw.riclpmFit ? { riclpmFit: fitOf(raw.riclpmFit) } : {}),
     estimates: estimates(raw.estimates),
     warnings: rStrings(raw.warnings),
   } as RiclpmResult;

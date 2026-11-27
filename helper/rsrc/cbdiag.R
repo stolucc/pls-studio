@@ -58,7 +58,7 @@ ps_str1 <- function(x) if (is.character(x) && length(x) == 1 && nzchar(x)) ps_fl
 #' further tests of exact fit chosen (lavaan::lavTest, each on its own: one that does not apply says why).
 ps_cb_localfit <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "Local fit", raw = FALSE)
   if (identical(req$estimator, "2SLS")) {
     stop("Local fit needs a model fitted as a whole; MIIV-2SLS estimates it equation by equation.")
@@ -165,7 +165,7 @@ ps_cb_localfit <- function(req_json, export = FALSE) {
 #' factors merged into one (chi2(merge)). The app classifies the pairs (Table 12).
 ps_cb_discriminant <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "Discriminant validity", raw = FALSE)
   if (identical(req$estimator, "2SLS")) {
     stop("Discriminant validity needs a model fitted as a whole; MIIV-2SLS estimates it equation by equation.")
@@ -253,10 +253,10 @@ ps_cb_compare_models <- function(req_json, export = FALSE) {
       stop("Invalid construct type in the request.")
     }
   }
-  b1 <- ps_cb_build(req)
+  b1 <- ps_cb_build_fit(req)
   req2 <- req
   req2$model <- req$alternative
-  b2 <- ps_cb_build(req2)
+  b2 <- ps_cb_build_fit(req2)
   for (b in list(b1, b2)) {
     ps_cb_plain(b, "Comparing models")
     if (length(b$call) != 1 || !grepl("^fit <- sem\\(model, data = data", b$call)) {
@@ -394,7 +394,7 @@ ps_cb_compare_models <- function(req_json, export = FALSE) {
 #' against that size (equivalence testing). The app counts the decisions and gives semTools' global verdict.
 ps_cb_epcequiv <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "The EPC-based judgement", raw = FALSE)
   if (identical(req$estimator, "2SLS")) {
     stop("The EPC-based judgement needs a model fitted as a whole; MIIV-2SLS estimates it equation by equation.")

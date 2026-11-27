@@ -311,6 +311,8 @@ const kitchenSink: Required<ModelState> = {
   waldTests: [{ id: 'w', name: 'Equal', constraints: 'pa == lf' }],
   inequalities: 'pa > 0',
   positiveVariances: true,
+  startValues: 'simple',
+  optimizer: 'BFGS',
   information: 'observed',
   wlsmvSe: 'lavaan',
   mimic: 'Mplus',

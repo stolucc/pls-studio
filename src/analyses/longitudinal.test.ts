@@ -77,6 +77,17 @@ describe('RI-CLPM card', () => {
       ri.blocked({ x: ['t1', 't2', 't3'], y: ['t4', 'c', 'id'], equal: true }, ctx()),
     ).toBeNull();
   });
+
+  it('linear growth between persons (the LCM-SR): four or more waves, kept by the options and the summary', () => {
+    const three = { x: ['t1', 't2', 't3'], y: ['t4', 'c', 'id'], equal: true };
+    expect(ri.blocked({ ...three, between: 'growth' }, ctx())).toContain('four or more waves');
+    expect(ri.blocked(three, ctx())).toBeNull();
+    expect(ri.parseOptions({ ...three, between: 'growth' })).toEqual({ ...three, between: 'growth' });
+    // (random intercepts, the default, leave the options as they were before the choice existed)
+    expect(ri.parseOptions({ ...three, between: 'intercepts' })).toEqual(three);
+    expect(ri.parseOptions({ ...three, between: 'other' })).toEqual(three);
+    expect(ri.summary!({ ...three, between: 'growth' })).toContain('LCM-SR');
+  });
 });
 
 describe('growth mixture card', () => {

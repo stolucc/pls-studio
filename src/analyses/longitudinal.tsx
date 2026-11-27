@@ -9,6 +9,7 @@ import {
   type GrowthInput,
   type GrowthResult,
   type LongEstimate,
+  type PanelBetween,
   type RiclpmInput,
   type RiclpmResult,
 } from '../rengine/longitudinal';
@@ -48,6 +49,8 @@ export interface RiclpmOptions {
   x: string[];
   y: string[];
   equal: boolean;
+  /** Absent: random intercepts (the RI-CLPM). */
+  between?: PanelBetween;
 }
 export interface GmmOptions {
   format: 'wide' | 'long';
@@ -318,17 +321,37 @@ function GrowthView({ r }: { r: GrowthResult & { input?: { estimator?: string } 
 }
 
 function RiclpmView({ r, input }: { r: RiclpmResult; input: RiclpmInput }) {
+  const growth = r.between === 'growth';
   const lagged = r.estimates.filter((e) => e.op === '~');
+  const xName = input.x[0].replace(/\d+$/, '').replace(/_$/, '') || 'X';
+  const yName = input.y[0].replace(/\d+$/, '').replace(/_$/, '') || 'Y';
   const lbl = (e: LongEstimate) => {
-    const v = (s: string) =>
-      s.startsWith('wx')
-        ? `${input.x[0].replace(/\d+$/, '') || 'X'}`
-        : `${input.y[0].replace(/\d+$/, '') || 'Y'}`;
+    const v = (s: string) => (s.startsWith('wx') ? xName : yName);
     const wave = (s: string) => s.slice(2);
     const kind = e.lhs.slice(0, 2) === e.rhs.slice(0, 2) ? 'autoregressive' : 'cross-lagged';
     return `${v(e.rhs)}(${wave(e.rhs)}) → ${v(e.lhs)}(${wave(e.lhs)}), ${kind}`;
   };
-  const between = r.estimates.filter((e) => e.op === '~~' && e.lhs.startsWith('RI'));
+  const factorName: Record<string, string> = {
+    RIx: 'RIx',
+    RIy: 'RIy',
+    Ix: `Intercept of ${xName}`,
+    Sx: `Slope of ${xName}`,
+    Iy: `Intercept of ${yName}`,
+    Sy: `Slope of ${yName}`,
+  };
+  const isFactor = (s: string) => s in factorName;
+  const between = r.estimates.filter(
+    (e) => e.op === '~~' && isFactor(e.lhs) && isFactor(e.rhs) && e.se !== null,
+  );
+  const means = growth ? r.estimates.filter((e) => e.op === '~1' && isFactor(e.lhs)) : [];
+  const fitRow = (label: string, f: Partial<RiclpmResult['fit']>, extra: Row = []): Row => [
+    c(label),
+    c(f.chisq ?? null),
+    c(f.df ?? null, '', 0),
+    c(f.cfi ?? null),
+    c(f.rmsea ?? null),
+    ...extra,
+  ];
   return (
     <div className="tables">
       {fitCards(r.fit)}
@@ -337,50 +360,69 @@ function RiclpmView({ r, input }: { r: RiclpmResult; input: RiclpmInput }) {
         file="riclpm-lagged"
         columns={estCols}
         rows={lagged.map((e) => estRow(e, lbl(e)))}
-        note={`Effects among within-person deviations from each person's own mean (Hamaker, Kuiper & Grasman, 2015)${r.equal ? ', held equal over time' : ''}. Cross-lagged: a person above their usual level on one variable is later above (or below) their usual level on the other.`}
+        note={
+          growth
+            ? `Effects among each person's deviations from their own trajectory (Curran et al., 2014)${r.equal ? ', held equal over time' : ''}. Cross-lagged: a person above their own trajectory on one variable is later above (or below) it on the other.`
+            : `Effects among within-person deviations from each person's own mean (Hamaker, Kuiper & Grasman, 2015)${r.equal ? ', held equal over time' : ''}. Cross-lagged: a person above their usual level on one variable is later above (or below) their usual level on the other.`
+        }
       />
+      {growth && (
+        <Table
+          title="Between-person: mean trajectories"
+          file="lcmsr-means"
+          columns={estCols}
+          rows={means.map((e) => estRow(e, `Mean ${factorName[e.lhs].toLowerCase()}`))}
+          note="The average starting level (first wave) and change per wave on each variable."
+        />
+      )}
       <Table
-        title="Between-person: random intercepts"
+        title={growth ? 'Between-person: growth factors' : 'Between-person: random intercepts'}
         file="riclpm-between"
         columns={estCols}
         rows={between.map((e) =>
           estRow(
             e,
             e.lhs === e.rhs
-              ? `Variance of ${e.lhs}`
-              : `${e.lhs} ↔ ${e.rhs} (standardised: correlation)`,
+              ? `Variance of ${factorName[e.lhs]}`
+              : `${factorName[e.lhs]} ↔ ${factorName[e.rhs]} (standardised: correlation)`,
           ),
         )}
-        note="Stable differences between persons, separated from the within-person dynamics."
+        note={
+          growth
+            ? 'How people differ in their starting levels and in their rates of change, and how these go together across the two variables.'
+            : 'Stable differences between persons, separated from the within-person dynamics.'
+        }
       />
-      <Table
-        title="RI-CLPM versus the traditional cross-lagged panel model"
-        file="riclpm-vs-clpm"
-        columns={['Model', 'χ²', 'df', 'CFI', 'RMSEA', 'Δχ²', 'Δdf', 'p']}
-        rows={[
-          [
-            c('CLPM (no random intercepts)'),
-            c(r.clpmFit.chisq ?? null),
-            c(r.clpmFit.df ?? null, '', 0),
-            c(r.clpmFit.cfi ?? null),
-            c(r.clpmFit.rmsea ?? null),
-            c(null),
-            c(null),
-            c(null),
-          ],
-          [
-            c('RI-CLPM'),
-            c(r.fit.chisq ?? null),
-            c(r.fit.df ?? null, '', 0),
-            c(r.fit.cfi ?? null),
-            c(r.fit.rmsea ?? null),
-            c(r.comparison.chisqDiff),
-            c(r.comparison.dfDiff, '', 0),
-            pCell(r.comparison.p),
-          ],
-        ]}
-        note="A significant difference favours the random intercepts: stable between-person differences would otherwise be mistaken for lagged effects. The test is conservative (variances on the boundary)."
-      />
+      {growth ? (
+        <Table
+          title="LCM-SR versus the RI-CLPM"
+          file="lcmsr-vs-riclpm"
+          columns={['Model', 'χ²', 'df', 'CFI', 'RMSEA', 'AIC', 'BIC']}
+          rows={[
+            fitRow('RI-CLPM (random intercepts, no growth)', r.riclpmFit ?? {}, [
+              c(r.riclpmFit?.aic ?? null),
+              c(r.riclpmFit?.bic ?? null),
+            ]),
+            fitRow('LCM-SR', r.fit, [c(r.fit.aic ?? null), c(r.fit.bic ?? null)]),
+          ]}
+          note="Lower AIC and BIC favour a model. The two are not nested (the RI-CLPM leaves each wave's mean free), so no χ² difference test. Where people change at different rates, the RI-CLPM leaves that change in the within-person part, where it can show up as lagged effects."
+        />
+      ) : (
+        <Table
+          title="RI-CLPM versus the traditional cross-lagged panel model"
+          file="riclpm-vs-clpm"
+          columns={['Model', 'χ²', 'df', 'CFI', 'RMSEA', 'Δχ²', 'Δdf', 'p']}
+          rows={[
+            fitRow('CLPM (no random intercepts)', r.clpmFit ?? {}, [c(null), c(null), c(null)]),
+            fitRow('RI-CLPM', r.fit, [
+              c(r.comparison?.chisqDiff ?? null),
+              c(r.comparison?.dfDiff ?? null, '', 0),
+              pCell(r.comparison?.p ?? null),
+            ]),
+          ]}
+          note="A significant difference favours the random intercepts: stable between-person differences would otherwise be mistaken for lagged effects. The test is conservative (variances on the boundary)."
+        />
+      )}
     </div>
   );
 }
@@ -761,6 +803,22 @@ function RiclpmOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Ricl
         value={o.y}
         onChange={(y) => set({ ...o, y })}
       />
+      <Choice
+        label="Between persons"
+        value={o.between ?? 'intercepts'}
+        onChange={(between) =>
+          set(between === 'intercepts' ? { x: o.x, y: o.y, equal: o.equal } : { ...o, between })
+        }
+        options={[
+          ['intercepts', 'Random intercepts (RI-CLPM)'],
+          ['growth', 'Linear growth (LCM-SR)'],
+        ]}
+        hint={
+          (o.between ?? 'intercepts') === 'growth'
+            ? 'Each person’s own linear trajectory on both variables, the lagged effects among the deviations from it (Curran et al. 2014); compared with the RI-CLPM. Equally spaced waves, four or more.'
+            : 'Each person’s own mean on both variables, the lagged effects among the deviations from it (Hamaker et al. 2015); compared with the traditional CLPM.'
+        }
+      />
       <label className="check">
         <input
           type="checkbox"
@@ -1072,16 +1130,23 @@ export const growthAnalysis: AnalysisType<GrowthOptions, WithInput<GrowthResult,
 export const riclpmAnalysis: AnalysisType<RiclpmOptions, WithInput<RiclpmResult, RiclpmInput>> = {
   id: 'riclpm',
   title: 'Random-intercept cross-lagged panel model',
-  sub: 'RI-CLPM: within-person cross-lagged effects (lavaan)',
+  sub: 'RI-CLPM or LCM-SR: within-person cross-lagged effects (lavaan)',
   group: 'Longitudinal',
   defaults: () => ({ x: [], y: [], equal: false }),
-  parseOptions: (raw) =>
-    isObj(raw) ? { x: names(raw.x), y: names(raw.y), equal: flag(raw.equal) } : null,
+  parseOptions: (raw) => {
+    if (!isObj(raw)) return null;
+    const o: RiclpmOptions = { x: names(raw.x), y: names(raw.y), equal: flag(raw.equal) };
+    return oneOf(raw.between, ['intercepts', 'growth'], 'intercepts') === 'growth'
+      ? { ...o, between: 'growth' }
+      : o;
+  },
   Options: RiclpmOptionsForm,
   View: ({ result }) => <RiclpmView r={result} input={result.input} />,
   blocked: (o, ctx) => {
     if (o.x.length < 3) return 'Choose X at three or more waves.';
     if (o.x.length !== o.y.length) return 'Choose Y at the same number of waves as X.';
+    if (o.between === 'growth' && o.x.length < 4)
+      return 'The latent curve model with structured residuals needs four or more waves.';
     return missingColumns(ctx, [...o.x, ...o.y], 'The RI-CLPM');
   },
   fingerprint: (o, ctx) =>
@@ -1099,7 +1164,8 @@ export const riclpmAnalysis: AnalysisType<RiclpmOptions, WithInput<RiclpmResult,
   },
   script: async (o, ctx) =>
     (await import('../rengine/longitudinal')).riclpmScriptR(rawData(ctx)!, riclpmInput(o, ctx)),
-  summary: (o) => `${o.x.length} waves${o.equal ? ' · equal lagged effects' : ''}`,
+  summary: (o) =>
+    `${o.x.length} waves${o.between === 'growth' ? ' · linear growth (LCM-SR)' : ''}${o.equal ? ' · equal lagged effects' : ''}`,
 };
 
 export const gmmAnalysis: AnalysisType<GmmOptions, GmmResult> = {

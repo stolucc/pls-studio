@@ -130,6 +130,7 @@ const RULES: Rule[] = [
     meaning:
       'The optimiser stopped before reaching a solution. The numbers shown are where it stopped, not estimates.',
     check: [
+      'The Troubleshoot tab of the results: it checks the usual causes below on this model and these data.',
       'A factor without a scale (no marker indicator and no fixed variance), or an arrow in the wrong place.',
       'Variables on very different scales (variances differing by a factor of 1000 or more).',
       'Very small groups or clusters.',

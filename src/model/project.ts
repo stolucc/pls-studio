@@ -77,8 +77,12 @@ export interface Construct {
   dominant?: string;
   /** CB-SEM: labels of loadings (by indicator name); equal labels = equal loadings. */
   loadingLabels?: Record<string, string>;
-  /** CB-SEM factor: its scale from a variance fixed at 1, every loading estimated (lavaan NA*y1 + …; f ~~ 1*f; Mplus f BY y1* …; f@1); absent: the first loading fixed at 1 (marker). */
-  scaling?: 'variance';
+  /**
+   * CB-SEM factor: its scale from a variance fixed at 1, every loading estimated (lavaan NA*y1 + …; f ~~ 1*f; Mplus
+   * f BY y1* …; f@1); or by effects coding, every loading estimated and constrained to average 1 (Little, Slegers &
+   * Card 2006; lavaan only, one group); absent: the first loading fixed at 1 (marker).
+   */
+  scaling?: 'variance' | 'effects';
   /** Conditional process analysis: X is multicategorical, coded this way (PROCESS mcx). */
   categorical?: 'indicator' | 'sequential' | 'helmert' | 'effect';
 }
@@ -336,6 +340,10 @@ export interface ModelState {
   inequalities?: string;
   /** CB-SEM (lavaan): keep (residual) variances non-negative (bounds = "pos.var"). */
   positiveVariances?: boolean;
+  /** CB-SEM (lavaan): starting values from lavaan's "simple" rule (loadings 1, variances 0.05) instead of its default (Troubleshoot tab). */
+  startValues?: 'simple';
+  /** CB-SEM (lavaan): the BFGS optimiser instead of lavaan's default (nlminb) (Troubleshoot tab). */
+  optimizer?: 'BFGS';
   /** CB-SEM (lavaan): standard errors from the observed information (Mplus's ML default); absent = lavaan's expected information. */
   information?: 'observed';
   /** CB-SEM (lavaan), WLSMV with ordinal indicators: 'lavaan': lavaan 0.7's standard errors (the observed information in the sandwich); absent: Mplus's (classic WLSMV, the expected information; the default, also for projects saved before the option). */
@@ -1055,11 +1063,11 @@ function constructSpec(
     ...(c.loadingLabels && Object.keys(c.loadingLabels).length
       ? { loadingLabels: c.loadingLabels }
       : {}),
-    ...(c.scaling === 'variance' &&
+    ...((c.scaling === 'variance' || c.scaling === 'effects') &&
     (c.indicators.length > 1 || shared.has(c.indicators[0])) &&
     !c.covariate &&
     !components.length
-      ? { scaling: 'variance' as const }
+      ? { scaling: c.scaling }
       : {}),
   };
 }
@@ -1099,6 +1107,8 @@ export function toSpec(model: ModelState): ModelSpec {
         }
       : {}),
     ...(model.information ? { information: model.information } : {}),
+    ...(model.startValues ? { startValues: model.startValues } : {}),
+    ...(model.optimizer ? { optimizer: model.optimizer } : {}),
     ...(model.wlsmvSe ? { wlsmvSe: model.wlsmvSe } : {}),
     ...(model.mimic ? { mimic: model.mimic } : {}),
     ...(model.baseline ? { baseline: model.baseline } : {}),
@@ -2004,7 +2014,7 @@ export function parseModelState(m: unknown): ModelState {
         : {}),
       ...fixedLoadingsOf(c.fixedLoadings, c.indicators as unknown[]),
       ...loadingLabelsOf(c.loadingLabels, c.indicators as unknown[]),
-      ...(c.scaling === 'variance' ? { scaling: 'variance' as const } : {}),
+      ...(c.scaling === 'variance' || c.scaling === 'effects' ? { scaling: c.scaling } : {}),
     };
   });
   const ids = new Set(constructs.map((c) => c.id));
@@ -2209,6 +2219,8 @@ export function parseModelState(m: unknown): ModelState {
         }
       : {}),
     ...(m.information === 'observed' ? { information: 'observed' as const } : {}),
+    ...(m.startValues === 'simple' ? { startValues: 'simple' as const } : {}),
+    ...(m.optimizer === 'BFGS' ? { optimizer: 'BFGS' as const } : {}),
     ...(m.wlsmvSe === 'lavaan' ? { wlsmvSe: 'lavaan' as const } : {}),
     ...(m.mimic === 'Mplus' ? { mimic: 'Mplus' as const } : {}),
     ...(m.baseline === 'independence' ? { baseline: 'independence' as const } : {}),

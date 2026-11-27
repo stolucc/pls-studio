@@ -1020,7 +1020,10 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     features: ['rengine/longitudinal::growth matches lavaan', 'rengine/longitudinal::time-varying'],
   },
   longinvariance: ft('rengine/invariance::longitudinal invariance'),
-  riclpm: { examples: ['mulder-riclpm'], features: ['rengine/longitudinal::equal lagged effects'] },
+  riclpm: {
+    examples: ['mulder-riclpm', 'nls-riclpm', 'nls-lcmsr'],
+    features: ['rengine/longitudinal::equal lagged effects'],
+  },
   lcs: {
     examples: ['lavaan-demogrowth-lcs'],
     note: 'lcsm’s help examples and the home-screen example as lcsm fits them (examples/cards/lcs).',

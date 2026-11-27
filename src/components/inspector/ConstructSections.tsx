@@ -425,16 +425,25 @@ export function CbsemMeasurementSection({ c }: { c: Construct }) {
             className="select"
             value={c.scaling ?? 'marker'}
             onChange={(e) =>
-              update(c.id, { scaling: e.target.value === 'variance' ? 'variance' : undefined })
+              update(c.id, {
+                scaling:
+                  e.target.value === 'variance' || e.target.value === 'effects'
+                    ? e.target.value
+                    : undefined,
+              })
             }
           >
             <option value="marker">First loading = 1 (marker indicator)</option>
             <option value="variance">Variance = 1 (every loading estimated)</option>
+            <option value="effects">Effects coding (loadings average 1)</option>
           </select>
           <div className="hint">
-            How the factor gets its units: from its first indicator, or from a variance (a
+            How the factor gets its units: from its first indicator, from a variance (a
             disturbance’s, when it is explained) fixed at 1 (lavaan NA*{c.indicators[0]} and{' '}
-            {c.name} ~~ 1*{c.name}; Mplus {c.name} BY {c.indicators[0]}* …; {c.name}@1).
+            {c.name} ~~ 1*{c.name}; Mplus {c.name} BY {c.indicators[0]}* …; {c.name}@1), or from
+            the average of its indicators, every loading estimated and constrained to average 1
+            (effects coding, Little, Slegers &amp; Card 2006; lavaan, without groups). The fit is
+            the same; unstandardised estimates and their z tests are not.
           </div>
         </div>
       )}

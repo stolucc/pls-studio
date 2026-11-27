@@ -85,6 +85,11 @@ it('Stol et al. (2022) and political democracy: CB-SEM as their sources, without
   expect(
     e.reliability.filter((r) => typeof r.omega === 'number' && typeof r.alpha === 'number').length,
   ).toBeGreaterThanOrEqual(3);
+  // Modification indices from a covariance matrix with NACOV (MLM): lavaan 0.7's modindices() stops on such a fit,
+  // the bridge computes them from the same estimates with standard errors (R/lavaan.R ps_cb_modindices).
+  expect(e.modindicesError).toBeUndefined();
+  expect(e.modindices!.length).toBeGreaterThan(0);
+  expect(e.modindices!.every((m) => Number.isFinite(m.mi) && m.mi >= 0)).toBe(true);
   clean(e);
   const pd = makePoldemExample(DEFAULT_SETTINGS);
   evidence('poldem', pd);

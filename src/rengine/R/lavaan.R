@@ -1582,9 +1582,91 @@ ps_cb_build <- function(req) {
   )
 }
 
+#' The remedies for nonconvergence the user chose on the Troubleshoot tab (model$startValues, model$optimizer), added
+#' to the fit calls of a built model: lavaan's simple starting values (start = "simple") and the BFGS optimiser
+#' (optim.method = "BFGS"). Kept out of ps_cb_build so that the Bayesian card, which shares the build but not these
+#' options, is unchanged (its recorded runs hash the R code it reaches).
+ps_cb_remedies <- function(b, req) {
+  args <- character(0)
+  if (!is.null(req$model$startValues)) {
+    if (!identical(req$model$startValues, "simple")) stop("Invalid starting values in the request.")
+    if (length(b$esem_blocks)) stop("Simple starting values are not available with ESEM blocks (their rotation sets the start).")
+    args <- c(args, "start = \"simple\"")
+  }
+  if (!is.null(req$model$optimizer)) {
+    if (!identical(req$model$optimizer, "BFGS")) stop("Invalid optimizer in the request.")
+    args <- c(args, "optim.method = \"BFGS\"")
+  }
+  if (!length(args)) {
+    return(b)
+  }
+  add <- paste0(", ", paste(args, collapse = ", "), ")")
+  fits <- "^fit(_\\w+)? <- (lavaan\\.mi::)?sem(\\.mi)?\\(.*\\)$"
+  at <- function(x) ifelse(grepl(fits, x), sub("\\)$", add, x), x)
+  b$call <- at(b$call)
+  b$body <- at(b$body)
+  b
+}
+
+#' Effects coding (Little, Slegers & Card 2006) of the factors the model scales that way: every loading estimated and
+#' constrained to average 1. Kept out of ps_cb_build, as the remedies are: each such factor goes to the build scaled by
+#' its variance with every loading labelled (efc<j>_<i>, j the construct's place in the model), and ps_cb_effects then
+#' writes the constraint on the labels in place of the variance fixed at 1. The labels hold in every group, so a model
+#' with groups is refused, as are loadings the user holds or labels.
+ps_cb_effects_req <- function(req) {
+  scaled <- integer(0)
+  for (j in seq_along(req$model$constructs)) {
+    k <- req$model$constructs[[j]]
+    if (!identical(k$scaling, "effects")) next
+    if (!is.null(req$model$multigroup)) stop("Effects coding is available for a model without groups: ", k$name, ".")
+    if (identical(req$model$identification, "unit")) {
+      stop("Effects coding and unit-variance identification are alternatives: ", k$name, ".")
+    }
+    if (length(k$fixedLoadings) || length(k$loadingLabels)) {
+      stop("The loadings of ", k$name, " are scaled by effects coding: they cannot also be held or labelled.")
+    }
+    if (!identical(k$type, "factor") || length(k$components)) stop("Effects coding is for factors: ", k$name, ".")
+    inds <- as.character(unlist(k$indicators))
+    k$scaling <- "variance"
+    k$loadingLabels <- setNames(as.list(sprintf("efc%d_%d", j, seq_along(inds))), inds)
+    req$model$constructs[[j]] <- k
+    scaled <- c(scaled, j)
+  }
+  list(req = req, scaled = scaled)
+}
+
+ps_cb_effects <- function(b, scaled) {
+  for (j in scaled) {
+    load_at <- grep(sprintf("[ +]efc%d_1\\*", j), b$body)[1]
+    if (is.na(load_at)) stop("Effects coding: the loadings of a factor were not written.")
+    lv <- sub("^\\s*(\\S+) =~.*$", "\\1", b$body[load_at])
+    k <- length(gregexpr(sprintf("efc%d_\\d+\\*", j), b$body[load_at])[[1]])
+    constraint <- sprintf(
+      "  efc%d_1 == %d%s   # scale: effects coding, the loadings average 1",
+      j, k, paste0(sprintf(" - efc%d_", j), seq_len(k)[-1], collapse = "")
+    )
+    variance <- paste0("  ", lv, " ~~ 1*", lv, "   # scale: the variance fixed at 1, every loading estimated")
+    at <- match(variance, b$body)
+    # (the variance held by the user instead: the constraint goes after the loadings)
+    if (is.na(at)) {
+      b$body <- append(b$body, constraint, after = load_at)
+    } else {
+      b$body[at] <- constraint
+    }
+  }
+  b
+}
+
+#' ps_cb_build with effects coding (ps_cb_effects) and the user's remedies (ps_cb_remedies): the build every
+#' frequentist CB-SEM fit uses.
+ps_cb_build_fit <- function(req) {
+  e <- ps_cb_effects_req(req)
+  ps_cb_remedies(ps_cb_effects(ps_cb_build(e$req), e$scaled), req)
+}
+
 ps_cb <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   if (!is.null(b$modsem)) {
     r <- ps_cb_modsem(req, b, export)
     return(if (export) r else ps_json(r))
@@ -2161,9 +2243,21 @@ ps_cb_modindices <- function(fit, back, groups) {
     } else {
       # Every fixed parameter's index (lavaan's default, minimum 0), largest first: the
       # results table filters them by the minimum the user sets (3.84 by default).
-      full <- withCallingHandlers(lavaan::modindices(fit),
-        warning = function(w) if (grepl("ignores equality constraints", conditionMessage(w))) invokeRestart("muffleWarning")
-      )
+      mod <- function(f) {
+        withCallingHandlers(lavaan::modindices(f),
+          warning = function(w) if (grepl("ignores equality constraints", conditionMessage(w))) invokeRestart("muffleWarning")
+        )
+      }
+      full <- tryCatch(mod(fit), error = function(e) {
+        # lavaan 0.7's modindices() rebuilds the data without the NACOV a covariance-matrix fit was given
+        # (MLM / MLMV), and stops. The indices are score tests of the ML estimates, the same with
+        # standard errors: computed so, from the same fit.
+        if (!grepl("requires full data or a user-provided NACOV", conditionMessage(e))) stop(e)
+        plain <- fit
+        plain@Options$se <- "standard"
+        plain@Options$test <- "standard"
+        mod(plain)
+      })
       x <- full[order(full$mi, decreasing = TRUE), ]
       x[!is.na(x$mi), ]
     },
@@ -2230,7 +2324,7 @@ ps_invariance <- function(req_json, export = FALSE) {
     r <- req
     r$model$multigroup$invariance <- l
     r$model$waldTests <- NULL
-    ps_cb_build(r)
+    ps_cb_build_fit(r)
   })
   b <- builds[[1]]
   call_of <- function(x) grep("^fit <- sem\\(", x$body, value = TRUE)[1]
@@ -2482,7 +2576,7 @@ ps_cb_scores <- function(req_json, export = FALSE) {
   if (!method %in% c("regression", "Bartlett", "plausible")) {
     stop("Invalid factor score method in the request.")
   }
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   if (b$matrix_input) stop("Factor scores need raw data; this dataset is a covariance matrix.")
   if (isTRUE(b$robust)) {
     stop("Factor scores are not available with robust ML (rsem), which fits robust moments; use ML or MLR.")
@@ -2813,7 +2907,7 @@ ps_cb_plain <- function(b, what, raw = TRUE) {
 #' refitted to each sample; p is the share of bootstrap chi-squares at least as large as the observed.
 ps_cb_bollen_stine <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "The Bollen-Stine bootstrap")
   if (!grepl("^fit <- sem\\(.*\\)$", b$call)) {
     stop("The Bollen-Stine bootstrap is not available for this model.")
@@ -2861,7 +2955,7 @@ ps_cb_bollen_stine <- function(req_json, export = FALSE) {
 #' z = (a - b) / sqrt(var(a) + var(b) - 2 cov(a, b)) from the covariance matrix of the estimates.
 ps_cb_compare_params <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "Comparing parameters", raw = FALSE)
   kinds <- intersect(unlist(req$kinds), c("paths", "loadings", "variances", "covariances"))
   if (!length(kinds)) stop("Choose which parameters to compare.")
@@ -2918,7 +3012,7 @@ ps_cb_compare_params <- function(req_json, export = FALSE) {
 #' Bartlett: (Lambda' Theta^-1 Lambda)^-1 Lambda' Theta^-1. Model-implied matrices.
 ps_cb_score_weights <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "Factor score weights", raw = FALSE)
   if (!is.null(b$group_var)) {
     stop("Factor score weights are shown for one group: remove the grouping (or analyse each group's data).")
@@ -3039,7 +3133,7 @@ PS_DATA_SUMMARY_LINES <- c(
 #' model syntax and the estimates from the raw data. The TypeScript side writes the files.
 ps_cb_data_summary <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   what <- "A data summary for secondary analysis"
   ps_cb_plain(b, what)
   if (!is.null(req$model$weights) || !is.null(req$model$cluster)) {

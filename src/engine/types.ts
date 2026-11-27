@@ -39,8 +39,8 @@ export interface ConstructSpec {
   fixedLoadings?: Record<string, number>;
   /** CB-SEM (lavaan): parameter labels of loadings (by indicator name); equal labels = equal values. */
   loadingLabels?: Record<string, string>;
-  /** CB-SEM (lavaan): the factor's scale from its variance fixed at 1 (every loading estimated) instead of a marker loading. */
-  scaling?: 'variance';
+  /** CB-SEM (lavaan): the factor's scale from its variance fixed at 1 (every loading estimated), or by effects coding (loadings averaging 1), instead of a marker loading. */
+  scaling?: 'variance' | 'effects';
   /** PLS: a categorical exogenous variable: its single column becomes k − 1 dummies forming a Mode B composite (engine/categorical.ts). */
   categorical?: boolean;
   /** PLS: the dominant indicator, which fixes the sign of the construct (its loading made positive; cSEM's .dominant_indicators). */
@@ -209,6 +209,10 @@ export interface ModelSpec {
   positiveVariances?: boolean;
   /** CB-SEM (lavaan): standard errors from the observed (Hessian) instead of the expected information (Mplus's default for ML). */
   information?: 'observed';
+  /** CB-SEM (lavaan): start = "simple" (ModelState.startValues). */
+  startValues?: 'simple';
+  /** CB-SEM (lavaan): optim.method = "BFGS" (ModelState.optimizer). */
+  optimizer?: 'BFGS';
   /**
    * CB-SEM (lavaan), WLSMV with ordinal indicators: 'lavaan': lavaan 0.7's standard errors (the observed information in
    * the sandwich). Absent: Mplus's (classic WLSMV): the expected information in the sandwich, the covariance matrix of

@@ -196,6 +196,11 @@ export function countModelSyntax(
 
   try {
     const lines: string[] = [];
+    const effects = model.constructs.find((c) => c.scaling === 'effects');
+    if (effects)
+      throw new Error(
+        `${effects.name} is scaled by effects coding, which lavaan fits: with count indicators, scale it by a marker or its variance.`,
+      );
     // Measurement: one statement per indicator (the first one's loading fixed at 1 unless held or scaled by the variance).
     for (const c of model.constructs) {
       if (observedOf(c)) continue;

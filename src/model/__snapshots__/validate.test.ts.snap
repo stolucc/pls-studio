@@ -3380,6 +3380,117 @@ exports[`validateModel: the full issue list is pinned > package examples under t
     "error: "speed" is not in the model: connect it, use it as a moderator, or mark it as a covariate. [#2]",
     "warning: The model has 3 correlations (double-headed arrows); regression ignores them. They are estimated in CB-SEM.",
   ],
+  "lavaan-hs-scale-effects (cbsem 2sls)": [
+    "error: visual, textual: MIIV-2SLS scales each factor by its first indicator (MIIVsem); effects coding needs a likelihood estimator such as ML.",
+  ],
+  "lavaan-hs-scale-effects (cbsem builtin wlsmv fiml)": [
+    "error: WLSMV, FIML are estimated by lavaan: choose “R packages” under Calculated by.",
+    "error: FIML needs the ML or MLR estimator (MLR adds robust standard errors and test statistic).",
+    "error: visual, textual: effects coding is fitted by lavaan; choose “R packages” under Calculated by.",
+  ],
+  "lavaan-hs-scale-effects (cbsem mi lms)": [
+    "error: With multiple imputation choose the ML or MLR estimator.",
+    "error: With multiple imputation choose the ML or MLR estimator.",
+    "error: Auxiliary variables of the imputation not in the data: nope.",
+    "error: Nominal variables of the imputation must be among its variables (the model's or the auxiliary ones): zz.",
+  ],
+  "lavaan-hs-scale-effects (cbsem rml pairwise)": [
+    "error: Pairwise deletion works with the ML or ULS estimator (lavaan has no robust standard errors with it); for robust results use the two-stage approach or FIML.",
+    "error: Pairwise deletion cannot be combined with robust ML (rsem).",
+  ],
+  "lavaan-hs-scale-effects (cbsem wls twostage)": [
+    "error: The two-stage approach works with the ML, MLR, GLS or ULS estimator.",
+  ],
+  "lavaan-hs-scale-effects (cbsem)": [],
+  "lavaan-hs-scale-effects (own)": [],
+  "lavaan-hs-scale-effects (pls builtin mi)": [
+    "error: The unit weighting approach is estimated with cSEM: choose “R packages” under Calculated by.",
+    "error: Multiple imputation uses mice: choose “R packages” under Calculated by.",
+    "error: Amelia imputation is available for CB-SEM; PLS-SEM imputes with mice.",
+    "error: Sum scores are estimated with cSEM: choose R packages → cSEM, or PLS path modeling.",
+  ],
+  "lavaan-hs-scale-effects (pls)": [],
+  "lavaan-hs-scale-effects (plsc seminr)": [
+    "error: seminr offers the path and factor weighting schemes only; choose one of those, or cSEM.",
+    "error: The GSCA weighting approach is estimated with cSEM; choose cSEM.",
+    "error: FIML is a CB-SEM option; PLS-SEM uses mean replacement, casewise deletion or multiple imputation.",
+    "error: GSCA is estimated with cSEM: choose R packages → cSEM, or PLS path modeling.",
+  ],
+  "lavaan-hs-scale-effects (process)": [
+    "error: Multiple imputation is available in PLS-SEM and CB-SEM; conditional process analysis uses casewise deletion.",
+  ],
+  "lavaan-hs-scale-x1 (cbsem 2sls)": [],
+  "lavaan-hs-scale-x1 (cbsem builtin wlsmv fiml)": [
+    "error: WLSMV, FIML are estimated by lavaan: choose “R packages” under Calculated by.",
+    "error: FIML needs the ML or MLR estimator (MLR adds robust standard errors and test statistic).",
+  ],
+  "lavaan-hs-scale-x1 (cbsem mi lms)": [
+    "error: With multiple imputation choose the ML or MLR estimator.",
+    "error: With multiple imputation choose the ML or MLR estimator.",
+    "error: Auxiliary variables of the imputation not in the data: nope.",
+    "error: Nominal variables of the imputation must be among its variables (the model's or the auxiliary ones): zz.",
+  ],
+  "lavaan-hs-scale-x1 (cbsem rml pairwise)": [
+    "error: Pairwise deletion works with the ML or ULS estimator (lavaan has no robust standard errors with it); for robust results use the two-stage approach or FIML.",
+    "error: Pairwise deletion cannot be combined with robust ML (rsem).",
+  ],
+  "lavaan-hs-scale-x1 (cbsem wls twostage)": [
+    "error: The two-stage approach works with the ML, MLR, GLS or ULS estimator.",
+  ],
+  "lavaan-hs-scale-x1 (cbsem)": [],
+  "lavaan-hs-scale-x1 (own)": [],
+  "lavaan-hs-scale-x1 (pls builtin mi)": [
+    "error: The unit weighting approach is estimated with cSEM: choose “R packages” under Calculated by.",
+    "error: Multiple imputation uses mice: choose “R packages” under Calculated by.",
+    "error: Amelia imputation is available for CB-SEM; PLS-SEM imputes with mice.",
+    "error: Sum scores are estimated with cSEM: choose R packages → cSEM, or PLS path modeling.",
+  ],
+  "lavaan-hs-scale-x1 (pls)": [],
+  "lavaan-hs-scale-x1 (plsc seminr)": [
+    "error: seminr offers the path and factor weighting schemes only; choose one of those, or cSEM.",
+    "error: The GSCA weighting approach is estimated with cSEM; choose cSEM.",
+    "error: FIML is a CB-SEM option; PLS-SEM uses mean replacement, casewise deletion or multiple imputation.",
+    "error: GSCA is estimated with cSEM: choose R packages → cSEM, or PLS path modeling.",
+  ],
+  "lavaan-hs-scale-x1 (process)": [
+    "error: Multiple imputation is available in PLS-SEM and CB-SEM; conditional process analysis uses casewise deletion.",
+  ],
+  "lavaan-hs-scale-x2 (cbsem 2sls)": [],
+  "lavaan-hs-scale-x2 (cbsem builtin wlsmv fiml)": [
+    "error: WLSMV, FIML are estimated by lavaan: choose “R packages” under Calculated by.",
+    "error: FIML needs the ML or MLR estimator (MLR adds robust standard errors and test statistic).",
+  ],
+  "lavaan-hs-scale-x2 (cbsem mi lms)": [
+    "error: With multiple imputation choose the ML or MLR estimator.",
+    "error: With multiple imputation choose the ML or MLR estimator.",
+    "error: Auxiliary variables of the imputation not in the data: nope.",
+    "error: Nominal variables of the imputation must be among its variables (the model's or the auxiliary ones): zz.",
+  ],
+  "lavaan-hs-scale-x2 (cbsem rml pairwise)": [
+    "error: Pairwise deletion works with the ML or ULS estimator (lavaan has no robust standard errors with it); for robust results use the two-stage approach or FIML.",
+    "error: Pairwise deletion cannot be combined with robust ML (rsem).",
+  ],
+  "lavaan-hs-scale-x2 (cbsem wls twostage)": [
+    "error: The two-stage approach works with the ML, MLR, GLS or ULS estimator.",
+  ],
+  "lavaan-hs-scale-x2 (cbsem)": [],
+  "lavaan-hs-scale-x2 (own)": [],
+  "lavaan-hs-scale-x2 (pls builtin mi)": [
+    "error: The unit weighting approach is estimated with cSEM: choose “R packages” under Calculated by.",
+    "error: Multiple imputation uses mice: choose “R packages” under Calculated by.",
+    "error: Amelia imputation is available for CB-SEM; PLS-SEM imputes with mice.",
+    "error: Sum scores are estimated with cSEM: choose R packages → cSEM, or PLS path modeling.",
+  ],
+  "lavaan-hs-scale-x2 (pls)": [],
+  "lavaan-hs-scale-x2 (plsc seminr)": [
+    "error: seminr offers the path and factor weighting schemes only; choose one of those, or cSEM.",
+    "error: The GSCA weighting approach is estimated with cSEM; choose cSEM.",
+    "error: FIML is a CB-SEM option; PLS-SEM uses mean replacement, casewise deletion or multiple imputation.",
+    "error: GSCA is estimated with cSEM: choose R packages → cSEM, or PLS path modeling.",
+  ],
+  "lavaan-hs-scale-x2 (process)": [
+    "error: Multiple imputation is available in PLS-SEM and CB-SEM; conditional process analysis uses casewise deletion.",
+  ],
   "lavaan-poldem (cbsem 2sls)": [
     "error: Parameter labels, defined parameters and Wald tests are not available with MIIV-2SLS.",
   ],

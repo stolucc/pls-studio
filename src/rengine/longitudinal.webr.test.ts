@@ -100,9 +100,9 @@ describe('RI-CLPM', () => {
       });
       check(r, ref[key]);
       if (!equal) {
-        expect(r.clpmFit.chisq!).toBeCloseTo(ref.clpm.fit.chisq, 3);
-        expect(r.comparison.chisqDiff).toBeCloseTo(ref.clpmVsRiclpm.chisqDiff, 3);
-        expect(r.comparison.dfDiff).toBe(ref.clpmVsRiclpm.dfDiff);
+        expect(r.clpmFit!.chisq!).toBeCloseTo(ref.clpm.fit.chisq, 3);
+        expect(r.comparison!.chisqDiff).toBeCloseTo(ref.clpmVsRiclpm.chisqDiff, 3);
+        expect(r.comparison!.dfDiff).toBe(ref.clpmVsRiclpm.dfDiff);
       }
     },
     600_000,

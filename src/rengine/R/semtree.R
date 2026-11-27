@@ -61,7 +61,7 @@ ps_semtree <- function(req_json, export = FALSE) {
   if (minn < 2 || minn > 1e6 || minn != round(minn)) {
     stop("Invalid minimum node size in the request.")
   }
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "SEM trees")
   if (!grepl("^fit <- sem\\(.*\\)$", b$call)) stop("SEM trees are not available for this model.")
   if (!is.null(b$group_var)) {

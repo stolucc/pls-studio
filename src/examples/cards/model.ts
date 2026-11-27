@@ -3081,6 +3081,82 @@ const CARDS: PackageExample[] = [
     panel: { kind: 'riclpm', x: items('x', 5), y: items('y', 5), equal: false },
     settings: { ...CB('ML'), missing: 'fiml' },
   },
+  {
+    id: 'nls-riclpm',
+    package: 'lavaan',
+    title: 'Wages and hours worked: the RI-CLPM (National Longitudinal Survey of Young Women)',
+    source:
+      'National Longitudinal Survey of Young Women, 1969–1977 (sampleSelection::nlswork): the RI-CLPM, for comparison with the LCM-SR',
+    links: [
+      { label: 'Curran et al. (2014)', url: 'https://doi.org/10.1037/a0035297' },
+      { label: 'Hamaker, Kuiper & Grasman (2015)', url: 'https://doi.org/10.1037/a0038889' },
+      {
+        label: '?nlswork (sampleSelection)',
+        url: 'https://rdrr.io/cran/sampleSelection/man/nlswork.html',
+      },
+      {
+        label: 'Quantitude S8E08: Disaggregating within- and between-person effects',
+        url: 'https://quantitude.org/episodes/',
+      },
+    ],
+    description:
+      'Log hourly wage and weekly hours worked (in tens of hours) of 3,501 young women at five interviews two years apart, 1969–1977 (public NLS data; missing waves by FIML). The RI-CLPM with lagged effects held equal over time: each woman’s own mean on both variables is separated from her fluctuations around it. Open the next example for the same data with each woman’s own trajectory instead. Opens its card on the Analyses tab.',
+    shows:
+      'With random intercepts, working more hours predicts a higher wage two years later (0.029, SE 0.007), and χ² = 208.3 on 33 df (CFI .960). But wages grow, and at different rates for different women: the random intercepts leave that growth in the within-person part. The LCM-SR example takes it out, and this cross-lagged effect goes with it.',
+    data: {
+      package: 'sampleSelection',
+      name: 'nlswork, 1969–1977 (wide)',
+      file: 'examples/lcmsr/nlswork-wide.csv',
+    },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'riclpm',
+      x: ['lnwage69', 'lnwage71', 'lnwage73', 'lnwage75', 'lnwage77'],
+      y: ['hours10_69', 'hours10_71', 'hours10_73', 'hours10_75', 'hours10_77'],
+      equal: true,
+    },
+    settings: { ...CB('ML'), missing: 'fiml' },
+  },
+  {
+    id: 'nls-lcmsr',
+    package: 'lavaan',
+    title:
+      'Wages and hours worked: the latent curve model with structured residuals (Curran et al. 2014)',
+    source:
+      'Curran, Howard, Bainter, Lane & McGinley (2014), the LCM-SR, on the National Longitudinal Survey of Young Women, 1969–1977 (sampleSelection::nlswork)',
+    links: [
+      { label: 'Curran et al. (2014)', url: 'https://doi.org/10.1037/a0035297' },
+      { label: 'Hamaker, Kuiper & Grasman (2015)', url: 'https://doi.org/10.1037/a0038889' },
+      {
+        label: '?nlswork (sampleSelection)',
+        url: 'https://rdrr.io/cran/sampleSelection/man/nlswork.html',
+      },
+      {
+        label: 'Quantitude S8E08: Disaggregating within- and between-person effects',
+        url: 'https://quantitude.org/episodes/',
+      },
+    ],
+    description:
+      'The same 3,501 women and five waves as the RI-CLPM example, now with each woman’s own linear trajectory on log wage and on hours (intercepts and slopes that vary between women and covary) and the lagged effects among the deviations from her trajectories, held equal over time. Between-person growth and within-person dynamics are separated, as Curran and Hancock discuss in Quantitude S8E08. The card compares it with the RI-CLPM by AIC and BIC (the two models are not nested). Checked in desktop lavaan and, independently, as an OpenMx RAM model (the same log-likelihood). Opens its card on the Analyses tab.',
+    shows:
+      'Wages grow by 0.042 log points a wave on average, at rates that vary between women. Once this growth is separated out, hours no longer predict later wages (0.008, SE 0.009), unlike in the RI-CLPM (0.029). The fit is better: χ² = 95.0 on 32 df, CFI .985, and AIC and BIC both favour the LCM-SR over the RI-CLPM.',
+    data: {
+      package: 'sampleSelection',
+      name: 'nlswork, 1969–1977 (wide)',
+      file: 'examples/lcmsr/nlswork-wide.csv',
+    },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'riclpm',
+      x: ['lnwage69', 'lnwage71', 'lnwage73', 'lnwage75', 'lnwage77'],
+      y: ['hours10_69', 'hours10_71', 'hours10_73', 'hours10_75', 'hours10_77'],
+      equal: true,
+      between: 'growth',
+    },
+    settings: { ...CB('ML'), missing: 'fiml' },
+  },
 ];
 
 export const CARD_MODEL = CARDS.map(withSoftware);

@@ -1201,6 +1201,8 @@ export const bsemAnalysis: AnalysisType<BsemOptions, BsemResult> = {
     if (m.esem?.blocks.length) return 'ESEM blocks are not available in Bayesian SEM.';
     if (m.constructs.some((k) => k.type === 'composite'))
       return 'Composites are not available in Bayesian SEM.';
+    if (m.constructs.some((k) => k.scaling === 'effects'))
+      return 'Effects coding is not available in Bayesian SEM: scale the factors by a marker or their variance (Model tab).';
     if (ctx.settings.missing === 'mi')
       return 'Bayesian SEM handles missing values itself: choose casewise or FIML, not multiple imputation.';
     if (

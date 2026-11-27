@@ -90,7 +90,7 @@ ps_metasem <- function(req_json, export = FALSE) {
   req$estimator <- "ML"
   req$missing <- "casewise"
   req$data <- list(names = vars, moments = list(S = diag(length(vars)), n = 1000))
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   if (length(b$composites)) stop("Composites (<~) are not available in meta-analytic SEM.")
   if (length(b$esem_blocks)) stop("ESEM blocks are not available in meta-analytic SEM.")
   if (isTRUE(b$means)) {

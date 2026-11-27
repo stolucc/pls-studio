@@ -77,7 +77,7 @@ ps_dfi_test <- function(estimator) {
 
 ps_dfi <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "Dynamic fit cutoffs", raw = FALSE)
   if (!grepl("^fit <- sem\\(.*\\)$", b$call)) {
     stop("Dynamic fit cutoffs are not available for this model.")

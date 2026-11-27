@@ -164,6 +164,8 @@ export const R_PACKAGES = {
   // Generalized linear mixed models by adaptive Gauss-Hermite quadrature.
   GLMMadaptive: ['jsonlite', 'GLMMadaptive'],
   lme4: ['jsonlite', 'lme4', 'lmerTest'],
+  // The High School and Beyond data of Raudenbush & Bryk (nlme's MathAchieve): nlme for its datasets.
+  nlme: ['jsonlite', 'nlme'],
   lcmm: ['jsonlite', 'lcmm'],
   plspm: ['jsonlite', 'plspm'],
   ivreg: ['jsonlite', 'ivreg', 'lmtest'],

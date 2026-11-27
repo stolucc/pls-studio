@@ -573,7 +573,7 @@ ps_lsem <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   o <- req$lsem
   if (!is.list(o)) stop("Invalid local SEM options in the request.")
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "Local SEM")
   if (!grepl("^fit <- sem\\(.*\\)$", b$call)) stop("Local SEM is not available for this model.")
   if (!is.null(b$group_var)) {
@@ -774,7 +774,7 @@ ps_lsem <- function(req_json, export = FALSE) {
 ps_dmacs <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   o <- req$dmacs %||% list()
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "dMACS")
   if (is.null(b$group_var)) {
     stop("Effect sizes of non-invariance compare groups: choose a grouping column under Groups (Model inspector).")

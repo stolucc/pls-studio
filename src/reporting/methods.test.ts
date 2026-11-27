@@ -47,6 +47,29 @@ describe('methods text', () => {
     expect(r.text).toContain('Hu and Bentler (1999)');
   });
 
+  it('CB-SEM: names how each factor was scaled, effects coding with its citation', () => {
+    const scaled = (scaling: ('variance' | 'effects' | undefined)[]) => {
+      let k = 0;
+      const model = {
+        ...cbInput().model,
+        constructs: cbInput().model.constructs.map((c) =>
+          c.indicators.length > 1 ? { ...c, scaling: scaling[k++ % scaling.length] } : c,
+        ),
+      };
+      return methodsText(cbInput({ model }));
+    };
+    const all = scaled(['effects']);
+    expect(all.text).toContain(
+      'Each factor was scaled by effects coding, its loadings constrained to average 1 (Little et al., 2006)',
+    );
+    expect(citedKeys(all.latex)).toContain('little2006');
+    const mixed = scaled([undefined, 'effects']).text;
+    expect(mixed).toMatch(
+      /Each factor was scaled by fixing the loading of its first indicator to 1 \([^)]*: by effects coding/,
+    );
+    expect(scaled([undefined]).text).not.toContain('Little');
+  });
+
   it('CB-SEM: says which standard errors the z tests used, beside the bootstrap', () => {
     const ml = methodsText(
       cbInput({ cb: cbResult({ estimator: 'ML', seType: undefined, fit: { ...cbResult().fit } }) }),

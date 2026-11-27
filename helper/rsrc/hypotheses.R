@@ -32,7 +32,7 @@ ps_hyp_list <- function(hs) {
 #' hypotheses, on the model's estimates (unstandardised, or standardised: standardizedSolution and its covariance).
 ps_cb_hypotheses <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "Informative hypothesis evaluation", raw = FALSE)
   if (identical(req$estimator, "2SLS")) {
     stop("Informative hypotheses need the covariance matrix of all estimates; MIIV-2SLS estimates the model equation by equation.")

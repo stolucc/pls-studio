@@ -509,13 +509,19 @@ function cbDraft(input: ReportInput, cb: WithEngine<CbResult>, d: Draft) {
   const hoc = higherOrder(m);
   if (hoc.length) d.add(`Second-order ${hoc.length === 1 ? 'factor' : 'factors'}: ${list(hoc)}.`);
   const variance = m.constructs.filter((k) => k.scaling === 'variance').map((k) => k.name);
+  const effects = m.constructs.filter((k) => k.scaling === 'effects').map((k) => k.name);
   const multiItem = m.constructs.filter((k) => k.indicators.length > 1).length;
+  const effectsText = `by effects coding, its loadings constrained to average 1 ${cite('little2006')}`;
   let scaling: string;
   if (variance.length && variance.length === multiItem)
     scaling = 'Each factor was scaled by fixing its variance to 1';
+  else if (effects.length && effects.length === multiItem) scaling = `Each factor was scaled ${effectsText}`;
   else {
-    const exceptions = variance.length ? ` (${list(variance)}: by fixing the variance to 1)` : '';
-    scaling = `Each factor was scaled by fixing the loading of its first indicator to 1${exceptions}`;
+    const exceptions = [
+      ...(variance.length ? [`${list(variance)}: by fixing the variance to 1`] : []),
+      ...(effects.length ? [`${list(effects)}: ${effectsText}`] : []),
+    ];
+    scaling = `Each factor was scaled by fixing the loading of its first indicator to 1${exceptions.length ? ` (${exceptions.join('; ')})` : ''}`;
   }
   d.add(
     `${scaling}; standardised estimates (latent and observed variables standardised) are reported alongside the unstandardised ones.`,

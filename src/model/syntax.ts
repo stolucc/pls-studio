@@ -257,6 +257,63 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
       ),
   );
   const byVariance = new Set<string>();
+  // Effects coding (Little, Slegers & Card 2006): the first loading freed, every loading labelled, and one equality
+  // constraint making the labels sum to the number of indicators (l1 == 3 - l2 - l3, or l1 + l2 + l3 == 3); the
+  // factor is then scaled by effects coding and the labels and the constraint are its own. Labels used anywhere else
+  // keep the loadings as written.
+  const sumsTo = (r: Row): { labels: string[]; k: number } | null => {
+    if (r.op !== '==') return null;
+    const terms = [
+      ...r.lhs.map((l) => ({ sign: 1, t: l })),
+      ...(r.rhs.startsWith('-') ? r.rhs : `+${r.rhs}`)
+        .split(/(?=[+-])/)
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .map((t) => ({ sign: t[0] === '-' ? -1 : 1, t: t.slice(1).trim() })),
+    ];
+    // (labels on the left with +1, on the right with −1; one number, on the right)
+    let k: number | null = null;
+    const labels: string[] = [];
+    for (const [i, x] of terms.entries()) {
+      const onLeft = i < r.lhs.length;
+      if (/^\d+(\.\d+)?$/.test(x.t)) {
+        if (onLeft || k !== null || x.sign !== 1) return null;
+        k = Number(x.t);
+      } else if (/^[A-Za-z][A-Za-z0-9_.]*$/.test(x.t)) {
+        if ((onLeft ? 1 : -1) * x.sign !== 1) return null;
+        labels.push(x.t);
+      } else return null;
+    }
+    return k === null ? null : { labels, k };
+  };
+  const effectsRows = new Set<Row>();
+  const mentions = (label: string, except: Row) =>
+    rows.some(
+      (r) =>
+        r !== except &&
+        r.op !== '=~' &&
+        new RegExp(`(^|[^A-Za-z0-9_.])${label.replace(/\./g, '\\.')}([^A-Za-z0-9_.]|$)`).test(
+          `${r.lhs.join(' + ')} ${r.rhs}`,
+        ),
+    );
+  const effectsCoded = (e: { terms: Term[] }): Row | null => {
+    const labels = e.terms.map((t) => t.label);
+    if (!e.terms[0]?.free || e.terms[0].fixed !== undefined) return null;
+    if (e.terms.some((t) => t.fixed !== undefined || !t.label || t.byGroup)) return null;
+    if (new Set(labels).size !== labels.length) return null;
+    for (const r of rows) {
+      const sum = sumsTo(r);
+      if (
+        sum &&
+        sum.k === labels.length &&
+        sum.labels.length === labels.length &&
+        labels.every((l) => sum.labels.includes(l!)) &&
+        !labels.some((l) => mentions(l!, r))
+      )
+        return r;
+    }
+    return null;
+  };
   for (const [name, e] of latent) {
     const c: Construct = {
       id: newId('c'),
@@ -271,6 +328,13 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
     if (e.terms[0]?.free && e.terms[0].fixed === undefined && unitVariance.has(name)) {
       c.scaling = 'variance';
       byVariance.add(name);
+    }
+    const effects = c.scaling ? null : effectsCoded(e);
+    if (effects) {
+      c.scaling = 'effects';
+      effectsRows.add(effects);
+      add(c);
+      continue;
     }
     const fixed: Record<string, number> = {},
       labels: Record<string, string> = {};
@@ -565,6 +629,7 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
   const ordered: string[] = [];
   const constraintLines: string[] = [];
   for (const r of rows) {
+    if (effectsRows.has(r)) continue;
     if (r.op === '==' || r.op === '<' || r.op === '>') {
       const line = `${r.lhs.join(' + ')} ${r.op} ${r.rhs}`;
       try {
@@ -734,6 +799,8 @@ export function toMplus(
     if (!used.includes(n)) used.push(n);
   };
   const lines: string[] = [];
+  // (effects coding: each factor's loadings labelled and constrained to average 1, in MODEL CONSTRAINT)
+  const effects: string[] = [];
   // Measurement.
   for (const c of model.constructs) {
     if (c.components?.length) {
@@ -748,8 +815,10 @@ export function toMplus(
       warn(
         `${c.name} is a composite; Mplus has no composite measurement, it is written as a factor (BY).`,
       );
+    const efc = c.indicators.map((_, k) => `efc${effects.length + 1}_${k + 1}`);
     const terms = c.indicators.map((i, k) => {
       mark(nm(i));
+      if (c.scaling === 'effects') return `${nm(i)}* (${efc[k]})`;
       const fixed = c.fixedLoadings?.[i];
       // Free (*), except the first loading, which Mplus fixes at 1, unless the factor is scaled by its variance.
       let value = '*';
@@ -757,6 +826,8 @@ export function toMplus(
       else if (k === 0 && c.scaling !== 'variance') value = '';
       return `${nm(i)}${value}${mplusLabel(c.loadingLabels?.[i])}`;
     });
+    if (c.scaling === 'effects')
+      effects.push(`${efc[0]} = ${c.indicators.length}${efc.slice(1).map((l) => ` - ${l}`).join('')};`);
     lines.push(statement(`${nm(c.name)} BY`, terms));
     // (scaled by its variance: every loading free, the variance fixed at 1)
     if (c.scaling === 'variance') lines.push(`${nm(c.name)}@1;`);
@@ -873,11 +944,16 @@ export function toMplus(
     ...xwith.map((l) => `  ${l}`),
     ...lines.map((l) => `  ${l}`),
   ];
-  if (model.defined?.length)
+  if (model.defined?.length || effects.length)
     inp.push(
       'MODEL CONSTRAINT:',
-      `  NEW(${model.defined.map((d) => d.name).join(' ')});`,
-      ...model.defined.map((d) => `  ${d.name} = ${d.expr};`),
+      ...(model.defined?.length
+        ? [
+            `  NEW(${model.defined.map((d) => d.name).join(' ')});`,
+            ...model.defined.map((d) => `  ${d.name} = ${d.expr};`),
+          ]
+        : []),
+      ...effects.map((l) => `  ${l}  ! effects coding: the loadings average 1`),
     );
   if (model.multilevel)
     warn(

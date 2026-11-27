@@ -40,6 +40,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'examples/imputation': 'examples',
   'examples/kline': 'examples',
   'examples/manymome': 'examples',
+  'examples/mlm': 'examples',
   'examples/mplus/ch3': 'examples',
   'examples/mplus/ch4': 'examples',
   'examples/mplus/ch5': 'examples',
@@ -58,6 +59,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'examples/mplus/ch3random': 'examples',
   'examples/packages': 'examples',
   'examples/plsGender': 'examples',
+  'examples/scaling': 'examples',
   'examples/selection': 'examples',
   'examples/cards/bayes': 'examples',
   'examples/cards/model': 'examples',
@@ -97,6 +99,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'examples/cards/apim': 'examples',
   'examples/cards/qca': 'examples',
   'examples/cards/meta': 'examples',
+  'examples/cards/panel': 'examples',
   'examples/cards/roc': 'examples',
   'examples/cards/invariance': 'examples',
   'examples/cards/missing': 'examples',
@@ -237,6 +240,18 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     ['lavaan'],
     script('inequality.R', 'desktop lavaan'),
   ),
+  'rengine/remedies': {
+    title: 'Troubleshoot remedies: lavaan’s simple starting values and the BFGS optimiser',
+    method: 'CB-SEM',
+    level: 'published',
+    packages: ['lavaan'],
+    sources: [
+      {
+        label: 'lavaan tutorial, CFA (Holzinger & Swineford): χ² = 85.306 on 24 df',
+        url: 'https://lavaan.ugent.be/tutorial/cfa.html',
+      },
+    ],
+  },
   'rengine/means': native(
     'Mean structures',
     'CB-SEM',

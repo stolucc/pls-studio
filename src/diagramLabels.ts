@@ -20,7 +20,7 @@ export const fixedText = (v: number) => String(Number(v.toPrecision(6)));
 
 /**
  * The value an indicator's loading is held at (CB-SEM): the user's fixed value, or 1 for the marker (the first indicator,
- * unless the factor is scaled by its variance or rotated in an ESEM block). Undefined: estimated. Shared by the canvas and
+ * unless the factor is scaled by its variance or by effects coding, or rotated in an ESEM block). Undefined: estimated. Shared by the canvas and
  * the figure export.
  */
 export function heldLoading(
@@ -30,7 +30,7 @@ export function heldLoading(
   esem = false,
 ): number | undefined {
   if (method !== 'cbsem' || c.covariate || c.indicators.length === 0) return undefined;
-  const marker = !esem && c.scaling !== 'variance' ? c.indicators[0] : null;
+  const marker = !esem && !c.scaling ? c.indicators[0] : null;
   return c.fixedLoadings?.[name] ?? (name === marker ? 1 : undefined);
 }
 

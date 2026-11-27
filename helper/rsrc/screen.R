@@ -58,7 +58,7 @@ ps_screen <- function(req_json, export = FALSE) {
 #' `approach = "approximate"`: semfindr's approximations from the one fit (influence_stat(fit)).
 ps_influence <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   if (b$matrix_input) stop("Case influence needs raw data; this dataset is a covariance matrix.")
   if (isTRUE(b$mi)) {
     stop("Case influence is not available with multiple imputation; use FIML or casewise deletion.")

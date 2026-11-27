@@ -1649,6 +1649,25 @@ function checkEsem(v: Ctx): Issue[] {
 function checkConstraints(v: Ctx): Issue[] {
   const { issues, err, warn } = sink();
   const { model, method, engine, other } = v;
+  const effects = model.constructs.filter((c) => c.scaling === 'effects').map((c) => c.name);
+  if (method.method === 'cbsem' && effects.length) {
+    if (engine === 'builtin')
+      err(
+        `${effects.join(', ')}: effects coding is fitted by lavaan; choose “R packages” under Calculated by.`,
+      );
+    if (model.multigroup)
+      err(
+        `${effects.join(', ')}: effects coding is available for a model without groups; scale the factors by a marker or their variance.`,
+      );
+    if (method.estimator === '2SLS')
+      err(
+        `${effects.join(', ')}: MIIV-2SLS scales each factor by its first indicator (MIIVsem); effects coding needs a likelihood estimator such as ML.`,
+      );
+  }
+  if (method.method === 'cbsem' && engine === 'builtin' && (model.startValues || model.optimizer))
+    warn(
+      'The starting values and optimiser chosen on the Troubleshoot tab are lavaan’s: the built-in engine ignores them. Choose “R packages” under Calculated by to use them.',
+    );
   if (usesConstraints(model)) {
     if (method.method !== 'cbsem')
       warn(

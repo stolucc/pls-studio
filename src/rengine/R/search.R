@@ -41,7 +41,7 @@ PS_LIKELIHOOD_ESTIMATORS <- c("ML", "MLR", "MLM", "MLMV")
 #' missing-data treatment and baseline as the model. lavaan refits each from the full model's parameter table.
 ps_cb_specsearch <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "The specification search", raw = FALSE)
   if (!(req$estimator %in% PS_LIKELIHOOD_ESTIMATORS)) {
     stop("The specification search ranks models by AIC and BIC: choose a maximum-likelihood estimator (ML, MLR, MLM or MLMV).")
@@ -123,7 +123,7 @@ ps_cb_specsearch <- function(req_json, export = FALSE) {
 #' equivalent models have the same chi-square and df (and log-likelihood).
 ps_cb_equivalent <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "Fitting equivalent models", raw = FALSE)
   variants <- req$variants
   if (!length(variants)) stop("No alternative models to fit.")
@@ -134,7 +134,7 @@ ps_cb_equivalent <- function(req_json, export = FALSE) {
     r2 <- req
     r2$model$paths <- v$paths
     r2$model$covariances <- v$covariances
-    b2 <- ps_cb_build(r2)
+    b2 <- ps_cb_build_fit(r2)
     if (!identical(b2$call, b$call)) {
       stop("An alternative model needs other lavaan options than the model; it cannot be compared.")
     }
@@ -197,7 +197,7 @@ PS_TEST_KINDS <- c(loadings = "=~", paths = "~", covariances = "~~")
 #' significant at `alpha`.
 ps_cb_lmwald <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "The multivariate LM and Wald tests", raw = FALSE)
   if (!is.null(b$group_var) || !is.null(req$model$multigroup)) {
     stop("The multivariate LM and Wald tests are available for one group: remove the grouping.")
@@ -320,7 +320,7 @@ PS_LSLX_PENALTY <- c(lasso = "lasso", ridge = "ridge", enet = "elastic_net", mcp
 #' the model over a grid of penalty levels (lasso, ridge, elastic net or MCP) and the level is chosen by BIC or AIC.
 ps_cb_regsem <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   ps_cb_plain(b, "Regularised SEM (lslx)")
   if (!is.null(b$group_var) || !is.null(req$model$multigroup)) {
     stop("Regularised SEM is available for one group here: remove the grouping.")

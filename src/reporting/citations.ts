@@ -717,6 +717,21 @@ const WORKS: Record<string, { cite: string; entry: (version?: string) => Entry }
         doi: '10.1080/00273170701710205',
       }),
   },
+  little2006: {
+    cite: 'Little et al., 2006',
+    entry: () =>
+      art({
+        author: 'Little, Todd D. and Slegers, David W. and Card, Noel A.',
+        title:
+          'A non-arbitrary method of identifying and scaling latent variables in SEM and MACS models',
+        journal: 'Structural Equation Modeling',
+        year: '2006',
+        volume: '13',
+        number: '1',
+        pages: '59--72',
+        doi: '10.1207/s15328007sem1301_3',
+      }),
+  },
   marsh2004: {
     cite: 'Marsh et al., 2004',
     entry: () =>

@@ -1198,3 +1198,21 @@ table.grid.evidence-table th:last-child, table.grid.evidence-table td.hint { tex
 .plan-answer-n { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .plan-methods { margin-top: 10px; }
 .plan-methods p { font-size: 13px; line-height: 1.55; margin: 6px 0 0; user-select: text; }
+
+/* Troubleshoot tab (components/results/Troubleshoot.tsx) */
+.trouble-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.trouble-check { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; font-size: 12.5px; line-height: 1.45; }
+.trouble-check.problem { border-color: var(--bad-soft); background: color-mix(in srgb, var(--bad-soft) 40%, transparent); }
+.trouble-check.check { border-color: var(--warn-soft); }
+.trouble-check.clear, .trouble-check.skipped { color: var(--text-2); }
+.trouble-check p { margin: 4px 0; }
+.trouble-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.trouble-vars { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.trouble-label { font-weight: 600; }
+.trouble-quiet { margin-top: 8px; font-size: 12.5px; color: var(--text-2); }
+.trouble-quiet > summary { cursor: pointer; padding: 6px 0; }
+.trouble-quiet > .trouble-list { margin-top: 4px; }
+.trouble-remedies, .trouble-tried { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 4px; }
+.trouble-tried { font-size: 12.5px; }
+.trouble-tried .chip { display: inline-flex; align-items: center; gap: 2px; }
+.trouble-tried .chip .btn { padding: 0 4px; min-height: 0; line-height: 1.2; }

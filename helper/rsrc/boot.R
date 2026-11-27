@@ -469,7 +469,7 @@ ps_cb_draws <- function(req, setup, expr, B, seed) {
 
 ps_cb_boot <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_cb_build(req)
+  b <- ps_cb_build_fit(req)
   if (isTRUE(b$robust)) {
     stop("Robust ML (rsem) has its own robust standard errors; the bootstrap resamples the raw data with ML or MLR.")
   }

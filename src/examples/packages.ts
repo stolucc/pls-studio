@@ -69,6 +69,7 @@ export type ExamplePackage =
   | 'ltm'
   | 'poLCA'
   | 'lme4'
+  | 'nlme'
   | 'lcmm'
   | 'plspm'
   | 'ivreg'
@@ -148,6 +149,7 @@ export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'ltm',
   'poLCA',
   'lme4',
+  'nlme',
   'lcmm',
   'ivreg',
   'REndo',
@@ -603,6 +605,92 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     constructs: HS,
     paths: [],
     esem: { blocks: [['visual', 'textual', 'speed']], rotation: 'geomin' },
+    settings: CB('ML'),
+  },
+  {
+    id: 'lavaan-hs-scale-x1',
+    package: 'lavaan',
+    title: 'Scaling a latent variable (1): x1 as the marker',
+    source: 'lavaan, ?HolzingerSwineford1939; Gonzalez & Griffin (2001) on the scale of a latent variable',
+    links: [
+      { label: 'Gonzalez & Griffin (2001)', url: 'https://doi.org/10.1037/1082-989X.6.3.258' },
+      { label: 'Little, Slegers & Card (2006)', url: 'https://doi.org/10.1207/s15328007sem1301_3' },
+      {
+        label: 'Quantitude S8E07: Latent variable scaling',
+        url: 'https://quantitude.org/episodes/',
+      },
+    ],
+    description:
+      'Two Holzinger & Swineford factors, textual regressed on visual (N = 301, ML). A latent variable has no scale of its own: one of three examples that set it differently and fit the same model. Here the first indicator of each factor is the marker (loading fixed at 1), lavaan’s default.',
+    shows:
+      'χ² = 24.361 on 8 df and the standardised effect of visual on textual, 0.461, are the same in all three. The unstandardised effect is 0.503 with z = 5.24 here; with x2 as the marker it is 0.900 with z = 4.74, with effects coding 0.674 with z = 6.16. The Wald z test depends on the scaling, the likelihood-ratio test of fixing the effect at 0 does not (Δχ² = 35.58 on 1 df, whichever the scaling).',
+    data: { package: 'lavaan', name: 'HolzingerSwineford1939' },
+    tags: ['Scaling'],
+    constructs: [],
+    paths: [],
+    syntax: [
+      'visual =~ x1 + x2 + x3',
+      'textual =~ x4 + x5 + x6',
+      'textual ~ visual',
+    ].join('\n'),
+    settings: CB('ML'),
+  },
+  {
+    id: 'lavaan-hs-scale-x2',
+    package: 'lavaan',
+    title: 'Scaling a latent variable (2): x2 as the marker',
+    source: 'lavaan, ?HolzingerSwineford1939; Gonzalez & Griffin (2001) on the scale of a latent variable',
+    links: [
+      { label: 'Gonzalez & Griffin (2001)', url: 'https://doi.org/10.1037/1082-989X.6.3.258' },
+      { label: 'Little, Slegers & Card (2006)', url: 'https://doi.org/10.1207/s15328007sem1301_3' },
+      {
+        label: 'Quantitude S8E07: Latent variable scaling',
+        url: 'https://quantitude.org/episodes/',
+      },
+    ],
+    description:
+      'Two Holzinger & Swineford factors, textual regressed on visual (N = 301, ML). A latent variable has no scale of its own: one of three examples that set it differently and fit the same model. Here x2 is the marker of visual: written first, its loading is fixed at 1.',
+    shows:
+      'The same χ² (24.361 on 8 df) and standardised effect (0.461) as with x1 as the marker, but the unstandardised effect of visual on textual is 0.900, and its z falls from 5.24 to 4.74: x2 is the least reliable test of visual, so the scale it lends the factor is the noisiest (Gonzalez & Griffin 2001).',
+    data: { package: 'lavaan', name: 'HolzingerSwineford1939' },
+    tags: ['Scaling'],
+    constructs: [],
+    paths: [],
+    syntax: [
+      'visual =~ x2 + x1 + x3',
+      'textual =~ x4 + x5 + x6',
+      'textual ~ visual',
+    ].join('\n'),
+    settings: CB('ML'),
+  },
+  {
+    id: 'lavaan-hs-scale-effects',
+    package: 'lavaan',
+    title: 'Scaling a latent variable (3): effects coding',
+    source: 'lavaan, ?HolzingerSwineford1939; Gonzalez & Griffin (2001) on the scale of a latent variable',
+    links: [
+      { label: 'Gonzalez & Griffin (2001)', url: 'https://doi.org/10.1037/1082-989X.6.3.258' },
+      { label: 'Little, Slegers & Card (2006)', url: 'https://doi.org/10.1207/s15328007sem1301_3' },
+      {
+        label: 'Quantitude S8E07: Latent variable scaling',
+        url: 'https://quantitude.org/episodes/',
+      },
+    ],
+    description:
+      'Two Holzinger & Swineford factors, textual regressed on visual (N = 301, ML). A latent variable has no scale of its own: one of three examples that set it differently and fit the same model. Here the loadings of each factor are constrained to average 1 (Little, Slegers & Card 2006): the factor is on the average metric of its indicators, and no one indicator is the reference.',
+    shows:
+      'The same χ² (24.361 on 8 df) and standardised effect (0.461) again. The unstandardised effect of visual on textual is 0.674, with z = 6.16. In the Parameters table, the loadings of visual are 1.32, 0.74 and 0.94, which average 1.',
+    data: { package: 'lavaan', name: 'HolzingerSwineford1939' },
+    tags: ['Scaling'],
+    constructs: [],
+    paths: [],
+    syntax: [
+      'visual =~ NA*x1 + l1*x1 + l2*x2 + l3*x3',
+      'textual =~ NA*x4 + l4*x4 + l5*x5 + l6*x6',
+      'l1 == 3 - l2 - l3',
+      'l4 == 3 - l5 - l6',
+      'textual ~ visual',
+    ].join('\n'),
     settings: CB('ML'),
   },
   {
@@ -1985,6 +2073,330 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
       center: 'none',
       estimation: 'REML',
     },
+    settings: CB('ML'),
+  },
+  {
+    id: 'nlme-hsb-null',
+    package: 'nlme',
+    title: 'HSB: how much do schools differ? (empty model, ICC)',
+    source: 'nlme, ?MathAchieve; Raudenbush & Bryk (2002)',
+    links: [
+      { label: '?MathAchieve', url: 'https://rdrr.io/cran/nlme/man/MathAchieve.html' },
+      {
+        label: 'Raudenbush & Bryk (2002)',
+        url: 'https://us.sagepub.com/en-us/nam/hierarchical-linear-models/book9230',
+      },
+    ],
+    description:
+      'Mathematics achievement of 7,185 students in 160 US high schools (High School and Beyond, as in Raudenbush & Bryk 2002; nlme’s MathAchieve): MathAch by students’ socio-economic status SES, students clustered in schools. The empty model, MathAch ~ 1 + (1 | School) by REML: the first step of a multilevel analysis. Opens its card on the Analyses tab.',
+    shows:
+      'The grand mean is 12.637, the variance between schools 8.614 and within them 39.148, as Raudenbush & Bryk print: an intraclass correlation of .18, so 18% of the differences in achievement lie between schools. Whether that calls for a multilevel model depends on the question, the next examples show (McNeish, Stapleton & Silverman 2017).',
+    data: { package: 'nlme', name: 'MathAchieve' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'lmm',
+      outcome: 'MathAch',
+      predictors: [],
+      cluster: 'School',
+      slopes: [],
+      center: 'none',
+      estimation: 'REML',
+    },
+    tags: ['Clustered data'],
+    settings: CB('ML'),
+  },
+  {
+    id: 'nlme-hsb-random',
+    package: 'nlme',
+    title: 'HSB: a random intercept for schools',
+    source: 'nlme, ?MathAchieve; McNeish & Kelley (2019)',
+    links: [
+      { label: '?MathAchieve', url: 'https://rdrr.io/cran/nlme/man/MathAchieve.html' },
+      {
+        label: 'Raudenbush & Bryk (2002)',
+        url: 'https://us.sagepub.com/en-us/nam/hierarchical-linear-models/book9230',
+      },
+      { label: 'McNeish & Kelley (2019)', url: 'https://doi.org/10.1037/met0000182' },
+    ],
+    description:
+      'Mathematics achievement of 7,185 students in 160 US high schools (High School and Beyond, as in Raudenbush & Bryk 2002; nlme’s MathAchieve): MathAch by students’ socio-economic status SES, students clustered in schools. MathAch ~ SES + (1 | School) by REML: a random intercept per school, SES uncentred. Compare it with the cluster-robust regression, the fixed-effects regression and the within/between model of the same data. Opens its card on the Analyses tab.',
+    shows:
+      'The slope of SES is 2.390 (SE 0.106): a blend of the slope within schools (2.191, the fixed-effects and within/between examples) and between them, weighted by how much the schools differ. It answers neither question cleanly; centring SES within schools separates the two (McNeish & Kelley 2019; Curran & Bauer 2011).',
+    data: { package: 'nlme', name: 'MathAchieve' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'lmm',
+      outcome: 'MathAch',
+      predictors: ['SES'],
+      cluster: 'School',
+      slopes: [],
+      center: 'none',
+      estimation: 'REML',
+    },
+    tags: ['Clustered data'],
+    settings: CB('ML'),
+  },
+  {
+    id: 'nlme-hsb-cluster-robust',
+    package: 'nlme',
+    title: 'HSB: ordinary regression with cluster-robust standard errors',
+    source: 'nlme, ?MathAchieve; McNeish, Stapleton & Silverman (2017)',
+    links: [
+      { label: '?MathAchieve', url: 'https://rdrr.io/cran/nlme/man/MathAchieve.html' },
+      {
+        label: 'Raudenbush & Bryk (2002)',
+        url: 'https://us.sagepub.com/en-us/nam/hierarchical-linear-models/book9230',
+      },
+      { label: 'McNeish, Stapleton & Silverman (2017)', url: 'https://doi.org/10.1037/met0000078' },
+    ],
+    description:
+      'Mathematics achievement of 7,185 students in 160 US high schools (High School and Beyond, as in Raudenbush & Bryk 2002; nlme’s MathAchieve): MathAch by students’ socio-economic status SES, students clustered in schools. MathAch ~ SES by least squares, the standard errors clustered by school (sandwich’s vcovCL): the clustering treated as a nuisance for the standard errors, not modelled. Opens its card on the Analyses tab.',
+    shows:
+      'The slope of SES is 3.184 with a cluster-robust SE of 0.133, against 0.097 if the clustering is ignored: the correction McNeish, Stapleton & Silverman (2017) argue is often all a question about the overall effect needs. The slope itself is the total effect, within and between schools together; the within/between example splits it.',
+    data: { package: 'nlme', name: 'MathAchieve' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'regression',
+      family: 'gaussian',
+      link: 'identity',
+      outcome: 'MathAch',
+      predictors: ['SES'],
+      categorical: [],
+      interactions: [],
+      trials: '',
+      weights: '',
+      se: 'cluster',
+      cluster: 'School',
+    },
+    tags: ['Multilevel', 'Clustered data'],
+    settings: CB('ML'),
+  },
+  {
+    id: 'nlme-hsb-fixed-effects',
+    package: 'nlme',
+    title: 'HSB: school fixed effects',
+    source: 'nlme, ?MathAchieve; McNeish & Kelley (2019)',
+    links: [
+      { label: '?MathAchieve', url: 'https://rdrr.io/cran/nlme/man/MathAchieve.html' },
+      {
+        label: 'Raudenbush & Bryk (2002)',
+        url: 'https://us.sagepub.com/en-us/nam/hierarchical-linear-models/book9230',
+      },
+      { label: 'McNeish & Kelley (2019)', url: 'https://doi.org/10.1037/met0000182' },
+    ],
+    description:
+      'Mathematics achievement of 7,185 students in 160 US high schools (High School and Beyond, as in Raudenbush & Bryk 2002; nlme’s MathAchieve): MathAch by students’ socio-economic status SES, students clustered in schools. MathAch ~ SES + School by least squares, School as 160 categories (fixed effects): every school its own intercept, so only differences within schools inform the slope of SES. Opens its card on the Analyses tab.',
+    shows:
+      'The slope of SES is 2.191 (SE 0.109): the within-school effect, exactly the within slope of the multilevel model with SES centred at the school means (the within/between example). Fixed effects answer within-cluster questions without any assumption about the schools’ intercepts, but cannot estimate a school-level effect (McNeish & Kelley 2019).',
+    data: { package: 'nlme', name: 'MathAchieve' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'regression',
+      family: 'gaussian',
+      link: 'identity',
+      outcome: 'MathAch',
+      predictors: ['SES', 'School'],
+      categorical: ['School'],
+      interactions: [],
+      trials: '',
+      weights: '',
+      se: 'model',
+      cluster: '',
+    },
+    tags: ['Multilevel', 'Clustered data'],
+    settings: CB('ML'),
+  },
+  {
+    id: 'nlme-hsb-within-between',
+    package: 'nlme',
+    title: 'HSB: within- and between-school effects (centring at the school mean)',
+    source: 'nlme, ?MathAchieve; Raudenbush & Bryk (2002)',
+    links: [
+      { label: '?MathAchieve', url: 'https://rdrr.io/cran/nlme/man/MathAchieve.html' },
+      {
+        label: 'Raudenbush & Bryk (2002)',
+        url: 'https://us.sagepub.com/en-us/nam/hierarchical-linear-models/book9230',
+      },
+      {
+        label: 'Curran & Bauer (2011)',
+        url: 'https://doi.org/10.1146/annurev.psych.093008.100356',
+      },
+    ],
+    description:
+      'Mathematics achievement of 7,185 students in 160 US high schools (High School and Beyond, as in Raudenbush & Bryk 2002; nlme’s MathAchieve): MathAch by students’ socio-economic status SES, students clustered in schools. SES split into each school’s mean SES (between) and the student’s deviation from it (within), MathAch ~ SES_within + SES_cm + (1 | School) by REML. Opens its card on the Analyses tab.',
+    shows:
+      'The within-school slope is 2.191, as the fixed-effects regression, and the between-school slope of mean SES is 5.866 (intercept 12.683), as Raudenbush & Bryk print: the contextual effect, 5.866 − 2.191 = 3.675, is how much more a school’s mean SES matters than a student’s own (Curran & Bauer 2011).',
+    data: { package: 'nlme', name: 'MathAchieve' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'lmm',
+      outcome: 'MathAch',
+      predictors: ['SES'],
+      cluster: 'School',
+      slopes: [],
+      center: 'cluster',
+      estimation: 'REML',
+    },
+    tags: ['Clustered data'],
+    settings: CB('ML'),
+  },
+  {
+    id: 'nls-within-between',
+    package: 'lme4',
+    title: 'Wages over the years: within- and between-person effects of a time-varying predictor',
+    source:
+      'National Longitudinal Survey of Young Women, 1968–1988 (sampleSelection::nlswork); Curran & Bauer (2011)',
+    links: [
+      {
+        label: 'Curran & Bauer (2011)',
+        url: 'https://doi.org/10.1146/annurev.psych.093008.100356',
+      },
+      {
+        label: '?nlswork (sampleSelection)',
+        url: 'https://rdrr.io/cran/sampleSelection/man/nlswork.html',
+      },
+    ],
+    description:
+      'Log hourly wage of 4,709 young women interviewed up to fifteen times between 1968 and 1988 (28,443 interviews with wage, hours and age; public NLS data). Hours worked and age change from interview to interview: each is split into the woman’s own mean (between persons) and her deviation from it at that interview (within), ln_wage ~ hours_within + age_within + hours_cm + age_cm + (1 | idcode) by REML, the longitudinal counterpart of the High School and Beyond example (Curran & Bauer 2011). Opens its card on the Analyses tab.',
+    shows:
+      'Within a woman, an extra weekly hour goes with a wage only 0.0007 log points higher, the slope a fixed-effects regression gives (fixest: the same to seven digits); between women, an hour more on average goes with 0.0095 higher, thirteen times as much. Mixing the two in one slope would answer neither question. Age: 0.018 a year within a woman (her wage growth), 0.023 between (the cohorts).',
+    data: {
+      package: 'sampleSelection',
+      name: 'nlswork (idcode, year, ln_wage, hours, age)',
+      file: 'examples/lcmsr/nlswork-long.csv',
+    },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'lmm',
+      outcome: 'ln_wage',
+      predictors: ['hours', 'age'],
+      cluster: 'idcode',
+      slopes: [],
+      center: 'cluster',
+      estimation: 'REML',
+    },
+    tags: ['Longitudinal'],
+    settings: CB('ML'),
+  },
+  {
+    id: 'lme4-dyestuff-reml',
+    package: 'lme4',
+    title: 'Six batches: REML and small-sample degrees of freedom',
+    source: 'lme4, ?Dyestuff; Bates (2010), lme4 book, ch. 1',
+    links: [
+      { label: '?Dyestuff', url: 'https://rdrr.io/cran/lme4/man/Dyestuff.html' },
+      { label: 'McNeish (2017)', url: 'https://doi.org/10.1080/00273171.2017.1344538' },
+    ],
+    description:
+      'Yield of dyestuff from six batches of an intermediate product, five preparations each (Davies & Goldsmith 1972; lme4’s Dyestuff): only six clusters, Yield ~ 1 + (1 | Batch) by REML. Compare it with the ML fit. Opens its card on the Analyses tab.',
+    shows:
+      'With REML the batches’ standard deviation is 42.00 and the residual one 49.51, as Bates prints; the mean yield 1527.5 has an SE of 19.38 on 5 Satterthwaite degrees of freedom. With six clusters REML and small-sample degrees of freedom matter (McNeish 2017; McNeish & Stapleton 2016): a z test would treat the six batches as if they were many.',
+    data: { package: 'lme4', name: 'Dyestuff' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'lmm',
+      outcome: 'Yield',
+      predictors: [],
+      cluster: 'Batch',
+      slopes: [],
+      center: 'none',
+      estimation: 'REML',
+    },
+    tags: ['Few clusters'],
+    settings: CB('ML'),
+  },
+  {
+    id: 'lme4-dyestuff-ml',
+    package: 'lme4',
+    title: 'Six batches: maximum likelihood underestimates the between-batch variance',
+    source: 'lme4, ?Dyestuff; Bates (2010), lme4 book, ch. 1',
+    links: [
+      { label: '?Dyestuff', url: 'https://rdrr.io/cran/lme4/man/Dyestuff.html' },
+      { label: 'McNeish (2017)', url: 'https://doi.org/10.1080/00273171.2017.1344538' },
+    ],
+    description:
+      'The same six batches, Yield ~ 1 + (1 | Batch), by maximum likelihood instead of REML. Opens its card on the Analyses tab.',
+    shows:
+      'ML puts the batches’ standard deviation at 37.26 against REML’s 42.00 (the residual stays 49.51), and the SE of the mean at 17.69 against 19.38: ML does not allow for the mean estimated from the same six batches, so with few clusters it understates the variance between them (Bates 2010; McNeish 2017).',
+    data: { package: 'lme4', name: 'Dyestuff' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'lmm',
+      outcome: 'Yield',
+      predictors: [],
+      cluster: 'Batch',
+      slopes: [],
+      center: 'none',
+      estimation: 'ML',
+    },
+    tags: ['Few clusters'],
+    settings: CB('ML'),
+  },
+  {
+    id: 'nlme-growth-equal',
+    package: 'nlme',
+    title: 'Growth as a mixed model: equal residual variances',
+    source: 'lavaan, ?Demo.growth; McNeish & Matta (2018)',
+    links: [
+      { label: '?Demo.growth', url: 'https://rdrr.io/cran/lavaan/man/Demo.growth.html' },
+      { label: 'McNeish & Matta (2018)', url: 'https://doi.org/10.3758/s13428-017-0916-8' },
+    ],
+    description:
+      'The four repeated measures t1–t4 of lavaan’s growth tutorial (N = 400) as a mixed model: occasions in rows, time 0–3, a random intercept and slope per person by ML, one residual variance for all occasions, a multilevel model’s default. Compare it with the latent growth curve of the same data. Opens its card on the Analyses tab.',
+    shows:
+      'The mean intercept is 0.617 and the mean slope 1.005, with one residual variance of 0.622: the latent growth curve with its residual variances held equal, exactly. The latent curve model frees them by default, which gives slightly different estimates; the next example frees them here (McNeish & Matta 2018).',
+    data: { package: 'lavaan', name: 'Demo.growth' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'lmm',
+      outcome: 't',
+      predictors: ['time'],
+      cluster: '',
+      slopes: ['time'],
+      center: 'none',
+      estimation: 'ML',
+      repeated: { measures: items('t', 4), times: [0, 1, 2, 3], time: 'time', varying: [] },
+    },
+    tags: ['Longitudinal', 'Growth curve'],
+    settings: CB('ML'),
+  },
+  {
+    id: 'nlme-growth-occasion',
+    package: 'nlme',
+    title: 'Growth as a mixed model: a residual variance per occasion (the latent curve model)',
+    source: 'lavaan, ?Demo.growth; McNeish & Matta (2018)',
+    links: [
+      { label: '?Demo.growth', url: 'https://rdrr.io/cran/lavaan/man/Demo.growth.html' },
+      { label: 'McNeish & Matta (2018)', url: 'https://doi.org/10.3758/s13428-017-0916-8' },
+    ],
+    description:
+      'The same growth data as a mixed model with a residual variance for each occasion (nlme’s varIdent), the latent growth curve model’s default. Opens its card on the Analyses tab.',
+    shows:
+      'The mean intercept 0.615 and slope 1.006, the variances of intercept (1.932) and slope (0.587) and the four residual variances (0.595, 0.676, 0.635, 0.508) are the latent growth curve’s of lavaan’s tutorial, with the same log-likelihood: for balanced data with time as fixed scores the two are one model, written in long or wide format (McNeish & Matta 2018).',
+    data: { package: 'lavaan', name: 'Demo.growth' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'lmm',
+      outcome: 't',
+      predictors: ['time'],
+      cluster: '',
+      slopes: ['time'],
+      center: 'none',
+      estimation: 'ML',
+      residuals: 'occasion',
+      repeated: { measures: items('t', 4), times: [0, 1, 2, 3], time: 'time', varying: [] },
+    },
+    tags: ['Longitudinal', 'Growth curve'],
     settings: CB('ML'),
   },
   {

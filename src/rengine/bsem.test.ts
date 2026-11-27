@@ -98,6 +98,18 @@ describe('Bayesian SEM in the browser', () => {
     expect(
       bsemAnalysis.blocked(opts, { ...ctx, model: { ...model, constant: { x: 0, y: 0 } } }),
     ).toMatch(/marker/);
+    // (effects coding is built outside the Bayesian card's model: refused there)
+    expect(
+      bsemAnalysis.blocked(opts, {
+        ...ctx,
+        model: {
+          ...model,
+          constructs: model.constructs.map((c, i) =>
+            i === 0 ? { ...c, scaling: 'effects' as const } : c,
+          ),
+        },
+      }),
+    ).toMatch(/Effects coding is not available in Bayesian SEM/);
     expect(
       bsemAnalysis.blocked(
         { ...opts, identification: 'marker' },
