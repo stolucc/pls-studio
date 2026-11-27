@@ -369,7 +369,7 @@
     },
     "converged": true,
     "maxRelDiff": 3.86037685720021e-15,
-    "elapsed": 1.555
+    "elapsed": 1.614
   },
   "asem": {
     "parameters": [
@@ -901,7 +901,7 @@
     },
     "converged": true,
     "maxRelDiff": 3.93968850712803e-15,
-    "elapsed": 1.631
+    "elapsed": 1.678
   },
   "bcfa": {
     "parameters": [
@@ -1263,7 +1263,7 @@
     },
     "converged": true,
     "maxRelDiff": 3.99476993474586e-15,
-    "elapsed": 1.082
+    "elapsed": 1.112
   },
   "vsMcmc": {
     "marker": {
@@ -1775,7 +1775,7 @@
   },
   "sources": {
     "src/rengine/R/common.R": "f4bd6802ddcef0a4cefee0a74d7f846f",
-    "src/rengine/R/longitudinal.R": "dfa2a12c8987baddd74407e0dcabfe1d",
+    "src/rengine/R/longitudinal.R": "cc10f31a2172117fb8648fdfd26ac9ce",
     "src/rengine/R/regression.R": "f66169780f1446acacfa73990170367d",
     "src/rengine/R/tests.R": "0850904576c1b329d99a24feb2b14751",
     "src/rengine/R/lavaan.R": "085244bdbedb4c193bedcb02f596232c",

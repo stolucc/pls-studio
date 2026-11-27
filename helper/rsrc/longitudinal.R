@@ -161,6 +161,7 @@ ps_growth <- function(req_json, export = FALSE) {
   measures <- unlist(req$measures)
   covs <- unlist(req$covariates)
   tvc <- unlist(req$timeVarying)
+  distal <- unlist(req$distal)
   times <- as.numeric(unlist(req$times))
   if (length(measures) < 3) stop("A growth model needs at least three measurement occasions.")
   if (length(tvc) && length(tvc) != length(measures)) {
@@ -174,9 +175,14 @@ ps_growth <- function(req_json, export = FALSE) {
   if (shape == "quadratic" && length(measures) < 4) {
     stop("A quadratic growth model needs at least four occasions.")
   }
-  fr <- ps_long_frame(req, c(measures, covs, tvc))
+  if (any(distal %in% c(measures, covs, tvc))) {
+    stop("A distal outcome cannot also be a repeated measure or a covariate.")
+  }
+  fr <- ps_long_frame(req, c(measures, covs, tvc, distal))
   o <- ps_long_options(req)
   y <- unname(fr$v[measures])
+  z <- unname(fr$v[distal])
+  factors <- c("i", "s", if (shape == "quadratic") "q")
   slope <- if (shape == "basis") {
     c(paste0("0*", y[1]), paste0("1*", y[2]), y[-(1:2)])
   } else {
@@ -186,9 +192,11 @@ ps_growth <- function(req_json, export = FALSE) {
     paste("i =~", paste0("1*", y, collapse = " + ")),
     paste("s =~", paste(trimws(slope), collapse = " + ")),
     if (shape == "quadratic") paste("q =~", paste0(format(times^2), "*", y, collapse = " + ")),
-    if (length(covs)) sprintf("%s ~ %s", paste(c("i", "s", if (shape == "quadratic") "q"), collapse = " + "), paste(unname(fr$v[covs]), collapse = " + ")),
+    if (length(covs)) sprintf("%s ~ %s", paste(factors, collapse = " + "), paste(unname(fr$v[covs]), collapse = " + ")),
     # Time-varying covariates: each occasion regressed on its own covariate (lavaan tutorial, growth curve models).
-    if (length(tvc)) c("# time-varying covariates", sprintf("%s ~ %s", y, unname(fr$v[tvc])))
+    if (length(tvc)) c("# time-varying covariates", sprintf("%s ~ %s", y, unname(fr$v[tvc]))),
+    # Distal outcomes on the growth factors, each with its own intercept (McCormick, Curran & Hancock 2026).
+    if (length(z)) c("# distal outcomes", sprintf("%s ~ 1 + %s", z, paste(factors, collapse = " + ")))
   )
   body <- c(
     "suppressPackageStartupMessages(library(lavaan))",
@@ -214,9 +222,17 @@ ps_growth <- function(req_json, export = FALSE) {
       fit,
       fr$back,
       c("i", "s", "q"),
-      also = c(list(list(op = "~~", lhs = y)), if (length(tvc)) list(list(op = "~", lhs = y)))
+      also = c(
+        list(list(op = "~~", lhs = y)),
+        if (length(tvc)) list(list(op = "~", lhs = y)),
+        if (length(z)) list(list(op = "~", lhs = z), list(op = "~1", lhs = z), list(op = "~~", lhs = z))
+      )
     ),
-    r2 = as.list(lavaan::lavInspect(fit, "r2")[intersect(c("i", "s", "q"), names(lavaan::lavInspect(fit, "r2")))]),
+    r2 = local({
+      r2 <- lavaan::lavInspect(fit, "r2")
+      r2 <- r2[intersect(c("i", "s", "q", z), names(r2))]
+      stats::setNames(as.list(unname(r2)), ps_back(names(r2), fr$back))
+    }),
     impliedMeans = unname(implied), observedMeans = unname(colMeans(env$data[, y, drop = FALSE], na.rm = TRUE)),
     measures = measures, times = times,
     warnings = env$.warnings, engine = ps_engine("lavaan")

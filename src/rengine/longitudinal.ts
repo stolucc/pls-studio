@@ -30,6 +30,8 @@ export interface GrowthInput {
   shape: 'linear' | 'quadratic' | 'basis';
   covariates: string[];
   timeVarying?: string[];
+  /** Outcomes regressed on the growth factors, each with its own intercept. */
+  distal?: string[];
   estimator: 'ML' | 'MLR';
   missing: MissingTreatment;
   information?: 'observed';
@@ -115,6 +117,7 @@ export const growthRequest = (data: Dataset, i: GrowthInput) => ({
     ...i.measures,
     ...i.covariates,
     ...(i.timeVarying ?? []),
+    ...(i.distal ?? []),
     ...(i.syntax?.trim() ? syntaxColumns(i.syntax, data.names) : []),
     ...(i.group ? [i.group] : []),
   ]),

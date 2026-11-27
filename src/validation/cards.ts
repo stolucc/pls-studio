@@ -1017,6 +1017,8 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
       'mplus-ex6.8',
       'mplus-ex6.9',
       'mplus-ex6.10',
+      'nls-growth-distal-initial',
+      'nls-growth-distal-final',
     ],
     features: ['rengine/longitudinal::growth matches lavaan', 'rengine/longitudinal::time-varying'],
   },

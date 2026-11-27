@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { figureOf } from './figureOf';
 import type { GrowthResult } from '../rengine/longitudinal';
 import type { GmmModel, GmmResult } from '../rengine/mixed';
-import { Trajectories, Trajectory } from './longitudinal';
+import { growthAnalysis, Trajectories, Trajectory } from './longitudinal';
 
 const gg = vi.hoisted(() => ({
   file: vi.fn(async (_spec: unknown) => new Blob(['%PDF-'])),
@@ -99,5 +99,53 @@ describe('the growth charts drawn by ggplot2', () => {
       'point:Class 2 (40%)',
     ]);
     expect(spec.layers[1].y).toEqual([1.1, null]);
+  });
+});
+
+describe('the growth card’s tables', () => {
+  it('puts a distal outcome in its own table, not among the growth factors or the time-varying covariates', () => {
+    const e = (lhs: string, op: string, rhs: string, est: number) => ({
+      lhs,
+      op,
+      rhs,
+      est,
+      se: 0.1,
+      z: 1,
+      p: 0.3,
+      std: 0.2,
+    });
+    const r = {
+      n: 100,
+      fit: {},
+      estimates: [
+        e('i', '~1', '', 1.44),
+        e('s', '~1', '', 0.03),
+        e('i', '~~', 's', -0.01),
+        e('z', '~1', '', 0.77),
+        e('z', '~', 'i', 0.72),
+        e('z', '~', 's', 2.09),
+        e('z', '~~', 'z', 0.28),
+      ],
+      r2: { z: 0.2034 },
+      impliedMeans: [1, 2, 3],
+      observedMeans: [1, 2, 3],
+      measures: ['y1', 'y2', 'y3'],
+      times: [0, 1, 2],
+      warnings: [],
+      engine,
+    } as GrowthResult;
+    const html = renderToStaticMarkup(
+      <growthAnalysis.View result={r as never} options={{} as never} current />,
+    );
+    expect(html).toContain('Growth factors predicting outcomes');
+    expect(html).toContain('Slope → z');
+    expect(html).toContain('Intercept of z');
+    expect(html).toContain('Residual variance of z');
+    expect(html).toContain('R² of z: 0.203');
+    expect(html).not.toContain('Time-varying covariates');
+    expect(html).toContain('Growth factors: means');
+    const means = html.slice(html.indexOf('Growth factors: means'), html.indexOf('variances and'));
+    expect(means).not.toContain('0.770');
+    expect(means).toContain('1.440');
   });
 });

@@ -307,6 +307,8 @@ const AUTHORS_BY_ID: Record<string, string[]> = {
   'mulder-riclpm': ['Mulder', 'Hamaker'],
   'nls-riclpm': ['Hamaker', 'Kuiper', 'Grasman'],
   'nls-lcmsr': ['Curran', 'Howard', 'Bainter', 'Lane', 'McGinley'],
+  'nls-growth-distal-initial': ['McCormick', 'Curran', 'Hancock'],
+  'nls-growth-distal-final': ['McCormick', 'Curran', 'Hancock'],
   'dynamic-hs-cfahb': ['Wolf', 'McNeish'],
   'dynamic-hs-cfaone': ['Wolf', 'McNeish'],
   'dynamic-hs-exactfit': ['Wolf', 'McNeish'],

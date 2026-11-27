@@ -63,6 +63,23 @@ describe('growth curve card', () => {
       growth.blocked({ ...growth.defaults(ctx()), measures: t, timeVarying: ['c1'] }, ctx()),
     ).toMatch(/one time-varying covariate per occasion/);
   });
+
+  it('distal outcomes: kept by the options, sent to R, checked against the measures, named in the summary', () => {
+    const o = { ...growth.defaults(ctx()), measures: t, distal: ['c'] };
+    expect(growth.parseOptions(o)).toEqual(o);
+    // (none: no key, so saved cards and their fingerprints stay as they were)
+    expect(growth.parseOptions({ ...o, distal: [] })).not.toHaveProperty('distal');
+    expect(growthInput(o, ctx()).distal).toEqual(['c']);
+    expect(growthInput({ ...o, distal: [] }, ctx())).not.toHaveProperty('distal');
+    expect(growthInput({ ...o, syntax: 'i =~ 1*t1' }, ctx())).not.toHaveProperty('distal');
+    expect(growth.blocked(o, ctx())).toBeNull();
+    expect(growth.blocked({ ...o, distal: ['t4'] }, ctx())).toMatch(/cannot also be a repeated/);
+    expect(growth.blocked({ ...o, distal: ['nope'] }, ctx())).not.toBeNull();
+    expect(growth.fingerprint(o, ctx())).not.toBe(
+      growth.fingerprint({ ...o, distal: undefined }, ctx()),
+    );
+    expect(growth.summary!(o)).toContain('predicts c');
+  });
 });
 
 describe('RI-CLPM card', () => {

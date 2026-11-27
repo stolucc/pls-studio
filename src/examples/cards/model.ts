@@ -3157,6 +3157,80 @@ const CARDS: PackageExample[] = [
     },
     settings: { ...CB('ML'), missing: 'fiml' },
   },
+  {
+    id: 'nls-growth-distal-initial',
+    package: 'lavaan',
+    title:
+      'Early wage growth predicting later wages: time coded from the first interview',
+    source:
+      'McCormick, Curran & Hancock (2026), latent curve factors predicting a distal outcome, on the National Longitudinal Survey of Young Women (sampleSelection::nlswork)',
+    links: [
+      { label: 'McCormick, Curran & Hancock (2026)', url: 'https://doi.org/10.1037/met0000642' },
+      { label: 'Authors’ code (OSF)', url: 'https://osf.io/fzubt/' },
+      {
+        label: '?nlswork (sampleSelection)',
+        url: 'https://rdrr.io/cran/sampleSelection/man/nlswork.html',
+      },
+      { label: 'Quantitude S6E01: Growth as a predictor', url: 'https://quantitude.org/episodes/' },
+    ],
+    description:
+      'Log hourly wage of 3,953 young women at the five yearly interviews 1969–1973: a linear growth curve whose intercept and slope predict log wage in 1988 (missing waves by FIML). Time scores 0–4 put the intercept at 1969, so the slope’s effect is that of faster growth among women who started at the same wage. McCormick, Curran & Hancock (2024; Quantitude S6E01) show that this effect depends on where time is coded zero; the next example codes the same model from the last interview. Checked in desktop lavaan. Opens its card on the Analyses tab.',
+    shows:
+      'Faster wage growth in 1969–1973 predicts a higher wage in 1988 among women who started at the same wage: 2.09 (SE 0.25) per unit of slope, beside 0.72 (SE 0.05) for the intercept; R² = .20. χ² = 121.7 on 13 df, CFI .976.',
+    data: {
+      package: 'sampleSelection',
+      name: 'nlswork, 1969–1973 and 1988 (wide)',
+      file: 'examples/growth-distal/nlswork-distal.csv',
+    },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'growth',
+      measures: ['lnwage69', 'lnwage70', 'lnwage71', 'lnwage72', 'lnwage73'],
+      times: [0, 1, 2, 3, 4],
+      shape: 'linear',
+      covariates: [],
+      distal: ['lnwage88'],
+    },
+    settings: { ...CB('ML'), missing: 'fiml' },
+  },
+  {
+    id: 'nls-growth-distal-final',
+    package: 'lavaan',
+    title:
+      'Early wage growth predicting later wages: time coded from the last interview',
+    source:
+      'McCormick, Curran & Hancock (2026), latent curve factors predicting a distal outcome, on the National Longitudinal Survey of Young Women (sampleSelection::nlswork)',
+    links: [
+      { label: 'McCormick, Curran & Hancock (2026)', url: 'https://doi.org/10.1037/met0000642' },
+      { label: 'Authors’ code (OSF)', url: 'https://osf.io/fzubt/' },
+      {
+        label: '?nlswork (sampleSelection)',
+        url: 'https://rdrr.io/cran/sampleSelection/man/nlswork.html',
+      },
+      { label: 'Quantitude S6E01: Growth as a predictor', url: 'https://quantitude.org/episodes/' },
+    ],
+    description:
+      'The same women and model as the previous example, with time scores −4 to 0: the intercept is now the wage in 1973, and the slope’s effect is that of faster growth among women who reached the same wage by 1973. Same fit, same intercept effect, a different question (McCormick, Curran & Hancock, 2026). Checked in desktop lavaan. Opens its card on the Analyses tab.',
+    shows:
+      'The slope’s effect turns negative: −0.80 (SE 0.30). Among women at the same wage in 1973, those who got there by faster growth (from a lower start) earn less in 1988. The fit (χ² = 121.7 on 13 df), the intercept’s effect (0.72) and R² are those of the first-interview coding; −0.80 = 2.09 − 4 × 0.72.',
+    data: {
+      package: 'sampleSelection',
+      name: 'nlswork, 1969–1973 and 1988 (wide)',
+      file: 'examples/growth-distal/nlswork-distal.csv',
+    },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'growth',
+      measures: ['lnwage69', 'lnwage70', 'lnwage71', 'lnwage72', 'lnwage73'],
+      times: [-4, -3, -2, -1, 0],
+      shape: 'linear',
+      covariates: [],
+      distal: ['lnwage88'],
+    },
+    settings: { ...CB('ML'), missing: 'fiml' },
+  },
 ];
 
 export const CARD_MODEL = CARDS.map(withSoftware);

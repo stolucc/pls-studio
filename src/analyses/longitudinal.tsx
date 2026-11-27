@@ -42,6 +42,8 @@ export interface GrowthOptions {
   shape: GrowthInput['shape'];
   covariates: string[];
   timeVarying: string[];
+  /** Outcomes regressed on the growth factors (absent: none). */
+  distal?: string[];
   syntax?: string;
   group?: string;
 }
@@ -272,11 +274,31 @@ function GrowthView({ r }: { r: GrowthResult & { input?: { estimator?: string } 
   ];
   const name: Record<string, string> = { i: 'Intercept', s: 'Slope', q: 'Quadratic' };
   const f = (x: string) => name[x] ?? x;
-  const means = r.estimates.filter((e) => e.op === '~1');
-  const vars = r.estimates.filter((e) => e.op === '~~');
   const growthFactor = (x: string) => x in name;
   const regs = r.estimates.filter((e) => e.op === '~' && growthFactor(e.lhs));
-  const tvc = r.estimates.filter((e) => e.op === '~' && !growthFactor(e.lhs));
+  // Outcomes regressed on the growth factors (a distal outcome, written as syntax), apart from the time-varying covariates.
+  const distal = r.estimates.filter(
+    (e) => e.op === '~' && !growthFactor(e.lhs) && growthFactor(e.rhs),
+  );
+  const outcomes = new Set(distal.map((e) => e.lhs));
+  const tvc = r.estimates.filter(
+    (e) => e.op === '~' && !growthFactor(e.lhs) && !outcomes.has(e.lhs),
+  );
+  const means = r.estimates.filter((e) => e.op === '~1' && !outcomes.has(e.lhs));
+  const vars = r.estimates.filter((e) => e.op === '~~' && !outcomes.has(e.lhs));
+  const outcomeRows = [...outcomes].flatMap((y) => [
+    ...r.estimates
+      .filter((e) => e.lhs === y && e.op === '~1')
+      .map((e) => estRow(e, `Intercept of ${y}`)),
+    ...distal.filter((e) => e.lhs === y).map((e) => estRow(e, `${f(e.rhs)} → ${y}`)),
+    ...r.estimates
+      .filter((e) => e.lhs === y && e.op === '~~' && e.rhs === y)
+      .map((e) => estRow(e, `Residual variance of ${y}`)),
+  ]);
+  const outcomeR2 = [...outcomes]
+    .filter((y) => r.r2[y] !== undefined)
+    .map((y) => `R² of ${y}: ${r.r2[y].toFixed(3)}`)
+    .join('; ');
   return (
     <div className="tables">
       {fitCards(r.fit)}
@@ -304,6 +326,15 @@ function GrowthView({ r }: { r: GrowthResult & { input?: { estimator?: string } 
           file="growth-covariates"
           columns={estCols}
           rows={regs.map((e) => estRow(e, `${e.rhs} → ${f(e.lhs)}`))}
+        />
+      )}
+      {outcomeRows.length > 0 && (
+        <Table
+          title="Growth factors predicting outcomes"
+          file="growth-outcomes"
+          columns={estCols}
+          rows={outcomeRows}
+          note={`${outcomeR2 ? `${outcomeR2}. ` : ''}The slope's effect is its effect at a fixed level at time score 0, so it changes with where time is coded zero: the intercept is the level at that occasion (McCormick, Curran & Hancock, 2026). In a linear model the intercept's effect and the fit do not change.`}
         />
       )}
       {tvc.length > 0 && (
@@ -771,6 +802,16 @@ function GrowthOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Grow
             value={o.timeVarying}
             onChange={(timeVarying) => set({ ...o, timeVarying })}
           />
+          <OrderedPicker
+            label="Distal outcomes predicted by the growth factors (optional)"
+            hint="Each outcome regressed on the intercept and slope. The slope's effect depends on where the time scores put 0: 0, 1, 2, … asks about change at a fixed starting level, …, −2, −1, 0 at a fixed final level (McCormick, Curran & Hancock, 2026)."
+            columns={columns.filter(
+              (n) =>
+                !o.measures.includes(n) && !o.covariates.includes(n) && !o.timeVarying.includes(n),
+            )}
+            value={o.distal ?? []}
+            onChange={(distal) => set({ ...o, distal })}
+          />
         </>
       )}
       <div className="hint">
@@ -1005,7 +1046,7 @@ export const growthInput = (
   o: GrowthOptions,
   ctx: Pick<AnalysisCtx, 'settings' | 'model'>,
 ): GrowthInput => {
-  const { syntax, group, ...rest } = o;
+  const { syntax, group, distal, ...rest } = o;
   // (written as syntax: the shape and covariates do not apply; the group column only there)
   return syntax?.trim()
     ? {
@@ -1017,7 +1058,12 @@ export const growthInput = (
         ...(group ? { group } : {}),
         ...lavaanOf(ctx),
       }
-    : { ...rest, times: timeScores(o.measures, o.times), ...lavaanOf(ctx) };
+    : {
+        ...rest,
+        ...(distal?.length ? { distal } : {}),
+        times: timeScores(o.measures, o.times),
+        ...lavaanOf(ctx),
+      };
 };
 const growthColumns = (o: GrowthOptions, ctx: AnalysisCtx) =>
   o.syntax?.trim()
@@ -1026,7 +1072,7 @@ const growthColumns = (o: GrowthOptions, ctx: AnalysisCtx) =>
         ...syntaxColumns(o.syntax, rawData(ctx)?.names ?? []),
         ...(o.group ? [o.group] : []),
       ]
-    : [...o.measures, ...o.covariates, ...o.timeVarying];
+    : [...o.measures, ...o.covariates, ...o.timeVarying, ...(o.distal ?? [])];
 export const riclpmInput = (
   o: RiclpmOptions,
   ctx: Pick<AnalysisCtx, 'settings' | 'model'>,
@@ -1073,6 +1119,7 @@ export const growthAnalysis: AnalysisType<GrowthOptions, WithInput<GrowthResult,
           shape: oneOf(raw.shape, ['linear', 'quadratic', 'basis'] as const, 'linear'),
           covariates: names(raw.covariates),
           timeVarying: names(raw.timeVarying),
+          ...(names(raw.distal).length ? { distal: names(raw.distal) } : {}),
           ...(typeof raw.syntax === 'string' && raw.syntax
             ? { syntax: raw.syntax.slice(0, 20000) }
             : {}),
@@ -1095,11 +1142,10 @@ export const growthAnalysis: AnalysisType<GrowthOptions, WithInput<GrowthResult,
       return 'Give one time score per measure (or none for 0, 1, 2, …).';
     if (o.timeVarying.length && o.timeVarying.length !== o.measures.length)
       return 'Give one time-varying covariate per occasion (or none).';
-    return missingColumns(
-      ctx,
-      [...o.measures, ...o.covariates, ...o.timeVarying],
-      'A growth curve',
-    );
+    const used = [...o.measures, ...o.covariates, ...o.timeVarying];
+    if (o.distal?.some((v) => used.includes(v)))
+      return 'A distal outcome cannot also be a repeated measure or a covariate.';
+    return missingColumns(ctx, growthColumns(o, ctx), 'A growth curve');
   },
   fingerprint: (o, ctx) =>
     columnsFingerprint(ctx, growthColumns(o, ctx), [
@@ -1123,7 +1169,10 @@ export const growthAnalysis: AnalysisType<GrowthOptions, WithInput<GrowthResult,
     const shape = o.shape === 'basis' ? 'latent basis' : o.shape;
     const covariates = o.covariates.length ? ` · ${o.covariates.length} covariates` : '';
     const timeVarying = o.timeVarying.length ? ' · time-varying' : '';
-    return `${o.measures.length} occasions · ${shape}${covariates}${timeVarying}`;
+    const distal = o.distal?.length
+      ? ` · predicts ${o.distal.length === 1 ? o.distal[0] : `${o.distal.length} outcomes`}`
+      : '';
+    return `${o.measures.length} occasions · ${shape}${covariates}${timeVarying}${distal}`;
   },
 };
 

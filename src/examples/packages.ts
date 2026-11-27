@@ -212,6 +212,7 @@ export type ExamplePanel =
       shape: GrowthInput['shape'];
       covariates: string[];
       timeVarying?: string[];
+      distal?: string[];
       syntax?: string;
       group?: string;
     }

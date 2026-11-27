@@ -152,6 +152,8 @@ const SOURCES: Record<string, (EvidenceSource & { level: 'native' })[]> = {
 /** The Mplus growth examples' degrees of freedom (6.8 latent basis, 6.9 quadratic, 6.10 covariates). */
 const GROWTH_DF: Record<string, number> = {
   'mplus-ex6.8': 3,
+  'nls-growth-distal-initial': 13, // (checked in examples/cards/growthDistal)
+  'nls-growth-distal-final': 13,
   'mplus-ex6.9': 1,
   'mplus-ex6.10': 21,
   'mplus-ex6.11': 6,
