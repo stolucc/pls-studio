@@ -94,6 +94,8 @@ const ROOTS = [
   'poLCA',
   'lme4',
   'lmerTest',
+  // (time-varying effect models; also a dependency of car)
+  'mgcv',
   'emmeans',
   'pbkrtest',
   'WRS2',

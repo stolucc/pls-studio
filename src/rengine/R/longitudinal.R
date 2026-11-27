@@ -521,3 +521,89 @@ ps_lcs <- function(req_json, export = FALSE) {
     engine = ps_engine("lavaan")
   ))
 }
+
+# Time-varying effect model (TVEM; Tan, Shiyko, Li, Li & Dierker 2012): an intercept and the effects of the chosen
+# predictors that change smoothly with time, specified as the tvem package does: penalised cubic B-splines with
+# `knots` interior knots (mgcv "ps", fitted by bam with fast REML), each effect a linear term plus a varying
+# coefficient smooth fixed at 0 at time 0, and standard errors from a sandwich clustered by subject (working
+# independence: the repeated measures of a subject are not modelled, the sandwich allows for them). Without a
+# subject column each row is its own cluster.
+ps_tvem <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  outcome <- as.character(unlist(req$outcome))
+  time <- as.character(unlist(req$time))
+  subject <- as.character(unlist(req$subject %||% character(0)))
+  subject <- subject[nzchar(subject)]
+  preds <- unique(as.character(unlist(req$varying)))
+  knots <- as.integer(req$knots %||% 20L)
+  if (length(outcome) != 1 || length(time) != 1) stop("Choose the outcome and the time variable.")
+  if (!length(preds)) stop("Choose at least one predictor whose effect varies with time.")
+  if (!(length(knots) == 1 && !is.na(knots) && knots >= 3 && knots <= 50)) stop("Invalid number of knots.")
+  if (any(c(outcome, subject) %in% c(time, preds)) || time %in% preds || outcome %in% subject) {
+    stop("The outcome, time, subject and predictors must be different columns.")
+  }
+  cols <- c(outcome, time, preds, subject)
+  fr <- ps_long_frame(req, cols)
+  v <- fr$v
+  y <- unname(v[[outcome]])
+  tt <- unname(v[[time]])
+  x <- unname(unlist(v[preds]))
+  k <- knots + 3 + 1
+  body <- c(
+    "suppressPackageStartupMessages(library(mgcv))",
+    sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[cols])))),
+    if (length(subject)) sprintf("cluster <- data[[%s]]", ps_q(v[[subject]])) else "cluster <- seq_len(nrow(data))",
+    sprintf("# Varying effects: penalised cubic B-splines (%d interior knots), each smooth fixed at 0 at time 0", knots),
+    "model <- ", sprintf("  %s ~ %s +", y, paste(x, collapse = " + ")),
+    sprintf("    s(%s, bs = \"ps\", pc = 0, k = %d) +", tt, k),
+    paste0(
+      sprintf("    s(%s, bs = \"ps\", by = %s, pc = 0, m = c(2, 1), k = %d)", tt, x, k),
+      c(rep(" +", length(x) - 1), "")
+    ),
+    "fit <- bam(model, data = data, method = \"fREML\")",
+    "# Standard errors: sandwich clustered by subject around the smoothing-corrected covariance (Vc)",
+    "X <- predict(fit, type = \"lpmatrix\")",
+    "e <- fit$y - fitted(fit)",
+    "scores <- rowsum(X * (e / var(e)), cluster)",
+    "V <- fit$Vc %*% crossprod(scores) %*% fit$Vc",
+    "# Each coefficient over a grid of 100 times: the intercept, and each predictor's effect",
+    sprintf("grid <- seq(min(data[[%s]]), max(data[[%s]]), length.out = 100)", ps_q(tt), ps_q(tt)),
+    "at <- data[rep(1, 100), ]",
+    sprintf("at[[%s]] <- grid", ps_q(tt)),
+    sprintf("at[, %s] <- 1", ps_q(x)),
+    "G <- predict(fit, newdata = at, type = \"lpmatrix\")",
+    "term <- sub(\"[.][0-9]+$\", \"\", colnames(G))",
+    "curve <- function(cols) {",
+    "  est <- drop(G[, cols, drop = FALSE] %*% coef(fit)[cols])",
+    "  se <- sqrt(rowSums((G[, cols, drop = FALSE] %*% V[cols, cols]) * G[, cols, drop = FALSE]))",
+    "  data.frame(time = grid, estimate = est, se = se, lower = est - qnorm(0.975) * se, upper = est + qnorm(0.975) * se)",
+    "}",
+    sprintf("curves <- c(list(intercept = curve(term %%in%% c(\"(Intercept)\", \"s(%s)\"))),", tt),
+    sprintf("  setNames(lapply(%s, function(p) curve(term %%in%% c(p, sprintf(\"s(%s):%%s\", p)))), %s))", ps_q(x), tt, ps_q(x))
+  )
+  inputs <- list(data = fr$data)
+  if (export) {
+    return(ps_script(
+      "Time-varying effect model (mgcv)", "mgcv", inputs, body,
+      c("summary(fit)", "lapply(curves, function(d) d[seq(1, 100, by = 11), ])")
+    ))
+  }
+  env <- ps_run(body, inputs)
+  curves <- lapply(names(env$curves), function(nm) {
+    d <- env$curves[[nm]]
+    list(
+      name = if (nm == "intercept") "(Intercept)" else fr$back[[nm]],
+      estimate = I(d$estimate), se = I(d$se), lower = I(d$lower), upper = I(d$upper)
+    )
+  })
+  ps_json(list(
+    n = nrow(env$data),
+    clusters = length(unique(env$cluster)),
+    knots = knots,
+    grid = I(env$grid),
+    curves = curves,
+    edf = sum(env$fit$edf),
+    warnings = env$.warnings,
+    engine = ps_engine("mgcv")
+  ))
+}

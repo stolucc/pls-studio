@@ -223,6 +223,8 @@ export const R_PACKAGES = {
   carData: ['jsonlite', 'carData'],
   faraway: ['jsonlite', 'faraway'],
   stats: ['jsonlite'],
+  // Time-varying effect models (penalised B-splines by bam, as the tvem package specifies them).
+  mgcv: ['jsonlite', 'mgcv'],
   // Normality tests of the descriptives card: Lilliefors (Kolmogorov-Smirnov) and Anderson-Darling (nortest).
   nortest: ['jsonlite', 'nortest'],
   // Effect sizes with confidence intervals for the basic test cards (Cohen's d, Hedges' g, eta², omega², Cramér's V, …);
