@@ -312,6 +312,7 @@ export type CardPanelKind =
   | 'dominance'
   | 'dsep'
   | 'tvem'
+  | 'dpm'
   | 'plsmultilevel'
   | 'hypotheses'
   | 'apim'
@@ -3055,7 +3056,10 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
       { label: '?swiss', url: 'https://rdrr.io/r/datasets/swiss.html' },
       { label: 'Budescu (1993)', url: 'https://doi.org/10.1037/0033-2909.114.3.542' },
       { label: 'Azen & Budescu (2003)', url: 'https://doi.org/10.1037/1082-989X.8.2.129' },
-      { label: 'Waller (2008), fungible weights', url: 'https://doi.org/10.1007/s11336-008-9066-z' },
+      {
+        label: 'Waller (2008), fungible weights',
+        url: 'https://doi.org/10.1007/s11336-008-9066-z',
+      },
       {
         label: 'Waller & Jones (2009), their extremes',
         url: 'https://doi.org/10.1007/s11336-008-9087-7',
@@ -3074,6 +3078,54 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
       kind: 'dominance',
       outcome: 'Fertility',
       predictors: ['Agriculture', 'Examination', 'Education', 'Catholic', 'Infant.Mortality'],
+    },
+    settings: CB('ML'),
+  },
+  {
+    id: 'dpm-wages',
+    package: 'lavaan',
+    title: 'Does union membership change weeks worked? A dynamic panel model with fixed effects',
+    source:
+      'dpm, ?dpm (Allison, Williams & Moral-Benito 2017), on Cornwell & Rupert’s PSID wage panel (panelr::WageData)',
+    links: [
+      { label: '?dpm', url: 'https://rdrr.io/cran/dpm/man/dpm.html' },
+      {
+        label: 'Allison, Williams & Moral-Benito (2017), Socius',
+        url: 'https://doi.org/10.1177/2378023117710578',
+      },
+      { label: '?WageData (panelr)', url: 'https://rdrr.io/cran/panelr/man/WageData.html' },
+      {
+        label: 'Quantitude S8E03: Fixed effects models with Paul Allison',
+        url: 'https://quantitude.org/episodes/',
+      },
+    ],
+    description:
+      'The dpm package’s own example, which replicates Allison, Williams & Moral-Benito (2017): 595 men in the PSID, 1976–1982 (wide format), weeks worked each year on the previous year’s weeks worked, union membership (predetermined: it may respond to earlier weeks worked) and log wage, with education constant, a fixed effect for each man and equal error variances; observed information, as Stata’s xtdpdml. The data come with the panelr package (MIT), shipped with the app. Checked against dpm in desktop R. Opens its card on the Analyses tab.',
+    shows:
+      'Within men, joining a union is followed by 1.2 fewer weeks worked the next year (−1.206, SE 0.522, p = .02), the estimate of the article; weeks worked carry over (0.188 per week), and last year’s wage has no clear effect (0.588, SE 0.488). χ² = 138.5 on 76 df, CFI .995.',
+    data: {
+      package: 'lavaan',
+      name: 'panelr::WageData (wide)',
+      file: 'examples/dpm/wages-wide.csv',
+    },
+    constructs: [],
+    paths: [],
+    information: 'observed',
+    panel: {
+      kind: 'dpm',
+      y: ['wks_1', 'wks_2', 'wks_3', 'wks_4', 'wks_5', 'wks_6', 'wks_7'],
+      x: [
+        {
+          waves: ['union_1', 'union_2', 'union_3', 'union_4', 'union_5', 'union_6', 'union_7'],
+          predetermined: true,
+        },
+        {
+          waves: ['lwage_1', 'lwage_2', 'lwage_3', 'lwage_4', 'lwage_5', 'lwage_6', 'lwage_7'],
+          predetermined: false,
+        },
+      ],
+      constant: ['ed'],
+      equalErrors: true,
     },
     settings: CB('ML'),
   },
@@ -4317,6 +4369,10 @@ export function panelColumns(p: ExamplePanel, names?: string[]): string[] {
     case 'qca':
       return [...p.conditions, p.outcome, ...(p.labels ? [p.labels] : [])];
     // (the ROC analysis: the outcome, the predictor or the logistic regression's predictors, the comparison's column)
+    case 'dpm': {
+      const o = panelPreset(p) as { y: string[]; x: { waves: string[] }[]; constant: string[] };
+      return [...o.y, ...o.x.flatMap((q) => q.waves), ...o.constant];
+    }
     case 'roc': {
       const o = panelPreset(p) as {
         response: string;

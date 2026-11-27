@@ -107,6 +107,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'examples/cards/dominance': 'examples',
   'examples/cards/dsep': 'examples',
   'examples/cards/tvem': 'examples',
+  'examples/cards/dpm': 'examples',
   'examples/cards/roc': 'examples',
   'examples/cards/invariance': 'examples',
   'examples/cards/missing': 'examples',

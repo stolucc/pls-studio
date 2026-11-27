@@ -1,0 +1,38 @@
+{
+  "generated": "2026-11-27 15:18:50",
+  "R": "R version 4.6.2 (2026-10-29)",
+  "dpm": "1.3.0",
+  "lavaan": "0.7.3",
+  "n": 595,
+  "syntax": "## Main regressions\n\nwks_2 ~ en1 * union_1 + ex1 * lwage_1 + c1 * ed + p1 * wks_1\nwks_3 ~ en1 * union_2 + ex1 * lwage_2 + c1 * ed + p1 * wks_2\nwks_4 ~ en1 * union_3 + ex1 * lwage_3 + c1 * ed + p1 * wks_3\nwks_5 ~ en1 * union_4 + ex1 * lwage_4 + c1 * ed + p1 * wks_4\nwks_6 ~ en1 * union_5 + ex1 * lwage_5 + c1 * ed + p1 * wks_5\nwks_7 ~ en1 * union_6 + ex1 * lwage_6 + c1 * ed + p1 * wks_6\n\n## Alpha latent variable (random intercept)\n\nalpha =~ 1 * wks_2 + 1 * wks_3 + 1 * wks_4 + 1 * wks_5 + 1 * wks_6 + 1 * wks_7\n\n## Alpha free to covary with observed variables (fixed effects)\n\nalpha ~~  union_1 +  union_2 +  union_3 +  union_4 +  union_5 +  union_6 +  lwage_1 +  lwage_2 +  lwage_3 +  lwage_4 +  lwage_5 +  lwage_6 +  wks_1\n\n## Correlating DV errors with future values of predetermined predictors\n\nwks_5 ~~ union_6\nwks_4 ~~ union_5 + union_6\nwks_3 ~~ union_4 + union_5 + union_6\nwks_2 ~~ union_3 + union_4 + union_5 + union_6\n\n## Predetermined predictors covariances\n\nunion_1 ~~ ed + lwage_1 + lwage_2 + lwage_3 + lwage_4 + lwage_5 + lwage_6 + wks_1\nunion_2 ~~ ed + lwage_1 + lwage_2 + lwage_3 + lwage_4 + lwage_5 + lwage_6 + union_1 + wks_1\nunion_3 ~~ ed + lwage_1 + lwage_2 + lwage_3 + lwage_4 + lwage_5 + lwage_6 + union_1 + union_2 + wks_1\nunion_4 ~~ ed + lwage_1 + lwage_2 + lwage_3 + lwage_4 + lwage_5 + lwage_6 + union_1 + union_2 + union_3 + wks_1\nunion_5 ~~ ed + lwage_1 + lwage_2 + lwage_3 + lwage_4 + lwage_5 + lwage_6 + union_1 + union_2 + union_3 + union_4 + wks_1\nunion_6 ~~ ed + lwage_1 + lwage_2 + lwage_3 + lwage_4 + lwage_5 + lwage_6 + union_1 + union_2 + union_3 + union_4 + union_5 + wks_1\n\n## Exogenous (time varying and invariant) predictors covariances\n\nlwage_1 ~~ ed + wks_1\nlwage_2 ~~ ed + lwage_1 + wks_1\nlwage_3 ~~ ed + lwage_1 + lwage_2 + wks_1\nlwage_4 ~~ ed + lwage_1 + lwage_2 + lwage_3 + wks_1\nlwage_5 ~~ ed + lwage_1 + lwage_2 + lwage_3 + lwage_4 + wks_1\nlwage_6 ~~ ed + lwage_1 + lwage_2 + lwage_3 + lwage_4 + lwage_5 + wks_1\n\ned ~~ wks_1\n\n## Holding DV error variance constant for each wave\n\nwks_2 ~~ v*wks_2\nwks_3 ~~ v*wks_3\nwks_4 ~~ v*wks_4\nwks_5 ~~ v*wks_5\nwks_6 ~~ v*wks_6\nwks_7 ~~ v*wks_7\n\n## Let DV variance vary across waves\n\nwks_2 ~ 1\nwks_3 ~ 1\nwks_4 ~ 1\nwks_5 ~ 1\nwks_6 ~ 1\nwks_7 ~ 1",
+  "wksLag": {
+    "est": 0.188296948654938,
+    "se": 0.019642748776074
+  },
+  "unionLag": {
+    "est": -1.20592148759999,
+    "se": 0.522310984627075
+  },
+  "lwageLag": {
+    "est": 0.587835252559129,
+    "se": 0.488285734811235
+  },
+  "ed": {
+    "est": -0.10682725868873,
+    "se": 0.0564396355857734
+  },
+  "errorVariance": {
+    "est": 15.9604429915119,
+    "se": 0.431162863899513
+  },
+  "alphaVariance": {
+    "est": 4.4416352365362,
+    "se": 0.544717618398885
+  },
+  "fit": {
+    "chisq": 138.476225059095,
+    "df": 76,
+    "cfi": 0.994975317851126,
+    "rmsea": 0.0371699615073589
+  }
+}

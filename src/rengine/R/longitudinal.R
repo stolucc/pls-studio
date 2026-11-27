@@ -607,3 +607,98 @@ ps_tvem <- function(req_json, export = FALSE) {
     engine = ps_engine("mgcv")
   ))
 }
+
+# Dynamic panel model with fixed effects by maximum likelihood (ML-SEM; Allison, Williams & Moral-Benito 2017), as
+# the dpm package writes it in lavaan: the outcome at each wave on its own previous value and on the previous wave of
+# each time-varying predictor (coefficients equal over waves), time-invariant predictors, and a fixed effect alpha
+# (loadings 1 on waves 2..T) free to covary with every lagged predictor and the first wave of the outcome. A
+# predetermined predictor may also respond to earlier outcomes: its later waves covary with the outcome's errors.
+ps_dpm <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  yw <- as.character(unlist(req$y))
+  xs <- lapply(req$x %||% list(), function(p) {
+    list(waves = as.character(unlist(p$waves)), pre = isTRUE(p$predetermined))
+  })
+  zs <- as.character(unlist(req$constant %||% character(0)))
+  T <- length(yw)
+  if (T < 3) stop("Choose the outcome at three or more waves.")
+  if (any(vapply(xs, function(p) length(p$waves) != T, TRUE))) {
+    stop("Choose each time-varying predictor at the same waves as the outcome.")
+  }
+  cols <- c(yw, unlist(lapply(xs, `[[`, "waves")), zs)
+  if (anyDuplicated(cols)) stop("A column is used twice.")
+  fr <- ps_long_frame(req, cols)
+  o <- ps_long_options(req)
+  v <- fr$v
+  y <- unname(v[yw])
+  x <- lapply(xs, function(p) list(w = unname(v[p$waves]), pre = p$pre))
+  z <- unname(v[zs])
+  # (lag 1: the predictors' waves 1..T-1 enter the model)
+  lagged <- unlist(lapply(x, function(p) p$w[-T]))
+  regress <- vapply(2:T, function(t) {
+    rhs <- c(
+      vapply(seq_along(x), function(k) sprintf("b%d*%s", k, x[[k]]$w[t - 1]), ""),
+      if (length(z)) sprintf("c%d*%s", seq_along(z), z),
+      sprintf("p1*%s", y[t - 1])
+    )
+    sprintf("%s ~ %s", y[t], paste(rhs, collapse = " + "))
+  }, "")
+  pre <- unlist(lapply(x, function(p) {
+    if (!p$pre || T < 4) return(NULL)
+    # (the error at wave t with the predictor's waves after t that enter the model)
+    unlist(lapply(2:(T - 2), function(t) sprintf("%s ~~ %s", y[t], p$w[(t + 1):(T - 1)])))
+  }))
+  exo <- c(lagged, z, y[1])
+  exo_cov <- if (length(exo) > 1) {
+    unlist(lapply(2:length(exo), function(i) sprintf("%s ~~ %s", exo[i], exo[seq_len(i - 1)])))
+  }
+  lines <- c(
+    "# The outcome on its previous value and on the previous wave of each predictor (equal over waves)",
+    regress,
+    "# The fixed effect: loadings 1 on waves 2..T, free to covary with the lagged predictors and the first wave",
+    sprintf("alpha =~ %s", paste0("1*", y[-1], collapse = " + ")),
+    sprintf("alpha ~~ %s", paste(c(lagged, y[1]), collapse = " + ")),
+    if (length(pre)) c("# Predetermined predictors: later waves covary with the errors of the outcome", pre),
+    "# Exogenous variables covary freely",
+    exo_cov,
+    if (isTRUE(req$equalErrors)) c("# Equal error variances", sprintf("%s ~~ v*%s", y[-1], y[-1])),
+    "# Intercepts free at each wave",
+    sprintf("%s ~ 1", y[-1])
+  )
+  body <- c(
+    "suppressPackageStartupMessages(library(lavaan))",
+    if (!o$fiml) ps_missing_code(req$missing),
+    "model <- '", paste0("  ", lines), "'",
+    sprintf("fit <- sem(model, data = data, estimator = \"%s\"%s%s)", o$est, ps_lavaan_missing(req$missing), o$extra)
+  )
+  inputs <- list(data = fr$data)
+  if (export) {
+    return(ps_script(
+      "Dynamic panel model with fixed effects (ML-SEM, lavaan)", "lavaan", inputs, body,
+      "summary(fit, fit.measures = TRUE)"
+    ))
+  }
+  env <- ps_run(body, inputs)
+  fit <- env$fit
+  pe <- lavaan::parameterEstimates(fit)
+  coef_row <- function(label, name) {
+    r <- pe[!is.na(pe$label) & pe$label == label, ][1, ]
+    list(name = name, est = r$est, se = r$se, z = r$z, p = r$pvalue)
+  }
+  coefs <- c(
+    list(coef_row("p1", sprintf("%s (previous wave)", sub("[_.]?[0-9]+$", "", yw[1])))),
+    lapply(seq_along(xs), function(k) coef_row(sprintf("b%d", k), sprintf("%s (previous wave)", sub("[_.]?[0-9]+$", "", xs[[k]]$waves[1])))),
+    lapply(seq_along(zs), function(k) coef_row(sprintf("c%d", k), zs[k]))
+  )
+  av <- pe[pe$lhs == "alpha" & pe$op == "~~" & pe$rhs == "alpha", ]
+  ps_json(list(
+    n = lavaan::lavInspect(fit, "nobs"),
+    waves = T,
+    fit = ps_long_fit(fit),
+    coefficients = coefs,
+    alphaVariance = list(est = av$est, se = av$se),
+    errorVariance = if (isTRUE(req$equalErrors)) coef_row("v", "error variance") else NULL,
+    warnings = env$.warnings,
+    engine = ps_engine("lavaan")
+  ))
+}

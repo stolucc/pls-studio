@@ -162,6 +162,7 @@ export const ANALYSIS_TYPES: AnalysisType[] = [
   growthAnalysis,
   longInvarianceAnalysis,
   riclpmAnalysis,
+  dpmAnalysis,
   tvemAnalysis,
   lcsAnalysis,
   gmmAnalysis,
@@ -174,6 +175,7 @@ import { pcorAnalysis } from './pcor';
 import { dominanceAnalysis } from './dominance';
 import { dsepAnalysis } from './dsep';
 import { tvemAnalysis } from './tvem';
+import { dpmAnalysis } from './dpm';
 import { kmAnalysis } from './km';
 import { metaSemAnalysis } from './metasem';
 import { semTreeAnalysis } from './semtree';

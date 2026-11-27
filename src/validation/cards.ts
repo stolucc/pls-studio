@@ -1036,6 +1036,10 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     examples: ['mulder-riclpm', 'nls-riclpm', 'nls-lcmsr'],
     features: ['rengine/longitudinal::equal lagged effects'],
   },
+  dpm: {
+    examples: ['dpm-wages'],
+    note: 'The effects, variances and fit against the dpm package’s own example (Allison, Williams & Moral-Benito 2017) in desktop R (scripts/validation/dpm.R).',
+  },
   tvem: {
     examples: ['mgcv-gamsim3-tvem', 'nls-tvem'],
     note: 'Coefficient curves and their clustered standard errors against the tvem package in desktop R (scripts/validation/tvem.R).',
