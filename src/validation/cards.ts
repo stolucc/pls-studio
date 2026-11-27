@@ -365,7 +365,7 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   },
   dominance: {
     examples: ['swiss-dominance'],
-    note: 'General, conditional and complete dominance against domir 1.3.0 and relaimpo’s LMG in desktop R (scripts/validation/dominance.R).',
+    note: 'General, conditional and complete dominance against domir 1.3.0 and relaimpo’s LMG, and the fungible weights’ ranges against fungible::fungible, in desktop R (scripts/validation/dominance.R).',
   },
   pcor: {
     examples: ['ppcor-help'],

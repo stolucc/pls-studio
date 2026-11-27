@@ -9,6 +9,8 @@ import { rColumns, rList } from './rjson';
 export interface DominanceInput {
   outcome: string;
   predictors: string[];
+  /** The loss of R² that defines the fungible weights (Waller 2008). */
+  loss: number;
 }
 
 export interface DominanceResult {
@@ -26,6 +28,8 @@ export interface DominanceResult {
   /** Standardised coefficients of the full model, and each predictor's R² alone (r²). */
   beta: number[];
   r2Alone: number[];
+  /** The range of each standardised weight over the fungible weights: R² lower by `loss`, correlation r with the OLS composite. */
+  fungible: { loss: number; r: number; lower: number[]; upper: number[] };
   warnings: string[];
   engine: REngineInfo;
 }
@@ -54,6 +58,12 @@ export function dominanceResult(r: Record<string, any>): DominanceResult {
     complete: rList<unknown>(r.complete).map(nums),
     beta: rList<number>(r.beta),
     r2Alone: rList<number>(r.r2Alone),
+    fungible: {
+      loss: Number(r.fungible.loss),
+      r: Number(r.fungible.r),
+      lower: rList<number>(r.fungible.lower),
+      upper: rList<number>(r.fungible.upper),
+    },
     warnings: rStrings(r.warnings),
     engine: r.engine,
   };

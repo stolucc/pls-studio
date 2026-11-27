@@ -1,7 +1,8 @@
 // The dominance analysis card (analyses/dominance.tsx, R ps_dominance) on its example (packages.ts: swiss-dominance),
 // run as the app opens it, against domir 1.3.0 in desktop R, which fits lm() on every subset of the predictors, and
-// relaimpo's LMG (scripts/validation/dominance.R → src/engine/__fixtures__/dominance/reference.json). The card's
-// subset R² come from the correlation matrix instead. Run with npm run test:webr.
+// relaimpo's LMG, and the fungible weights' ranges against fungible::fungible's construction (Waller 2008)
+// (scripts/validation/dominance.R → src/engine/__fixtures__/dominance/reference.json). The card's subset R² come
+// from the correlation matrix instead, and the fungible ranges from a closed form. Run with npm run test:webr.
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -27,9 +28,14 @@ const REF = JSON.parse(
   lmg: number[];
   conditional: number[][];
   complete: (number | null)[][];
+  fungibleR: number;
+  fungibleLower: number[];
+  fungibleUpper: number[];
+  fungibleDrawMin: number[];
+  fungibleDrawMax: number[];
 };
 
-it('swiss-dominance: general, conditional and complete dominance as domir and relaimpo give them', async () => {
+it('swiss-dominance: general, conditional and complete dominance as domir and relaimpo give them, and the fungible weights', async () => {
   const { run } = await open('swiss-dominance', 'Regression', ['stats']);
   const r = await run<DominanceResult>();
   against({
@@ -63,4 +69,13 @@ it('swiss-dominance: general, conditional and complete dominance as domir and re
       .join(' '),
     'Education>Agriculture Education>Examination Education>Catholic Infant.Mortality>Agriculture',
   );
+  // Fungible weights at the card's default loss of .01
+  near('fungible: r with the least-squares composite', r.fungible.r, REF.fungibleR, 1e-12);
+  r.predictors.forEach((p, i) => {
+    near(`${p}: smallest fungible weight`, r.fungible.lower[i], REF.fungibleLower[i], 1e-10);
+    near(`${p}: largest fungible weight`, r.fungible.upper[i], REF.fungibleUpper[i], 1e-10);
+    // (fungible()'s random draws fall inside, close to the ends)
+    expect(r.fungible.lower[i]).toBeLessThanOrEqual(REF.fungibleDrawMin[i]);
+    expect(r.fungible.upper[i]).toBeGreaterThanOrEqual(REF.fungibleDrawMax[i]);
+  });
 }, 600_000);

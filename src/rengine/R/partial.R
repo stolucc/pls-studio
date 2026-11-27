@@ -108,6 +108,8 @@ ps_dominance <- function(req_json, export = FALSE) {
   if (length(preds) < 2) stop("Choose at least two predictors.")
   if (length(preds) > 12) stop("Dominance analysis fits every subset of the predictors: choose at most 12.")
   if (outcome %in% preds) stop("The outcome cannot also be a predictor.")
+  loss <- as.numeric(req$loss %||% 0.01)
+  if (!(length(loss) == 1 && is.finite(loss) && loss > 0 && loss < 1)) stop("Invalid loss of R-squared in the request.")
   cols <- c(outcome, preds)
   fr <- ps_long_frame(req, cols)
   v <- fr$v
@@ -151,7 +153,15 @@ ps_dominance <- function(req_json, export = FALSE) {
     "  complete[i, j] <- mean(vapply(ss, function(s) r2(c(s, i)) > r2(c(s, j)), TRUE))",
     "}",
     "full_r2 <- r2(seq_len(k))",
-    "beta <- setNames(solve(Rxx, rxy), x)"
+    "beta <- setNames(solve(Rxx, rxy), x)",
+    "# Fungible weights (Waller 2008): every standardised weight vector whose composite predicts y with R-squared",
+    "# lower by `loss` correlates r with the least-squares composite. Each weight's smallest and largest value over",
+    "# them, in closed form (Waller & Jones 2009; the extremes of fungible::fungible's random draws).",
+    sprintf("loss <- %s", format(loss, digits = 15)),
+    "if (loss >= full_r2) stop(\"The loss of R-squared must be smaller than R-squared itself.\")",
+    "r <- sqrt((full_r2 - loss) / full_r2)",
+    "spread <- sqrt(full_r2) * r * sqrt(1 - r^2) * sqrt(pmax(diag(solve(Rxx)) - beta^2 / full_r2, 0))",
+    "fungible <- cbind(lower = r^2 * beta - spread, upper = r^2 * beta + spread)"
   )
   inputs <- list(data = fr$data)
   if (export) {
@@ -159,7 +169,8 @@ ps_dominance <- function(req_json, export = FALSE) {
       "full_r2",
       "cbind(general, share = general / full_r2, beta, r2_alone = rxy^2)",
       "conditional",
-      "complete"
+      "complete",
+      "fungible"
     )
     return(ps_script("Dominance analysis (base R)", "stats", inputs, body, report))
   }
@@ -175,6 +186,8 @@ ps_dominance <- function(req_json, export = FALSE) {
     complete = ps_rows(env$complete),
     beta = I(unname(env$beta)),
     r2Alone = I(unname(env$rxy^2)),
+    fungible = list(loss = env$loss, r = env$r, lower = I(unname(env$fungible[, "lower"])),
+      upper = I(unname(env$fungible[, "upper"]))),
     warnings = env$.warnings,
     engine = ps_engine("stats")
   ))

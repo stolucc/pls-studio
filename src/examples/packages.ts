@@ -3014,12 +3014,18 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
       { label: '?swiss', url: 'https://rdrr.io/r/datasets/swiss.html' },
       { label: 'Budescu (1993)', url: 'https://doi.org/10.1037/0033-2909.114.3.542' },
       { label: 'Azen & Budescu (2003)', url: 'https://doi.org/10.1037/1082-989X.8.2.129' },
+      { label: 'Waller (2008), fungible weights', url: 'https://doi.org/10.1007/s11336-008-9066-z' },
+      {
+        label: 'Waller & Jones (2009), their extremes',
+        url: 'https://doi.org/10.1007/s11336-008-9087-7',
+      },
       { label: 'Quantitude S6E20: Dominance analysis', url: 'https://quantitude.org/episodes/' },
+      { label: 'Quantitude S3E25: Fungible estimates', url: 'https://quantitude.org/episodes/' },
     ],
     description:
-      'Fertility in 47 French-speaking Swiss provinces around 1888 regressed on the share of men in agriculture, army draftees’ examination and education results, the share of Catholics and infant mortality. The 32 regressions on every subset of the five predictors split R² = .707 among them. Checked against domir and relaimpo’s LMG in desktop R. Opens its card on the Analyses tab.',
+      'Fertility in 47 French-speaking Swiss provinces around 1888 regressed on the share of men in agriculture, army draftees’ examination and education results, the share of Catholics and infant mortality. The 32 regressions on every subset of the five predictors split R² = .707 among them, and the fungible weights show how far each coefficient can move if R² may fall by .01 (Waller 2008). Checked against domir, relaimpo’s LMG and fungible in desktop R. Opens its card on the Analyses tab.',
     shows:
-      'Education explains the largest share (general dominance 0.260, 37% of R²) and dominates three of the other four completely. Examination comes second (0.171), although it adds only 0.007 to the full model and its coefficient is not significant there: on its own it explains 0.417, most of which it shares with education. Infant mortality dominates agriculture completely.',
+      'Education explains the largest share (general dominance 0.260, 37% of R²) and dominates three of the other four completely. Examination comes second (0.171), although it adds only 0.007 to the full model and its coefficient is not significant there: on its own it explains 0.417, most of which it shares with education. Infant mortality dominates agriculture completely. Giving up .01 of R², examination’s weight can take either sign (−0.35 to 0.03).',
     data: { package: 'datasets', name: 'swiss' },
     constructs: [],
     paths: [],

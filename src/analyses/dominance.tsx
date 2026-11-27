@@ -2,11 +2,21 @@
 // to R², from the R² of every subset of the predictors. General dominance splits the full R² among the predictors
 // (it equals LMG and the Shapley value); conditional dominance shows the contributions by the number of other
 // predictors already in the model; complete dominance compares two predictors over every subset of the others.
+// Fungible weights (Waller 2008): how far each weight can move when R² may drop a little.
 
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, Table, type Row } from '../components/results/Table';
 import type { DominanceInput, DominanceResult } from '../rengine/dominance';
-import { ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, rawData } from './common';
+import {
+  clampNum,
+  ColumnSelect,
+  columnsFingerprint,
+  isObj,
+  missingColumns,
+  name,
+  names,
+  rawData,
+} from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
 export type DominanceOptions = DominanceInput;
@@ -34,6 +44,22 @@ function DominanceForm({ options: o, set, ctx, disabled }: OptionsProps<Dominanc
         value={o.predictors}
         onChange={(predictors) => set({ ...o, predictors })}
       />
+      <div className="field">
+        <label htmlFor="dominance-loss">Fungible weights: R² given up</label>
+        <input
+          id="dominance-loss"
+          className="input"
+          type="number"
+          min={0.001}
+          max={0.2}
+          step={0.005}
+          value={o.loss}
+          onChange={(e) => set({ ...o, loss: clampNum(e.target.value, 0.001, 0.2, o.loss) })}
+        />
+        <div className="hint">
+          How far each standardised weight can move if R² may fall by this much (Waller 2008).
+        </div>
+      </div>
       <div className="hint">
         Every subset of the predictors is fitted by least squares (2^k regressions), and each
         predictor’s contribution to R² is averaged over them. Rows with a missing value in any
@@ -108,6 +134,19 @@ function DominanceView({ r }: { r: DominanceResult }) {
           note="The share of the subsets of the other predictors to which the row predictor adds more R² than the column predictor. 1: the row dominates the column completely (it adds more in every model); 0: the column dominates the row; in between, neither dominates completely."
         />
       )}
+      <Table
+        title={`Fungible weights: R² lower by ${r.fungible.loss}`}
+        file="dominance-fungible"
+        columns={['Predictor', 'β (least squares)', 'Smallest', 'Largest', 'Sign can change']}
+        rows={r.predictors.map((p, i) => [
+          c(p),
+          c(r.beta[i]),
+          c(r.fungible.lower[i]),
+          c(r.fungible.upper[i]),
+          c(r.fungible.lower[i] < 0 && r.fungible.upper[i] > 0 ? 'yes' : 'no'),
+        ])}
+        note={`Waller (2008): every set of standardised weights that predicts ${r.outcome} with R² = ${(r.r2 - r.fungible.loss).toFixed(3)} instead of ${r.r2.toFixed(3)} (each correlating ${r.fungible.r.toFixed(4)} with the least-squares prediction), rescaled by least squares; the smallest and largest value each weight takes among them (Waller & Jones 2009). Wide ranges, or ranges that cross 0, mean the data say little about that weight even though the prediction hardly changes.`}
+      />
       <p className="hint">
         {pairs.length
           ? `Complete dominance: ${pairs.map(([a, b]) => `${a} over ${b}`).join('; ')}.`
@@ -131,13 +170,19 @@ export const dominanceAnalysis: AnalysisType<DominanceOptions, DominanceResult> 
   title: 'Dominance analysis',
   sub: 'each predictor’s share of R², from every subset regression (relative importance)',
   group: 'Regression and causal inference',
-  defaults: () => ({ outcome: '', predictors: [] }),
+  defaults: () => ({ outcome: '', predictors: [], loss: 0.01 }),
   parseOptions: (raw) =>
-    isObj(raw) ? { outcome: name(raw.outcome) ?? '', predictors: names(raw.predictors) } : null,
+    isObj(raw)
+      ? {
+          outcome: name(raw.outcome) ?? '',
+          predictors: names(raw.predictors),
+          loss: clampNum(raw.loss, 0.001, 0.2, 0.01),
+        }
+      : null,
   Options: DominanceForm,
   View: ({ result }) => <DominanceView r={result} />,
   blocked: dominanceBlocked,
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, [o.outcome, ...o.predictors], []),
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, [o.outcome, ...o.predictors], [o.loss]),
   run: async (o, ctx) => (await import('../rengine/dominance')).dominanceR(rawData(ctx)!, o),
   script: async (o, ctx) =>
     (await import('../rengine/dominance')).dominanceScriptR(rawData(ctx)!, o),

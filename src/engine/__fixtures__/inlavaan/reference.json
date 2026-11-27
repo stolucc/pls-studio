@@ -369,7 +369,7 @@
     },
     "converged": true,
     "maxRelDiff": 3.86037685720021e-15,
-    "elapsed": 1.594
+    "elapsed": 1.581
   },
   "asem": {
     "parameters": [
@@ -901,7 +901,7 @@
     },
     "converged": true,
     "maxRelDiff": 3.93968850712803e-15,
-    "elapsed": 1.65
+    "elapsed": 1.653
   },
   "bcfa": {
     "parameters": [
@@ -1263,7 +1263,7 @@
     },
     "converged": true,
     "maxRelDiff": 3.99476993474586e-15,
-    "elapsed": 1.109
+    "elapsed": 1.098
   },
   "vsMcmc": {
     "marker": {
