@@ -53,6 +53,7 @@ mediation
 metaSEM
 metadat
 metafor
+mgcv
 mice
 mirt
 misty
@@ -60,6 +61,7 @@ mnlfa
 modsem
 mvnmle
 mvtnorm
+nlme
 nnet
 nonnest2
 nortest
