@@ -1028,6 +1028,8 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
       'mplus-ex6.10',
       'nls-growth-distal-initial',
       'nls-growth-distal-final',
+      'nls-growth-exponential',
+      'nls-growth-quadratic',
     ],
     features: ['rengine/longitudinal::growth matches lavaan', 'rengine/longitudinal::time-varying'],
   },

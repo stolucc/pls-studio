@@ -316,6 +316,8 @@ const AUTHORS_BY_ID: Record<string, string[]> = {
   'nls-lcmsr': ['Curran', 'Howard', 'Bainter', 'Lane', 'McGinley'],
   'nls-growth-distal-initial': ['McCormick', 'Curran', 'Hancock'],
   'nls-growth-distal-final': ['McCormick', 'Curran', 'Hancock'],
+  'nls-growth-exponential': ['Browne', 'Preacher', 'Hancock'],
+  'nls-growth-quadratic': ['Preacher', 'Hancock'],
   'lavaan-hs-guided-means': ['Hancock'],
   'swiss-dominance': ['Budescu', 'Azen'],
   'bollen-union-dsep': ['Thoemmes', 'Rosseel', 'Textor', 'Shipley'],

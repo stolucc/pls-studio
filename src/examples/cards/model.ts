@@ -3160,8 +3160,7 @@ const CARDS: PackageExample[] = [
   {
     id: 'nls-growth-distal-initial',
     package: 'lavaan',
-    title:
-      'Early wage growth predicting later wages: time coded from the first interview',
+    title: 'Early wage growth predicting later wages: time coded from the first interview',
     source:
       'McCormick, Curran & Hancock (2026), latent curve factors predicting a distal outcome, on the National Longitudinal Survey of Young Women (sampleSelection::nlswork)',
     links: [
@@ -3197,8 +3196,7 @@ const CARDS: PackageExample[] = [
   {
     id: 'nls-growth-distal-final',
     package: 'lavaan',
-    title:
-      'Early wage growth predicting later wages: time coded from the last interview',
+    title: 'Early wage growth predicting later wages: time coded from the last interview',
     source:
       'McCormick, Curran & Hancock (2026), latent curve factors predicting a distal outcome, on the National Longitudinal Survey of Young Women (sampleSelection::nlswork)',
     links: [
@@ -3228,6 +3226,100 @@ const CARDS: PackageExample[] = [
       shape: 'linear',
       covariates: [],
       distal: ['lnwage88'],
+    },
+    settings: { ...CB('ML'), missing: 'fiml' },
+  },
+  {
+    id: 'nls-growth-exponential',
+    package: 'lavaan',
+    title: 'Wage growth that slows down: an exponential latent curve with nonlinear constraints',
+    source:
+      'Preacher & Hancock (2015), meaningful aspects of change; Browne (1993), structured latent curves; NLS Young Women 1968–1988 (sampleSelection::nlswork)',
+    links: [
+      {
+        label: 'Preacher & Hancock (2015), Psychological Methods',
+        url: 'https://doi.org/10.1037/met0000028',
+      },
+      {
+        label: '?nlswork (sampleSelection)',
+        url: 'https://rdrr.io/cran/sampleSelection/man/nlswork.html',
+      },
+      {
+        label: 'Quantitude S5E10: Nonlinear latent growth curve models',
+        url: 'https://quantitude.org/episodes/',
+      },
+    ],
+    description:
+      'Log hourly wage of 4,212 young women every five years from 1968 to 1988 (missing interviews by FIML). The slope factor’s loadings follow an exponential curve, (1 − rᵏ) / (1 − r) after k five-year steps: fixed at 0 and 1 for 1968 and 1973, the later ones nonlinear functions of the 1978 loading, so each woman’s change has two meaningful random coefficients, her starting wage and her first five years’ gain, and r is the share of each five years’ gain that carries on to the next. Written as lavaan syntax on the growth card, with start values that do not meet the constraints exactly (starts that do stop lavaan’s constrained optimiser at its first step). Checked in desktop lavaan. Opens its card on the Analyses tab.',
+    shows:
+      'r = 0.768: each five years’ gain is 77% of the five years before. The average gain from 1968 to 1973 is 0.151 log points, so wages approach a total rise of 0.151 / (1 − 0.768) ≈ 0.65. With one parameter more than a straight line it fits better (χ² = 70.5 on 9 df against 109.2 on 10) and beats the latent basis curve by BIC (11113 against 11118); the quadratic curve of the next example, with a third random coefficient, fits better still (BIC 11095).',
+    data: {
+      package: 'sampleSelection',
+      name: 'nlswork, every five years 1968–1988 (wide)',
+      file: 'examples/nls-growth/nlswork-5wave.csv',
+    },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'growth',
+      measures: ['lnwage68', 'lnwage73', 'lnwage78', 'lnwage83', 'lnwage88'],
+      times: [0, 5, 10, 15, 20],
+      shape: 'linear',
+      covariates: [],
+      syntax: [
+        'i =~ 1*lnwage68 + 1*lnwage73 + 1*lnwage78 + 1*lnwage83 + 1*lnwage88',
+        's =~ 0*lnwage68 + 1*lnwage73 + l3*lnwage78 + l4*lnwage83 + l5*lnwage88 + start(1.55)*lnwage78 + start(1.852)*lnwage83 + start(2.019)*lnwage88',
+        'l4 == (1 - (l3 - 1)^3) / (2 - l3)',
+        'l5 == (1 - (l3 - 1)^4) / (2 - l3)',
+        'r := l3 - 1',
+      ].join('\n'),
+    },
+    expectedMessages: [
+      {
+        pattern: 'browne\\.residual\\.nt\\.model',
+        level: 'warning',
+        why: 'lavaan computes no residual-based Browne test for a model with nonlinear equality constraints; the χ² test and fit indices it reports are unaffected.',
+      },
+    ],
+    settings: { ...CB('ML'), missing: 'fiml' },
+  },
+  {
+    id: 'nls-growth-quadratic',
+    package: 'lavaan',
+    title: 'Wage growth that slows down: a quadratic latent curve',
+    source:
+      'NLS Young Women 1968–1988 (sampleSelection::nlswork); the quadratic latent curve model',
+    links: [
+      {
+        label: 'Preacher & Hancock (2015), Psychological Methods',
+        url: 'https://doi.org/10.1037/met0000028',
+      },
+      {
+        label: '?nlswork (sampleSelection)',
+        url: 'https://rdrr.io/cran/sampleSelection/man/nlswork.html',
+      },
+      {
+        label: 'Quantitude S5E10: Nonlinear latent growth curve models',
+        url: 'https://quantitude.org/episodes/',
+      },
+    ],
+    description:
+      'The same five waves as the exponential example, now with the card’s quadratic shape: intercept, linear and quadratic factors, all varying between women, with time in decades since 1968 (0 to 2). Checked in desktop lavaan. Opens its card on the Analyses tab.',
+    shows:
+      'Wages rise by 0.286 log points per decade at first, slowing (quadratic mean −0.037), and the curve fits best of the four shapes compared in the previous example (χ² = 27.2 on 6 df, CFI .989, BIC 11095), but its third random coefficient has no meaning as plain as the exponential curve’s rate r.',
+    data: {
+      package: 'sampleSelection',
+      name: 'nlswork, every five years 1968–1988 (wide)',
+      file: 'examples/nls-growth/nlswork-5wave.csv',
+    },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'growth',
+      measures: ['lnwage68', 'lnwage73', 'lnwage78', 'lnwage83', 'lnwage88'],
+      times: [0, 0.5, 1, 1.5, 2],
+      shape: 'quadratic',
+      covariates: [],
     },
     settings: { ...CB('ML'), missing: 'fiml' },
   },

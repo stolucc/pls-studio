@@ -505,6 +505,7 @@ describe('the messages an example is expected to raise', () => {
         'warning: standardized value of the defined parameter',
       ],
       'stats-contingency-job': ['warning: approximation may be incorrect'],
+      'nls-growth-exponential': ['warning: browne\\.residual\\.nt\\.model'],
     });
   });
 

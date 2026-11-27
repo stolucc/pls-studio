@@ -154,6 +154,8 @@ const GROWTH_DF: Record<string, number> = {
   'mplus-ex6.8': 3,
   'nls-growth-distal-initial': 13, // (checked in examples/cards/growthDistal)
   'nls-growth-distal-final': 13,
+  'nls-growth-exponential': 9, // (checked in examples/cards/growthNonlinear)
+  'nls-growth-quadratic': 6,
   'mplus-ex6.9': 1,
   'mplus-ex6.10': 21,
   'mplus-ex6.11': 6,
