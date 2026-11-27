@@ -363,6 +363,10 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     examples: ['pscl-hurdle'],
     features: ['rengine/regression::pscl'],
   },
+  dominance: {
+    examples: ['swiss-dominance'],
+    note: 'General, conditional and complete dominance against domir 1.3.0 and relaimpo’s LMG in desktop R (scripts/validation/dominance.R).',
+  },
   pcor: {
     examples: ['ppcor-help'],
     note: 'Partial and semi-partial correlations against ppcor in desktop R (scripts/validation/regression_extras.R).',

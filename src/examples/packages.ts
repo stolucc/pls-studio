@@ -307,6 +307,7 @@ export type CardPanelKind =
   | 'lsem'
   | 'dmacs'
   | 'guidedinvariance'
+  | 'dominance'
   | 'plsmultilevel'
   | 'hypotheses'
   | 'apim'
@@ -3002,6 +3003,31 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     constructs: [],
     paths: [],
     panel: { kind: 'pcor', vars: ['hl', 'disp', 'deg', 'BC'], controls: [], method: 'pearson' },
+    settings: CB('ML'),
+  },
+  {
+    id: 'swiss-dominance',
+    package: 'datasets',
+    title: 'Which predictors matter most? Dominance analysis of Swiss fertility, 1888',
+    source: 'R datasets, ?swiss; Budescu (1993), Azen & Budescu (2003)',
+    links: [
+      { label: '?swiss', url: 'https://rdrr.io/r/datasets/swiss.html' },
+      { label: 'Budescu (1993)', url: 'https://doi.org/10.1037/0033-2909.114.3.542' },
+      { label: 'Azen & Budescu (2003)', url: 'https://doi.org/10.1037/1082-989X.8.2.129' },
+      { label: 'Quantitude S6E20: Dominance analysis', url: 'https://quantitude.org/episodes/' },
+    ],
+    description:
+      'Fertility in 47 French-speaking Swiss provinces around 1888 regressed on the share of men in agriculture, army draftees’ examination and education results, the share of Catholics and infant mortality. The 32 regressions on every subset of the five predictors split R² = .707 among them. Checked against domir and relaimpo’s LMG in desktop R. Opens its card on the Analyses tab.',
+    shows:
+      'Education explains the largest share (general dominance 0.260, 37% of R²) and dominates three of the other four completely. Examination comes second (0.171), although it adds only 0.007 to the full model and its coefficient is not significant there: on its own it explains 0.417, most of which it shares with education. Infant mortality dominates agriculture completely.',
+    data: { package: 'datasets', name: 'swiss' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'dominance',
+      outcome: 'Fertility',
+      predictors: ['Agriculture', 'Examination', 'Education', 'Catholic', 'Infant.Mortality'],
+    },
     settings: CB('ML'),
   },
   {
