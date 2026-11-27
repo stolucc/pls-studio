@@ -545,6 +545,30 @@ describe('Monte Carlo card', () => {
     expect(out).toContain('FIML (R engine)');
   });
 
+  it('the three-form design: the share is the design’s, the form lists each construct’s blocks', () => {
+    const base = t.defaults(ctx());
+    const d = {
+      ...base,
+      missing: {
+        rate: 0.05,
+        mechanism: 'three-form' as const,
+        pls: 'mean' as const,
+        cb: 'fiml' as const,
+      },
+    };
+    const out = renderToStaticMarkup(
+      <t.Options options={d} set={() => {}} ctx={ctx()} disabled={false} />,
+    );
+    expect(out).toContain('Three-form design (planned missing)');
+    expect(out).toContain('set by the three-form design');
+    expect(out).toContain('three-form-note');
+    const c = base.population.constructs[0];
+    expect(out).toContain(`${c.name}: X ${c.indicators[0]}`);
+    // (the stored rate is only the switch: the shown share is the design's)
+    expect(out).not.toContain('value="5"');
+    expect(t.blocked(d, ctx({ settings: { ...DEFAULT_SETTINGS, engine: 'r' } }))).toBeNull();
+  });
+
   it('WLSMV needs the R engine and has no FIML for ordinal data; the form offers ordinal indicators', () => {
     const base = t.defaults(ctx());
     const d = {

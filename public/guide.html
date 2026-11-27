@@ -190,7 +190,7 @@ a { color: var(--accent); }
 
 <h2 id="tools">Model tools</h2>
 <ul>
-  <li><span class="ui">Monte Carlo simulation</span>: define a population from the model (loadings, weights, standardised paths, or the current estimates), then run replications at several sample sizes with any mix of PLS, PLSc and CB-SEM estimators. Reports bias, RMSE, coverage and power, with power curves; data can be non-normal (Vale–Maurelli).</li>
+  <li><span class="ui">Monte Carlo simulation</span>: define a population from the model (loadings, weights, standardised paths, or the current estimates), then run replications at several sample sizes with any mix of PLS, PLSc and CB-SEM estimators. Reports bias, RMSE, coverage and power, with power curves; data can be non-normal (Vale–Maurelli), and can have missing values: MCAR, MAR, or missing by design in a three-form design (Graham et al., 2006: each construct&rsquo;s indicators spread over blocks X, A, B and C, each case answering one of three forms that each leave out one block), to see what the planned missing data cost in power and bias with FIML.</li>
   <li><span class="ui">Figure</span>: the diagram as a publication figure (SVG or PNG), with styling options.</li>
   <li><span class="ui">Process templates</span>: Hayes's PROCESS models as ready-made diagrams for CPA.</li>
   <li><span class="ui">Constraints</span> (CB-SEM): labels, equality constraints, user-defined parameters (<code>:=</code>) and Wald tests of hypotheses, written as arithmetic over labels.</li>

@@ -16,6 +16,8 @@ import {
   ordinalThresholds,
   withMissing,
   type McDesign,
+  threeFormBlocks,
+  threeFormShare,
   type McMissing,
   type McOrdinal,
 } from './montecarlo';
@@ -693,6 +695,63 @@ describe('missing values', () => {
       // About 1 − .9⁹ ≈ 61% of the cases lose a value: the SD grows by roughly 1/√.39.
       expect(row(lost, est, 'path:X:M').sd).toBeGreaterThan(1.3 * row(none, est, 'path:X:M').sd);
     }
+  });
+});
+
+describe('the three-form design (planned missing)', () => {
+  const complete = generateData(buildPopulation(pop), 3000, 1);
+  const blocks = threeFormBlocks(pop);
+  const m: McMissing = {
+    rate: threeFormShare(blocks),
+    mechanism: 'three-form',
+    pls: 'mean',
+    cb: 'casewise',
+  };
+
+  it('puts each construct’s indicators in turn in X, A, B, C; the design leaves out a third of A, B and C', () => {
+    expect(blocks).toEqual([0, 1, 2, 0, 1, 2, 0, 1, 2]);
+    expect(threeFormShare(blocks)).toBeCloseTo(6 / 27, 12);
+    const four = {
+      ...pop,
+      constructs: [{ ...pop.constructs[0], indicators: ['a', 'b', 'c', 'd', 'e'] }],
+    };
+    expect(threeFormBlocks(four)).toEqual([0, 1, 2, 3, 0]);
+    expect(threeFormShare([0, 0])).toBe(0);
+  });
+
+  it('each case misses exactly the block of its form: X complete, never two blocks on one case', () => {
+    const d = withMissing(complete, m, 7, blocks);
+    const na = (j: number, i: number) => Number.isNaN(d.cols[j][i]);
+    let missedA = 0;
+    for (let i = 0; i < 3000; i++) {
+      for (const j of [0, 3, 6]) expect(na(j, i)).toBe(false);
+      // (a case's A items are all missing or all present, and the same for B; never both)
+      expect(na(1, i)).toBe(na(4, i));
+      expect(na(2, i)).toBe(na(8, i));
+      expect(na(1, i) && na(2, i)).toBe(false);
+      if (na(1, i)) missedA++;
+    }
+    expect(missedA / 3000).toBeCloseTo(1 / 3, 1);
+    expect(withMissing(complete, m, 7, blocks).cols[1]).toEqual(d.cols[1]);
+    expect(() => withMissing(complete, m, 7)).toThrow(/block for every indicator/);
+  });
+
+  it('with casewise deletion only the form missing C (empty here) is complete: about √3 times the SD', () => {
+    const base: McDesign = {
+      population: pop,
+      estimators: [{ id: 'ML', method: 'cb', estimator: 'ML' }],
+      sampleSizes: [300],
+      replications: 80,
+      seed: 41,
+      alpha: 0.05,
+      bootSamples: 0,
+      mcDraws: 0,
+    };
+    const ratio =
+      row(run({ ...base, missing: m }, 1), 'ML', 'path:X:M').sd /
+      row(run(base, 1), 'ML', 'path:X:M').sd;
+    expect(ratio).toBeGreaterThan(1.4);
+    expect(ratio).toBeLessThan(2.2);
   });
 });
 

@@ -20,7 +20,7 @@ import type {
   McParam,
   McSummaryRow,
 } from '../engine/montecarlo';
-import { THIN_BOOT } from '../engine/montecarlo';
+import { THIN_BOOT, threeFormBlocks, threeFormShare } from '../engine/montecarlo';
 import { buildPopulation, withPathValues, type PopulationSpec } from '../engine/population';
 import { fmt } from '../format';
 import {
@@ -50,6 +50,7 @@ export function Num({
   min,
   max,
   width = 64,
+  disabled,
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -57,6 +58,7 @@ export function Num({
   min?: number;
   max?: number;
   width?: number;
+  disabled?: boolean;
 }) {
   const [text, setText] = useState(String(value));
   useEffect(() => setText(String(value)), [value]);
@@ -78,6 +80,7 @@ export function Num({
       step={step}
       min={min}
       max={max}
+      disabled={disabled}
       value={text}
       onChange={(e) => setText(e.target.value)}
       onBlur={commit}
@@ -794,23 +797,36 @@ function InferenceFields({
 const NO_MISSING: McMissing = { rate: 0, mechanism: 'MCAR', pls: 'mean', cb: 'casewise' };
 
 /** Missing values in every replication, and how PLS and CB-SEM treat them. */
-export function MissingFields({ design, set }: { design: McDesign; set: (p: Partial<McDesign>) => void }) {
+export function MissingFields({
+  design,
+  set,
+}: {
+  design: McDesign;
+  set: (p: Partial<McDesign>) => void;
+}) {
   const m = design.missing ?? NO_MISSING;
   const change = (patch: Partial<McMissing>) => set({ missing: { ...m, ...patch } });
+  // The three-form design fixes the share of missing values (montecarlo.ts threeFormShare).
+  const blocks = threeFormBlocks(design.population);
+  const planned = threeFormShare(blocks);
+  const threeForm = m.mechanism === 'three-form';
   return (
     <>
       <div className="field">
         <label>Missing values</label>
         <div className="row2">
           <Num
-            value={Math.round(m.rate * 100)}
+            value={Math.round((threeForm ? planned : m.rate) * 100)}
             step={5}
             min={0}
             max={50}
             width={70}
+            disabled={threeForm}
             onChange={(v) => change({ rate: v / 100 })}
           />
-          <span className="muted">% of the values</span>
+          <span className="muted">
+            % of the values{threeForm ? ', set by the three-form design' : ''}
+          </span>
         </div>
       </div>
       {m.rate > 0 && (
@@ -820,10 +836,16 @@ export function MissingFields({ design, set }: { design: McDesign; set: (p: Part
             <select
               className="select"
               value={m.mechanism}
-              onChange={(e) => change({ mechanism: e.target.value as McMissing['mechanism'] })}
+              onChange={(e) => {
+                const mechanism = e.target.value as McMissing['mechanism'];
+                change(mechanism === 'three-form' ? { mechanism, rate: planned } : { mechanism });
+              }}
             >
               <option value="MCAR">MCAR (completely at random)</option>
               <option value="MAR">MAR (on the first indicator)</option>
+              <option value="three-form" disabled={planned === 0}>
+                Three-form design (planned missing)
+              </option>
             </select>
           </div>
           <div className="field">
@@ -851,11 +873,31 @@ export function MissingFields({ design, set }: { design: McDesign; set: (p: Part
           </div>
         </div>
       )}
+      {m.rate > 0 && threeForm && (
+        <p className="muted small" data-testid="three-form-note">
+          Each construct’s indicators go in turn to block X (on every form), A, B and C; each case
+          answers one of three forms, each leaving out one of A, B and C (Graham et al., 2006):{' '}
+          {design.population.constructs
+            .map((c) => {
+              const at = (b: number) =>
+                c.indicators.filter((_, k) => k % 4 === b).join(', ') || '–';
+              return `${c.name}: X ${at(0)}; A ${at(1)}; B ${at(2)}; C ${at(3)}`;
+            })
+            .join(' · ')}
+          . Compare power and bias with the complete-data run of the same design; with casewise
+          deletion no case is complete, so use FIML.
+        </p>
+      )}
     </>
   );
 }
 
-export function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: OptionsProps<McDesign>) {
+export function McOptionsForm({
+  options: design,
+  set: setDesign,
+  ctx,
+  disabled,
+}: OptionsProps<McDesign>) {
   const model = ctx.model ?? emptyModel();
   const method = ctx.settings.method;
   const engine = ctx.settings.engine;

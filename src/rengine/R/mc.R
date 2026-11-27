@@ -13,6 +13,16 @@ ps_mc_body <- function(req) {
   miss <- list(
     rate = if (is.null(nr)) 0 else ps_number(nr$rate, "missing-value rate"),
     mar = identical(nr$mechanism, "MAR"),
+    # The three-form design (missing completely at random by design, so mechanism MCAR): each indicator's block,
+    # 0 (X, on every form) or 1 to 3 (A, B, C)
+    blocks = if (!is.null(nr$design)) {
+      if (!identical(nr$design, "three-form")) stop("Unknown planned missing design.")
+      b <- vapply(unlist(nr$blocks), function(x) ps_number(x, "three-form block"), 0)
+      if (!length(b) || any(!b %in% 0:3)) stop("Each three-form block must be 0, 1, 2 or 3.")
+      b
+    } else {
+      NULL
+    },
     pls = c(mean = "mean", casewise = "casewise")[[nr$pls %||% "mean"]],
     cb = c(casewise = "listwise", fiml = "ml")[[nr$cb %||% "casewise"]]
   )
@@ -727,15 +737,23 @@ ps_mc_body <- function(req) {
       "miss_rate <- %s; miss_mar <- %s; pls_missing <- %s; cb_missing <- %s",
       format(miss$rate), if (miss$mar) "TRUE" else "FALSE", ps_q(miss$pls), ps_q(miss$cb)
     ),
+    sprintf("miss_blocks <- %s", if (is.null(miss$blocks)) "NULL" else paste(deparse(as.integer(miss$blocks)), collapse = "")),
     sprintf("cuts <- %s", paste(deparse(unname(cuts)), collapse = "")),
     sprintf("interval <- %s", ps_q(interval)),
     sprintf("individual <- %s", if (individual) "TRUE" else "FALSE"),
     sprintf("keep_inadmissible <- %s", if (keep_inadmissible) "TRUE" else "FALSE"),
     sprintf("sign_change <- %s", ps_q(sign_change)),
-    "# Missing values: MCAR, or MAR on the first indicator (kept complete): chance 2 * rate * rank / n.",
+    "# Missing values: MCAR, or MAR on the first indicator (kept complete): chance 2 * rate * rank / n;",
+    "# or the three-form design: each case gets one of three forms at random, form f leaves out block f.",
     "add_missing <- function(data, seed) {",
     "  set.seed(seed)",
     "  n <- nrow(data)",
+    "  if (!is.null(miss_blocks)) {",
+    "    if (length(miss_blocks) != ncol(data)) stop('The three-form design needs a block for every indicator.')",
+    "    form <- sample.int(3, n, replace = TRUE)",
+    "    for (j in seq_along(data)) if (miss_blocks[j] > 0) data[[j]][form == miss_blocks[j]] <- NA",
+    "    return(data)",
+    "  }",
     "  chance <- if (miss_mar) pmin(1, 2 * miss_rate * (rank(data[[1]], ties.method = 'first') - 0.5) / n) else rep(miss_rate, n)",
     "  for (j in seq_along(data)) if (!(miss_mar && j == 1)) data[[j]][stats::runif(n) < chance] <- NA",
     "  data",

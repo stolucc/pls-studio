@@ -170,20 +170,49 @@ export function categorise(data: Dataset, o: McOrdinal): Dataset {
 /**
  * Missing values: a share `rate` of the values, completely at random (MCAR) or depending on an observed
  * variable (MAR: the first indicator stays complete; the higher a case's value on it, the likelier its other
- * values are missing, with probability 2 · rate · rank / n, so `rate` on average). Then each estimator's
- * treatment: PLS mean replacement or casewise deletion, CB-SEM casewise deletion or FIML (lavaan only).
+ * values are missing, with probability 2 · rate · rank / n, so `rate` on average), or missing by design: the
+ * three-form design (Graham et al., 2006; threeFormBlocks), where `rate` is the design's share
+ * (threeFormShare). Then each estimator's treatment: PLS mean replacement or casewise deletion, CB-SEM
+ * casewise deletion or FIML (lavaan only).
  */
 export interface McMissing {
   rate: number;
-  mechanism: 'MCAR' | 'MAR';
+  mechanism: 'MCAR' | 'MAR' | 'three-form';
   pls: 'mean' | 'casewise';
   cb: 'casewise' | 'fiml';
 }
 
-/** A replication's data with missing values (NaN) put in as `m` says; `seed` draws which. */
-export function withMissing(data: Dataset, m: McMissing, seed: number): Dataset {
+/**
+ * The three-form design's blocks, per indicator (in the population's order): each construct's indicators go
+ * in turn to block X (0, asked on every form), A, B and C (1, 2, 3), so every construct keeps its first
+ * indicator complete and spreads the rest over the three forms (Graham et al., 2006).
+ */
+export function threeFormBlocks(population: McDesign['population']): number[] {
+  return population.constructs.flatMap((c) => c.indicators.map((_, k) => k % 4));
+}
+
+/** The share of the values the three-form design leaves out: each of A, B and C is missing on a third of the cases. */
+export function threeFormShare(blocks: number[]): number {
+  return blocks.length ? blocks.filter((b) => b > 0).length / (3 * blocks.length) : 0;
+}
+
+/**
+ * A replication's data with missing values (NaN) put in as `m` says; `seed` draws which. The three-form design
+ * needs the blocks of the columns (threeFormBlocks): each case gets one of the three forms at random, and form f
+ * leaves out block f.
+ */
+export function withMissing(data: Dataset, m: McMissing, seed: number, blocks?: number[]): Dataset {
   const u = mulberry32(seed);
   const n = data.cols[0]?.length ?? 0;
+  if (m.mechanism === 'three-form') {
+    if (!blocks || blocks.length !== data.cols.length)
+      throw new Error('The three-form design needs a block for every indicator.');
+    const form = Uint8Array.from({ length: n }, () => 1 + Math.floor(u() * 3));
+    const cols = data.cols.map((c, j) =>
+      blocks[j] === 0 ? c : Float64Array.from(c, (v, i) => (form[i] === blocks[j] ? NaN : v)),
+    );
+    return { ...data, cols };
+  }
   // MAR: each case's chance follows its rank on the first indicator (0 … n − 1), which stays complete.
   const chance = new Float64Array(n).fill(m.rate);
   if (m.mechanism === 'MAR' && n > 1) {
@@ -561,7 +590,12 @@ export function runMcTask(
     const complete = design.ordinal ? categorise(continuous, design.ordinal) : continuous;
     const miss = design.missing && design.missing.rate > 0 ? design.missing : null;
     const data = miss
-      ? withMissing(complete, miss, replicationSeed(design.seed + 3, n, r))
+      ? withMissing(
+          complete,
+          miss,
+          replicationSeed(design.seed + 3, n, r),
+          threeFormBlocks(design.population),
+        )
       : complete;
     design.estimators.forEach((e, ei) => {
       try {

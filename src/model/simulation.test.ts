@@ -181,6 +181,13 @@ describe('simulation design', () => {
     expect(
       parseDesign({ ...d, missing: { rate: 3, mechanism: 'x', pls: 'x', cb: 'x' } })!.missing,
     ).toEqual({ rate: 0.5, mechanism: 'MCAR', pls: 'mean', cb: 'casewise' });
+    const threeForm = {
+      rate: 0.2,
+      mechanism: 'three-form' as const,
+      pls: 'mean' as const,
+      cb: 'fiml' as const,
+    };
+    expect(parseDesign({ ...d, missing: threeForm })!.missing).toEqual(threeForm);
     expect(parseDesign({ ...d, missing: { rate: 0 } })!.missing).toBeUndefined();
   });
 

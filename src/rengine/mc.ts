@@ -11,6 +11,7 @@ import {
   hasCbChecks,
   ordinalThresholds,
   replicationSeed,
+  threeFormBlocks,
   type McDesign,
   type McPart,
 } from '../engine/montecarlo';
@@ -95,7 +96,22 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
       miss: rSeed(replicationSeed(design.seed + 3, n, rep)),
     })),
     inference: design.inference ?? DEFAULT_INFERENCE,
-    ...(design.missing && design.missing.rate > 0 ? { nonresponse: design.missing } : {}),
+    ...(design.missing && design.missing.rate > 0
+      ? {
+          nonresponse: {
+            ...design.missing,
+            // The three-form design: missing completely at random by design (MCAR to R's checks), each
+            // indicator's block (threeFormBlocks)
+            ...(design.missing.mechanism === 'three-form'
+              ? {
+                  mechanism: 'MCAR',
+                  design: 'three-form',
+                  blocks: threeFormBlocks(design.population),
+                }
+              : {}),
+          },
+        }
+      : {}),
     ...(design.ordinal ? { ordinal: { thresholds: ordinalThresholds(design.ordinal) } } : {}),
   };
 }

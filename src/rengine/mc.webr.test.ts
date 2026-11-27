@@ -152,6 +152,37 @@ it('missing values: MAR with mean replacement (PLS) and FIML (lavaan); FIML is m
   expect(await sd('fiml')).toBeLessThan(await sd('casewise'));
 }, 900_000);
 
+it('the three-form design: FIML keeps nearly the complete-data precision, unbiased; casewise loses two thirds', async () => {
+  const cb: McDesign = {
+    ...design,
+    estimators: [{ id: 'CB-ML', method: 'cb', estimator: 'ML' }],
+    replications: 30,
+  };
+  const threeForm = (treatment: 'fiml' | 'casewise'): McDesign => ({
+    ...cb,
+    missing: { rate: 2 / 9, mechanism: 'three-form', pls: 'mean', cb: treatment },
+  });
+  const path = async (d: McDesign) => {
+    const rows = summariseMc(d, [await runMcChunkR(d, 300, 0, 30)]);
+    expect(rows.every((r) => r.failed === 0)).toBe(true);
+    return rows.find((r) => r.param.key === 'path:Trust:Loyalty')!;
+  };
+  const complete = await path(cb);
+  const fiml = await path(threeForm('fiml'));
+  const casewise = await path(threeForm('casewise'));
+  // (missing by design is MCAR: FIML stays unbiased, within Monte Carlo error)
+  expect(Math.abs(fiml.mean - 0.5)).toBeLessThan((3 * fiml.sd) / Math.sqrt(30));
+  // (the same data seeds in all three: the samples differ only by the design's missing values)
+  expect(fiml.sd).toBeGreaterThan(0.9 * complete.sd);
+  expect(fiml.sd).toBeLessThan(casewise.sd);
+  // Casewise keeps only the form whose block C is empty here: a third of the cases.
+  expect(casewise.sd).toBeGreaterThan(1.3 * complete.sd);
+  // The exported script carries the blocks (threeFormBlocks) in the population's order.
+  const script = await mcScriptR({ ...threeForm('fiml'), replications: 1 });
+  expect(script).toContain('miss_blocks <- c(0L, 1L, 2L, 0L, 1L, 2L, 0L, 1L, 2L)');
+  expect(script).toContain('form <- sample.int(3, n, replace = TRUE)');
+}, 900_000);
+
 it('ordinal indicators: WLSMV (polychoric) recovers the latent path; ML on the categories does not', async () => {
   const ord: McDesign = {
     ...design,

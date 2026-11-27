@@ -252,7 +252,10 @@ export function parseDesign(raw: unknown): McDesign | null {
       ? {
           missing: {
             rate: clampStrict(raw.missing.rate, 0, 0.5, 0),
-            mechanism: raw.missing.mechanism === 'MAR' ? 'MAR' : 'MCAR',
+            mechanism:
+              raw.missing.mechanism === 'MAR' || raw.missing.mechanism === 'three-form'
+                ? raw.missing.mechanism
+                : 'MCAR',
             pls: raw.missing.pls === 'casewise' ? 'casewise' : 'mean',
             cb: raw.missing.cb === 'fiml' ? 'fiml' : 'casewise',
           },
