@@ -32,6 +32,7 @@ import {
   describeCandidate,
   fitNotes,
   guidance,
+  latentMeanEffect,
   stepTitle,
   stepVerdict,
   type Verdict,
@@ -494,21 +495,44 @@ function MeansPart({ r, ok, reason }: { r: GuidedInvarianceResult; ok: boolean; 
       <Table
         title="Latent mean differences (scalar model)"
         file="guided-invariance-means"
-        columns={['Factor', 'Group', 'Difference', 'SE', 'z', 'p', '95% CI', 'Variance']}
-        rows={r.means.map((m) => [
-          c(m.factor),
-          c(m.group),
-          c(m.est),
-          c(m.se),
-          c(m.z),
-          pCell(m.p),
-          c(`[${fmt(m.lo, 3)}, ${fmt(m.hi, 3)}]`),
-          c(m.variance),
-        ])}
+        columns={[
+          'Factor',
+          'Group',
+          'Difference',
+          'SE',
+          'z',
+          'p',
+          '95% CI',
+          'Variance',
+          'd (pooled SD)',
+          '95% CI of d',
+          'N for 80% power',
+        ]}
+        rows={r.means.map((m) => {
+          const e = latentMeanEffect(m, r);
+          return [
+            c(m.factor),
+            c(m.group),
+            c(m.est),
+            c(m.se),
+            c(m.z),
+            pCell(m.p),
+            c(`[${fmt(m.lo, 3)}, ${fmt(m.hi, 3)}]`),
+            c(m.variance),
+            c(e.d),
+            c(`[${fmt(e.lo, 3)}, ${fmt(e.hi, 3)}]`),
+            c(Number.isFinite(e.nFor80) ? e.nFor80 : null, '', 0),
+          ];
+        })}
         note={
           `Each factor’s mean in the group minus its mean in ${r.groups[0]}, in ${r.groups[0]}’s SD units ` +
           `(the factor has mean 0 and variance 1 in ${r.groups[0]}). z = difference / SE; the CI is ` +
-          'difference ± 1.96 SE (Wald). Variance: the factor’s variance in the group.'
+          'difference ± 1.96 SE (Wald). Variance: the factor’s variance in the group. d: the difference over ' +
+          'the pooled factor SD of the two groups, weighted by their sizes (Hancock 2001), read like Cohen’s d; ' +
+          'its CI is the difference’s on that scale. N for 80% power: the total sample, in these groups’ ' +
+          'proportions, at which the difference’s Wald test would reach power .80 at α = .05, taking z² as the ' +
+          'noncentrality (Satorra & Saris 1985). For planning a replication; it is not a post-hoc power analysis ' +
+          'of this test.'
         }
       />
       {many && r.wald.length > 0 && (

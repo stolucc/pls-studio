@@ -164,4 +164,51 @@ export const CARD_INVARIANCE: PackageExample[] = [
     panel: { kind: 'dmacs', reference: 'Pasteur', sd: 'pooled' },
     settings: CB('ML'),
   },
+  {
+    id: 'lavaan-hs-guided-means',
+    package: 'lavaan',
+    title: 'Latent mean differences between two schools: effect size and sample size (Hancock 2001)',
+    source:
+      'lavaan tutorial: multiple groups (HolzingerSwineford1939); Hancock (2001), effect size and sample size for latent means',
+    links: [
+      {
+        label: 'lavaan tutorial: multiple groups',
+        url: 'https://lavaan.ugent.be/tutorial/groups.html',
+      },
+      { label: 'Hancock (2001), Psychometrika 66(3)', url: 'https://doi.org/10.1007/BF02294440' },
+      {
+        label: 'Quantitude S3E18: Latent means models',
+        url: 'https://quantitude.org/episodes/',
+      },
+    ],
+    description:
+      'Holzinger & Swineford’s three factors in the Pasteur and Grant-White schools, through the guided invariance card: equal loadings hold, equal intercepts do not until the intercepts of x3 and then x7 are freed (the largest score tests in turn), and the latent means are compared in the partial scalar model. Each difference is also given as Hancock’s (2001) d over the pooled factor SD, and as the total N a replication would need for 80% power. Checked in desktop lavaan with plain group.equal and group.partial. Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'Grant-White pupils score higher on textual ability: d = 0.62 [0.36, 0.87], z = 4.7, and about 105 pupils in these proportions would detect it with 80% power. The visual (d = 0.06) and speed (d = −0.11) differences are small: detecting them reliably would take some 15,000 and 3,700 pupils.',
+    data: { package: 'lavaan', name: 'HolzingerSwineford1939' },
+    constructs: HS,
+    paths: [],
+    panel: {
+      kind: 'guidedinvariance',
+      constructs: [],
+      group: 'school',
+      parameterization: 'delta',
+      strict: false,
+      free: [
+        {
+          step: 'scalar',
+          kind: 'intercept',
+          item: 'x3',
+          why: 'The largest score test at the scalar step (χ² = 19.2): x3 is easier in one school at the same visual ability.',
+        },
+        {
+          step: 'scalar',
+          kind: 'intercept',
+          item: 'x7',
+          why: 'With x3 freed, the largest remaining score test (χ² = 15.0): x7 is easier in one school at the same speed.',
+        },
+      ],
+    },
+    settings: CB('ML'),
+  },
 ];

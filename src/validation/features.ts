@@ -103,6 +103,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'examples/cards/panel': 'examples',
   'examples/cards/sam': 'examples',
   'examples/cards/growthDistal': 'examples',
+  'examples/cards/latentMeans': 'examples',
   'examples/cards/roc': 'examples',
   'examples/cards/invariance': 'examples',
   'examples/cards/missing': 'examples',

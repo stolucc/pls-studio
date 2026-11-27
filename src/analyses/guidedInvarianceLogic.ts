@@ -11,7 +11,12 @@
 //   (2014) found that the changes in CFI and RMSEA behave differently, so the scaled Δχ² test leads there and the
 //   fit-index changes are read as supporting evidence only.
 
-import type { GuidedInvarianceResult, GuidedStep, GuidedStepName } from '../rengine/invariance';
+import type {
+  GuidedInvarianceResult,
+  GuidedMean,
+  GuidedStep,
+  GuidedStepName,
+} from '../rengine/invariance';
 
 export type Verdict = 'holds' | 'mixed' | 'fails' | 'equivalent' | 'failedToFit' | 'reference';
 
@@ -231,4 +236,40 @@ export function fitNotes(r: Pick<GuidedInvarianceResult, 'steps' | 'estimator'>)
     );
   }
   return notes;
+}
+
+/** z quantiles of a two-sided test at α = .05 and of power .80. */
+const Z_ALPHA = 1.959963984540054;
+const Z_POWER = 0.8416212335729143;
+
+export interface LatentMeanEffect {
+  /** Hancock's (2001) standardised latent mean difference: the difference over the pooled factor SD. */
+  d: number;
+  lo: number;
+  hi: number;
+  /** The total N (all groups, in the sample's proportions) at which the Wald test has power .80 at α = .05. */
+  nFor80: number;
+}
+
+/**
+ * A latent mean difference as an effect size, and the sample size it would need (Hancock 2001). The factor has
+ * variance 1 in the reference group (the first), so the pooled variance is (n_ref + n_g ψ_g) / (n_ref + n_g); the CI is
+ * the Wald CI of the difference on that scale (the pooled variance taken as known). The N: the Wald test's
+ * noncentrality λ is estimated by z², and grows in proportion to N (Satorra & Saris 1985), so N × ((z_.975 + z_.80) /
+ * z)² gives power .80.
+ */
+export function latentMeanEffect(
+  m: GuidedMean,
+  r: Pick<GuidedInvarianceResult, 'groups' | 'n'>,
+): LatentMeanEffect {
+  const nRef = r.n[0];
+  const nGroup = r.n[r.groups.indexOf(m.group)];
+  const pooledSd = Math.sqrt((nRef + nGroup * m.variance) / (nRef + nGroup));
+  const total = r.n.reduce((a, b) => a + b, 0);
+  return {
+    d: m.est / pooledSd,
+    lo: m.lo / pooledSd,
+    hi: m.hi / pooledSd,
+    nFor80: m.z ? Math.ceil(total * ((Z_ALPHA + Z_POWER) / m.z) ** 2) : Infinity,
+  };
 }

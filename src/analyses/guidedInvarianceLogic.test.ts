@@ -2,7 +2,7 @@
 // the scaled Δχ² test (Sass, Schmitt & Marsh 2014), the overall guidance and the notes on fit indices.
 
 import { describe, expect, it } from 'vitest';
-import type { GuidedStep } from '../rengine/invariance';
+import type { GuidedMean, GuidedStep } from '../rengine/invariance';
 import {
   anchorsPerFactor,
   chenCutoffs,
@@ -10,6 +10,7 @@ import {
   describeCandidate,
   fitNotes,
   guidance,
+  latentMeanEffect,
   passes,
   stepTitle,
   stepVerdict,
@@ -210,5 +211,38 @@ describe('fit notes', () => {
     expect(fitNotes({ estimator: 'ML', steps: [configural, step({ cfiChange: 0.01 })] })).toEqual(
       [],
     );
+  });
+});
+
+describe('latent mean differences as effect sizes (Hancock 2001)', () => {
+  const m = (over: Partial<GuidedMean> = {}): GuidedMean => ({
+    factor: 'F',
+    group: 'B',
+    est: 0.5,
+    se: 0.2,
+    z: 2.5,
+    p: 0.012,
+    lo: 0.3,
+    hi: 0.7,
+    variance: 4,
+    varianceSe: 0.5,
+    ...over,
+  });
+  const r = { groups: ['A', 'B', 'C'], n: [100, 300, 200] };
+
+  it('divides by the pooled SD of the reference and the group, weighted by their sizes', () => {
+    const e = latentMeanEffect(m(), r);
+    // pooled variance (100 × 1 + 300 × 4) / 400 = 3.25
+    expect(e.d).toBeCloseTo(0.5 / Math.sqrt(3.25), 12);
+    expect(e.lo).toBeCloseTo(0.3 / Math.sqrt(3.25), 12);
+    expect(e.hi).toBeCloseTo(0.7 / Math.sqrt(3.25), 12);
+    expect(latentMeanEffect(m({ group: 'C', variance: 1 }), r).d).toBeCloseTo(0.5, 12);
+  });
+
+  it('scales the total N by ((z.975 + z.80) / z)², rounding up, and has no N for z = 0', () => {
+    // 600 × (2.8015852 / 2.5)² = 753.49
+    expect(latentMeanEffect(m(), r).nFor80).toBe(754);
+    expect(latentMeanEffect(m({ z: -2.5 }), r).nFor80).toBe(754);
+    expect(latentMeanEffect(m({ z: 0 }), r).nFor80).toBe(Infinity);
   });
 });

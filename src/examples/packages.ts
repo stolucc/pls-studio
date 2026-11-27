@@ -306,6 +306,7 @@ export type CardPanelKind =
   | 'mnlfa'
   | 'lsem'
   | 'dmacs'
+  | 'guidedinvariance'
   | 'plsmultilevel'
   | 'hypotheses'
   | 'apim'

@@ -2,7 +2,7 @@
 // with desktop R written independently of the app's bridge (scripts/validation/guided_invariance.R →
 // src/engine/__fixtures__/invariance/guided.json): semTools' own ?measEq.syntax example (datCat, ordinal items,
 // Wu & Estabrook identification, delta and theta), lavaan's tutorial data by school with plain group.equal (ML and
-// MLR), and binary items against lavaan's categorical group.equal.
+// MLR, with Hancock's latent d and the N for 80% power), and binary items against lavaan's categorical group.equal.
 // Run with WEBR_TESTS=1 PS_NATIVE_R=1 npx vitest run --dir src rengine/guidedInvariance (or in webR without
 // PS_NATIVE_R). Tolerances: the card may run in webR (~1e-6 relative from WebAssembly floating point); optimiser
 // results 1e-5, the rest 1e-6.
@@ -14,6 +14,7 @@ import {
   guidedInvarianceAnalysis,
   type GuidedInvarianceOptions,
 } from '../analyses/guidedInvariance';
+import { latentMeanEffect } from '../analyses/guidedInvarianceLogic';
 import type { AnalysisCtx } from '../analyses/types';
 import type { Dataset } from '../engine/types';
 import { DEFAULT_SETTINGS, type ModelState, type Settings } from '../model/project';
@@ -204,6 +205,12 @@ it('continuous items: Holzinger & Swineford by school equals plain lavaan group.
     r.means.forEach((m, k) => {
       near(`${est} ${m.factor}: latent mean difference`, m.est, ref.meanEst[k], 1e-5);
       near(`${est} ${m.factor}: its SE`, m.se, ref.meanSe[k], 1e-5);
+      const e = latentMeanEffect(m, r);
+      near(`${est} ${m.factor}: Hancock’s d`, e.d, ref.hancockD[k], 1e-5);
+      near(`${est} ${m.factor}: lower limit of d`, e.lo, ref.hancockLo[k], 1e-5);
+      near(`${est} ${m.factor}: upper limit of d`, e.hi, ref.hancockHi[k], 1e-5);
+      // (a ceiling of N / z²: the optimiser's ~1e-6 in z, magnified where z is small, can move it by a few)
+      near(`${est} ${m.factor}: N for 80% power`, e.nFor80, ref.n80[k], 1 + 2e-4 * ref.n80[k]);
     });
     const metric = r.steps[1];
     ref.metricScoreItems.forEach((item: string, k: number) => {

@@ -272,6 +272,9 @@ describe('view', () => {
     expect(html).toContain('Sass, Schmitt &amp; Marsh 2014');
     expect(html).toContain(WHY);
     expect(html).toContain('Latent mean differences');
+    expect(html).toContain('d (pooled SD)');
+    expect(html).toContain('N for 80% power');
+    expect(html).toContain('Hancock 2001');
     expect(html).toContain('dMACS (Nye &amp; Drasgow 2011) is defined for continuous items');
     expect(html).toContain('no robust CFI');
   });

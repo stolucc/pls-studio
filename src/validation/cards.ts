@@ -479,8 +479,9 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   guidedinvariance: {},
   'guidedinvariance:continuous': {
     title: 'Continuous items (ML, MLR)',
+    examples: ['lavaan-hs-guided-means'],
     features: ['rengine/guidedInvariance::continuous items'],
-    note: 'Fit, scaled difference tests, score tests, latent means and dMACS against plain lavaan group.equal / group.partial on Holzinger & Swineford by school (scripts/validation/guided_invariance.R).',
+    note: 'Fit, scaled difference tests, score tests, latent means with Hancock’s d and the N for 80% power, and dMACS against plain lavaan group.equal / group.partial on Holzinger & Swineford by school (scripts/validation/guided_invariance.R).',
   },
   'guidedinvariance:delta': {
     title: 'Ordinal items, delta parameterization (WLSMV)',

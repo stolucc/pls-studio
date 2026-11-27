@@ -108,6 +108,7 @@ it('panel examples carry no diagram and name their columns (a Bayesian SEM card 
     // (a card on the diagram's factors by a grouping column or covariate names that column only)
     const BY_COLUMN: Record<string, string> = {
       alignment: 'group',
+      guidedinvariance: 'group',
       scoretest: 'covariate',
       lsem: 'moderator',
     };

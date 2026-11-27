@@ -69,6 +69,7 @@ const PANEL_TAGS: Record<string, string[]> = {
   mnlfa: ['Measurement invariance', 'Items', 'DIF', 'MNLFA'],
   lsem: ['Measurement invariance', 'Local SEM'],
   dmacs: ['Measurement invariance', 'Effect sizes'],
+  guidedinvariance: ['Measurement invariance', 'Effect sizes'],
   sempower: ['Power analysis', 'Sample size'],
   pwr: ['Basic statistics', 'Power analysis', 'Sample size'],
   pcor: ['Basic statistics', 'Partial correlations'],
@@ -114,6 +115,7 @@ const MODEL_CARDS = new Set([
   'cbmodels',
   'lsem',
   'dmacs',
+  'guidedinvariance',
   'psem',
   'hypotheses',
 ]);
@@ -309,6 +311,7 @@ const AUTHORS_BY_ID: Record<string, string[]> = {
   'nls-lcmsr': ['Curran', 'Howard', 'Bainter', 'Lane', 'McGinley'],
   'nls-growth-distal-initial': ['McCormick', 'Curran', 'Hancock'],
   'nls-growth-distal-final': ['McCormick', 'Curran', 'Hancock'],
+  'lavaan-hs-guided-means': ['Hancock'],
   'dynamic-hs-cfahb': ['Wolf', 'McNeish'],
   'dynamic-hs-cfaone': ['Wolf', 'McNeish'],
   'dynamic-hs-exactfit': ['Wolf', 'McNeish'],

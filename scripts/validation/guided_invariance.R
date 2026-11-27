@@ -109,10 +109,21 @@ continuous_case <- function(est) {
       (nR + lR * (kappa[[2]][k] + z * sqrt(phi[[2]][k, k]))))^2 * dnorm(z)
     sqrt(integrate(f, -Inf, Inf, rel.tol = 1e-10)$value) / sdp
   })
+  # Hancock's (2001) d: the latent mean difference over the pooled factor SD, weighted by the groups' sizes; and the
+  # total N at which the Wald test of the difference has power .80 at alpha = .05, its noncentrality z^2 growing in
+  # proportion to N (Satorra & Saris 1985), checked against the power of the two-sided z test at that N and one less.
+  n <- lavInspect(sc, "nobs")
+  psi2 <- diag(phi[[2]])[m$lhs]
+  pooled <- sqrt((n[1] * diag(phi[[1]])[m$lhs] + n[2] * psi2) / sum(n))
+  n80 <- ceiling(sum(n) * ((qnorm(0.975) + qnorm(0.8)) / m$z)^2)
+  power_at <- function(N) pnorm(abs(m$z) * sqrt(N / sum(n)) - qnorm(0.975)) + pnorm(-abs(m$z) * sqrt(N / sum(n)) - qnorm(0.975))
+  stopifnot(all(power_at(n80) >= 0.8), all(power_at(n80 - 1) < 0.8))
   list(
     fit = lapply(fits, fit_row, cfi = idx[1], rmsea = idx[2], chisq = idx[3]),
     lrt = lrt_rows(lrt),
     meanEst = m$est, meanSe = m$se, meanZ = m$z,
+    hancockD = unname(m$est / pooled), hancockLo = unname(m$ci.lower / pooled), hancockHi = unname(m$ci.upper / pooled),
+    n80 = n80,
     metricScoreItems = I(vapply(st$lhs, item_of, "")),
     metricScore = if (est == "MLR") st$X2.scaled else st$X2,
     dmacs = dm
