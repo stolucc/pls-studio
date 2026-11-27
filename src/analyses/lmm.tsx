@@ -161,6 +161,168 @@ export function ClusterLines({ l }: { l: NonNullable<LmmResult['lines']> }) {
   );
 }
 
+/**
+ * Shrinkage (one predictor): each cluster's own least-squares intercept and slope (open) against its empirical Bayes
+ * estimate (filled), joined by a segment, and the fixed effects; the clusters' estimates are pulled towards the fixed
+ * line, most where a cluster has few cases or an extreme line of its own.
+ */
+export function Shrinkage({ l }: { l: NonNullable<LmmResult['lines']> }) {
+  const ols = l.ols!;
+  const W = 460;
+  const H = 300;
+  const pad = { l: 56, r: 14, t: 12, b: 40 };
+  const shown = l.intercepts
+    .map((a, i) => ({ a, b: l.slopes[i], oa: ols.intercepts[i], ob: ols.slopes[i] }))
+    .filter(
+      (p): p is { a: number; b: number; oa: number; ob: number } => p.oa !== null && p.ob !== null,
+    )
+    .slice(0, 300);
+  const xs = [...shown.flatMap((p) => [p.a, p.oa]), l.fixed[0]];
+  const ys = [...shown.flatMap((p) => [p.b, p.ob]), l.fixed[1]];
+  const range = (v: number[]) => {
+    const lo = Math.min(...v);
+    const hi = Math.max(...v);
+    const pad = 0.06 * (hi - lo || 1);
+    return [lo - pad, hi + pad] as const;
+  };
+  const [x0, x1] = range(xs);
+  const [y0, y1] = range(ys);
+  const sx = (x: number) => pad.l + ((x - x0) / (x1 - x0)) * (W - pad.l - pad.r);
+  const sy = (y: number) => pad.t + ((y1 - y) / (y1 - y0)) * (H - pad.t - pad.b);
+  const legend: LegendItem[] = [
+    { label: 'Cluster’s own line (least squares)', color: '#94a3b8', mark: 'dot' },
+    { label: 'Empirical Bayes (the model’s)', color: '#6d28d9', mark: 'dot' },
+    { label: 'Fixed effects', color: '#111827', mark: 'dot' },
+  ];
+  const lh = legendHeight(legend, W - pad.l - pad.r);
+  return (
+    <ChartFrame
+      id="lmm:shrinkage"
+      name="multilevel-shrinkage"
+      width={W}
+      height={H + lh}
+      defaults={{ x: 'Intercept', y: `Slope of ${l.predictor}` }}
+      figure={(labels) => ({
+        title: 'Shrinkage of the clusters’ lines towards the fixed line',
+        x: { title: labels.x, limits: [x0, x1] },
+        y: { title: labels.y, limits: [y0, y1] },
+        width: W,
+        height: H,
+        layers: [
+          {
+            geom: 'segment',
+            series: 'Shrinkage',
+            color: '#cbd5e1',
+            x: shown.map((p) => p.oa),
+            xend: shown.map((p) => p.a),
+            y: shown.map((p) => p.ob),
+            yend: shown.map((p) => p.b),
+          },
+          {
+            geom: 'point',
+            series: 'Cluster’s own line (least squares)',
+            color: '#94a3b8',
+            x: shown.map((p) => p.oa),
+            y: shown.map((p) => p.ob),
+          },
+          {
+            geom: 'point',
+            series: 'Empirical Bayes (the model’s)',
+            color: '#6d28d9',
+            x: shown.map((p) => p.a),
+            y: shown.map((p) => p.b),
+          },
+          {
+            geom: 'point',
+            series: 'Fixed effects',
+            color: '#111827',
+            x: [l.fixed[0]],
+            y: [l.fixed[1]],
+          },
+        ],
+      })}
+    >
+      {(labels) => (
+        <svg
+          className="mc-chart"
+          width={W}
+          height={H + lh}
+          role="img"
+          aria-label="Shrinkage of the clusters’ intercepts and slopes"
+        >
+          <SvgLegend items={legend} x={pad.l} y={0} width={W - pad.l - pad.r} />
+          <g transform={`translate(0 ${lh})`}>
+            <PlotPanel x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} />
+            {[x0, x1].map((x) => (
+              <text key={`x${x}`} x={sx(x)} y={H - pad.b + 16} textAnchor="middle">
+                {fmt(x, 2)}
+              </text>
+            ))}
+            {[y0, y1].map((y) => (
+              <text key={`y${y}`} x={pad.l - 6} y={sy(y) + 4} textAnchor="end">
+                {fmt(y, 2)}
+              </text>
+            ))}
+            {shown.map((p, i) => (
+              <line
+                key={`s${i}`}
+                x1={sx(p.oa)}
+                y1={sy(p.ob)}
+                x2={sx(p.a)}
+                y2={sy(p.b)}
+                stroke="#cbd5e1"
+                strokeWidth={1}
+              />
+            ))}
+            {shown.map((p, i) => (
+              <circle
+                key={`o${i}`}
+                cx={sx(p.oa)}
+                cy={sy(p.ob)}
+                r={3}
+                fill="none"
+                stroke="#94a3b8"
+              />
+            ))}
+            {shown.map((p, i) => (
+              <circle key={`e${i}`} cx={sx(p.a)} cy={sy(p.b)} r={3} fill="#6d28d9" />
+            ))}
+            <circle cx={sx(l.fixed[0])} cy={sy(l.fixed[1])} r={5} fill="#111827" />
+            <text
+              x={pad.l + (W - pad.l - pad.r) / 2}
+              y={H - 4}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.x}
+            </text>
+            <text
+              transform={`translate(11 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`}
+              textAnchor="middle"
+              className="axis-title"
+            >
+              {labels.y}
+            </text>
+          </g>
+        </svg>
+      )}
+    </ChartFrame>
+  );
+}
+
+/** The spread of the clusters' slopes: their own least-squares lines' and the empirical Bayes ones' (one predictor). */
+export function shrinkageSpread(l: NonNullable<LmmResult['lines']>) {
+  const sd = (v: number[]) => {
+    const m = v.reduce((a, b) => a + b, 0) / v.length;
+    return Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / (v.length - 1));
+  };
+  const keep = l.ols!.slopes.map((b) => b !== null);
+  return {
+    ols: sd(l.ols!.slopes.filter((b): b is number => b !== null)),
+    eb: sd(l.slopes.filter((_, i) => keep[i])),
+  };
+}
+
 export function LmmView({ r }: { r: LmmResult }) {
   // A random effect: the residual (of an outcome), a variance across a level's units, or a covariance.
   const re = (x: LmmResult['random'][number]) => {
@@ -299,6 +461,18 @@ export function LmmView({ r }: { r: LmmResult }) {
         <div className="hint">
           Each cluster’s line for {r.lines.predictor}, with the other predictors at 0.
         </div>
+      )}
+      {r.lines?.ols && r.lines.ols.slopes.some((b) => b !== null) && (
+        <>
+          <Shrinkage l={r.lines} />
+          <div className="hint">
+            Each cluster’s own least-squares line (open) and the model’s empirical Bayes estimate
+            for it (filled): pulled towards the fixed effects, most where a cluster has few cases or
+            an extreme line of its own. Standard deviation of the clusters’ slopes:{' '}
+            {fmt(shrinkageSpread(r.lines).ols, 3)} on their own,{' '}
+            {fmt(shrinkageSpread(r.lines).eb, 3)} empirical Bayes.
+          </div>
+        </>
       )}
     </div>
   );

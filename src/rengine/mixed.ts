@@ -3,7 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rColumns, rList } from './rjson';
+import { rColumns, rList, rNum } from './rjson';
 import type { REngineInfo } from './lavaan';
 import { emmRequest, parseEmm, type EmmOptions, type EmmResult } from './emm';
 
@@ -103,6 +103,12 @@ export interface LmmResult {
     intercepts: number[];
     slopes: number[];
     fixed: [number, number];
+    /**
+     * With one predictor: each cluster's own least-squares line (in the clusters' order above, null where a cluster
+     * has fewer than two cases or one value of the predictor) and its cases; the lines above are their empirical
+     * Bayes counterparts, shrunk towards the fixed line.
+     */
+    ols?: { intercepts: (number | null)[]; slopes: (number | null)[]; n: number[] };
   } | null;
   emm?: EmmResult | null;
   warnings: string[];
@@ -230,6 +236,15 @@ export async function lmmR(data: Dataset, input: LmmInput): Promise<LmmResult> {
           ...raw.lines,
           intercepts: rList<number>(raw.lines.intercepts),
           slopes: rList<number>(raw.lines.slopes),
+          ...(raw.lines.ols
+            ? {
+                ols: {
+                  intercepts: rList<unknown>(raw.lines.ols.intercepts).map(rNum),
+                  slopes: rList<unknown>(raw.lines.ols.slopes).map(rNum),
+                  n: rList<number>(raw.lines.ols.n),
+                },
+              }
+            : {}),
         }
       : null,
     emm: parseEmm(raw.emm),

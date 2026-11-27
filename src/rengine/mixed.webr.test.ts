@@ -66,6 +66,31 @@ describe('multilevel regression (lme4)', () => {
     );
   }, 900_000);
 
+  it('shrinkage: each subject’s own least-squares line (lme4::lmList) against its empirical Bayes line (coef)', async () => {
+    const r = await lmmR(sleep, input);
+    const l = r.lines!;
+    expect(l.ols!.n).toEqual(Array(18).fill(10));
+    // Desktop lme4 1.1: coef(lmList(Reaction ~ Days | Subject, sleepstudy)) and coef(fm1)$Subject, subjects 308–310.
+    const REF = [
+      [244.1926691, 21.764702424, 253.6636558, 19.666261725],
+      [205.0549455, 2.261785455, 211.0063668, 1.847605344],
+      [203.4842255, 6.114898788, 212.4446959, 5.01842949],
+    ];
+    REF.forEach(([oa, ob, a, b], i) => {
+      expect(l.ols!.intercepts[i]).toBeCloseTo(oa, 6);
+      expect(l.ols!.slopes[i]).toBeCloseTo(ob, 7);
+      expect(l.intercepts[i]).toBeCloseTo(a, 3);
+      expect(l.slopes[i]).toBeCloseTo(b, 3);
+    });
+    // (the slopes' standard deviation: 6.558 own lines, 5.455 empirical Bayes)
+    const sd = (v: number[]) => {
+      const m = v.reduce((a, b) => a + b, 0) / v.length;
+      return Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / (v.length - 1));
+    };
+    expect(sd(l.ols!.slopes as number[])).toBeCloseTo(6.558227, 5);
+    expect(sd(l.slopes)).toBeCloseTo(5.455216, 3);
+  }, 900_000);
+
   it('within / between: cluster-mean centring with cluster means, as plain lme4 code', async () => {
     // Unbalanced (later days missing for odd subjects), so the cluster means of Days differ.
     const keep = Array.from({ length: sleep.cols[0].length }, (_, i) => i).filter(
@@ -76,6 +101,8 @@ describe('multilevel regression (lme4)', () => {
       cols: sleep.cols.map((c) => Float64Array.from(keep, (i) => c[i])),
     };
     const r = await lmmR(unbalanced, { ...input, slopes: [], center: 'cluster', estimation: 'ML' });
+    // (two fixed slopes, Days and its cluster mean: no single least-squares line per cluster to shrink)
+    expect(r.lines!.ols).toBeUndefined();
     const own = (await withR(['jsonlite', 'lme4'], { common: commonR }, (webR) =>
       callJson(
         webR,

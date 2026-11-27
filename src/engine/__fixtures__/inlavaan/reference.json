@@ -369,7 +369,7 @@
     },
     "converged": true,
     "maxRelDiff": 3.86037685720021e-15,
-    "elapsed": 1.5
+    "elapsed": 1.555
   },
   "asem": {
     "parameters": [
@@ -901,7 +901,7 @@
     },
     "converged": true,
     "maxRelDiff": 3.93968850712803e-15,
-    "elapsed": 1.56
+    "elapsed": 1.631
   },
   "bcfa": {
     "parameters": [
@@ -1263,7 +1263,7 @@
     },
     "converged": true,
     "maxRelDiff": 3.99476993474586e-15,
-    "elapsed": 1.066
+    "elapsed": 1.082
   },
   "vsMcmc": {
     "marker": {
@@ -1778,7 +1778,7 @@
     "src/rengine/R/longitudinal.R": "dfa2a12c8987baddd74407e0dcabfe1d",
     "src/rengine/R/regression.R": "f66169780f1446acacfa73990170367d",
     "src/rengine/R/tests.R": "0850904576c1b329d99a24feb2b14751",
-    "src/rengine/R/lavaan.R": "e7cfefed14f1e9fc2b7381437fb435c3",
+    "src/rengine/R/lavaan.R": "085244bdbedb4c193bedcb02f596232c",
     "src/rengine/R/bayes.R": "ca24db73603b6c7237959ac33edd50a8"
   },
   "versions": {

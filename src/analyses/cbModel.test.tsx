@@ -1,3 +1,4 @@
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, type ModelState } from '../model/project';
 import {
@@ -5,6 +6,7 @@ import {
   cbFingerprint,
   cbModelBlocked,
   compareParamsAnalysis as cmp,
+  samAnalysis as sam,
   scoreWeightsAnalysis as sw,
 } from './cbModel';
 import { quantileOf } from '../engine/stats';
@@ -108,6 +110,64 @@ describe('CB-SEM model cards', () => {
         ctx({ model: { ...two, paths: [two.paths[0], { ...two.paths[1], fixed: 0.5 }] } }),
       ),
     ).toMatch(/one free/);
+  });
+
+  it('structural after measurement: a path between two factors, one group and level, raw data; the six methods in one table', () => {
+    expect(sam.blocked({}, ctx())).toBeNull();
+    expect(sam.blocked({}, ctx({ model: { ...model, paths: [] } }))).toMatch(
+      /path between two factors/,
+    );
+    expect(
+      sam.blocked(
+        {},
+        ctx({
+          model: { ...model, multigroup: { column: 'other', invariance: 'configural', free: [] } },
+        }),
+      ),
+    ).toMatch(/without groups/);
+    expect(
+      sam.blocked(
+        {},
+        ctx({ model: { ...model, multilevel: { column: 'other', between: 'same' } } }),
+      ),
+    ).toMatch(/two-level/);
+    expect(sam.blocked({}, ctx({ settings: { ...settings, missing: 'mi' } }))).toMatch(
+      /multiple imputation|Fix the model first/,
+    );
+    const r = {
+      n: 75,
+      paths: [
+        {
+          from: 'A',
+          to: 'B',
+          sem: { est: 0.5, se: 0.1 },
+          local: { est: 0.49, se: 0.11 },
+          global: { est: 0.51, se: 0.1 },
+          regression: { est: 0.45, se: 0.05 },
+          bartlett: { est: 0.4, se: 0.06 },
+          skrondalLaake: { est: 0.5, se: null },
+        },
+      ],
+      warnings: [],
+      engine: null as never,
+    };
+    const text = renderToStaticMarkup(<sam.View result={r} options={{}} current />).replace(
+      /<[^>]+>/g,
+      ' ',
+    );
+    for (const h of [
+      'Full SEM',
+      'SAM, local',
+      'SAM, global',
+      'FSR, regression scores',
+      'FSR, Bartlett scores',
+      'FSR, Skrondal–Laake',
+    ])
+      expect(text).toContain(h);
+    expect(text).toContain('A → B');
+    expect(text).toContain('0.490 (0.110)');
+    // (no standard error: the estimate alone)
+    expect(text).toMatch(/0\.500 (?!\()/);
   });
 
   it('validate options from files', () => {

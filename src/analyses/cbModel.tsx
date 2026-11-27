@@ -11,6 +11,7 @@ import type {
   CbCall,
   CompareParamsResult,
   ParamKind,
+  SamResult,
   ScoreMethod,
   ScoreWeightsResult,
 } from '../rengine/cbExtras';
@@ -248,6 +249,76 @@ export const compareParamsAnalysis: AnalysisType<CompareParamsOptions, ComparePa
   summary: (o) =>
     o.kinds.map((k) => KINDS.find(([id]) => id === k)![1].toLowerCase()).join(', ') ||
     'no parameters chosen',
+};
+
+// ---------- structural after measurement (SAM) against factor-score regression ----------
+
+const SAM_METHODS: [keyof Omit<SamResult['paths'][number], 'from' | 'to'>, string][] = [
+  ['sem', 'Full SEM'],
+  ['local', 'SAM, local'],
+  ['global', 'SAM, global'],
+  ['regression', 'FSR, regression scores'],
+  ['bartlett', 'FSR, Bartlett scores'],
+  ['skrondalLaake', 'FSR, Skrondal–Laake'],
+];
+
+function SamView({ r }: { r: SamResult }) {
+  const cell = (e: { est: number | null; se: number | null }) =>
+    c(e.est === null ? null : `${fmt(e.est, 3)}${e.se === null ? '' : ` (${fmt(e.se, 3)})`}`);
+  return (
+    <div className="tables">
+      <Table
+        title="Structural paths by method"
+        file="sam-paths"
+        columns={['Path', ...SAM_METHODS.map(([, label]) => label)]}
+        rows={r.paths.map((p) => [
+          c(`${p.from} → ${p.to}`),
+          ...SAM_METHODS.map(([k]) => cell(p[k])),
+        ])}
+        note="Unstandardised estimates (standard errors). Full SEM fits measurement and structure together; SAM (Rosseel & Loh 2022) fits the measurement blocks first and the structure from them, so a misspecified part of the structure cannot distort the measurement. Factor-score regression (FSR) regresses scores from the measurement model: regression scores for the outcome bias the slopes, Bartlett scores for the predictors attenuate them, and Skrondal & Laake’s (2001) pairing, regression scores for predictors and Bartlett scores for the outcome, is consistent. FSR standard errors are lm’s: they ignore that the scores are estimated."
+      />
+    </div>
+  );
+}
+
+export const samAnalysis: AnalysisType<Record<string, never>, SamResult> = {
+  id: 'cbsam',
+  title: 'Structural after measurement',
+  sub: 'full SEM, SAM and factor-score regression side by side (lavaan)',
+  group: CB_GROUP,
+  fitsModel: true,
+  defaults: () => ({}),
+  parseOptions: (raw) => (isObj(raw) ? {} : null),
+  Options: ({ ctx }) => (
+    <fieldset className="card-options">
+      <Hint>{`The paths between factors estimated five more ways: structural after measurement (local and global) and regressions on factor scores (regression, Bartlett, and Skrondal & Laake’s pairing). ${fitNote(ctx)}`}</Hint>
+    </fieldset>
+  ),
+  View: ({ result }) => <SamView r={result} />,
+  blocked: (_o, ctx) => {
+    const base = cbModelBlocked(ctx, 'Structural after measurement');
+    if (base) return base;
+    const m = ctx.model!;
+    if (m.multigroup)
+      return 'Structural after measurement is available for a model without groups.';
+    if (m.multilevel) return 'Structural after measurement is not available for two-level models.';
+    if (m.esem?.blocks.length)
+      return 'Structural after measurement is not available with ESEM blocks.';
+    if (m.moderations.length)
+      return 'Structural after measurement is not available with latent interactions.';
+    if (ctx.settings.missing === 'mi')
+      return 'Structural after measurement is not available with multiple imputation; use FIML or casewise deletion.';
+    const factor = new Set(
+      m.constructs.filter((k) => !k.covariate && k.indicators.length > 1).map((k) => k.id),
+    );
+    return m.paths.some((p) => factor.has(p.from) && factor.has(p.to))
+      ? null
+      : 'Draw a path between two factors measured by indicators: those are the paths compared.';
+  },
+  fingerprint: (_o, ctx) => cbFingerprint(ctx),
+  run: async (_o, ctx) => (await import('../rengine/cbExtras')).samR(cbCall(ctx)),
+  script: async (_o, ctx) => (await import('../rengine/cbExtras')).samScriptR(cbCall(ctx)),
+  summary: () => 'full SEM, SAM, factor-score regression',
 };
 
 // ---------- factor scores (id 'scoreweights', its id from when the card showed the weights only) ----------

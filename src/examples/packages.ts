@@ -273,6 +273,7 @@ export type CardPanelKind =
   | 'parcelallocation'
   | 'bollenstine'
   | 'cbcompare'
+  | 'cbsam'
   | 'scoreweights'
   | 'plspredict'
   | 'compare'
@@ -564,6 +565,35 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     settings: CB('ML'),
   },
   {
+    id: 'lavaan-poldem-sam',
+    package: 'lavaan',
+    title: 'Structural after measurement and factor-score regression (Bollen’s democracy model)',
+    source:
+      'lavaan, ?sam; Rosseel & Loh (2022); Skrondal & Laake (2001); the model of ?sem (Bollen 1989)',
+    links: [
+      { label: '?sam', url: 'https://rdrr.io/cran/lavaan/man/sam.html' },
+      { label: 'Rosseel & Loh (2022)', url: 'https://doi.org/10.1037/met0000503' },
+      { label: 'Skrondal & Laake (2001)', url: 'https://doi.org/10.1007/BF02296196' },
+      {
+        label: 'Quantitude S6E07: Structural after measurement',
+        url: 'https://quantitude.org/episodes/',
+      },
+    ],
+    description:
+      'The model of the democracy example (industrialisation 1960 → democracy 1960 and 1965, democracy 1960 → 1965, correlated measurement errors, democracy loadings equal over time), its three paths estimated six ways: the full SEM; structural after measurement, local and global (lavaan’s sam: the measurement blocks first, then the paths); and regressions on factor scores of the measurement model alone, with regression scores, Bartlett scores, or Skrondal & Laake’s pairing (regression scores for the predictors, Bartlett for the outcome). Opens its card on the Analyses tab.',
+    shows:
+      'SAM stays close to the full SEM (democracy 1960 → 1965: 0.865 full, 0.847 local, 0.871 global). Regressions on scores do not: 0.882 with regression scores, 0.762 with Bartlett scores (attenuated), and 0.979 with Skrondal & Laake’s pairing, whose consistency needs the predictor’s and the outcome’s measurement errors to be uncorrelated, and here the 1960 and 1965 items share correlated errors. The score regressions’ standard errors are too small: they treat the scores as data.',
+    data: { package: 'lavaan', name: 'PoliticalDemocracy' },
+    ...BOLLEN,
+    constructs: [
+      BOLLEN.constructs[0],
+      f('dem60', items('y', 4), { y2: 'a', y3: 'b', y4: 'c' }),
+      f('dem65', items('y', 4, 5), { y6: 'a', y7: 'b', y8: 'c' }),
+    ],
+    panel: { kind: 'cbsam' },
+    settings: CB('ML'),
+  },
+  {
     id: 'lavaan-hs-groups',
     package: 'lavaan',
     title: 'Measurement invariance across two schools',
@@ -608,10 +638,122 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     settings: CB('ML'),
   },
   {
+    id: 'lavaan-twolevel-cfa-configural',
+    package: 'lavaan',
+    title: 'Multilevel CFA (1): loadings free at each level',
+    source:
+      'lavaan, ?Demo.twolevel; Stapleton, Yang & Hancock (2016) and Jak (2019) on what between-level factors mean',
+    links: [
+      { label: '?Demo.twolevel', url: 'https://rdrr.io/cran/lavaan/man/Demo.twolevel.html' },
+      {
+        label: 'Stapleton, Yang & Hancock (2016)',
+        url: 'https://doi.org/10.3102/1076998616646200',
+      },
+      { label: 'Jak (2019)', url: 'https://doi.org/10.1080/10705511.2018.1534205' },
+      {
+        label: 'Quantitude S5E21: Multilevel factor analysis',
+        url: 'https://quantitude.org/episodes/',
+      },
+    ],
+    description:
+      'lavaan’s simulated Demo.twolevel (2,500 people in 200 clusters): two factors of three items each, y1–y3 and y4–y6, within clusters (fw1, fw2) and between them (fb1, fb2, the clusters’ random intercepts of the items), ML. Here the loadings are estimated separately within and between clusters: a between factor may then mean something else than the within factor of the same items (a configural construct). Results: switch Within / Between in the results header.',
+    shows:
+      'χ² = 12.629 on 16 df: two factors at each level fit. The loadings differ between the levels, most for y6 (0.50 within, 0.77 between), so fb2 is not simply the cluster-level part of fw2 and its variance cannot be compared with fw2’s. The next example tests equal loadings.',
+    data: { package: 'lavaan', name: 'Demo.twolevel' },
+    tags: ['Clustered data'],
+    constructs: [],
+    paths: [],
+    syntax: [
+      'level: 1',
+      '  fw1 =~ y1 + y2 + y3',
+      '  fw2 =~ y4 + y5 + y6',
+      'level: 2',
+      '  fb1 =~ y1 + y2 + y3',
+      '  fb2 =~ y4 + y5 + y6',
+    ].join('\n'),
+    multilevel: { column: 'cluster', between: 'model' },
+    settings: CB('ML'),
+  },
+  {
+    id: 'lavaan-twolevel-cfa-invariant',
+    package: 'lavaan',
+    title: 'Multilevel CFA (2): the same loadings within and between clusters',
+    source:
+      'lavaan, ?Demo.twolevel; Stapleton, Yang & Hancock (2016) and Jak (2019) on what between-level factors mean',
+    links: [
+      { label: '?Demo.twolevel', url: 'https://rdrr.io/cran/lavaan/man/Demo.twolevel.html' },
+      {
+        label: 'Stapleton, Yang & Hancock (2016)',
+        url: 'https://doi.org/10.3102/1076998616646200',
+      },
+      { label: 'Jak (2019)', url: 'https://doi.org/10.1080/10705511.2018.1534205' },
+      {
+        label: 'Quantitude S5E21: Multilevel factor analysis',
+        url: 'https://quantitude.org/episodes/',
+      },
+    ],
+    description:
+      'lavaan’s simulated Demo.twolevel (2,500 people in 200 clusters): two factors of three items each, y1–y3 and y4–y6, within clusters (fw1, fw2) and between them (fb1, fb2, the clusters’ random intercepts of the items), ML. Here every loading is held equal across the levels (labels a2 … a6 at both levels): cross-level invariance, under which a between factor is the cluster-level part of the same construct, and its share of the factor’s variance is an ICC of the factor (Jak 2019). Results: switch Within / Between in the results header.',
+    shows:
+      'χ² = 26.194 on 20 df, 13.57 more than the configural model on 4 df (p = .009): equal loadings across the levels are rejected. The next example frees the loading of y6 only.',
+    data: { package: 'lavaan', name: 'Demo.twolevel' },
+    tags: ['Clustered data'],
+    constructs: [],
+    paths: [],
+    syntax: [
+      'level: 1',
+      '  fw1 =~ y1 + a2*y2 + a3*y3',
+      '  fw2 =~ y4 + a5*y5 + a6*y6',
+      'level: 2',
+      '  fb1 =~ y1 + a2*y2 + a3*y3',
+      '  fb2 =~ y4 + a5*y5 + a6*y6',
+    ].join('\n'),
+    multilevel: { column: 'cluster', between: 'model' },
+    settings: CB('ML'),
+  },
+  {
+    id: 'lavaan-twolevel-cfa-partial',
+    package: 'lavaan',
+    title: 'Multilevel CFA (3): partial cross-level invariance (y6 free)',
+    source:
+      'lavaan, ?Demo.twolevel; Stapleton, Yang & Hancock (2016) and Jak (2019) on what between-level factors mean',
+    links: [
+      { label: '?Demo.twolevel', url: 'https://rdrr.io/cran/lavaan/man/Demo.twolevel.html' },
+      {
+        label: 'Stapleton, Yang & Hancock (2016)',
+        url: 'https://doi.org/10.3102/1076998616646200',
+      },
+      { label: 'Jak (2019)', url: 'https://doi.org/10.1080/10705511.2018.1534205' },
+      {
+        label: 'Quantitude S5E21: Multilevel factor analysis',
+        url: 'https://quantitude.org/episodes/',
+      },
+    ],
+    description:
+      'lavaan’s simulated Demo.twolevel (2,500 people in 200 clusters): two factors of three items each, y1–y3 and y4–y6, within clusters (fw1, fw2) and between them (fb1, fb2, the clusters’ random intercepts of the items), ML. Here the loadings are equal across the levels except y6’s, which loads less within clusters than between them. With equal loadings for the other items, the factors’ variances at the two levels are on one scale: the factor ICC is the between variance over the total. Results: switch Within / Between in the results header.',
+    shows:
+      'χ² = 16.919 on 19 df, only 4.29 more than the configural model on 3 df (p = .23): partial invariance holds. The first factor varies between clusters with 0.828 and within with 1.103, an ICC of .43; the second with 1.012 and 0.263, an ICC of .79: it is mostly a property of the clusters.',
+    data: { package: 'lavaan', name: 'Demo.twolevel' },
+    tags: ['Clustered data'],
+    constructs: [],
+    paths: [],
+    syntax: [
+      'level: 1',
+      '  fw1 =~ y1 + a2*y2 + a3*y3',
+      '  fw2 =~ y4 + a5*y5 + y6',
+      'level: 2',
+      '  fb1 =~ y1 + a2*y2 + a3*y3',
+      '  fb2 =~ y4 + a5*y5 + y6',
+    ].join('\n'),
+    multilevel: { column: 'cluster', between: 'model' },
+    settings: CB('ML'),
+  },
+  {
     id: 'lavaan-hs-scale-x1',
     package: 'lavaan',
     title: 'Scaling a latent variable (1): x1 as the marker',
-    source: 'lavaan, ?HolzingerSwineford1939; Gonzalez & Griffin (2001) on the scale of a latent variable',
+    source:
+      'lavaan, ?HolzingerSwineford1939; Gonzalez & Griffin (2001) on the scale of a latent variable',
     links: [
       { label: 'Gonzalez & Griffin (2001)', url: 'https://doi.org/10.1037/1082-989X.6.3.258' },
       { label: 'Little, Slegers & Card (2006)', url: 'https://doi.org/10.1207/s15328007sem1301_3' },
@@ -628,18 +770,15 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     tags: ['Scaling'],
     constructs: [],
     paths: [],
-    syntax: [
-      'visual =~ x1 + x2 + x3',
-      'textual =~ x4 + x5 + x6',
-      'textual ~ visual',
-    ].join('\n'),
+    syntax: ['visual =~ x1 + x2 + x3', 'textual =~ x4 + x5 + x6', 'textual ~ visual'].join('\n'),
     settings: CB('ML'),
   },
   {
     id: 'lavaan-hs-scale-x2',
     package: 'lavaan',
     title: 'Scaling a latent variable (2): x2 as the marker',
-    source: 'lavaan, ?HolzingerSwineford1939; Gonzalez & Griffin (2001) on the scale of a latent variable',
+    source:
+      'lavaan, ?HolzingerSwineford1939; Gonzalez & Griffin (2001) on the scale of a latent variable',
     links: [
       { label: 'Gonzalez & Griffin (2001)', url: 'https://doi.org/10.1037/1082-989X.6.3.258' },
       { label: 'Little, Slegers & Card (2006)', url: 'https://doi.org/10.1207/s15328007sem1301_3' },
@@ -656,18 +795,15 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     tags: ['Scaling'],
     constructs: [],
     paths: [],
-    syntax: [
-      'visual =~ x2 + x1 + x3',
-      'textual =~ x4 + x5 + x6',
-      'textual ~ visual',
-    ].join('\n'),
+    syntax: ['visual =~ x2 + x1 + x3', 'textual =~ x4 + x5 + x6', 'textual ~ visual'].join('\n'),
     settings: CB('ML'),
   },
   {
     id: 'lavaan-hs-scale-effects',
     package: 'lavaan',
     title: 'Scaling a latent variable (3): effects coding',
-    source: 'lavaan, ?HolzingerSwineford1939; Gonzalez & Griffin (2001) on the scale of a latent variable',
+    source:
+      'lavaan, ?HolzingerSwineford1939; Gonzalez & Griffin (2001) on the scale of a latent variable',
     links: [
       { label: 'Gonzalez & Griffin (2001)', url: 'https://doi.org/10.1037/1082-989X.6.3.258' },
       { label: 'Little, Slegers & Card (2006)', url: 'https://doi.org/10.1207/s15328007sem1301_3' },

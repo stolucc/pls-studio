@@ -1,6 +1,7 @@
 // CB-SEM extras of the model on the canvas (R/lavaan.R): the Bollen-Stine
 // bootstrap p of the chi-square test, pairwise parameter comparisons (AMOS's
-// critical ratios for differences) and factor score weights.
+// critical ratios for differences), factor score weights, and structural after
+// measurement against factor-score regression.
 
 import type { CbEstimator } from '../engine/cbsem';
 import type { Dataset, MissingTreatment, ModelSpec } from '../engine/types';
@@ -224,3 +225,47 @@ export async function dataSummaryR(c: CbCall): Promise<DataSummaryResult> {
 /** The R script that computes the data summary. */
 export const dataSummaryScriptR = (c: CbCall) =>
   rScript('ps_cb_data_summary', cbCallRequest(c, {}), 'lavaan');
+
+/** One path's estimate and standard error by one method (null where the method gives none). */
+export interface SamEstimate {
+  est: number | null;
+  se: number | null;
+}
+export interface SamResult {
+  n: number;
+  paths: {
+    from: string;
+    to: string;
+    sem: SamEstimate;
+    local: SamEstimate;
+    global: SamEstimate;
+    regression: SamEstimate;
+    bartlett: SamEstimate;
+    skrondalLaake: SamEstimate;
+  }[];
+  warnings: string[];
+  engine: REngineInfo;
+}
+const samEstimate = (v: unknown): SamEstimate => {
+  const o = (v ?? {}) as Record<string, unknown>;
+  return { est: rNum(o.est), se: rNum(o.se) };
+};
+export async function samR(c: CbCall): Promise<SamResult> {
+  const r = await rCall<Record<string, any>>('ps_cb_sam', cbCallRequest(c, {}), 'lavaan');
+  return {
+    n: r.n,
+    paths: rList<Record<string, unknown>>(r.paths).map((p) => ({
+      from: String(p.from),
+      to: String(p.to),
+      sem: samEstimate(p.sem),
+      local: samEstimate(p.local),
+      global: samEstimate(p.global),
+      regression: samEstimate(p.regression),
+      bartlett: samEstimate(p.bartlett),
+      skrondalLaake: samEstimate(p.skrondalLaake),
+    })),
+    warnings: rStrings(r.warnings),
+    engine: r.engine,
+  };
+}
+export const samScriptR = (c: CbCall) => rScript('ps_cb_sam', cbCallRequest(c, {}), 'lavaan');

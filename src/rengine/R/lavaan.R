@@ -3007,6 +3007,89 @@ ps_cb_compare_params <- function(req_json, export = FALSE) {
   ))
 }
 
+#' Structural after measurement (Rosseel & Loh 2022) against the full SEM and factor-score regression, for the paths
+#' among the model's factors: the full SEM (the model as fitted), local and global SAM (lavaan::sam, the measurement
+#' part fitted first, then the structural part from it), and regressions on factor scores of the measurement model
+#' alone (the model without its structural regressions, every factor covarying): regression scores, Bartlett scores,
+#' and Skrondal & Laake's (2001) rule, regression scores for the predictors and Bartlett scores for the outcome, which
+#' gives consistent estimates. The score regressions' standard errors are lm's, which ignore that the scores are
+#' estimated.
+ps_cb_sam <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  b <- ps_cb_build_fit(req)
+  ps_cb_plain(b, "Structural after measurement")
+  if (!is.null(b$group_var)) stop("Structural after measurement is available for a model without groups.")
+  if (length(b$esem_blocks)) stop("Structural after measurement is not available with ESEM blocks.")
+  if (!grepl("^fit <- sem\\(model, ", b$call)) stop("Structural after measurement needs a model lavaan fits with sem().")
+  lines <- ps_model_lines(b)
+  # (the measurement model: the model without its regressions and defined parameters)
+  regression <- grepl("^\\s*[^=~<>:]+[^=~<>:\\s]\\s+~\\s", lines) & !grepl("~\\s*1\\s*(#.*)?$", lines)
+  measurement <- lines[!regression & !grepl(":=", lines)]
+  body <- c(
+    b$body,
+    "# The paths among the factors.",
+    "lvs <- lavNames(fit, \"lv\")",
+    "pe <- parameterEstimates(fit)",
+    "paths <- pe[pe$op == \"~\" & pe$lhs %in% lvs & pe$rhs %in% lvs, c(\"lhs\", \"rhs\", \"est\", \"se\")]",
+    "if (!nrow(paths)) stop(\"The model has no paths among factors: draw regressions between factors measured by indicators.\")",
+    "# Structural after measurement: the measurement blocks first, then the structural part (local: from their moments).",
+    sub("^fit <- sem\\(model, ", "fit_local <- sam(model, sam.method = \"local\", ", b$call),
+    sub("^fit <- sem\\(model, ", "fit_global <- sam(model, sam.method = \"global\", ", b$call),
+    "# Factor scores from the measurement model alone, and the structural regressions on them.",
+    "model_m <- '", paste0("  ", sub("^\\s+", "", measurement)), "'",
+    sub("^fit <- sem\\(model, ", "fit_m <- sem(model_m, ", b$call),
+    "fs_reg <- as.data.frame(lavPredict(fit_m, method = \"regression\"))",
+    "fs_bart <- as.data.frame(lavPredict(fit_m, method = \"Bartlett\"))",
+    "score_reg <- function(y, xs, outcome, predictors) {",
+    "  d <- data.frame(y = outcome[[y]], predictors[, xs, drop = FALSE])",
+    "  co <- summary(lm(y ~ ., data = d))$coefficients",
+    "  data.frame(lhs = y, rhs = xs, est = co[xs, 1], se = co[xs, 2])",
+    "}",
+    "fsr <- function(outcome, predictors) do.call(rbind, lapply(unique(paths$lhs), function(y)",
+    "  score_reg(y, paths$rhs[paths$lhs == y], outcome, predictors)))",
+    "fsr_reg <- fsr(fs_reg, fs_reg)",
+    "fsr_bart <- fsr(fs_bart, fs_bart)",
+    "fsr_sl <- fsr(fs_bart, fs_reg)  # Skrondal & Laake: Bartlett scores for the outcome, regression scores for the predictors"
+  )
+  if (export) {
+    return(ps_script(
+      "Structural after measurement and factor-score regression (lavaan)", "lavaan", b$inputs, body,
+      c("paths", "summary(fit_local)", "summary(fit_global)", "fsr_reg", "fsr_bart", "fsr_sl")
+    ))
+  }
+  env <- ps_run(body, b$inputs)
+  back <- ps_cb_back(b)
+  nm <- function(x) ps_back(x, back)
+  pick <- function(tab, lhs, rhs) {
+    hit <- tab$lhs == lhs & tab$rhs == rhs
+    if (!any(hit)) return(list(est = NULL, se = NULL))
+    list(est = tab$est[hit][1], se = if (is.finite(tab$se[hit][1])) tab$se[hit][1] else NULL)
+  }
+  sam_paths <- function(f) {
+    p <- parameterEstimates(f)
+    p[p$op == "~", c("lhs", "rhs", "est", "se")]
+  }
+  local <- sam_paths(env$fit_local)
+  global <- sam_paths(env$fit_global)
+  pa <- env$paths
+  ps_json(list(
+    paths = lapply(seq_len(nrow(pa)), function(i) {
+      l <- pa$lhs[i]
+      r <- pa$rhs[i]
+      list(
+        from = nm(r), to = nm(l),
+        sem = list(est = pa$est[i], se = pa$se[i]),
+        local = pick(local, l, r), global = pick(global, l, r),
+        regression = pick(env$fsr_reg, l, r), bartlett = pick(env$fsr_bart, l, r),
+        skrondalLaake = pick(env$fsr_sl, l, r)
+      )
+    }),
+    n = lavaan::lavInspect(env$fit, "nobs"),
+    warnings = env$.warnings,
+    engine = ps_engine("lavaan")
+  ))
+}
+
 #' Factor score weights: how each latent variable's score is computed from the observed
 #' variables. Regression (Thurstone; AMOS's factor score weights): Phi Lambda' Sigma^-1;
 #' Bartlett: (Lambda' Theta^-1 Lambda)^-1 Lambda' Theta^-1. Model-implied matrices.

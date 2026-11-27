@@ -10,7 +10,7 @@ import { LoopChart } from './bsem';
 import { chartAnalysis } from './charts';
 import { EventChart } from './did';
 import { Scree } from './efa';
-import { ClusterLines } from './lmm';
+import { ClusterLines, Shrinkage, shrinkageSpread } from './lmm';
 import { CeilingPlot } from './nca';
 import { XYPlot } from './qca';
 import { Fusion } from './segmentation';
@@ -115,6 +115,36 @@ describe('charts described to ggplot2', () => {
     ]);
     expect(spec.layers[0]).toMatchObject({ x: [0, 0], xend: [2, 2], y: [1, 2], yend: [2, 1] });
     expect(spec.x).toEqual({ title: 'ses', limits: [0, 2] });
+  });
+
+  it('shrinkage: each cluster’s own line against its empirical Bayes estimate, clusters without a line left out', async () => {
+    const l = {
+      predictor: 'Days',
+      range: [0, 9],
+      intercepts: [250, 260, 255],
+      slopes: [9, 12, 10],
+      fixed: [255, 10.5],
+      ols: { intercepts: [240, 270, null], slopes: [6, 15, null], n: [10, 10, 1] },
+    };
+    const spec = await figureOf(<Shrinkage l={l as never} />);
+    expect(geoms(spec)).toEqual([
+      ['segment', 'Shrinkage'],
+      ['point', 'Cluster’s own line (least squares)'],
+      ['point', 'Empirical Bayes (the model’s)'],
+      ['point', 'Fixed effects'],
+    ]);
+    // (from the own line to the estimate, for the two clusters with a line of their own)
+    expect(spec.layers[0]).toMatchObject({
+      x: [240, 270],
+      xend: [250, 260],
+      y: [6, 15],
+      yend: [9, 12],
+    });
+    expect(spec.y.title).toBe('Slope of Days');
+    // the spread of the slopes, own lines against empirical Bayes, over the same clusters
+    const s = shrinkageSpread(l as never);
+    expect(s.ols).toBeCloseTo(Math.sqrt(40.5), 10);
+    expect(s.eb).toBeCloseTo(Math.sqrt(4.5), 10);
   });
 
   it('ceiling plot: the observations, the CE-FDH step and the CR-FDH line', async () => {

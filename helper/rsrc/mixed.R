@@ -5,6 +5,20 @@
 
 #' Linear mixed model: outcome on predictors, clustered, with random intercepts
 #' and optional random slopes; within / between decomposition on request.
+#' Each cluster's least-squares line of y on x, in the order of `clusters` (their intercept and slope, and the cases):
+#' no slope (NA) for a cluster with fewer than two cases or one value of x.
+ps_lmm_ols <- function(d, y, x, cl, clusters) {
+  g <- factor(as.character(d[[cl]]), levels = clusters)
+  n <- tabulate(g, nbins = length(clusters))
+  mx <- as.numeric(tapply(d[[x]], g, mean))
+  my <- as.numeric(tapply(d[[y]], g, mean))
+  dx <- d[[x]] - mx[g]
+  sxx <- as.numeric(tapply(dx^2, g, sum))
+  sxy <- as.numeric(tapply(dx * (d[[y]] - my[g]), g, sum))
+  slope <- ifelse(n >= 2 & sxx > 1e-12 * pmax(1, mx^2), sxy / sxx, NA_real_)
+  list(intercepts = my - slope * mx, slopes = slope, n = n)
+}
+
 ps_lmm <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   # Wide repeated measures, several outcomes, more cluster levels, interaction terms, uncorrelated slopes, a residual
@@ -171,10 +185,14 @@ ps_lmm <- function(req_json, export = FALSE) {
     lines = if (is.null(focal)) {
       NULL
     } else {
-      list(
-        predictor = nm(focal), range = range(env$data[[focal]]),
-        intercepts = unname(cc[, "(Intercept)"]), slopes = unname(cc[, focal]),
-        fixed = c(unname(lme4::fixef(fit)["(Intercept)"]), unname(lme4::fixef(fit)[focal]))
+      c(
+        list(
+          predictor = nm(focal), range = range(env$data[[focal]]),
+          intercepts = unname(cc[, "(Intercept)"]), slopes = unname(cc[, focal]),
+          fixed = c(unname(lme4::fixef(fit)["(Intercept)"]), unname(lme4::fixef(fit)[focal]))
+        ),
+        # With one predictor: each cluster's own least-squares line, for the shrinkage of the lines above (empirical Bayes).
+        if (length(lme4::fixef(fit)) == 2) list(ols = ps_lmm_ols(env$data, Y, focal, C, rownames(cc)))
       )
     },
     emm = ps_emm_result(env, emm, emm_rn, conf),

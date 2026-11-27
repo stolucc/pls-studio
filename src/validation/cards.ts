@@ -774,6 +774,7 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   },
   bollenstine: { examples: ['lavaan-hs-bollenstine'], features: ['rengine/cbExtras::Bollen'] },
   cbcompare: { examples: ['lavaan-hs-wald'], features: ['rengine/cbExtras::pairwise z'] },
+  cbsam: { examples: ['lavaan-poldem-sam'] },
   scoreweights: {
     examples: ['lavaan-hs-scoreweights'],
     features: ['rengine/cbExtras::factor score weights', 'rengine/scores'],

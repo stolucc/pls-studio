@@ -118,6 +118,7 @@ it('panel examples carry no diagram and name their columns (a Bayesian SEM card 
         'bsem',
         'bollenstine',
         'cbcompare',
+        'cbsam',
         'scoreweights',
         'dynamicfit',
         'plspredict',

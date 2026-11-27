@@ -29,7 +29,12 @@ import {
 } from './plsAssessment';
 import { fimixAnalysis, pathmoxAnalysis, posAnalysis, rebusAnalysis } from './segmentation';
 import { mcPlanAnalysis } from './samplePlan';
-import { bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis } from './cbModel';
+import {
+  bollenStineAnalysis,
+  compareParamsAnalysis,
+  samAnalysis,
+  scoreWeightsAnalysis,
+} from './cbModel';
 import { specSearchAnalysis } from './specSearch';
 import { equivalentAnalysis } from './equivalent';
 import { lmWaldAnalysis } from './lmWald';
@@ -110,6 +115,7 @@ export const ANALYSIS_TYPES: AnalysisType[] = [
   egaAnalysis,
   bollenStineAnalysis,
   compareParamsAnalysis,
+  samAnalysis,
   scoreWeightsAnalysis,
   localFitAnalysis,
   discriminantAnalysis,
