@@ -74,6 +74,7 @@ const PANEL_TAGS: Record<string, string[]> = {
   pwr: ['Basic statistics', 'Power analysis', 'Sample size'],
   pcor: ['Basic statistics', 'Partial correlations'],
   dominance: ['Regression', 'Effect sizes'],
+  dsep: ['Path analysis', 'd-separation', 'Model fit'],
   km: ['Survival', 'Kaplan–Meier'],
   metasem: ['Meta-analysis'],
   semtree: ['SEM trees', 'Heterogeneity'],
@@ -117,6 +118,7 @@ const MODEL_CARDS = new Set([
   'lsem',
   'dmacs',
   'guidedinvariance',
+  'dsep',
   'psem',
   'hypotheses',
 ]);
@@ -314,6 +316,7 @@ const AUTHORS_BY_ID: Record<string, string[]> = {
   'nls-growth-distal-final': ['McCormick', 'Curran', 'Hancock'],
   'lavaan-hs-guided-means': ['Hancock'],
   'swiss-dominance': ['Budescu', 'Azen'],
+  'bollen-union-dsep': ['Thoemmes', 'Rosseel', 'Textor', 'Shipley'],
   'dynamic-hs-cfahb': ['Wolf', 'McNeish'],
   'dynamic-hs-cfaone': ['Wolf', 'McNeish'],
   'dynamic-hs-exactfit': ['Wolf', 'McNeish'],

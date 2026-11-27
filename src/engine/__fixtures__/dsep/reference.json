@@ -1,0 +1,16 @@
+{
+  "generated": "2026-11-27 15:00:52",
+  "R": "R version 4.6.2 (2026-10-29)",
+  "piecewiseSEM": "2.3.1",
+  "n": 173,
+  "claims": ["unionsen ~ age + yrsmill + deferenc + laboract", "deferenc ~ yrsmill + age", "laboract ~ yrsmill + age + deferenc"],
+  "estimate": {},
+  "t": [0.696681801436145, 0.582026702417191, 0.637203658512722],
+  "df": [168, 170, 169],
+  "p": [0.486964787281978, 0.561319750505629, 0.524854458931655],
+  "fisherC": 3.88332462074546,
+  "fisherCRounded": 3.883,
+  "fisherDf": 6,
+  "lavaanChisq": 1.25862057316988,
+  "lavaanDf": 3
+}

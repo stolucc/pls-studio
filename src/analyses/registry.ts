@@ -119,6 +119,7 @@ export const ANALYSIS_TYPES: AnalysisType[] = [
   samAnalysis,
   scoreWeightsAnalysis,
   localFitAnalysis,
+  dsepAnalysis,
   discriminantAnalysis,
   compareModelsAnalysis,
   epcAnalysis,
@@ -170,6 +171,7 @@ import { powerAnalysis } from './power';
 import { stdPowerAnalysis } from './stdPower';
 import { pcorAnalysis } from './pcor';
 import { dominanceAnalysis } from './dominance';
+import { dsepAnalysis } from './dsep';
 import { kmAnalysis } from './km';
 import { metaSemAnalysis } from './metasem';
 import { semTreeAnalysis } from './semtree';

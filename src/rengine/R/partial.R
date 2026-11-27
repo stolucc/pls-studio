@@ -192,3 +192,75 @@ ps_dominance <- function(req_json, export = FALSE) {
     engine = ps_engine("stats")
   ))
 }
+
+# Tests of the independencies a path model implies (d-separation; Shipley 2000; Thoemmes, Rosseel & Textor 2018):
+# each claim of the basis set, y independent of x given the parents of both, by the t test of x in the regression of
+# y on x and the conditioning variables (the test of the partial correlation, as piecewiseSEM::dSep does it), with
+# the partial correlation and its Fisher-z interval; Shipley's Fisher's C over all claims, and Holm-adjusted p values.
+# The claims come from the app (model/dsep.ts); complete cases on the model's variables.
+ps_dsep <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  claims <- lapply(req$claims, function(cl) {
+    list(x = as.character(cl$x), y = as.character(cl$y), given = as.character(unlist(cl$given)))
+  })
+  if (!length(claims)) stop("The model implies no independencies: every pair of variables is joined.")
+  vars <- unique(as.character(unlist(req$variables)))
+  if (!all(unlist(lapply(claims, function(cl) c(cl$x, cl$y, cl$given))) %in% vars)) {
+    stop("A claim names a variable that is not in the model.")
+  }
+  fr <- ps_long_frame(req, vars)
+  v <- fr$v
+  claim_lines <- vapply(claims, function(cl) {
+    sprintf(
+      "  list(x = %s, y = %s, given = %s)", ps_q(v[[cl$x]]), ps_q(v[[cl$y]]),
+      if (length(cl$given)) ps_q(unname(unlist(v[cl$given]))) else "character(0)"
+    )
+  }, "")
+  body <- c(
+    sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[vars])))),
+    "# The basis set: y independent of x given the parents of both",
+    "claims <- list(",
+    paste(claim_lines, collapse = ",\n"),
+    ")",
+    "# Each claim: the t test of x in lm(y ~ x + given), the partial correlation and its Fisher-z 95% interval",
+    "test_claim <- function(cl) {",
+    "  fit <- lm(reformulate(sprintf(\"`%s`\", c(cl$x, cl$given)), response = sprintf(\"`%s`\", cl$y)), data = data)",
+    "  t <- summary(fit)$coefficients[2, \"t value\"]",
+    "  df <- fit$df.residual",
+    "  r <- t / sqrt(t^2 + df)",
+    "  half <- qnorm(0.975) / sqrt(nrow(data) - length(cl$given) - 3)",
+    "  c(r = r, t = t, df = df, p = 2 * pt(-abs(t), df), lower = tanh(atanh(r) - half), upper = tanh(atanh(r) + half))",
+    "}",
+    "tests <- do.call(rbind, lapply(claims, test_claim))",
+    "# Shipley's Fisher's C: -2 sum log p, chi-squared on 2k df",
+    "fisher_c <- -2 * sum(log(tests[, \"p\"]))",
+    "fisher_df <- 2 * nrow(tests)",
+    "fisher_p <- pchisq(fisher_c, fisher_df, lower.tail = FALSE)",
+    "holm <- p.adjust(tests[, \"p\"], \"holm\")"
+  )
+  inputs <- list(data = fr$data)
+  if (export) {
+    report <- c(
+      "cbind(claim = vapply(claims, function(cl) sprintf(\"%s _||_ %s | %s\", cl$y, cl$x, paste(cl$given, collapse = \", \")), \"\"),",
+      "  as.data.frame(round(tests, 4)), holm = round(holm, 4))",
+      "c(fisher_c = fisher_c, df = fisher_df, p = fisher_p)"
+    )
+    return(ps_script("Tests of the implied independencies (d-separation, base R)", "stats", inputs, body, report))
+  }
+  env <- ps_run(body, inputs)
+  rows <- lapply(seq_along(claims), function(i) {
+    t <- env$tests[i, ]
+    list(
+      x = claims[[i]]$x, y = claims[[i]]$y, given = I(claims[[i]]$given),
+      r = t[["r"]], t = t[["t"]], df = t[["df"]], p = t[["p"]], lower = t[["lower"]], upper = t[["upper"]],
+      holm = env$holm[[i]]
+    )
+  })
+  ps_json(list(
+    n = nrow(env$data),
+    claims = rows,
+    fisherC = env$fisher_c, fisherDf = env$fisher_df, fisherP = env$fisher_p,
+    warnings = env$.warnings,
+    engine = ps_engine("stats")
+  ))
+}

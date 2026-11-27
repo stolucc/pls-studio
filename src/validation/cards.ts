@@ -785,6 +785,10 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     features: ['rengine/cbExtras::factor score weights', 'rengine/scores'],
   },
   localfit: ft('rengine/cbDiag::residual correlations', 'rengine/cbDiag::Browne'),
+  dsep: {
+    examples: ['bollen-union-dsep'],
+    note: 'The basis set and each claim’s t test against piecewiseSEM::dSep on the same model in desktop R (scripts/validation/dsep.R).',
+  },
   cbdiscriminant: ft('rengine/cbDiag::the HS factors', 'rengine/cbDiag::Political Democracy'),
   cbmodels: {
     examples: ['nonnest2-hs-vuong'],

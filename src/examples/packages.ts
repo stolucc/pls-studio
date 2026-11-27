@@ -308,6 +308,7 @@ export type CardPanelKind =
   | 'dmacs'
   | 'guidedinvariance'
   | 'dominance'
+  | 'dsep'
   | 'plsmultilevel'
   | 'hypotheses'
   | 'apim'
@@ -1513,6 +1514,43 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
       ['yrsmill', 'unionsen'],
     ],
     baseline: 'independence',
+    settings: CB('ML'),
+  },
+  {
+    id: 'bollen-union-dsep',
+    package: 'MIIVsem',
+    title: 'Union sentiment: testing the independencies a path model implies (d-separation)',
+    source:
+      'MIIVsem, ?bollen1989b; Thoemmes, Rosseel & Textor (2018), local fit evaluation of SEMs using graphical criteria',
+    links: [
+      { label: '?bollen1989b', url: 'https://rdrr.io/cran/MIIVsem/man/bollen1989b.html' },
+      {
+        label: 'Thoemmes, Rosseel & Textor (2018)',
+        url: 'https://doi.org/10.1037/met0000147',
+      },
+      { label: 'Shipley (2000), SEM 7(2)', url: 'https://doi.org/10.1207/S15328007SEM0702_4' },
+      {
+        label: 'Quantitude S5E20: Local fit',
+        url: 'https://quantitude.org/episodes/',
+      },
+    ],
+    description:
+      'Bollen’s union sentiment path model again, now asking which of its missing arrows the data contradict. The model leaves three pairs unjoined (age and union sentiment, years in the mill and deference, years in the mill and activism), so it implies three conditional independencies, each tested on its own by a partial correlation given the parents of both. Checked against piecewiseSEM’s dSep in desktop R. Opens its card on the Analyses tab beside the diagram.',
+    shows:
+      'None of the three claims is rejected (partial r from .045 to .054, p from .49 to .56), and Fisher’s C = 3.88 on 6 df agrees with the model’s χ² = 1.26 on 3 df: the missing arrows are supported one by one, not just on average.',
+    data: { package: 'MIIVsem', name: 'bollen1989b' },
+    tags: ['Path analysis', 'Textbook example'],
+    constructs: [v('age'), v('yrsmill'), v('deferenc'), v('laboract'), v('unionsen')],
+    paths: [
+      ['age', 'deferenc'],
+      ['age', 'laboract'],
+      ['deferenc', 'laboract'],
+      ['deferenc', 'unionsen'],
+      ['laboract', 'unionsen'],
+      ['yrsmill', 'unionsen'],
+    ],
+    baseline: 'independence',
+    panel: { kind: 'dsep' },
     settings: CB('ML'),
   },
   {

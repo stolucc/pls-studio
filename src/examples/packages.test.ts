@@ -129,6 +129,7 @@ it('panel examples carry no diagram and name their columns (a Bayesian SEM card 
         'pos',
         'mc',
         'cmb',
+        'dsep',
         ...Object.keys(BY_COLUMN),
       ].includes(e.panel!.kind)
     ) {
